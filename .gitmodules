@@ -1,0 +1,3 @@
+[submodule "uica-staticdeps"]
+	path = uica-staticdeps
+	url = git@gitlab.inria.fr:CORSE/uica-staticdeps.git
