@@ -4,4 +4,6 @@ version = "0.1.0"
 description = "Benchmarks repository for xDSL autotuning paper."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "xdsl>=0.29.0",
+]
