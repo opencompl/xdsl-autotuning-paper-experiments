@@ -4,6 +4,14 @@ version = "0.1.0"
 description = "Benchmarks repository for xDSL autotuning paper."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = [
-    "xdsl>=0.29.0",
-]
+dependencies = ["xdsl>=0.29.0"]
+
+[project.scripts]
+hello = "src.main:main"
+
+[tool.setuptools.packages]
+find = {}
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
