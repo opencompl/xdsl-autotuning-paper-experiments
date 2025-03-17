@@ -61,6 +61,7 @@ class BBAnalyzer(Analyzer):
 @dataclass
 class LLVM_MCA(BBAnalyzer):
 
+    arch: str = "native"
     microarch: str = "native"
 
     def check_input_consistency(self, o:Operation):
@@ -89,7 +90,7 @@ class LLVM_MCA(BBAnalyzer):
         printer = AssemblyPrinter(stream=stream)
         printer.print_module(module)
         assembly = ".intel_syntax\n" + stream.getvalue()
-        command = f"llvm-mca -mcpu={self.microarch}"
+        command = f"llvm-mca --march={self.arch} -mcpu={self.microarch}"
         out,err = run_command(
             command = command,
             input = assembly
