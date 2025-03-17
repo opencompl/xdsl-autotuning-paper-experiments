@@ -31,19 +31,14 @@ class Analyzer(ABC):
 
     def consistently_evaluate(self, o:Operation) -> Cost:
         self.check_input_consistency(o)
-        out,err = self.evaluate(o)
-        c = self.process_results(out,err)
+        c = self.evaluate(o)
         self.check_output_consistency(c)
         return c
 
     @abstractmethod
-    def evaluate(self, o:Operation) -> Tuple[str,str]:
+    def evaluate(self, o:Operation) -> Cost:
         ...
 
-    @abstractmethod
-    def process_results(self, out: str, err: str) -> Cost:
-        ...
-        
     @abstractmethod
     def check_input_consistency(self, o:Operation):
         ...
@@ -64,22 +59,10 @@ class LLVM_MCA(BBAnalyzer):
     arch: str = "native"
     microarch: str = "native"
 
-    def check_input_consistency(self, o:Operation):
-        ...
-
     def check_output_consistency(self, c: Cost):
         ...
 
-    def process_results(self, out: str, err: str) -> Cost:
-        assert err == ''
-        throughput = None
-        for line in out.split('\n'):
-            if line.startswith('Block RThroughput:'):
-                throughput = float(line.replace('Block RThroughput:',''))
-        assert not throughput is None
-        return Cost(throughput)
-        
-    def evaluate(self, o: Operation) -> Tuple[str,str]:
+    def evaluate(self, o: Operation) -> Cost:
 
         if not isinstance(o, ModuleOp):
             module = ModuleOp([o])
@@ -95,4 +78,10 @@ class LLVM_MCA(BBAnalyzer):
             command = command,
             input = assembly
         )
-        return out,err
+        assert err == ''
+        throughput = None
+        for line in out.split('\n'):
+            if line.startswith('Block RThroughput:'):
+                throughput = float(line.replace('Block RThroughput:',''))
+        assert not throughput is None
+        return Cost(throughput)
