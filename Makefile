@@ -1,5 +1,9 @@
+.PHONY: filecheck
+filecheck:
+	uv run lit -v --order=smart tests/filecheck
+
 .PHONY: tests
-tests:
+tests: filecheck
 	@echo "All tests passed successfully"
 	@exit 0
 
