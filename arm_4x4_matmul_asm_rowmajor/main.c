@@ -1,88 +1,92 @@
+#include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <time.h>
-#include <math.h>
 
 #define SIZE 4
 
-extern void matrix_mul_4x4_asm(float result[SIZE][SIZE], float A[SIZE][SIZE], float B[SIZE][SIZE]);
+extern void matrix_mul_4x4_asm(float result[SIZE][SIZE], float A[SIZE][SIZE],
+                               float B[SIZE][SIZE]);
 
-void matrix_mul_4x4_ref(float result[SIZE][SIZE], float A[SIZE][SIZE], float B[SIZE][SIZE]) {
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            result[i][j] = 0;
-            for (int k = 0; k < SIZE; k++) {
-                result[i][j] += A[i][k] * B[k][j];
-            }
-        }
+void matrix_mul_4x4_ref(float result[SIZE][SIZE], float A[SIZE][SIZE],
+                        float B[SIZE][SIZE]) {
+  for (int i = 0; i < SIZE; i++) {
+    for (int j = 0; j < SIZE; j++) {
+      for (int k = 0; k < SIZE; k++) {
+        result[i][j] += A[i][k] * B[k][j];
+      }
     }
+  }
 }
 
 void print_matrix(float matrix[SIZE][SIZE]) {
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            printf("%.2f ", matrix[i][j]);
-        }
-        printf("\n");
+  for (int i = 0; i < SIZE; i++) {
+    for (int j = 0; j < SIZE; j++) {
+      printf("%.2f ", matrix[i][j]);
     }
+    printf("\n");
+  }
 }
 
 void generate_random_matrix(float matrix[SIZE][SIZE]) {
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            matrix[i][j] = (float)(rand() % 10);
-        }
+  for (int i = 0; i < SIZE; i++) {
+    for (int j = 0; j < SIZE; j++) {
+      matrix[i][j] = (float)(rand() % 10);
     }
+  }
 }
 
 bool matrices_are_equal(float rm1[SIZE][SIZE], float rm2[SIZE][SIZE]) {
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            float val1 = rm1[i][j];
-            float val2 = rm2[i][j];
+  for (int i = 0; i < SIZE; i++) {
+    for (int j = 0; j < SIZE; j++) {
+      float val1 = rm1[i][j];
+      float val2 = rm2[i][j];
 
-            if (fabs(val1 - val2) > 1e-6) {
-                printf("Mismatch at (%d, %d): matrix1 = %f, matrix2 = %f\n", 
-                        i, j, val1, val2);
-                return false;
-            }
-        }
+      if (fabs(val1 - val2) > 1e-6) {
+        printf("Mismatch at (%d, %d): matrix1 = %f, matrix2 = %f\n", i, j, val1,
+               val2);
+        return false;
+      }
     }
-    return true;
+  }
+  return true;
 }
 
 void copy_matrix(float src[SIZE][SIZE], float dest[SIZE][SIZE]) {
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            dest[i][j] = src[i][j];  // Copy element
-        }
+  for (int i = 0; i < SIZE; i++) {
+    for (int j = 0; j < SIZE; j++) {
+      dest[i][j] = src[i][j]; // Copy element
     }
+  }
 }
 
 int main() {
-    srand(time(NULL));
+  srand(time(NULL));
 
-    float A[SIZE][SIZE], B[SIZE][SIZE], C[SIZE][SIZE], A_asm[SIZE][SIZE], B_asm[SIZE][SIZE], C_asm[SIZE][SIZE];
+  float A[SIZE][SIZE], B[SIZE][SIZE], C[SIZE][SIZE], A_asm[SIZE][SIZE],
+      B_asm[SIZE][SIZE], C_asm[SIZE][SIZE];
 
-    generate_random_matrix(A);
-    generate_random_matrix(B);
+  generate_random_matrix(A);
+  generate_random_matrix(B);
+  generate_random_matrix(C);
 
-    copy_matrix(A, A_asm);
-    copy_matrix(B, B_asm);
+  copy_matrix(A, A_asm);
+  copy_matrix(B, B_asm);
+  copy_matrix(C, C_asm);
 
-    matrix_mul_4x4_ref(C, A, B);
-    matrix_mul_4x4_asm(C_asm, A_asm, B_asm);
+  matrix_mul_4x4_ref(C, A, B);
+  matrix_mul_4x4_asm(C_asm, A_asm, B_asm);
 
-    if (matrices_are_equal(C, C_asm)) {
-        printf("\nTest Passed: The results are equal!\n");
-        return 0;
-    } else {
-        printf("\nTest Failed: The results do not match.\n");
-        printf("Matrix C (ref):\n");
-        print_matrix(C);
-        printf("\nMatrix C (asm):\n");
-        print_matrix(C_asm);
-        return 1;
-    }
+  if (matrices_are_equal(C, C_asm)) {
+    printf("\nTest Passed: The results are equal!\n");
+    return 0;
+  } else {
+    printf("\nTest Failed: The results do not match.\n");
+    printf("Matrix C (ref):\n");
+    print_matrix(C);
+    printf("\nMatrix C (asm):\n");
+    print_matrix(C_asm);
+    return 1;
+  }
 }
