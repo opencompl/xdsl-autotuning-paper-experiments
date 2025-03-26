@@ -1,9 +1,5 @@
 name: Build and Publish CI toolchain image
 on:
-  pull_request:
-    paths:
-      - Dockerfile
-      - .github/workflows/toolchain.yml
   push:
     tags: [ "v*" ]
     paths:

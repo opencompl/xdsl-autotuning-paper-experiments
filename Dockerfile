@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create directory structure
-RUN mkdir -p /usr/local/bin /usr/local/lib
+RUN mkdir -p /usr/local/bin /usr/local/lib /usr/local/include
 
 # Copy only the needed tools and their required libraries
 COPY --from=builder /usr/local/bin/mlir-cpu-runner /usr/local/bin/
@@ -37,8 +37,9 @@ COPY --from=builder /usr/local/bin/llvm-mca /usr/local/bin/
 # Copy required shared libraries
 COPY --from=builder /usr/local/lib/*.so* /usr/local/lib/
 
-# Copy necessary headers from the builder stage
-COPY --from=builder /usr/include/* /usr/include/
+# Copy all necessary headers from the builder stage
+COPY --from=builder /usr/local/include/ /usr/local/include/
+COPY --from=builder /usr/local/lib/clang/ /usr/local/lib/clang/
 
 # Install uv
 RUN wget -qO- https://astral.sh/uv/install.sh | sh
