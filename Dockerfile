@@ -42,3 +42,15 @@ COPY --from=builder /usr/include/* /usr/include/
 
 # Install uv
 RUN wget -qO- https://astral.sh/uv/install.sh | sh
+
+# Install Python
+RUN /root/.local/bin/uv python install
+
+# Put cache in src
+ENV UV_CACHE_DIR="/src/.cache/uv"
+
+# Use "venv_docker" venv inside Docker
+ENV UV_PROJECT_ENVIRONMENT="venv_docker"
+
+# Set env variable to mark that we're in a docker container
+ENV INSIDE_DOCKER=1
