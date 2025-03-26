@@ -1,4 +1,4 @@
-name: Build and Publish LLVM toolchain image
+name: Build and Publish CI toolchain image
 on:
   pull_request:
     paths:
@@ -44,7 +44,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/xdslproject/llvm
+          images: ghcr.io/opencompl/xdsl-autotuning-ci
           tags: |
             type=semver,pattern={{version}}
             type=ref,event=branch
