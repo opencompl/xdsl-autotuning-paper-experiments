@@ -31,8 +31,11 @@ COPY --from=builder /usr/local/bin/mlir-cpu-runner /usr/local/bin/
 COPY --from=builder /usr/local/bin/mlir-opt /usr/local/bin/
 COPY --from=builder /usr/local/bin/mlir-translate /usr/local/bin/
 COPY --from=builder /usr/local/bin/clang /usr/local/bin/
+COPY --from=builder /usr/local/bin/ld.lld /usr/local/bin/
 COPY --from=builder /usr/local/bin/llc /usr/local/bin/
 COPY --from=builder /usr/local/bin/llvm-mca /usr/local/bin/
+COPY --from=builder /usr/local/bin/llvm-link /usr/local/bin/
+COPY --from=builder /usr/local/bin/opt /usr/local/bin/
 
 # Copy required shared libraries
 COPY --from=builder /usr/local/lib/*.so* /usr/local/lib/
