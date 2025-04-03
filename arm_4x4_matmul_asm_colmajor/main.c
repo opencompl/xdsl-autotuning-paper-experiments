@@ -32,7 +32,7 @@ void generate_random_matrix(float matrix[SIZE * SIZE]) {
   }
 }
 
-void row_maj_to_col_maj(float arr_rm[SIZE * SIZE], float arr_cm[SIZE * SIZE]) {
+void transpose(float arr_rm[SIZE * SIZE], float arr_cm[SIZE * SIZE]) {
   for (int i = 0; i < SIZE; i++) {
     for (int j = 0; j < SIZE; j++) {
       arr_cm[(j * SIZE) + i] = arr_rm[i * SIZE + j];
@@ -49,13 +49,16 @@ int main() {
   generate_random_matrix(A);
   generate_random_matrix(B);
 
-  row_maj_to_col_maj(A, A_colmaj);
-  row_maj_to_col_maj(B, B_colmaj);
+  transpose(A, A_colmaj);
+  transpose(B, B_colmaj);
 
   matrix_mul_4x4_ref(C, A, B);
   matrix_mul_4x4_asm(C_colmaj, A_colmaj, B_colmaj);
 
-  if (isclose(C, C_colmaj, SIZE * SIZE)) {
+  float res[SIZE * SIZE];
+  transpose(C_colmaj, res);
+
+  if (isclose(C, res, SIZE * SIZE)) {
     printf("\nTest Passed: The results are equal!\n");
     return 0;
   } else {
