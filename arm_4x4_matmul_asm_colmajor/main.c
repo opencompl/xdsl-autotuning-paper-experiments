@@ -21,24 +21,6 @@ void matrix_mul_4x4_ref(float result[SIZE][SIZE], float A[SIZE][SIZE],
   }
 }
 
-void print_matrix(float matrix[SIZE][SIZE]) {
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      printf("%.2f ", matrix[i][j]);
-    }
-    printf("\n");
-  }
-}
-
-void print_matrix_colmaj(float matrix[SIZE * SIZE]) {
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      printf("%.2f ", matrix[(i * SIZE) + j]);
-    }
-    printf("\n");
-  }
-}
-
 void generate_random_matrix(float matrix[SIZE][SIZE]) {
   for (int i = 0; i < SIZE; i++) {
     for (int j = 0; j < SIZE; j++) {
