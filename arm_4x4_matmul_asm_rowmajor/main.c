@@ -4,6 +4,9 @@
 #include <time.h>
 #include <math.h>
 
+
+#include "../headers/isclose.h"
+
 #define SIZE 4
 
 extern void matrix_mul_4x4_asm(float result[SIZE][SIZE], float A[SIZE][SIZE], float B[SIZE][SIZE]);
@@ -17,23 +20,6 @@ void matrix_mul_4x4_ref(float result[SIZE][SIZE], float A[SIZE][SIZE], float B[S
             }
         }
     }
-}
-
-
-bool matrices_are_equal(float rm1[SIZE][SIZE], float rm2[SIZE][SIZE]) {
-    for (int i = 0; i < SIZE; i++) {
-        for (int j = 0; j < SIZE; j++) {
-            float val1 = rm1[i][j];
-            float val2 = rm2[i][j];
-
-            if (fabs(val1 - val2) > 1e-6) {
-                printf("Mismatch at (%d, %d): matrix1 = %f, matrix2 = %f\n", 
-                        i, j, val1, val2);
-                return false;
-            }
-        }
-    }
-    return true;
 }
 
 void copy_matrix(float src[SIZE][SIZE], float dest[SIZE][SIZE]) {
@@ -58,7 +44,7 @@ int main() {
     matrix_mul_4x4_ref(C, A, B);
     matrix_mul_4x4_asm(C_asm, A_asm, B_asm);
 
-    if (matrices_are_equal(C, C_asm)) {
+    if (is_close(C, C_asm, SIZE * SIZE)) {
         printf("\nTest Passed: The results are equal!\n");
         return 0;
     } else {

@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "../headers/isclose.h"
+
 #define SIZE 4
 
 extern void matrix_mul_4x4_asm(float result[SIZE * SIZE], float A[SIZE * SIZE],
@@ -29,23 +31,6 @@ void generate_random_matrix(float matrix[SIZE][SIZE]) {
   }
 }
 
-bool matrices_are_equal(float rm[SIZE][SIZE], float cm[SIZE * SIZE]) {
-  int match = 1;
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      float row_value = rm[i][j];
-      float col_value = cm[i + j * SIZE];
-
-      if (fabs(row_value - col_value) > 1e-6) {
-        printf("Mismatch at (%d, %d): row-major = %f, col-major = %f\n", i, j,
-               row_value, col_value);
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
 void row_maj_to_col_maj(float arr_rm[SIZE][SIZE], float arr_cm[SIZE * SIZE]) {
   for (int i = 0; i < SIZE; i++) {
     for (int j = 0; j < SIZE; j++) {
@@ -69,7 +54,7 @@ int main() {
   matrix_mul_4x4_ref(C, A, B);
   matrix_mul_4x4_asm(C_colmaj, A_colmaj, B_colmaj);
 
-  if (matrices_are_equal(C, C_colmaj)) {
+  if (is_close(C, C_colmaj, SIZE * SIZE)) {
     printf("\nTest Passed: The results are equal!\n");
     return 0;
   } else {
