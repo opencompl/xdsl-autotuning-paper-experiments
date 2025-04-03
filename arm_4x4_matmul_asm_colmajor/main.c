@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "../headers/gendata.h"
 #include "../headers/isclose.h"
 #include "../headers/print_matrix.h"
 
@@ -24,14 +25,6 @@ void matrix_mul_4x4_ref(float result[SIZE * SIZE], float A[SIZE * SIZE],
   }
 }
 
-void generate_random_matrix(float matrix[SIZE * SIZE]) {
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      matrix[i * SIZE + j] = (float)(rand() % 10);
-    }
-  }
-}
-
 void transpose(float arr_rm[SIZE * SIZE], float arr_cm[SIZE * SIZE]) {
   for (int i = 0; i < SIZE; i++) {
     for (int j = 0; j < SIZE; j++) {
@@ -41,13 +34,15 @@ void transpose(float arr_rm[SIZE * SIZE], float arr_cm[SIZE * SIZE]) {
 }
 
 int main() {
-  srand(time(NULL));
+  set_random_seed(42);
 
   float A[SIZE * SIZE], B[SIZE * SIZE], C[SIZE * SIZE], A_colmaj[SIZE * SIZE],
       B_colmaj[SIZE * SIZE], C_colmaj[SIZE * SIZE];
 
-  generate_random_matrix(A);
-  generate_random_matrix(B);
+  fill_random_data(A, SIZE * SIZE);
+  print_matrix(A, SIZE, SIZE);
+  fill_random_data(B, SIZE * SIZE);
+  print_matrix(B, SIZE, SIZE);
 
   transpose(A, A_colmaj);
   transpose(B, B_colmaj);
