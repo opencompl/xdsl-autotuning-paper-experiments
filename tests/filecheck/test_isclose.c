@@ -44,8 +44,6 @@ int main() {
   printf("A %s B\n", MATCHES[isclose(A, B, LEN)]);
   // CHECK: A does not match B
 
-  char *BOOLS[2] = {"NO", "YES"};
-
   print_mismatch_index("A", A, "A", A, LEN, 1e-5f, 1e-8f);
   // CHECK: A matches A
   // CHECK-SAME: , rtol: 0.0000100000, atol: 0.0000000100
