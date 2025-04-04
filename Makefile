@@ -16,3 +16,13 @@ precommit-install:
 .PHONY: precommit
 precommit:
 	uv run pre-commit run --all
+
+# build docker image
+.PHONY: docker-build
+docker-build:
+	docker build -t xdsl-autotuner . --platform linux/amd64
+
+# run docker image
+.PHONY: docker-run
+docker-run:
+	docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner
