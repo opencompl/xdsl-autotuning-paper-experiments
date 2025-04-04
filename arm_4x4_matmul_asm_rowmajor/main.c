@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "../headers/isclose.h"
 #include "../headers/print_matrix.h"
 
 #define SIZE 4
@@ -31,22 +32,6 @@ void generate_random_matrix(float matrix[SIZE * SIZE]) {
   }
 }
 
-bool matrices_are_equal(float rm1[SIZE * SIZE], float rm2[SIZE * SIZE]) {
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      float val1 = rm1[i * SIZE + j];
-      float val2 = rm2[i * SIZE + j];
-
-      if (fabs(val1 - val2) > 1e-6) {
-        printf("Mismatch at (%d, %d): matrix1 = %f, matrix2 = %f\n", i, j, val1,
-               val2);
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
 void copy_matrix(float src[SIZE * SIZE], float dest[SIZE * SIZE]) {
   for (int i = 0; i < SIZE; i++) {
     for (int j = 0; j < SIZE; j++) {
@@ -70,7 +55,7 @@ int main() {
   matrix_mul_4x4_ref(C, A, B);
   matrix_mul_4x4_asm(C_asm, A_asm, B_asm);
 
-  if (matrices_are_equal(C, C_asm)) {
+  if (isclose(C, C_asm, SIZE * SIZE)) {
     printf("\nTest Passed: The results are equal!\n");
     return 0;
   } else {

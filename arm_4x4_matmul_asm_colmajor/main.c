@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "../headers/isclose.h"
 #include "../headers/print_matrix.h"
 
 #define SIZE 4
@@ -31,24 +32,7 @@ void generate_random_matrix(float matrix[SIZE * SIZE]) {
   }
 }
 
-bool matrices_are_equal(float rm[SIZE * SIZE], float cm[SIZE * SIZE]) {
-  int match = 1;
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      float row_value = rm[i * SIZE + j];
-      float col_value = cm[i + j * SIZE];
-
-      if (fabs(row_value - col_value) > 1e-6) {
-        printf("Mismatch at (%d, %d): row-major = %f, col-major = %f\n", i, j,
-               row_value, col_value);
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-void row_maj_to_col_maj(float arr_rm[SIZE * SIZE], float arr_cm[SIZE * SIZE]) {
+void transpose(float arr_rm[SIZE * SIZE], float arr_cm[SIZE * SIZE]) {
   for (int i = 0; i < SIZE; i++) {
     for (int j = 0; j < SIZE; j++) {
       arr_cm[(j * SIZE) + i] = arr_rm[i * SIZE + j];
@@ -65,13 +49,16 @@ int main() {
   generate_random_matrix(A);
   generate_random_matrix(B);
 
-  row_maj_to_col_maj(A, A_colmaj);
-  row_maj_to_col_maj(B, B_colmaj);
+  transpose(A, A_colmaj);
+  transpose(B, B_colmaj);
 
   matrix_mul_4x4_ref(C, A, B);
   matrix_mul_4x4_asm(C_colmaj, A_colmaj, B_colmaj);
 
-  if (matrices_are_equal(C, C_colmaj)) {
+  float res[SIZE * SIZE];
+  transpose(C_colmaj, res);
+
+  if (isclose(C, res, SIZE * SIZE)) {
     printf("\nTest Passed: The results are equal!\n");
     return 0;
   } else {
