@@ -40,18 +40,30 @@ int main() {
       B_colmaj[SIZE * SIZE], C_colmaj[SIZE * SIZE];
 
   fill_random_data(A, SIZE * SIZE);
-  print_matrix(A, SIZE, SIZE);
   fill_random_data(B, SIZE * SIZE);
+  fill_random_data(C, SIZE * SIZE);
+
+  print_matrix(A, SIZE, SIZE);
   print_matrix(B, SIZE, SIZE);
+  print_matrix(C, SIZE, SIZE);
 
   transpose(A, A_colmaj);
   transpose(B, B_colmaj);
+  transpose(C, C_colmaj);
+
+  print_matrix(A_colmaj, SIZE, SIZE);
+  print_matrix(B_colmaj, SIZE, SIZE);
+  print_matrix(C_colmaj, SIZE, SIZE);
 
   matrix_mul_4x4_ref(C, A, B);
   matrix_mul_4x4_asm(C_colmaj, A_colmaj, B_colmaj);
 
+  print_matrix(C, SIZE, SIZE);
+
   float res[SIZE * SIZE];
   transpose(C_colmaj, res);
+
+  print_matrix(res, SIZE, SIZE);
 
   if (isclose(C, res, SIZE * SIZE)) {
     printf("\nTest Passed: The results are equal!\n");

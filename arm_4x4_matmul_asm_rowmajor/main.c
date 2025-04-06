@@ -40,15 +40,20 @@ int main() {
       B_asm[SIZE * SIZE], C_asm[SIZE * SIZE];
 
   fill_random_data(A, SIZE * SIZE);
-  print_matrix(A, SIZE, SIZE);
   fill_random_data(B, SIZE * SIZE);
+  fill_random_data(C, SIZE * SIZE);
+  print_matrix(A, SIZE, SIZE);
   print_matrix(B, SIZE, SIZE);
+  print_matrix(C, SIZE, SIZE);
 
   copy_matrix(A, A_asm);
   copy_matrix(B, B_asm);
 
   matrix_mul_4x4_ref(C, A, B);
   matrix_mul_4x4_asm(C_asm, A_asm, B_asm);
+
+  print_matrix(C, SIZE, SIZE);
+  print_matrix(C_asm, SIZE, SIZE);
 
   if (isclose(C, C_asm, SIZE * SIZE)) {
     printf("\nTest Passed: The results are equal!\n");
