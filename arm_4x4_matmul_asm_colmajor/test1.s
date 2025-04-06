@@ -11,11 +11,14 @@
 
 _matrix_mul_4x4_asm:
 
+    // Load one column (4 elements) of matrix C into each of registers V8-V11
+    ld1 {V8.4S, V9.4S, V10.4S, V11.4S}, [X0]
+
     // Load one column (4 elements) of matrix A into each of registers V0-V3
     ld1  {v0.4S, v1.4S, v2.4S, v3.4S}, [x1]
 
     // Load one column (4 elements) of matrix B into each of registers V4-V7
-    LD1  {V4.4S, V5.4S, V6.4S, V7.4S}, [X2]
+    ld1  {V4.4S, V5.4S, V6.4S, V7.4S}, [X2]
 
     // Load one column (4 elements) of matrix C into each of registers V8-V11
     ld1 {V8.4S, V9.4S, V10.4S, V11.4S}, [X0]

@@ -39,28 +39,45 @@ int main() {
       B_colmaj[SIZE * SIZE], C_colmaj[SIZE * SIZE];
 
   fill_random_data(A, SIZE * SIZE);
-  print_matrix(A, SIZE, SIZE);
   fill_random_data(B, SIZE * SIZE);
+  fill_random_data(C, SIZE * SIZE);
+
+  printf("A\n");
+  print_matrix(A, SIZE, SIZE);
+  printf("B\n");
   print_matrix(B, SIZE, SIZE);
+  printf("C\n");
+  print_matrix(C, SIZE, SIZE);
 
   transpose(A, A_colmaj);
   transpose(B, B_colmaj);
+  transpose(C, C_colmaj);
+
+  printf("A_colmaj\n");
+  print_matrix(A_colmaj, SIZE, SIZE);
+  printf("B_colmaj\n");
+  print_matrix(B_colmaj, SIZE, SIZE);
+  printf("C_colmaj\n");
+  print_matrix(C_colmaj, SIZE, SIZE);
 
   matrix_mul_4x4_ref(C, A, B);
   matrix_mul_4x4_asm(C_colmaj, A_colmaj, B_colmaj);
 
+  printf("C out\n");
+  print_matrix(C, SIZE, SIZE);
+
   float res[SIZE * SIZE];
+
+  printf("C_asm out\n");
   transpose(C_colmaj, res);
+
+  print_matrix(res, SIZE, SIZE);
 
   if (isclose(C, res, SIZE * SIZE)) {
     printf("\nTest Passed: The results are equal!\n");
     return 0;
   } else {
     printf("\nTest Failed: The results do not match.\n");
-    printf("Matrix C (ref):\n");
-    print_matrix(C, SIZE, SIZE);
-    printf("\nMatrix C (asm):\n");
-    print_matrix_colmaj(C_colmaj, SIZE, SIZE);
     return 1;
   }
 }

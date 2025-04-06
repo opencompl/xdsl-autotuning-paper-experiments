@@ -10,20 +10,20 @@
 ///
 
 _matrix_mul_4x4_asm:
-    // Load one column (4 elements) of matrix A into each of registers v0-v3
+    // Load one row (4 elements) of matrix C into each of registers v8-v11
+    ld1 {v8.4S, v9.4S, v10.4S, v11.4S}, [X0]
+
+    // Load one row (4 elements) of matrix A into each of registers v0-v3
     ld1  {v0.4s, v1.4s, v2.4s, v3.4s}, [x1]
 
-    // Load one column (4 elements) of matrix B into each of registers v4-v7
+    // Load one row (4 elements) of matrix B into each of registers v4-v7
     ld1  {v4.4s, v5.4s, v6.4s, v7.4s}, [x2]
 
-    // Load one column (4 elements) of matrix C into each of registers v8-v11
-    ld1 {V8.4S, V9.4S, V10.4S, V11.4S}, [X0]
-
     // Row 0 of result
-    fmla v8.4s, v4.4s, v0.s[0]
-    fmla v8.4s, v5.4s, v0.s[1]
-    fmla v8.4s, v6.4s, v0.s[2]
-    fmla v8.4s, v7.4s, v0.s[3]
+    fmla v8.4s, v4.4s, v0.s[0]   // C[0,:] += B[0,:] * A[0,0]
+    fmla v8.4s, v5.4s, v0.s[1]   // C[0,:] += B[1,:] * A[0,1]
+    fmla v8.4s, v6.4s, v0.s[2]   // C[0,:] += B[2,:] * A[0,2]
+    fmla v8.4s, v7.4s, v0.s[3]   // C[0,:] += B[3,:] * A[0,3]
 
     // Row 1 of result
     fmla v9.4s, v4.4s, v1.s[0]
