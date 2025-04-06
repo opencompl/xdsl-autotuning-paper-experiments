@@ -20,9 +20,6 @@ _matrix_mul_4x4_asm:
     // Load one column (4 elements) of matrix B into each of registers V4-V7
     ld1  {V4.4S, V5.4S, V6.4S, V7.4S}, [X2]
 
-    // Load one column (4 elements) of matrix C into each of registers V8-V11
-    ld1 {V8.4S, V9.4S, V10.4S, V11.4S}, [X0]
-
     // Multiply each column of A by the first element of each column of B
     FMLA V8.4S, V0.4S, V4.S[0]
     FMLA V9.4S, V0.4S, V5.S[0]
