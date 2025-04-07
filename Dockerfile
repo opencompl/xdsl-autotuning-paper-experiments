@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     libz3-dev libedit-dev libzstd-dev git make gpg libxml2 binutils \
     build-essential gcc libc6-dev \
     graphviz \
+    binutils-aarch64-linux-gnu binutils-x86-64-linux-gnu \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
