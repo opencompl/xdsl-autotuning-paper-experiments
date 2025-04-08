@@ -7,30 +7,12 @@
 #include "../headers/gendata.h"
 #include "../headers/isclose.h"
 #include "../headers/print_matrix.h"
+#include "../headers/ref_matmul.h"
 
 #define SIZE 4
 
 extern void matrix_mul_4x4_asm(float result[SIZE * SIZE], float A[SIZE * SIZE],
                                float B[SIZE * SIZE]);
-
-void matrix_mul_4x4_ref(float result[SIZE * SIZE], float A[SIZE * SIZE],
-                        float B[SIZE * SIZE]) {
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      for (int k = 0; k < SIZE; k++) {
-        result[i * SIZE + j] += A[i * SIZE + k] * B[k * SIZE + j];
-      }
-    }
-  }
-}
-
-void transpose(float arr_rm[SIZE * SIZE], float arr_cm[SIZE * SIZE]) {
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      arr_cm[(j * SIZE) + i] = arr_rm[i * SIZE + j];
-    }
-  }
-}
 
 int main() {
   set_random_seed(42);
@@ -49,9 +31,9 @@ int main() {
   printf("C\n");
   print_matrix(C, SIZE, SIZE);
 
-  transpose(A, A_colmaj);
-  transpose(B, B_colmaj);
-  transpose(C, C_colmaj);
+  transpose(A_colmaj, A, SIZE, SIZE);
+  transpose(B_colmaj, B, SIZE, SIZE);
+  transpose(C_colmaj, C, SIZE, SIZE);
 
   printf("A_colmaj\n");
   print_matrix(A_colmaj, SIZE, SIZE);
@@ -60,7 +42,7 @@ int main() {
   printf("C_colmaj\n");
   print_matrix(C_colmaj, SIZE, SIZE);
 
-  matrix_mul_4x4_ref(C, A, B);
+  ref_matmul(C, A, B, SIZE, SIZE, SIZE);
   matrix_mul_4x4_asm(C_colmaj, A_colmaj, B_colmaj);
 
   printf("C out\n");
@@ -69,7 +51,7 @@ int main() {
   float res[SIZE * SIZE];
 
   printf("C_asm out\n");
-  transpose(C_colmaj, res);
+  transpose(res, C_colmaj, SIZE, SIZE);
 
   print_matrix(res, SIZE, SIZE);
 
