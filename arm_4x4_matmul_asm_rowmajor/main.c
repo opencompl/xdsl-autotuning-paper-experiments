@@ -7,22 +7,12 @@
 #include "../headers/gendata.h"
 #include "../headers/isclose.h"
 #include "../headers/print_matrix.h"
+#include "../headers/ref_matmul.h"
 
 #define SIZE 4
 
 extern void matrix_mul_4x4_asm(float result[SIZE * SIZE], float A[SIZE * SIZE],
                                float B[SIZE * SIZE]);
-
-void matrix_mul_4x4_ref(float result[SIZE * SIZE], float A[SIZE * SIZE],
-                        float B[SIZE * SIZE]) {
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      for (int k = 0; k < SIZE; k++) {
-        result[i * SIZE + j] += A[i * SIZE + k] * B[k * SIZE + j];
-      }
-    }
-  }
-}
 
 void copy_matrix(float src[SIZE * SIZE], float dest[SIZE * SIZE]) {
   for (int i = 0; i < SIZE; i++) {
@@ -52,7 +42,7 @@ int main() {
   copy_matrix(B, B_asm);
   copy_matrix(C, C_asm);
 
-  matrix_mul_4x4_ref(C, A, B);
+  ref_matmul(C, A, B, SIZE, SIZE, SIZE);
   matrix_mul_4x4_asm(C_asm, A_asm, B_asm);
 
   printf("C out\n");
