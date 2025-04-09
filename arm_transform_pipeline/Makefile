@@ -1,19 +1,18 @@
 IMAGE_NAME = llvm-mlir
-MLIR_INPUT = matmul-transform.mlir
-MLIR_TRANSFORMED = matmul-transform.llvm.mlir
-LLVM_IR = matmul-transform.ir
-LLVM_BC = matmul-transform.bc
-OBJ_FILE = matmul-transform.o
 
 DOCKER_RUN = sudo docker run --rm -v $(PWD):/workspace -w /workspace $(IMAGE_NAME)
 
-all: build run_opt translate optimize objdump
+all: build analyze
 
 build:
 	sudo docker build -t $(IMAGE_NAME) ..
 
-run_opt: $(MLIR_INPUT)
+matmul-transform.mlir: matmul.mlir transform.mlir
+	(echo "module attributes {transform.with_named_sequence} {" && cat $^ && echo "}") > $@
+
+matmul.llvm.mlir: matmul-transform.mlir
 	$(DOCKER_RUN) mlir-opt $< \
+		--no-implicit-module \
 		--transform-interpreter \
 		--test-transform-dialect-erase-schedule \
 		--canonicalize --cse --sccp \
@@ -37,19 +36,19 @@ run_opt: $(MLIR_INPUT)
 		--convert-cf-to-llvm \
 		--convert-openmp-to-llvm \
 		--canonicalize --cse --sccp \
-		-o $(MLIR_TRANSFORMED)
+		-o $@
 
-translate: $(MLIR_TRANSFORMED)
-	$(DOCKER_RUN) mlir-translate --mlir-to-llvmir $< -o $(LLVM_IR)
+matmul.ir: matmul.llvm.mlir
+	$(DOCKER_RUN) mlir-translate --mlir-to-llvmir $< -o $@
 
-optimize: $(LLVM_IR)
-	$(DOCKER_RUN) opt -O3 -march aarch64 --mcpu apple-m2 $< -o $(LLVM_BC)
-	$(DOCKER_RUN) llc -O3 -filetype=obj -march aarch64 --mcpu apple-m2 $< -o $(OBJ_FILE)
+matmul.bc: matmul.ir
+	$(DOCKER_RUN) opt -O3 -march aarch64 --mcpu apple-m2 $< -o $@
 
-objdump: $(OBJ_FILE)
-	$(DOCKER_RUN) aarch64-linux-gnu-objdump --disassemble $(OBJ_FILE)
+matmul.s: matmul.bc
+	$(DOCKER_RUN) llc -O3 -filetype=asm -march aarch64 --mcpu apple-m2 $< -o $@
+
+analyze: matmul.s
+	$(DOCKER_RUN) llvm-mca --march aarch64 --mcpu apple-m2 $< 2> /dev/null | grep "Total Cycles"
 
 clean:
-	rm -f $(MLIR_TRANSFORMED) $(LLVM_IR) $(LLVM_BC) $(OBJ_FILE)
-
-.PHONY: all build run_opt translate optimize objdump clean
+	rm -f matmul-transform.mlir matmul.llvm.mlir matmul.ir matmul.bc matmul.s
