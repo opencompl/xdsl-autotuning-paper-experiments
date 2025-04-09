@@ -20,6 +20,7 @@ WORKDIR /
 RUN apt-get update && apt-get install -y \
     libz3-dev libedit-dev libzstd-dev git make gpg libxml2 binutils \
     build-essential gcc libc6-dev \
+    graphviz \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -36,3 +37,16 @@ ENV UV_PROJECT_ENVIRONMENT="venv_docker"
 
 # Set env variable to mark that we're in a docker container
 ENV INSIDE_DOCKER=1
+
+# Install the virtual environement
+RUN /root/.local/bin/uv venv
+
+# Install additionnal Python dependencies
+RUN /root/.local/bin/uv pip install plotly
+RUN /root/.local/bin/uv pip install git+https://gitlab.inria.fr/tbastian/staticdeps.git
+
+# Setup the INRIA distribution of uiCA
+WORKDIR /src/
+RUN git clone https://gitlab.inria.fr/CORSE/uica-staticdeps.git
+WORKDIR /src/uica-staticdeps
+RUN /root/.local/bin/uv run ./setup.sh
