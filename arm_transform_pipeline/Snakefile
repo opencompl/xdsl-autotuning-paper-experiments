@@ -1,0 +1,102 @@
+import os
+
+# Config
+image_name = "llvm-mlir"
+docker_run = f"sudo docker run --rm -v {os.getcwd()}:/workspace -w /workspace {image_name}"
+
+# Cible finale
+rule all:
+    input:
+        "matmul.s",
+        "analyze.txt"
+
+# Docker image build
+rule build:
+    output:
+        touch("image.built")
+    shell:
+        "sudo docker build -t {image_name} .. && touch {output}"
+
+# MLIR + transform concatenation
+rule matmul_transform:
+    input:
+        "matmul.mlir",
+        "transform.mlir"
+    output:
+        "matmul-transform.mlir"
+    shell:
+        '(echo "module attributes {{transform.with_named_sequence}} {{" && cat {input[0]} {input[1]} && echo "}}") > {output}'
+
+# LinAlg -> LLVM Dialect
+rule mlir_opt:
+    input:
+        "matmul-transform.mlir",
+        "image.built"
+    output:
+        "matmul.llvm.mlir"
+    shell:
+        f"""{docker_run} mlir-opt {{input[0]}} \
+            --transform-interpreter \
+            --test-transform-dialect-erase-schedule \
+            --canonicalize --cse --sccp \
+            --expand-strided-metadata \
+            --convert-linalg-to-loops \
+            --lower-affine \
+            --convert-vector-to-scf \
+            --scf-forall-to-parallel \
+            --convert-scf-to-openmp \
+            --canonicalize --cse --sccp \
+            --convert-scf-to-cf \
+            --canonicalize --cse --sccp \
+            --buffer-results-to-out-params \
+            --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
+            --finalize-memref-to-llvm \
+            --canonicalize --cse --sccp \
+            --convert-vector-to-llvm=enable-x86vector \
+            --convert-index-to-llvm \
+            --convert-arith-to-llvm \
+            --canonicalize --cse --sccp \
+            --convert-cf-to-llvm \
+            --convert-openmp-to-llvm \
+            --canonicalize --cse --sccp \
+            -o {{output}}"""
+
+# LLVM Dialect -> LLVM IR
+rule mlir_translate:
+    input:
+        "matmul.llvm.mlir"
+    output:
+        "matmul.ir"
+    shell:
+        f"{docker_run} mlir-translate --mlir-to-llvmir {{input}} -o {{output}}"
+
+# LLVM IR -> LLVM bytecode
+rule opt:
+    input:
+        "matmul.ir"
+    output:
+        "matmul.bc"
+    shell:
+        f"{docker_run} opt -O3 -march aarch64 --mcpu apple-m2 {{input}} -o {{output}}"
+
+# LLVM bytecode -> ASM
+rule llc:
+    input:
+        "matmul.bc"
+    output:
+        "matmul.s"
+    shell:
+        f"{docker_run} llc -O3 -filetype=asm -march aarch64 --mcpu apple-m2 {{input}} -o {{output}}"
+
+# llvm-mca analysis
+rule analyze:
+    input:
+        "matmul.s"
+    output:
+        "analyze.txt"
+    shell:
+        f"{docker_run} llvm-mca --march aarch64 --mcpu apple-m2 {{input}} 2> /dev/null | grep 'Total Cycles' > {{output}}"
+
+rule clean:
+    shell:
+        "rm -f matmul-transform.mlir matmul.llvm.mlir matmul.ir matmul.bc matmul.s analyze.txt image.built"
