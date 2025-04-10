@@ -44,6 +44,7 @@ RUN /root/.local/bin/uv venv
 
 # Install additionnal Python dependencies
 RUN /root/.local/bin/uv pip install plotly
+RUN /root/.local/bin/uv pip install setuptools
 RUN /root/.local/bin/uv pip install git+https://gitlab.inria.fr/tbastian/staticdeps.git
 
 # Setup the INRIA distribution of uiCA
