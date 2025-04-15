@@ -1,0 +1,26 @@
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: CI - Tests
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.5.0
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install the project
+      run: uv sync
+
+    - name: Run tests target
+      run: |
+        make tests
