@@ -1,4 +1,4 @@
-# RUN: bash %s %t | filecheck %s
+# RUN: bash %s %t && %t | filecheck %s
 set -e
 
 # Use bare pointer call convention for simpler LLVM IR
@@ -22,8 +22,5 @@ mlir-translate arm_4x4_matmul_asm_rowmajor/test2.llvm.mlir \
 clang -o $1 \
     -Wno-override-module \
     arm_4x4_matmul_asm_rowmajor/main.c arm_4x4_matmul_asm_rowmajor/test2.ll
-
-# Run executable
-$1
 
 # CHECK: Test Passed: The results are equal!
