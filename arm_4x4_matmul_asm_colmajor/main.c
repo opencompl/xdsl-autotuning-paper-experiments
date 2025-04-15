@@ -11,8 +11,8 @@
 
 #define SIZE 4
 
-extern void matrix_mul_4x4_asm(float result[SIZE * SIZE], float A[SIZE * SIZE],
-                               float B[SIZE * SIZE]);
+extern void matmul_colmaj(float result[SIZE * SIZE], float A[SIZE * SIZE],
+                          float B[SIZE * SIZE]);
 
 int main() {
   set_random_seed(42);
@@ -43,7 +43,7 @@ int main() {
   print_matrix(C_colmaj, SIZE, SIZE);
 
   ref_matmul(C, A, B, SIZE, SIZE, SIZE);
-  matrix_mul_4x4_asm(C_colmaj, A_colmaj, B_colmaj);
+  matmul_colmaj(C_colmaj, A_colmaj, B_colmaj);
 
   printf("C out\n");
   print_matrix(C, SIZE, SIZE);

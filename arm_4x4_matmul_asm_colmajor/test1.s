@@ -1,4 +1,4 @@
-.global _matrix_mul_4x4_asm
+.global _matmul_colmaj
 
 ///
 //  Function for 4x4 matrix multiplication of 32-bit floating-point values (C += A * B).
@@ -9,7 +9,7 @@
 //  The address of Matrix B is passed as x2.
 ///
 
-_matrix_mul_4x4_asm:
+_matmul_colmaj:
 
     // Load one column (4 elements) of matrix C into each of registers V8-V11
     ld1 {V8.4S, V9.4S, V10.4S, V11.4S}, [X0]
