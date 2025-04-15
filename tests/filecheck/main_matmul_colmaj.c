@@ -1,8 +1,7 @@
-// RUN: clang -o %t arm_4x4_matmul_asm_colmajor/main.c %s && %t | filecheck %s
+// RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4=4 -DINNER=4 -o %t \
+// RUN: arm_4x4_matmul_asm_colmajor/main.c %s && %t | filecheck %s
 
-#define M 4
-#define N 4
-#define K 4
+#include "../../headers/mnk.h"
 
 void matmul_colmaj(float *C, float *A, float *B) {
   for (int m = 0; m < M; m++) {

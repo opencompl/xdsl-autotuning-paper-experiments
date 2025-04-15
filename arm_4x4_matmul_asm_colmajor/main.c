@@ -6,12 +6,9 @@
 
 #include "../headers/gendata.h"
 #include "../headers/isclose.h"
+#include "../headers/mnk.h"
 #include "../headers/print_matrix.h"
 #include "../headers/ref_matmul.h"
-
-#define M 4
-#define N 4
-#define K 4
 
 extern void matmul_colmaj(float result[M * N], float A[M * K], float B[K * N]);
 
