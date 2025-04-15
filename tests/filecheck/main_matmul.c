@@ -1,5 +1,7 @@
 // RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t \
 // RUN: arm_4x4_matmul_asm_rowmajor/main.c %s && %t | filecheck %s
+// RUN: clang -DCROWS=5 -DCCOLS=6 -DINNER=7 -o %t \
+// RUN: arm_4x4_matmul_asm_rowmajor/main.c %s && %t | filecheck %s
 
 #include "../../headers/mnk.h"
 
