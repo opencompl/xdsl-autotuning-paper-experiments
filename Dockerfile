@@ -4,40 +4,33 @@ LABEL org.opencontainers.image.source=https://github.com/opencompl/xdsl-autotuni
 LABEL org.opencontainers.image.description="LLVM Docker image for xdsl autotuner experiments"
 LABEL org.opencontainers.image.licenses=MIT
 
-# Install xz-utils
+# Install dependencies and clean up in a single layer
 RUN apt-get update && apt-get install -y \
     libz3-dev libedit-dev libzstd-dev git make gpg libxml2 binutils \
     build-essential gcc libc6-dev \
     graphviz \
     binutils-aarch64-linux-gnu binutils-x86-64-linux-gnu \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-RUN wget -qO- https://astral.sh/uv/install.sh | sh
-
-# Install Python
-RUN /root/.local/bin/uv python install
-
-# Put cache in src
+# Set environment variables
 ENV UV_CACHE_DIR="/src/.cache/uv"
-
-# Use "venv_docker" venv inside Docker
 ENV UV_PROJECT_ENVIRONMENT="venv_docker"
-
-# Set env variable to mark that we're in a docker container
 ENV INSIDE_DOCKER=1
 
-# Install the virtual environement
-RUN /root/.local/bin/uv venv $UV_PROJECT_ENVIRONMENT
+# Install uv and Python in a single layer
+RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
+    /root/.local/bin/uv python install && \
+    /root/.local/bin/uv venv $UV_PROJECT_ENVIRONMENT
 
-# Install additionnal Python dependencies
-RUN /root/.local/bin/uv pip install --python $UV_PROJECT_ENVIRONMENT plotly
-RUN /root/.local/bin/uv pip install --python $UV_PROJECT_ENVIRONMENT setuptools
-RUN /root/.local/bin/uv pip install --python $UV_PROJECT_ENVIRONMENT git+https://gitlab.inria.fr/tbastian/staticdeps.git
+RUN /root/.local/bin/uv pip install --python $UV_PROJECT_ENVIRONMENT \
+    plotly setuptools git+https://gitlab.inria.fr/tbastian/staticdeps.git
 
-# Setup the INRIA distribution of uiCA
+# Install Python dependencies and setup uiCA in a single layer
 WORKDIR /src/
-RUN git clone https://gitlab.inria.fr/CORSE/uica-staticdeps.git
-WORKDIR /src/uica-staticdeps
-RUN /root/.local/bin/uv run --python ../../$UV_PROJECT_ENVIRONMENT ./setup.sh
+RUN git clone https://gitlab.inria.fr/CORSE/uica-staticdeps.git && \
+    cd uica-staticdeps && \
+    /root/.local/bin/uv run --python ../../$UV_PROJECT_ENVIRONMENT ./setup.sh && \
+    cd .. && \
+    rm -rf /src/.cache/uv/*
 WORKDIR /src/
