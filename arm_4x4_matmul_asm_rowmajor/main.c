@@ -14,14 +14,6 @@
 extern void matrix_mul_4x4_asm(float result[SIZE * SIZE], float A[SIZE * SIZE],
                                float B[SIZE * SIZE]);
 
-void copy_matrix(float src[SIZE * SIZE], float dest[SIZE * SIZE]) {
-  for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      dest[i * SIZE + j] = src[i * SIZE + j]; // Copy element
-    }
-  }
-}
-
 int main() {
   set_random_seed(42);
 
@@ -38,9 +30,9 @@ int main() {
   printf("C\n");
   print_matrix(C, SIZE, SIZE);
 
-  copy_matrix(A, A_asm);
-  copy_matrix(B, B_asm);
-  copy_matrix(C, C_asm);
+  memcpy(A_asm, A, SIZE * SIZE * sizeof(float));
+  memcpy(B_asm, B, SIZE * SIZE * sizeof(float));
+  memcpy(C_asm, C, SIZE * SIZE * sizeof(float));
 
   ref_matmul(C, A, B, SIZE, SIZE, SIZE);
   matrix_mul_4x4_asm(C_asm, A_asm, B_asm);
