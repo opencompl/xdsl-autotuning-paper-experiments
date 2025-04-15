@@ -13,6 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.4.0
 
     steps:
     - uses: actions/checkout@v4
