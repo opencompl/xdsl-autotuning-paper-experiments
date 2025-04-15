@@ -9,53 +9,54 @@
 #include "../headers/print_matrix.h"
 #include "../headers/ref_matmul.h"
 
-#define SIZE 4
+#define M 4
+#define N 4
+#define K 4
 
-extern void matmul_colmaj(float result[SIZE * SIZE], float A[SIZE * SIZE],
-                          float B[SIZE * SIZE]);
+extern void matmul_colmaj(float result[M * N], float A[M * K], float B[K * N]);
 
 int main() {
   set_random_seed(42);
 
-  float A[SIZE * SIZE], B[SIZE * SIZE], C[SIZE * SIZE], A_colmaj[SIZE * SIZE],
-      B_colmaj[SIZE * SIZE], C_colmaj[SIZE * SIZE];
+  float A[M * K], B[K * N], C[M * N], A_colmaj[M * K], B_colmaj[K * N],
+      C_colmaj[M * N];
 
-  fill_random_data(A, SIZE * SIZE);
-  fill_random_data(B, SIZE * SIZE);
-  fill_random_data(C, SIZE * SIZE);
+  fill_random_data(A, M * K);
+  fill_random_data(B, K * N);
+  fill_random_data(C, M * N);
 
   printf("A\n");
-  print_matrix(A, SIZE, SIZE);
+  print_matrix(A, M, K);
   printf("B\n");
-  print_matrix(B, SIZE, SIZE);
+  print_matrix(B, K, N);
   printf("C\n");
-  print_matrix(C, SIZE, SIZE);
+  print_matrix(C, M, N);
 
-  transpose(A_colmaj, A, SIZE, SIZE);
-  transpose(B_colmaj, B, SIZE, SIZE);
-  transpose(C_colmaj, C, SIZE, SIZE);
+  transpose(A_colmaj, A, M, K);
+  transpose(B_colmaj, B, K, N);
+  transpose(C_colmaj, C, M, N);
 
   printf("A_colmaj\n");
-  print_matrix(A_colmaj, SIZE, SIZE);
+  print_matrix(A_colmaj, M, K);
   printf("B_colmaj\n");
-  print_matrix(B_colmaj, SIZE, SIZE);
+  print_matrix(B_colmaj, K, N);
   printf("C_colmaj\n");
-  print_matrix(C_colmaj, SIZE, SIZE);
+  print_matrix(C_colmaj, M, N);
 
-  ref_matmul(C, A, B, SIZE, SIZE, SIZE);
+  ref_matmul(C, A, B, M, N, K);
   matmul_colmaj(C_colmaj, A_colmaj, B_colmaj);
 
   printf("C out\n");
-  print_matrix(C, SIZE, SIZE);
+  print_matrix(C, M, N);
 
-  float res[SIZE * SIZE];
+  float res[M * N];
 
   printf("C_asm out\n");
-  transpose(res, C_colmaj, SIZE, SIZE);
+  transpose(res, C_colmaj, M, N);
 
-  print_matrix(res, SIZE, SIZE);
+  print_matrix(res, M, N);
 
-  if (isclose(C, res, SIZE * SIZE)) {
+  if (isclose(C, res, M * N)) {
     printf("\nTest Passed: The results are equal!\n");
     return 0;
   } else {
