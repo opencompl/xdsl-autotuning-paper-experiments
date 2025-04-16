@@ -1,4 +1,4 @@
-# RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t arm_4x4_matmul_asm_colmajor/main.c %s && %t | filecheck %s
+# RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t kernels/matmul_colmaj/main.c %s && %t | filecheck %s
 
 .global _matmul_colmaj
 
