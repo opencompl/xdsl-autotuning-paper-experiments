@@ -1,4 +1,4 @@
-# RUN: clang -o %t arm_4x4_matmul_asm_colmajor/main.c %s && %t | filecheck %s
+# RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t arm_4x4_matmul_asm_colmajor/main.c %s && %t | filecheck %s
 
 .global _matmul_colmaj
 
@@ -71,24 +71,24 @@ _matmul_colmaj:
 
 # CHECK-NEXT: A_colmaj
 
-# CHECK-NEXT:  [0.00, 3.00, 4.00, 3.00;
-# CHECK-NEXT:   1.00, 4.00, 3.00, 0.00;
-# CHECK-NEXT:   5.00, 4.00, 6.00, 4.00;
-# CHECK-NEXT:   5.00, 4.00, 3.00, 2.00]
+# CHECK-NEXT:  [0.00, 1.00, 5.00, 5.00;
+# CHECK-NEXT:   3.00, 4.00, 4.00, 4.00;
+# CHECK-NEXT:   4.00, 3.00, 6.00, 3.00;
+# CHECK-NEXT:   3.00, 0.00, 4.00, 2.00]
 
 # CHECK-NEXT: B_colmaj
 
-# CHECK-NEXT:  [8.00, 9.00, 2.00, 5.00;
-# CHECK-NEXT:   3.00, 4.00, 7.00, 5.00;
-# CHECK-NEXT:   8.00, 5.00, 0.00, 6.00;
-# CHECK-NEXT:   6.00, 3.00, 7.00, 2.00]
+# CHECK-NEXT:  [8.00, 3.00, 8.00, 6.00;
+# CHECK-NEXT:   9.00, 4.00, 5.00, 3.00;
+# CHECK-NEXT:   2.00, 7.00, 0.00, 7.00;
+# CHECK-NEXT:   5.00, 5.00, 6.00, 2.00]
 
 # CHECK-NEXT: C_colmaj
 
-# CHECK-NEXT:  [6.00, 4.00, 6.00, 3.00;
-# CHECK-NEXT:   9.00, 0.00, 2.00, 7.00;
-# CHECK-NEXT:   3.00, 5.00, 4.00, 8.00;
-# CHECK-NEXT:   3.00, 0.00, 0.00, 1.00]
+# CHECK-NEXT:  [6.00, 9.00, 3.00, 3.00;
+# CHECK-NEXT:   4.00, 0.00, 5.00, 0.00;
+# CHECK-NEXT:   6.00, 2.00, 4.00, 0.00;
+# CHECK-NEXT:   3.00, 7.00, 8.00, 1.00]
 
 # CHECK-NEXT: C out
 

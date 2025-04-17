@@ -6,12 +6,9 @@
 
 #include "../headers/gendata.h"
 #include "../headers/isclose.h"
+#include "../headers/mnk.h"
 #include "../headers/print_matrix.h"
 #include "../headers/ref_matmul.h"
-
-#define M 4
-#define N 4
-#define K 4
 
 extern void matmul_colmaj(float result[M * N], float A[M * K], float B[K * N]);
 
@@ -37,11 +34,11 @@ int main() {
   transpose(C_colmaj, C, M, N);
 
   printf("A_colmaj\n");
-  print_matrix(A_colmaj, M, K);
+  print_matrix_colmaj(A_colmaj, M, K);
   printf("B_colmaj\n");
-  print_matrix(B_colmaj, K, N);
+  print_matrix_colmaj(B_colmaj, K, N);
   printf("C_colmaj\n");
-  print_matrix(C_colmaj, M, N);
+  print_matrix_colmaj(C_colmaj, M, N);
 
   ref_matmul(C, A, B, M, N, K);
   matmul_colmaj(C_colmaj, A_colmaj, B_colmaj);
@@ -52,7 +49,7 @@ int main() {
   float res[M * N];
 
   printf("C_asm out\n");
-  transpose(res, C_colmaj, M, N);
+  transpose(res, C_colmaj, N, M);
 
   print_matrix(res, M, N);
 
