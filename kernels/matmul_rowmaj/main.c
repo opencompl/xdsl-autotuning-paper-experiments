@@ -5,11 +5,11 @@
 #include <string.h>
 #include <time.h>
 
-#include "../headers/gendata.h"
-#include "../headers/isclose.h"
-#include "../headers/mnk.h"
-#include "../headers/print_matrix.h"
-#include "../headers/ref_matmul.h"
+#include "../../headers/gendata.h"
+#include "../../headers/isclose.h"
+#include "../../headers/mnk.h"
+#include "../../headers/print_matrix.h"
+#include "../../headers/ref_matmul.h"
 
 extern void matmul(float result[M * N], float A[M * K], float B[K * N]);
 
