@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y \
     build-essential gcc libc6-dev \
     graphviz \
     binutils-aarch64-linux-gnu binutils-x86-64-linux-gnu \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    libc6-dev-arm64-cross \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
