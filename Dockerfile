@@ -29,10 +29,11 @@ RUN /root/.local/bin/uv pip install --python $UV_PROJECT_ENVIRONMENT \
     plotly setuptools git+https://gitlab.inria.fr/tbastian/staticdeps.git
 
 # Install Python dependencies and setup uiCA in a single layer
-WORKDIR /src/
+WORKDIR /opt/
 RUN git clone https://gitlab.inria.fr/CORSE/uica-staticdeps.git && \
     cd uica-staticdeps && \
-    /root/.local/bin/uv run --python ../../$UV_PROJECT_ENVIRONMENT ./setup.sh && \
+    /root/.local/bin/uv run --python /$UV_PROJECT_ENVIRONMENT ./setup.sh && \
     cd .. && \
     rm -rf /src/.cache/uv/*
+ENV PATH="/opt/uica-staticdeps:$PATH"
 WORKDIR /src/
