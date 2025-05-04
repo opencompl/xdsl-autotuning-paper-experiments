@@ -17,22 +17,33 @@ RUN apt-get update && apt-get install -y \
 
 # Set environment variables
 ENV UV_CACHE_DIR="/src/.cache/uv"
-ENV UV_PROJECT_ENVIRONMENT="venv_docker"
+ENV UV_PROJECT_ENVIRONMENT="/src/venv_docker"
 ENV INSIDE_DOCKER=1
 
 # Install uv and Python in a single layer
 RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
     /root/.local/bin/uv python install && \
-    /root/.local/bin/uv venv $UV_PROJECT_ENVIRONMENT
+    /root/.local/bin/uv venv /opt/build_venv
 
-RUN /root/.local/bin/uv pip install --python $UV_PROJECT_ENVIRONMENT \
+# Install Python dependencies in build venv
+RUN /root/.local/bin/uv pip install --python /opt/build_venv \
     plotly setuptools git+https://gitlab.inria.fr/tbastian/staticdeps.git
 
-# Install Python dependencies and setup uiCA in a single layer
-WORKDIR /src/
-RUN git clone https://gitlab.inria.fr/CORSE/uica-staticdeps.git && \
-    cd uica-staticdeps && \
-    /root/.local/bin/uv run --python ../../$UV_PROJECT_ENVIRONMENT ./setup.sh && \
-    cd .. && \
-    rm -rf /src/.cache/uv/*
-WORKDIR /src/
+# Install uiCA and its dependencies in build venv
+RUN git clone https://gitlab.inria.fr/CORSE/uica-staticdeps.git /opt/uica-staticdeps && \
+    cd /opt/uica-staticdeps && \
+    /root/.local/bin/uv run --python /opt/build_venv ./setup.sh && \
+    rm -rf $UV_CACHE_DIR/*
+
+# Copy the entire build venv to a template location
+RUN cp -r /opt/build_venv /opt/venv_template
+
+# Create a script to set up the runtime venv
+RUN echo '#!/bin/bash\n\
+    if [ ! -d "$UV_PROJECT_ENVIRONMENT" ]; then\n\
+    cp -r /opt/venv_template $UV_PROJECT_ENVIRONMENT\n\
+    fi\n' > /usr/local/bin/setup-venv && \
+    chmod +x /usr/local/bin/setup-venv
+
+# Set the entrypoint to set up and activate the runtime venv
+ENTRYPOINT ["/bin/bash", "-c", "setup-venv && exec /bin/bash"]
