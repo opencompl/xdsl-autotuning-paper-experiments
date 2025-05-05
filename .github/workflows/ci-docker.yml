@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/opencompl/xdsl-autotuning-ci:0.7.0
-      options: --volume ${{ github.workspace }}:/src
+      options: --mount type=bind,source=${{ github.workspace }},target=/src
 
     steps:
     - uses: actions/checkout@v4
