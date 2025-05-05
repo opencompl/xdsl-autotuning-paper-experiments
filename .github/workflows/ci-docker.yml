@@ -15,25 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/opencompl/xdsl-autotuning-ci:0.7.0
-      options: --mount type=bind,source=${{ github.workspace }},target=/src
+      options: --volume ${{ github.workspace }}:/src
 
     steps:
     - uses: actions/checkout@v4
-      with:
-        path: /src
-
-    - name: Debug environment
-      run: |
-        echo "Environment variables:"
-        env | sort
-        echo "Current directory:"
-        pwd
-        echo "Directory contents:"
-        ls -la
-        echo "Checking if setup-venv exists:"
-        which setup-venv || echo "setup-venv not found"
-        echo "Checking /opt/venv_template:"
-        ls -la /opt/venv_template || echo "venv_template not found"
 
     - name: Install uv
       uses: astral-sh/setup-uv@v5
