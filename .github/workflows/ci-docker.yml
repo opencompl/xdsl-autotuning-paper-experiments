@@ -13,14 +13,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      GITHUB_WORKSPACE: /src
     container:
       image: ghcr.io/opencompl/xdsl-autotuning-ci:0.7.0
       options: --mount type=bind,source=${{ github.workspace }},target=/src
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        path: /src
 
     - name: Debug environment
       run: |
