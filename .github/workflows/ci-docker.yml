@@ -14,6 +14,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: ghcr.io/opencompl/xdsl-autotuning-ci:0.8.0
+    env:
+      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/venv_docker
+      UV_LINK_MODE: copy
 
     steps:
     - uses: actions/checkout@v4
@@ -24,8 +27,8 @@ jobs:
         enable-cache: true
         cache-dependency-glob: "uv.lock"
 
-    - name: Run launch.sh
-      run: ./launch.sh
+    - name: Setup virtual environment
+      run: cp -r /opt/venv_template "$GITHUB_WORKSPACE/venv_docker"
 
     - name: Install the project
       run: uv sync
