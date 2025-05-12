@@ -41,7 +41,7 @@ docker-build:
 # run docker image
 .PHONY: docker-run
 docker-run:
-	docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner
+	docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner /src/launch.sh
 
 .PHONY: clean
 clean:
