@@ -30,8 +30,5 @@ jobs:
     - name: Setup virtual environment
       run: cp -r /opt/venv_template "$GITHUB_WORKSPACE/venv_docker"
 
-    - name: Install the project
-      run: uv sync
-
     - name: Run tests target
       run: make tests
