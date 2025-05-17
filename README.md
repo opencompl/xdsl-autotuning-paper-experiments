@@ -1,1 +1,57 @@
 # xdsl-autotuning-paper-experiments
+
+This repository contains code to generate data and graphs for the xDSL Autotuning paper
+(title TBD).
+
+The objective is for the code to be easy to adapt and extend, and to be able to run on
+four platforms:
+
+1. macOS on ARM
+2. Intel native
+3. GitHub CI
+4. Docker
+
+Each of these has quirks and limitations.
+
+`uiCA` can only be installed on x86 devices, and has a weird installation process, so
+it's only installed exercised in the Docker container.
+Running Docker on ARM macs lets us execute x86 code, but we have not set up ARM
+simulation to test the ARM code on x86 devices.
+
+## Setting Up
+
+There are two kinds of actions to perform in this repository: running tests (to quickly
+check that the code in this repo is correct), and compute the data and charts for the
+paper.
+
+### Running Tests
+
+We use two kinds of tests in this repository:
+
+1. lit/filecheck
+2. snakemake tests
+
+Running `make tests` executes both of them, installing dependencies if necessary.
+These should be able to run on the host computer, or on the Docker container.
+In order to execute them in the Docker container, first run `make docker-run`, then
+`make tests`.
+The two test CI jobs test each of these flows, but we don't have an ARM CI so one tests
+the Docker container, and the other host linux x86 execution, so please be mindful when
+pushing things that affect ARM code, as these may have to be tested locally.
+
+Running `make tests` will automatically detect the platform, and run only the tests that
+can be executed on that machine.
+For example, when executing `make tests` on macOS, x86 assembly will be created, but it
+will not be executed.
+
+### Computing Data
+
+Not yet implemented :)
+
+## Building The Docker Container
+
+Run `make docker-build`.
+
+We have a CI script that publishes a new version of Docker automatically when a commit
+in `main` is tagged with a tag like `v1.2.3`.
+So far we've used 0ver (just incrementing the minor version, `v0.1.0`, `v0.2.0`, etc.).
