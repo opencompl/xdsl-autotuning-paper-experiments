@@ -44,4 +44,4 @@ myfun:
 	vmovups %xmm1,0x30(%rdx)
 	ret
 
-// CHECK: 21.00
+// CHECK: 20.00
