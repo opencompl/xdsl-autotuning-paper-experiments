@@ -1,4 +1,4 @@
-# RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t kernels/matmul_rowmaj/main.c %s && %t | filecheck %s
+# RUN: clang-20 -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t kernels/matmul_rowmaj/main.c %s && %t | filecheck %s
 
 .global _matmul
 

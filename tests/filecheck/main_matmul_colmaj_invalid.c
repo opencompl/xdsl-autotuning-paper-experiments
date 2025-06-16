@@ -1,4 +1,4 @@
-// RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t \
+// RUN: clang-20 -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t \
 // RUN: kernels/matmul_colmaj/main.c %s || %t | filecheck %s
 
 void matmul_colmaj(float *C, float *A, float *B) {

@@ -1,4 +1,4 @@
-// RUN: clang -c %s -o %t
+// RUN: clang-20 -c %s -o %t
 // RUN: /opt/uica-staticdeps/uiCA.py -arch SKL %t -TPonly | filecheck %s
 
 myfun:

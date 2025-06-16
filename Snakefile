@@ -1,3 +1,5 @@
+configfile: "default.yaml"
+
 from typing import NamedTuple
 
 class Kernel3D(NamedTuple):
@@ -59,17 +61,19 @@ rule asm:
     input: "kernels/{kernel}/naive.c"
     output: "build/{kernel}/{m}x{n}x{k}/naive.{target}.S"
     params:
-        target_triple=target_triple
+        target_triple=target_triple,
+        cc=config["cc"],
     shell:
-        "clang -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -S -target {params.target_triple} -o {output} {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -S -target {params.target_triple} -o {output} {input}"
 
 rule executable:
     input: "build/{kernel}/{m}x{n}x{k}/naive.{target}.S"
     output: "build/{kernel}/{m}x{n}x{k}/naive.{target}.o"
     params:
-        target_triple=target_triple
+        target_triple=target_triple,
+        cc=config["cc"],
     shell:
-        "clang -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/main.c {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/main.c {input}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/naive.{target}.o"
