@@ -28,4 +28,5 @@ jobs:
 
     - name: Run tests target
       run: |
+        ln -s $(which clang) /usr/local/bin/clang-20
         make tests

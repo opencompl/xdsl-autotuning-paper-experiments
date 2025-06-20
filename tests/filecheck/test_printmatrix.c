@@ -1,4 +1,4 @@
-// RUN: clang -o %t %s && %t | filecheck %s
+// RUN: clang-20 -o %t %s && %t | filecheck %s
 
 #include "../../headers/print_matrix.h"
 #include <stdbool.h>

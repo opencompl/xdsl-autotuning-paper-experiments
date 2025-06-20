@@ -1,21 +1,13 @@
-// RUN: clang -o %t %s && %t | filecheck %s
+// RUN: clang-20 -o %t %s && %t | filecheck %s
 
 #include "../../headers/print_matrix.h"
 #include "../../headers/ref_matmul.h"
 #include <stdbool.h>
 
-int main()
-{
-  float A[6] = {
-      1.0f, 2.0f, 3.0f,
-      4.0f, 5.0f, 6.0f};
-  float B[6] = {
-      7.0f, 8.0f,
-      9.0f, 0.0f,
-      1.0f, 2.0f};
-  float C[6] = {
-      3.0f, 4.0f,
-      5.0f, 6.0f};
+int main() {
+  float A[6] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+  float B[6] = {7.0f, 8.0f, 9.0f, 0.0f, 1.0f, 2.0f};
+  float C[6] = {3.0f, 4.0f, 5.0f, 6.0f};
 
   float A_T[6], B_T[6], C_T[6];
 
