@@ -57,6 +57,14 @@ def target_triple(wildcards):
 
 ########################################################################################
 
+rule templated:
+    input: "kernels/{kernel}/mlir.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/mlir.mlir"
+    shell:
+        # Use awk to substitute {{M}} for m and so on
+        # Use {{ to otuput a single { when executing command
+        "awk '{{gsub(/{{{{M}}}}/, \"{wildcards.m}\"); gsub(/{{{{N}}}}/, \"{wildcards.n}\"); gsub(/{{{{K}}}}/, \"{wildcards.k}\")}} 1' {input} > {output}"
+
 rule asm_c:
     input: "kernels/{kernel}/{variant}.c"
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.S"
