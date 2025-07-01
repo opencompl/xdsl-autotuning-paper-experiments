@@ -57,7 +57,7 @@ def target_triple(wildcards):
 
 ########################################################################################
 
-rule asm:
+rule asm_c:
     input: "kernels/{kernel}/{variant}.c"
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.S"
     params:
