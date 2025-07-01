@@ -1,4 +1,6 @@
-from xdsl.ir import Block, Region
+from typing import cast
+from xdsl.dialects.x86.register import X86VectorRegisterType
+from xdsl.ir import Block, BlockArgument, Region
 from xdsl.dialects import x86_func, x86
 from analyzers import LLVM_MCA
 
@@ -6,9 +8,15 @@ from analyzers import LLVM_MCA
 def build_basic_block():
     input_types = [x86.register.YMM0, x86.register.YMM1, x86.register.YMM2]
 
-    new_block = Block()
-    for i, a in enumerate(input_types):
-        new_block.insert_arg(a, i)
+    new_block = Block(arg_types=input_types)
+    block_args = cast(
+        tuple[
+            BlockArgument[X86VectorRegisterType],
+            BlockArgument[X86VectorRegisterType],
+            BlockArgument[X86VectorRegisterType],
+        ],
+        new_block.args,
+    )
     new_region = Region(new_block)
     new_func = x86_func.FuncOp(
         "f",
@@ -17,9 +25,7 @@ def build_basic_block():
         visibility="public",
     )
 
-    vfma = x86.ops.RRR_Vfmadd231pdOp(
-        new_block.args[0], new_block.args[1], new_block.args[2], result=input_types[0]
-    )
+    vfma = x86.ops.RSS_Vfmadd231pdOp(block_args[0], block_args[1], block_args[2])
     new_block.add_op(vfma)
 
     return new_func
