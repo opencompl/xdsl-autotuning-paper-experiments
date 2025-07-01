@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Benchmarks repository for xDSL autotuning paper."
 readme = "README.md"
 requires-python = ">=3.11.2"
-dependencies = ["snakemake>=8.30.0", "xdsl[dev]>=0.43.0"]
+dependencies = [
+    "snakemake>=8.30.0",
+    "xdsl[dev] @ git+https://github.com/xdslproject/xdsl.git@e173bb1fc55267726885ce052cd024daf96c228d",
+]
 
 [project.scripts]
 hello = "autotuner.main:main"
