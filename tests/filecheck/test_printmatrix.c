@@ -21,7 +21,12 @@ int main() {
   // CHECK:  5.00, 6.00]
 
   print_matrix(data, 6, 1);
-  // CHECK: [1.00; 2.00; 3.00; 4.00; 5.00; 6.00]
+  // CHECK: [1.00;
+  // CHECK:  2.00;
+  // CHECK:  3.00;
+  // CHECK:  4.00;
+  // CHECK:  5.00;
+  // CHECK:  6.00]
 
   printf("Column major\n");
 
@@ -38,7 +43,12 @@ int main() {
   // CHECK:  3.00, 6.00]
 
   print_matrix_colmaj(data, 6, 1);
-  // CHECK: [1.00; 2.00; 3.00; 4.00; 5.00; 6.00]
+  // CHECK: [1.00;
+  // CHECK:  2.00;
+  // CHECK:  3.00;
+  // CHECK:  4.00;
+  // CHECK:  5.00;
+  // CHECK:  6.00]
 
   return 0;
 }
