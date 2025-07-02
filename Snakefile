@@ -23,9 +23,11 @@ TESTSET_MAC = [
     # Validate CI test set neon executables
     *(f"{base}/naive_c.neon.log" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.neon.log" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.log",
     # Generate CI test set x86 assembly
     *(f"{base}/naive_c.x86.S" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.S" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.S",
 ]
 
 rule test_mac:
@@ -38,9 +40,11 @@ TESTSET_DOCKER = [
     # Validate CI test set x86 executables
     *(f"{base}/naive_c.neon.S" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.neon.S" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.S",
     # Generate CI test set neon assembly
     *(f"{base}/naive_c.x86.log" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.log" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.log",
 ]
 
 rule test_docker:
@@ -68,6 +72,29 @@ rule templated:
         # Use awk to substitute {{M}} for m and so on
         # Use {{ to otuput a single { when executing command
         "awk '{{gsub(/{{{{M}}}}/, \"{wildcards.m}\"); gsub(/{{{{N}}}}/, \"{wildcards.n}\"); gsub(/{{{{K}}}}/, \"{wildcards.k}\")}} 1' {input} > {output}"
+
+rule transform_mlir:
+    input:
+        matmul="build/{kernel}/{m}x{n}x{k}/mlir.mlir",
+        transform="kernels/{kernel}/{m}x{n}x{k}/transform.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
+    shell:
+        '(echo "module attributes {{transform.with_named_sequence}} {{" && cat {input.matmul} {input.transform} && echo "}}") > {output}'
+
+rule execute_transform:
+    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.arith.mlir"
+    shell:
+        """mlir-opt {input} \
+            --transform-interpreter \
+            --mlir-print-op-generic \
+        | xdsl-opt \
+            -p test-transform-dialect-erase-schedule \
+            --allow-unregistered-dialect \
+        | mlir-opt \
+            --convert-vector-to-scf \
+            --convert-scf-to-cf \
+            -o {output}"""
 
 rule naive_mlir:
     input: "build/{kernel}/{m}x{n}x{k}/mlir.mlir"
