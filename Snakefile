@@ -21,9 +21,9 @@ _TESTSET_CI = [
 
 TESTSET_MAC = [
     # Validate CI test set neon executables
-    *(f"{base}/naive_c.neon.log" for base in _TESTSET_CI),
-    *(f"{base}/naive_mlir.neon.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.log",
+    *(f"{base}/naive_c.neon.test.log" for base in _TESTSET_CI),
+    *(f"{base}/naive_mlir.neon.test.log" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.test.log",
     # Generate CI test set x86 assembly
     *(f"{base}/naive_c.x86.S" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.S" for base in _TESTSET_CI),
@@ -42,9 +42,9 @@ TESTSET_DOCKER = [
     *(f"{base}/naive_mlir.neon.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.S",
     # Generate CI test set neon assembly
-    *(f"{base}/naive_c.x86.log" for base in _TESTSET_CI),
-    *(f"{base}/naive_mlir.x86.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.log",
+    *(f"{base}/naive_c.x86.test.log" for base in _TESTSET_CI),
+    *(f"{base}/naive_mlir.x86.test.log" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.test.log",
 ]
 
 rule test_docker:
@@ -147,17 +147,24 @@ rule asm_c:
 
 rule executable:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.S"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.o"
+    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.{executable}.o"
     params:
         target_triple=target_triple,
         cc=config["cc"],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/main.c {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input}"
 
 rule validation:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.o"
+    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
     # A log won't be deleted by Snakemake if the script fails
-    log: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.log"
+    log: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.log"
     params:
         target_triple=target_triple
     shell: '{input} > {log}'
+
+rule time:
+    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.time.o"
+    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.time.txt"
+    params:
+        target_triple=target_triple
+    shell: '{input} > {output}'
