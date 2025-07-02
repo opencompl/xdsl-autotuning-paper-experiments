@@ -1,5 +1,5 @@
 // RUN: clang-20 -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t \
-// RUN: kernels/matmul_rowmaj/main.c %s || %t | filecheck %s
+// RUN: kernels/matmul_rowmaj/test.c %s || %t | filecheck %s
 
 #include "../../headers/mnk.h"
 
