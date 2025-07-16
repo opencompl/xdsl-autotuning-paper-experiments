@@ -39,9 +39,16 @@ docker-build:
 	docker build -t xdsl-autotuner . --platform linux/amd64
 
 # run docker image
+# Arjun's tip:
+# Call nice to make your processor not nice (It won't let other processes run)
+# Pin to core 2
 .PHONY: docker-run
 docker-run:
-	docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner /src/launch.sh
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner /src/launch.sh; \
+	else \
+		nice -n -15 taskset -c 2 docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner /src/launch.sh; \
+	fi
 
 .PHONY: clean
 clean:
