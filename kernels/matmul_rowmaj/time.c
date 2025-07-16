@@ -29,17 +29,19 @@ int main() {
   matmul(C, A, B);
 
   // Timing loop - NUM_ITERATIONS iterations
-  clock_t start = clock();
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
   for (int i = 0; i < NUM_ITERATIONS; i++) {
     matmul(&C[(i + 1) * M * N], A, B);
   }
 
-  clock_t end = clock();
+  struct timespec ts_end;
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
 
-  double elapsed = ((double)(end - start)) / CLOCKS_PER_USEC;
+  double elapsed = ts_end.tv_nsec - ts_start.tv_nsec;
 
-  double average_time = elapsed / (double)NUM_ITERATIONS;
-  printf("%f\n", average_time);
+  double average_cycles = (double)elapsed / (double)NUM_ITERATIONS;
+  printf("%f\n", average_cycles);
   return 0;
 }
