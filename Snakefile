@@ -160,8 +160,6 @@ rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
     # A log won't be deleted by Snakemake if the script fails
     log: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.log"
-    params:
-        target_triple=target_triple
     shell: '{input} > {log}'
 
 rule time:
@@ -175,3 +173,21 @@ rule flops:
     input: "kernels/{kernel}/flops.sh"
     output: "build/{kernel}/{m}x{n}x{k}/flops.txt"
     shell: "./{input} {wildcards.m} {wildcards.n} {wildcards.k} > {output}"
+
+rule json:
+    input:
+        time_txt="build/{kernel}/{m}x{n}x{k}/{variant}.{target}.time.txt",
+        flops_txt="build/{kernel}/{m}x{n}x{k}/flops.txt"
+    output:
+        json="build/{kernel}/{m}x{n}x{k}/{variant}.{target}.json"
+    shell:
+        """
+        M={wildcards.m}
+        N={wildcards.n}
+        K={wildcards.k}
+        FLOPS=$(head -n 1 {input.flops_txt} | tr -d '[:space:]')
+        TIME=$(head -n 1 {input.time_txt} | tr -d '[:space:]')
+        VARIANT="{wildcards.variant}"
+        TARGET="{wildcards.target}"
+        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'"}}' > {output.json}
+        """
