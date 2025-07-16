@@ -24,6 +24,7 @@ TESTSET_MAC = [
     *(f"{base}/naive_c.neon.test.log" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.neon.test.log" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.test.log",
+    f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.time.txt",
     # Generate CI test set x86 assembly
     *(f"{base}/naive_c.x86.S" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.S" for base in _TESTSET_CI),
@@ -45,6 +46,7 @@ TESTSET_DOCKER = [
     *(f"{base}/naive_c.x86.test.log" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.test.log" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.test.log",
+    f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.time.txt",
 ]
 
 rule test_docker:
