@@ -5,6 +5,8 @@ description = "Benchmarks repository for xDSL autotuning paper."
 readme = "README.md"
 requires-python = ">=3.11.2"
 dependencies = [
+    "matplotlib>=3.10.3",
+    "pandas>=2.3.1",
     "snakemake>=8.30.0",
     "xdsl[dev] @ git+https://github.com/xdslproject/xdsl.git@249b551e0168ac75c7769885e9f83b1b8786f4b7",
 ]
