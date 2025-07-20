@@ -9,4 +9,5 @@ m=$1
 n=$2
 k=$3
 
+# Note that this counts FMA as 2 floating-point operations
 echo $((m * n * k * 2))
