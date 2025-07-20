@@ -42,6 +42,7 @@ docker-build:
 # Arjun's tip:
 # Call nice to make your processor not nice (It won't let other processes run)
 # Pin to core 2
+# To run nice without sudo, add `your_username - nice -20` to `etc/security/limits.conf`
 .PHONY: docker-run
 docker-run:
 	@if [ "$$(uname -s)" = "Darwin" ]; then \
