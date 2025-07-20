@@ -23,6 +23,12 @@ RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
     /root/.local/bin/uv python install && \
     /root/.local/bin/uv venv /opt/build_venv
 
+# Build libxsmm
+RUN git clone https://github.com/libxsmm/libxsmm.git /opt/libxsmm && \
+    cd /opt/libxsmm && \
+    make STATIC=0 PYTHON='/root/.local/bin/uv run' && \
+    ln -sf /opt/libxsmm/bin/libxsmm_gemm_generator /usr/bin/libxsmm_gemm_generator
+
 # Install Python dependencies in build venv
 RUN /root/.local/bin/uv pip install --python /opt/build_venv \
     plotly setuptools git+https://gitlab.inria.fr/tbastian/staticdeps.git
