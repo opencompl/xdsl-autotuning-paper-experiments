@@ -170,3 +170,8 @@ rule time:
     params:
         target_triple=target_triple
     shell: '{input} > {output}'
+
+rule flops:
+    input: "kernels/{kernel}/flops.sh"
+    output: "build/{kernel}/{m}x{n}x{k}/flops.txt"
+    shell: "./{input} {wildcards.m} {wildcards.n} {wildcards.k} > {output}"
