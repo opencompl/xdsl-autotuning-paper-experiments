@@ -15,6 +15,30 @@ KERNELS_CI = [
 
 ########################################################################################
 
+def target_dataset(wildcards):
+    variants = {
+        "neon": ["naive_c"],
+        "x86": ["naive_c"],
+    }
+    sets = {
+        "ttile": [
+            *expand(
+                f"build/matmul_rowmaj/{{m}}x128x128/{{variant}}.{wildcards.target}.json",
+                m=range(8, 50, 2),
+                variant=variants[wildcards.target],
+            )
+        ],
+    }
+    name = wildcards.testset
+    if name not in sets:
+        raise ValueError(
+            f"unknown test set name '{name}', valid values are: {sets.keys()}"
+        )
+    return sets[name]
+
+
+########################################################################################
+
 _TESTSET_CI = [
     *expand("build/{k.kernel}/{k.m}x{k.n}x{k.k}", k=KERNELS_CI)
 ]
@@ -191,3 +215,8 @@ rule json:
         TARGET="{wildcards.target}"
         echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'"}}' > {output.json}
         """
+
+rule target_dataset:
+    input: target_dataset
+    output: "data/{testset}.{target}.jsonl"
+    shell: "cat {input} > {output}"
