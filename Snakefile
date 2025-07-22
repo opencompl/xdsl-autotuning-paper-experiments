@@ -228,3 +228,9 @@ rule target_dataset:
     input: target_dataset
     output: "data/{testset}.{target}.jsonl"
     shell: "cat {input} > {output}"
+
+rule target_plot:
+    input: "data/{testset}.{target}.jsonl"
+    output: "plots/{testset}.{target}.png"
+    shell:
+        "plot-{wildcards.testset} {input} --output {output}"
