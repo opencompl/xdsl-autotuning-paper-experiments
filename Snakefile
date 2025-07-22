@@ -93,7 +93,7 @@ def target_triple(wildcards):
 
 rule templated:
     input: "kernels/{kernel}/mlir.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/mlir.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/tensor.mlir"
     shell:
         # Use awk to substitute {{M}} for m and so on
         # Use {{ to otuput a single { when executing command
@@ -101,7 +101,7 @@ rule templated:
 
 rule transform_mlir:
     input:
-        matmul="build/{kernel}/{m}x{n}x{k}/mlir.mlir",
+        matmul="build/{kernel}/{m}x{n}x{k}/memref.mlir",
         transform="kernels/{kernel}/{m}x{n}x{k}/transform.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
     shell:
@@ -122,8 +122,16 @@ rule execute_transform:
             --convert-scf-to-cf \
             -o {output}"""
 
+rule memref_mlir:
+    input: "build/{kernel}/{m}x{n}x{k}/tensor.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/memref.mlir"
+    shell:
+        """mlir-opt {input} \
+            --one-shot-bufferize='bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map' \
+            -o {output}"""
+
 rule naive_mlir:
-    input: "build/{kernel}/{m}x{n}x{k}/mlir.mlir"
+    input: "build/{kernel}/{m}x{n}x{k}/memref.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/naive_mlir.arith.mlir"
     shell:
         """mlir-opt {input} \
