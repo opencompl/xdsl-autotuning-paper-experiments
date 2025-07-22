@@ -105,7 +105,7 @@ rule transform_mlir:
         transform="kernels/{kernel}/{m}x{n}x{k}/transform.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
     shell:
-        '(echo "module attributes {{transform.with_named_sequence}} {{" && cat {input.matmul} {input.transform} && echo "}}") > {output}'
+        './src/merge_transform.awk {input.matmul} {input.transform} > {output}'
 
 rule execute_transform:
     input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
