@@ -97,7 +97,7 @@ rule templated:
     shell:
         # Use awk to substitute {{M}} for m and so on
         # Use {{ to otuput a single { when executing command
-        "awk '{{gsub(/{{{{M}}}}/, \"{wildcards.m}\"); gsub(/{{{{N}}}}/, \"{wildcards.n}\"); gsub(/{{{{K}}}}/, \"{wildcards.k}\")}} 1' {input} > {output}"
+        "awk '{{gsub(/{{{{M}}}}/, \"{wildcards.m}\"); gsub(/{{{{N}}}}/, \"{wildcards.n}\"); gsub(/{{{{K}}}}/, \"{wildcards.k}\")}} 1' {input} | mlir-opt > {output}"
 
 rule transform_mlir:
     input:
