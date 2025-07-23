@@ -109,7 +109,7 @@ rule transform_mlir:
 
 rule execute_transform:
     input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.arith.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.vector.mlir"
     shell:
         """mlir-opt {input} \
             --transform-interpreter \
@@ -117,7 +117,13 @@ rule execute_transform:
         | xdsl-opt \
             -p test-transform-dialect-erase-schedule \
             --allow-unregistered-dialect \
-        | mlir-opt \
+            -o {output}"""
+
+rule vector_to_arith:
+    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.vector.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.arith.mlir"
+    shell:
+        """mlir-opt {input} \
             --convert-vector-to-scf \
             --convert-scf-to-cf \
             -o {output}"""
