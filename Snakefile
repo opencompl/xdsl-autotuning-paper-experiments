@@ -185,6 +185,20 @@ rule asm_c:
     shell:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -S -target {params.target_triple} -o {output} {input}"
 
+rule libxsmm_c:
+    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.x86.c"
+    shell:
+        "libxsmm_gemm_generator dense {output} matmul {wildcards.m} {wildcards.n} {wildcards.k} 32 32 32  1 0 1 1 hsw nopf SP"
+
+rule libxsmm_s:
+    input: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{target}.c"
+    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{target}.S"
+    params:
+        target_triple=target_triple,
+        cc=config["cc"],
+    shell:
+        "{params.cc} -mavx2 -DNDEBUG -c {input} -S -target {params.target_triple} -o {output}"
+
 rule executable:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.S"
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.{executable}.o"
