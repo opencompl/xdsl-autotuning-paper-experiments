@@ -188,7 +188,10 @@ rule asm_c:
 rule libxsmm_c:
     output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.x86.c"
     shell:
-        "libxsmm_gemm_generator dense {output} matmul {wildcards.m} {wildcards.n} {wildcards.k} 16 16 16  1 0 1 1 hsw nopf SP"
+        """
+        libxsmm_gemm_generator dense {output} matmul_abc {wildcards.m} {wildcards.n} {wildcards.k} 16 16 16  1 0 1 1 hsw nopf SP && \
+        echo 'void matmul(float *C, const float *A, const float *B) {{matmul_abc(A, B, C);}}' >> {output}
+        """
 
 rule libxsmm_s:
     input: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{target}.c"
