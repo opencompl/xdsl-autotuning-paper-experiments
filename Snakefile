@@ -188,7 +188,7 @@ rule asm_c:
 rule libxsmm_c:
     output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.x86.c"
     shell:
-        "libxsmm_gemm_generator dense {output} matmul {wildcards.m} {wildcards.n} {wildcards.k} 32 32 32  1 0 1 1 hsw nopf SP"
+        "libxsmm_gemm_generator dense {output} matmul {wildcards.m} {wildcards.n} {wildcards.k} 16 16 16  1 0 1 1 hsw nopf SP"
 
 rule libxsmm_s:
     input: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{target}.c"
