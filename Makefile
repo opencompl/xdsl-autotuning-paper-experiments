@@ -9,11 +9,11 @@ tests: filecheck snakemake
 
 .PHONY: snakemake-mac
 snakemake-mac:
-	uv run snakemake build/test_mac.txt
+	uv run snakemake --cores all build/test_mac.txt
 
 .PHONY: snakemake-docker
 snakemake-docker:
-	uv run snakemake build/test_docker.txt
+	uv run snakemake --cores all build/test_docker.txt
 
 .PHONY: snakemake
 snakemake:
