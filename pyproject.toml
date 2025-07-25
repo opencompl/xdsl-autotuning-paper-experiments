@@ -9,8 +9,11 @@ dependencies = [
     "matplotlib>=3.10.3",
     "pandas>=2.3.1",
     "snakemake>=8.30.0",
-    "xdsl[dev] @ git+https://github.com/xdslproject/xdsl.git@249b551e0168ac75c7769885e9f83b1b8786f4b7",
+    "xdsl[dev]",
 ]
+
+[tool.uv.sources]
+xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "7b941911c2c1004df260e0a303e3ee359f26b8e6" }
 
 [project.scripts]
 hello = "autotuner.main:main"
