@@ -183,3 +183,6 @@ tests/**/Output/*
 
 # Snakemake
 .snakemake
+
+# macOS
+.DS_Store
