@@ -57,6 +57,14 @@ rule vector_to_arith:
             --convert-scf-to-cf \
             -o {output}"""
 
+rule transform_xdsl:
+    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.vector.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_xdsl.x86.S"
+    params:
+        passes = ",".join(config["xdsl-opt-passes-vector"])
+    shell:
+        """xdsl-opt -p {params.passes} -t x86-asm {input} -o {output}"""
+
 rule memref_mlir:
     input: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
