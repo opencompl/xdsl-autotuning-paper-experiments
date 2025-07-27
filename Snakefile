@@ -102,7 +102,7 @@ rule templated:
 rule transform_mlir:
     input:
         matmul="build/{kernel}/{m}x{n}x{k}/memref.mlir",
-        transform="kernels/{kernel}/{m}x{n}x{k}/transform.mlir"
+        transform="kernels/{kernel}/vectorize.transform.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
     shell:
         './src/merge_transform.awk {input.matmul} {input.transform} > {output}'
