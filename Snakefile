@@ -48,6 +48,8 @@ def target_dataset(wildcards):
 PLOTS = [
     "plots/ttile.neon.png",
     "plots/ttile.x86.png",
+    "plots/4x4x4.neon.png",
+    "plots/4x4x4.x86.png",
 ]
 
 ########################################################################################
