@@ -15,19 +15,32 @@ KERNELS_CI = [
 
 ########################################################################################
 
-def target_dataset(wildcards):
-    variants = {
+DATASET_VARIANTS = {
+    "ttile": {
         "neon": ["naive_c"],
         "x86": ["naive_c"],
+    },
+    "4x4x4": {
+        "neon": ["naive_c", "transform_mlir"],
+        "x86": ["naive_c", "transform_mlir"],
     }
+}
+
+def target_dataset(wildcards):
     sets = {
         "ttile": [
             *expand(
                 f"build/matmul_rowmaj/{{m}}x128x128/{{variant}}.{wildcards.target}.json",
                 m=range(8, 50, 2),
-                variant=variants[wildcards.target],
+                variant=DATASET_VARIANTS["ttile"][wildcards.target],
             )
         ],
+        "4x4x4": [
+            *expand(
+                f"build/matmul_rowmaj/4x4x4/{{variant}}.{wildcards.target}.json",
+                variant=DATASET_VARIANTS["4x4x4"][wildcards.target],
+            )
+        ]
     }
     name = wildcards.testset
     if name not in sets:
