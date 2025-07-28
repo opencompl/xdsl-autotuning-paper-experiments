@@ -23,6 +23,10 @@ snakemake:
 		$(MAKE) snakemake-docker; \
 	fi
 
+.PHONY: plots
+plots:
+	uv run snakemake --cores all plots
+
 # set up all precommit hooks
 .PHONY: precommit-install
 precommit-install:
@@ -37,6 +41,12 @@ precommit:
 .PHONY: docker-build
 docker-build:
 	docker build -t xdsl-autotuner . --platform linux/amd64
+
+# pull and tag the CI image locally
+.PHONY: docker-pull
+docker-pull:
+	docker pull --platform linux/amd64 ghcr.io/opencompl/xdsl-autotuning-ci:latest
+	docker tag ghcr.io/opencompl/xdsl-autotuning-ci:latest xdsl-autotuner
 
 # run docker image
 # Arjun's tip:
