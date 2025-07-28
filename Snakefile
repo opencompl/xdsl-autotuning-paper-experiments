@@ -64,13 +64,13 @@ TESTSET_MAC = [
     # Validate CI test set neon executables
     *(f"{base}/naive_c.neon.test.log" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.neon.test.log" for base in _TESTSET_CI),
+    *(f"{base}/vector_intrinsic.neon.test.log" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.test.log",
     f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.time.txt",
-    f"build/matmul_rowmaj/4x4x4/vector_intrinsic.neon.time.txt",
-    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.neon.time.txt",
     # Generate CI test set x86 assembly
     *(f"{base}/naive_c.x86.S" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.S" for base in _TESTSET_CI),
+    *(f"{base}/vector_intrinsic.x86.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.S",
     f"build/matmul_rowmaj/4x4x4/vector_intrinsic.x86.S",
 ]
@@ -85,11 +85,13 @@ TESTSET_DOCKER = [
     # Validate CI test set x86 executables
     *(f"{base}/naive_c.neon.S" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.neon.S" for base in _TESTSET_CI),
+    *(f"{base}/vector_intrinsic.neon.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.S",
     f"build/matmul_rowmaj/4x4x4/vector_intrinsic.neon.S",
     # Generate CI test set neon assembly
     *(f"{base}/naive_c.x86.test.log" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.test.log" for base in _TESTSET_CI),
+    *(f"{base}/vector_intrinsic.x86.test.log" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.test.log",
     f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.time.txt",
     f"build/matmul_rowmaj/4x4x4/vector_intrinsic.x86.time.txt",
