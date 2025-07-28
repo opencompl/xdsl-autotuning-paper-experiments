@@ -4,12 +4,10 @@ func.func @matmul(
     %arg2: memref<{{K}}x{{N}}xf32> {llvm.noalias}
 ) {
     %c0 = arith.constant 0 : index
-    // Load {{VECTOR_SIZE}} elements at a time
     %A = vector.load %arg1[%c0, %c0] : memref<{{M}}x{{K}}xf32>, vector<{{MK}}xf32>
     %B = vector.load %arg2[%c0, %c0] : memref<{{K}}x{{N}}xf32>, vector<{{KN}}xf32>
     %C_in = vector.load %arg0[%c0, %c0] : memref<{{M}}x{{N}}xf32>, vector<{{MN}}xf32>
 
-    // Matrix multiply operation using derived dimensions
     %C_acc = vector.matrix_multiply %B, %A {
         lhs_rows = {{N}}: i32,
         lhs_columns = {{K}}: i32,
