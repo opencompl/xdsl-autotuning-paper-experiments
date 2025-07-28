@@ -1,4 +1,4 @@
-# uv run plot-4x4x4 data/4x4x4.neon.jsonl
+# uv run plot-cube data/cube.neon.jsonl
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
-def plot_4x4x4_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
-    """Plot a bar chart of throughput for each variant in the 4x4x4 dataset."""
+def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
+    """Plot a bar chart of throughput for each variant in the cube dataset."""
 
     # Filter out invalid time values (negative or zero)
     valid_data = df[df["time"] > 0].copy()
@@ -40,7 +40,7 @@ def plot_4x4x4_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 
     ax.set_xlabel("Variant")
     ax.set_ylabel("Throughput (FLOPs per Time)")
-    ax.set_title("4x4x4 Matrix Multiplication: Throughput by Variant")
+    ax.set_title("8x8x8 Matrix Multiplication: Throughput by Variant")
     ax.grid(axis="y", alpha=0.3)
     ax.set_ylim(bottom=0)
     ax.spines["top"].set_visible(False)
@@ -56,7 +56,7 @@ def plot_4x4x4_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Plot 4x4x4 performance bar chart.")
+    parser = argparse.ArgumentParser(description="Plot 8x8x8 performance bar chart.")
     parser.add_argument("input", type=Path, help="Input JSONL data file")
     parser.add_argument(
         "--output",
@@ -67,7 +67,7 @@ def main():
     args = parser.parse_args()
 
     df = pd.read_json(args.input, lines=True)
-    plot_4x4x4_bar_chart(df, output_file=args.output)
+    plot_cube_bar_chart(df, output_file=args.output)
 
 
 if __name__ == "__main__":
