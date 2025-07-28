@@ -1,0 +1,2 @@
+{"M":8,"N":8,"K":8,"flops":1024,"time":1796.875000,"variant":"naive_c","target":"neon"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":390.625000,"variant":"transform_mlir","target":"neon"}
