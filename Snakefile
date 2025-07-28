@@ -18,7 +18,7 @@ DATASET_VARIANTS = {
     },
     "cube": {
         "neon": ["naive_c", "transform_mlir"],
-        "x86": ["naive_c", "transform_mlir"],
+        "x86": ["naive_c", "transform_mlir", "libxsmm"],
     }
 }
 
