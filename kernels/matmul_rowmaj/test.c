@@ -18,9 +18,9 @@ int main() {
 
   float A[M * K], B[K * N], C[M * N], A_asm[M * K], B_asm[K * N], C_asm[M * N];
 
-  fill_identity(A, M, K);
-  fill_identity(B, K, N);
-  fill_zeros(C, M * N);
+  fill_random_data(A, M * K);
+  fill_random_data(B, K * N);
+  fill_random_data(C, M * N);
   printf("A\n");
   print_matrix(A, M, K);
   printf("B\n");

@@ -33,23 +33,4 @@ void fill_random_data(float *data, int size) {
   }
 }
 
-void fill_zeros(float *data, int size) {
-  for (int i = 0; i < size; i++) {
-    data[i] = 0.0f;
-  }
-}
-
-void fill_identity(float *data, int width, int height) {
-  fill_zeros(data, width * height);
-  int size;
-  if (width < height) {
-    size = width;
-  } else {
-    size = height;
-  }
-  for (int i = 0; i < size; i++) {
-    data[width * i + i] = 1.0f;
-  }
-}
-
 #endif // GENDATA_H
