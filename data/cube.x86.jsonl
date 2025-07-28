@@ -1,2 +1,3 @@
 {"M":8,"N":8,"K":8,"flops":1024,"time":693.726562,"variant":"naive_c","target":"x86"}
 {"M":8,"N":8,"K":8,"flops":1024,"time":44.460938,"variant":"transform_mlir","target":"x86"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":10.875000,"variant":"libxsmm","target":"x86"}
