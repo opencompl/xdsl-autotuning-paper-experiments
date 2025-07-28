@@ -1,2 +1,0 @@
-{"M":4,"N":4,"K":4,"flops":128,"time":125.000000,"variant":"naive_c","target":"x86"}
-{"M":4,"N":4,"K":4,"flops":128,"time":49.156250,"variant":"transform_mlir","target":"x86"}

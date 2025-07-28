@@ -271,6 +271,16 @@ rule target_dataset:
     output: "data/{testset}.{target}.jsonl"
     shell: "cat {input} > {output}"
 
+rule dataset_neon:
+    input:
+        "data/ttile.neon.jsonl",
+        "data/4x4x4.neon.jsonl",
+
+rule dataset_x86:
+    input:
+        "data/ttile.x86.jsonl",
+        "data/4x4x4.x86.jsonl",
+
 rule target_plot:
     input: "data/{testset}.{target}.jsonl"
     output: "plots/{testset}.{target}.png"
