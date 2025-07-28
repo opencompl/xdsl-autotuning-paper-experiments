@@ -91,9 +91,17 @@ def target_triple(wildcards):
 
 ########################################################################################
 
-rule templated:
+rule templated_tensor:
     input: "kernels/{kernel}/mlir.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/tensor.mlir"
+    shell:
+        # Use awk to substitute {{M}} for m and so on
+        # Use {{ to otuput a single { when executing command
+        "awk '{{gsub(/{{{{M}}}}/, \"{wildcards.m}\"); gsub(/{{{{N}}}}/, \"{wildcards.n}\"); gsub(/{{{{K}}}}/, \"{wildcards.k}\")}} 1' {input} | mlir-opt > {output}"
+
+rule templated_vector_intrinsic:
+    input: "kernels/{kernel}/vector_intrinsic.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.arith.mlir"
     shell:
         # Use awk to substitute {{M}} for m and so on
         # Use {{ to otuput a single { when executing command
@@ -174,7 +182,7 @@ rule asm_ll:
         target_triple=target_triple,
         cc=config["cc"],
     shell:
-        "{params.cc} -S -target {params.target_triple} -o {output} {input}"
+        "{params.cc} -S -fenable-matrix -target {params.target_triple} -o {output} {input}"
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
