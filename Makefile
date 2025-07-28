@@ -23,6 +23,14 @@ snakemake:
 		$(MAKE) snakemake-docker; \
 	fi
 
+.PHONY: dataset
+dataset:
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		uv run snakemake --cores 1 dataset_neon; \
+	else \
+		uv run snakemake --cores 1 dataset_x86; \
+	fi
+
 .PHONY: plots
 plots:
 	uv run snakemake --cores all plots
