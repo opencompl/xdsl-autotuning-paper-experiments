@@ -14,7 +14,7 @@ class Kernel3D(NamedTuple):
 DATASET_VARIANTS = {
     "ttile": {
         "neon": ["naive_c"],
-        "x86": ["naive_c"],
+        "x86": ["naive_c", "libxsmm"],
     },
     "4x4x4": {
         "neon": ["naive_c", "transform_mlir"],
@@ -27,8 +27,8 @@ def target_dataset(wildcards):
         "ttile": [
             *expand(
                 f"build/matmul_rowmaj/{{m}}x128x128/{{variant}}.{wildcards.target}.json",
-                m=range(8, 50, 2),
                 variant=DATASET_VARIANTS["ttile"][wildcards.target],
+                m=range(8, 50, 2),
             )
         ],
         "4x4x4": [
@@ -243,8 +243,8 @@ rule libxsmm_rowmaj_c:
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
         libxsmm_gemm_generator dense {output} matmul_bac \
-            {wildcards.n} {wildcards.k} {wildcards.m} \
-            {wildcards.n} {wildcards.n} {wildcards.k} \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
             1 1 1 1 hsw nopf SP && \
         echo 'void matmul(float *C, const float *A, const float *B) {{matmul_bac(B, A, C);}}' >> {output}
         """
