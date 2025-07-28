@@ -194,7 +194,7 @@ rule libxsmm_c:
         libxsmm_gemm_generator dense {output} matmul_abc \
             {wildcards.m} {wildcards.n} {wildcards.k} \
             {wildcards.m} {wildcards.k} {wildcards.m} \
-            1 0 1 1 hsw nopf SP && \
+            1 1 1 1 hsw nopf SP && \
         echo 'void matmul(float *C, const float *A, const float *B) {{matmul_abc(A, B, C);}}' >> {output}
         """
 
