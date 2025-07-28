@@ -49,6 +49,10 @@ def target_dataset(wildcards):
         )
     return sets[name]
 
+PLOTS = [
+    "plots/ttile.neon.png",
+    "plots/ttile.x86.png",
+]
 
 ########################################################################################
 
@@ -253,3 +257,6 @@ rule target_plot:
     output: "plots/{testset}.{target}.png"
     shell:
         "plot-{wildcards.testset} {input} --output {output}"
+
+rule plots:
+    input: PLOTS

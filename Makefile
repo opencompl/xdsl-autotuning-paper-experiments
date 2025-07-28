@@ -23,6 +23,10 @@ snakemake:
 		$(MAKE) snakemake-docker; \
 	fi
 
+.PHONY: plots
+plots:
+	uv run snakemake --cores all plots
+
 # set up all precommit hooks
 .PHONY: precommit-install
 precommit-install:
