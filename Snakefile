@@ -320,10 +320,12 @@ rule dataset_x86:
         "data/4x4x4.x86.jsonl",
 
 rule target_plot:
-    input: "data/{testset}.{target}.jsonl"
+    input:
+        jsonl="data/{testset}.{target}.jsonl",
+        script="src/plot_{testset}.py",
     output: "plots/{testset}.{target}.png"
     shell:
-        "plot-{wildcards.testset} {input} --output {output}"
+        "plot-{wildcards.testset} {input.jsonl} --output {output}"
 
 rule plots:
     input: PLOTS
