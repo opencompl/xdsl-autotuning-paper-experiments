@@ -7,6 +7,7 @@ void _print_matrix(const float *matrix, int num_rows, int num_cols,
                    bool colmajor) {
   printf("[");
   for (int i = 0; i < num_rows; i++) {
+    printf("[");
     for (int j = 0; j < num_cols; j++) {
       int idx = colmajor ? (j * num_rows + i) : (i * num_cols + j);
       printf("%.2f", matrix[idx]);
@@ -14,8 +15,9 @@ void _print_matrix(const float *matrix, int num_rows, int num_cols,
         printf(", ");
       }
     }
+    printf("]");
     if (i < num_rows - 1) {
-      printf(";\n ");
+      printf(",\n ");
     }
   }
   printf("]\n");

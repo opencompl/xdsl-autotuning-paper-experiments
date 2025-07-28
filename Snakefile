@@ -66,10 +66,13 @@ TESTSET_MAC = [
     *(f"{base}/naive_mlir.neon.test.log" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.test.log",
     f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.time.txt",
+    f"build/matmul_rowmaj/4x4x4/vector_intrinsic.neon.time.txt",
+    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.neon.time.txt",
     # Generate CI test set x86 assembly
     *(f"{base}/naive_c.x86.S" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.S",
+    f"build/matmul_rowmaj/4x4x4/vector_intrinsic.x86.S",
 ]
 
 rule test_mac:
@@ -83,11 +86,14 @@ TESTSET_DOCKER = [
     *(f"{base}/naive_c.neon.S" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.neon.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.S",
+    f"build/matmul_rowmaj/4x4x4/vector_intrinsic.neon.S",
     # Generate CI test set neon assembly
     *(f"{base}/naive_c.x86.test.log" for base in _TESTSET_CI),
     *(f"{base}/naive_mlir.x86.test.log" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.test.log",
     f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.time.txt",
+    f"build/matmul_rowmaj/4x4x4/vector_intrinsic.x86.time.txt",
+    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.x86.time.txt",
 ]
 
 rule test_docker:
@@ -108,13 +114,23 @@ def target_triple(wildcards):
 
 ########################################################################################
 
-rule templated:
-    input: "kernels/{kernel}/mlir.mlir"
+rule templated_tensor:
+    input:
+        template="kernels/{kernel}/mlir.mlir",
+        awk="src/vector_intrinsic_template.awk",
     output: "build/{kernel}/{m}x{n}x{k}/tensor.mlir"
     shell:
         # Use awk to substitute {{M}} for m and so on
         # Use {{ to otuput a single { when executing command
-        "awk '{{gsub(/{{{{M}}}}/, \"{wildcards.m}\"); gsub(/{{{{N}}}}/, \"{wildcards.n}\"); gsub(/{{{{K}}}}/, \"{wildcards.k}\")}} 1' {input} | mlir-opt > {output}"
+        "{input.awk} -v M={wildcards.m} -v N={wildcards.n} -v K={wildcards.k} {input.template} | mlir-opt > {output}"
+
+rule templated_vector_intrinsic:
+    input:
+        template="kernels/{kernel}/vector_intrinsic.mlir",
+        awk="src/vector_intrinsic_template.awk",
+    output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.arith.mlir"
+    shell:
+        "{input.awk} -v M={wildcards.m} -v N={wildcards.n} -v K={wildcards.k} {input.template} | mlir-opt > {output}"
 
 rule transform_mlir:
     input:
@@ -191,7 +207,7 @@ rule asm_ll:
         target_triple=target_triple,
         cc=config["cc"],
     shell:
-        "{params.cc} -S -target {params.target_triple} -o {output} {input}"
+        "{params.cc} -S -fenable-matrix -target {params.target_triple} -o {output} {input}"
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
