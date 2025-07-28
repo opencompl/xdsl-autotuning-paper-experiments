@@ -55,6 +55,8 @@ PLOTS = [
 KERNELS_CI = [
     Kernel3D("matmul_rowmaj", 4, 4, 4),
     Kernel3D("matmul_rowmaj", 5, 6, 7),
+    Kernel3D("matmul_colmaj", 4, 4, 4),
+    Kernel3D("matmul_colmaj", 5, 6, 7),
 ]
 
 VARIANT_CI = [
