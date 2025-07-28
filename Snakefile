@@ -48,6 +48,8 @@ def target_dataset(wildcards):
 PLOTS = [
     "plots/ttile.neon.png",
     "plots/ttile.x86.png",
+    "plots/4x4x4.neon.png",
+    "plots/4x4x4.x86.png",
 ]
 
 ########################################################################################
@@ -292,6 +294,16 @@ rule target_dataset:
     input: target_dataset
     output: "data/{testset}.{target}.jsonl"
     shell: "cat {input} > {output}"
+
+rule dataset_neon:
+    input:
+        "data/ttile.neon.jsonl",
+        "data/4x4x4.neon.jsonl",
+
+rule dataset_x86:
+    input:
+        "data/ttile.x86.jsonl",
+        "data/4x4x4.x86.jsonl",
 
 rule target_plot:
     input: "data/{testset}.{target}.jsonl"
