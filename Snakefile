@@ -223,7 +223,7 @@ rule asm_c:
     shell:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -S -target {params.target_triple} -o {output} {input}"
 
-rule libxsmm_c:
+rule libxsmm_colmaj_c:
     output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.x86.c"
     shell:
         """
@@ -235,6 +235,20 @@ rule libxsmm_c:
             1 1 1 1 hsw nopf SP && \
         echo 'void matmul_colmaj(float *C, const float *A, const float *B) {{matmul_colmaj_abc(A, B, C);}}' >> {output}
         """
+
+rule libxsmm_rowmaj_c:
+    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.x86.c"
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        libxsmm_gemm_generator dense {output} matmul_bac \
+            {wildcards.n} {wildcards.k} {wildcards.m} \
+            {wildcards.n} {wildcards.n} {wildcards.k} \
+            1 1 1 1 hsw nopf SP && \
+        echo 'void matmul(float *C, const float *A, const float *B) {{matmul_bac(B, A, C);}}' >> {output}
+        """
+
 
 rule libxsmm_s:
     input: "build/{kernel}/{m}x{n}x{k}/libxsmm.{target}.c"
