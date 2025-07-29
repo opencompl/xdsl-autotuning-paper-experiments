@@ -17,6 +17,8 @@ def target_triple(wildcards):
 rule templated_tensor:
     input: "kernels/{kernel}/mlir.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
+    wildcard_constraints:
+        dtype="f32|f64",
     template_engine:
         "jinja2"
 
@@ -105,12 +107,13 @@ rule asm_ll:
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
-    output: "build/{kernel}/{m}x{n}x{k}/naive_c.f32.{target}.S"
+    output: "build/{kernel}/{m}x{n}x{k}/naive_c.{dtype}.{target}.S"
     params:
         target_triple=target_triple,
         cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -S -target {params.target_triple} -o {output} {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -o {output} {input}"
 
 rule executable:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
@@ -118,8 +121,9 @@ rule executable:
     params:
         target_triple=target_triple,
         cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"

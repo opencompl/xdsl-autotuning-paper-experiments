@@ -26,10 +26,10 @@ static void set_random_seed(unsigned int seed) {
   _state = get_random_next();
 }
 
-void fill_random_data(float *data, int size) {
+void fill_random_data(DTYPE *data, int size) {
   for (int i = 0; i < size; i++) {
     // Use modulo 10 to get values between 0 and 9
-    data[i] = (float)(get_random_next() % 10);
+    data[i] = (DTYPE)(get_random_next() % 10);
   }
 }
 
