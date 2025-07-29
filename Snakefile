@@ -185,16 +185,14 @@ DATASET_VARIANTS = {
 }[THIS_TARGET]
 
 DATASET_BASES = {
-    "ttile": expand(
-        "build/matmul_rowmaj/{m}x128x128/{variant}.{dtype}." + THIS_TARGET,
+    "ttile.f32": expand(
+        "build/matmul_rowmaj/{m}x128x128/{variant}.f32." + THIS_TARGET,
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
-        dtype=["f32"],
     ),
-    "cube": expand(
-        "build/matmul_rowmaj/8x8x8/{variant}.{dtype}." + THIS_TARGET,
+    "cube.f32": expand(
+        "build/matmul_rowmaj/8x8x8/{variant}.f32." + THIS_TARGET,
         variant=DATASET_VARIANTS["cube"],
-        dtype=["f32"],
     )
 }
 
