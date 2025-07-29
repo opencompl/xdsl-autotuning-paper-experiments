@@ -22,28 +22,29 @@ DATASET_VARIANTS = {
     }
 }
 
-def target_dataset(wildcards):
-    sets = {
+def target_dataset_bases(target: str, testset: str):
+    bases = {
         "ttile": [
             *expand(
-                f"build/matmul_rowmaj/{{m}}x128x128/{{variant}}.{wildcards.target}.json",
+                f"build/matmul_rowmaj/{{m}}x128x128/{{variant}}.{target}",
                 m=range(8, 50, 2),
-                variant=DATASET_VARIANTS["ttile"][wildcards.target],
+                variant=DATASET_VARIANTS["ttile"][target],
             )
         ],
         "cube": [
             *expand(
-                f"build/matmul_rowmaj/4x4x4/{{variant}}.{wildcards.target}.json",
-                variant=DATASET_VARIANTS["cube"][wildcards.target],
+                f"build/matmul_rowmaj/4x4x4/{{variant}}.{target}",
+                variant=DATASET_VARIANTS["cube"][target],
             )
         ]
     }
-    name = wildcards.testset
-    if name not in sets:
+    name = testset
+    if name not in bases:
         raise ValueError(
-            f"unknown test set name '{name}', valid values are: {sets.keys()}"
+            f"unknown test set name '{name}', valid values are: {bases.keys()}"
         )
-    return sets[name]
+    return bases[name]
+
 
 ########################################################################################
 
@@ -264,9 +265,21 @@ rule json:
         """
 
 rule target_dataset:
-    input: target_dataset
+    input: lambda wildcards: [base + ".json" for base in target_dataset_bases(testset=wildcards.testset, target=wildcards.target)]
     output: "data/{testset}.{target}.jsonl"
     shell: "cat {input} > {output}"
+
+DATASET_EXECUTABLES = [
+    base + ".time.o"
+    for testset in DATASET_VARIANTS
+    for base in target_dataset_bases(
+        target= THIS_TARGET,
+        testset= testset
+    )
+]
+
+rule dataset_code:
+    input: DATASET_EXECUTABLES
 
 rule dataset:
     input:
