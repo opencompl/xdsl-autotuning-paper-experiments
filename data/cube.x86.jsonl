@@ -1,3 +1,0 @@
-{"M":8,"N":8,"K":8,"flops":1024,"time":601.906250,"variant":"naive_c","target":"x86"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":92.750000,"variant":"transform_mlir","target":"x86"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":53.070312,"variant":"vector_intrinsic","target":"x86"}

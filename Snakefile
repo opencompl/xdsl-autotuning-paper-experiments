@@ -16,27 +16,29 @@ def target_triple(wildcards):
 
 rule templated_tensor:
     input: "kernels/{kernel}/mlir.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/tensor.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
+    wildcard_constraints:
+        dtype="f32|f64",
     template_engine:
         "jinja2"
 
 rule templated_vector_intrinsic:
     input: "kernels/{kernel}/vector_intrinsic.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.arith.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.{dtype}.arith.mlir"
     template_engine:
         "jinja2"
 
 rule transform_mlir:
     input:
-        matmul="build/{kernel}/{m}x{n}x{k}/memref.mlir",
+        matmul="build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir",
         transform="kernels/{kernel}/vectorize.transform.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
     shell:
         './src/merge_transform.awk {input.matmul} {input.transform} > {output}'
 
 rule execute_transform:
-    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.vector.mlir"
+    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.vector.mlir"
     shell:
         """mlir-opt {input} \
             --transform-interpreter \
@@ -47,8 +49,8 @@ rule execute_transform:
             -o {output}"""
 
 rule vector_to_arith:
-    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.vector.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.arith.mlir"
+    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.vector.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.arith.mlir"
     shell:
         """mlir-opt {input} \
             --convert-vector-to-scf \
@@ -56,16 +58,16 @@ rule vector_to_arith:
             -o {output}"""
 
 rule memref_mlir:
-    input: "build/{kernel}/{m}x{n}x{k}/tensor.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/memref.mlir"
+    input: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
     shell:
         """mlir-opt {input} \
             --one-shot-bufferize='bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map' \
             -o {output}"""
 
 rule naive_mlir:
-    input: "build/{kernel}/{m}x{n}x{k}/memref.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/naive_mlir.arith.mlir"
+    input: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/naive_mlir.{dtype}.arith.mlir"
     shell:
         """mlir-opt {input} \
             --convert-linalg-to-loops \
@@ -74,8 +76,8 @@ rule naive_mlir:
             -o {output}"""
 
 rule arith_to_llvm:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.arith.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.llvm.mlir"
+    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.arith.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.llvm.mlir"
     shell:
         """mlir-opt {input} \
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
@@ -89,14 +91,14 @@ rule arith_to_llvm:
             -o {output}"""
 
 rule mlir_to_ll:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.llvm.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.ll"
+    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.llvm.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.ll"
     shell:
         "mlir-translate --mlir-to-llvmir {input} -o {output}"
 
 rule asm_ll:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.ll"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.S"
+    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.ll"
+    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
     params:
         target_triple=target_triple,
         cc=config["cc"],
@@ -105,21 +107,23 @@ rule asm_ll:
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
-    output: "build/{kernel}/{m}x{n}x{k}/naive_c.{target}.S"
+    output: "build/{kernel}/{m}x{n}x{k}/naive_c.{dtype}.{target}.S"
     params:
         target_triple=target_triple,
         cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -S -target {params.target_triple} -o {output} {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -o {output} {input}"
 
 rule executable:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.S"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.{executable}.o"
+    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
+    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.{executable}.o"
     params:
         target_triple=target_triple,
         cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
@@ -132,10 +136,8 @@ rule validation:
 ########################################################################################
 
 rule time:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.time.o"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.time.txt"
-    params:
-        target_triple=target_triple
+    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.time.o"
+    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.time.txt"
     shell: '{input} > {output}'
 
 rule flops:
@@ -145,10 +147,10 @@ rule flops:
 
 rule json:
     input:
-        time_txt="build/{kernel}/{m}x{n}x{k}/{variant}.{target}.time.txt",
+        time_txt="build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.time.txt",
         flops_txt="build/{kernel}/{m}x{n}x{k}/flops.txt"
     output:
-        json="build/{kernel}/{m}x{n}x{k}/{variant}.{target}.json"
+        json="build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.json"
     shell:
         """
         M={wildcards.m}
@@ -187,13 +189,13 @@ DATASET_VARIANTS = {
 }[THIS_TARGET]
 
 DATASET_BASES = {
-    "ttile": expand(
-        "build/matmul_rowmaj/{m}x128x128/{variant}." + THIS_TARGET,
+    "ttile.f32": expand(
+        "build/matmul_rowmaj/{m}x128x128/{variant}.f32." + THIS_TARGET,
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
     ),
-    "cube": expand(
-        "build/matmul_rowmaj/8x8x8/{variant}." + THIS_TARGET,
+    "cube.f32": expand(
+        "build/matmul_rowmaj/8x8x8/{variant}.f32." + THIS_TARGET,
         variant=DATASET_VARIANTS["cube"],
     )
 }
@@ -212,7 +214,7 @@ rule dataset:
         expand(
             "data/{dataset_base}.{target}.jsonl",
             target=THIS_TARGET,
-            dataset_base=DATASET_BASES
+            dataset_base=DATASET_BASES,
         )
 
 ########################################################################################
@@ -241,33 +243,34 @@ VARIANT_CI = [
 ]
 
 _TESTSET_CI = expand(
-    "build/{k.kernel}/{k.m}x{k.n}x{k.k}/{variant}",
+    "build/{k.kernel}/{k.m}x{k.n}x{k.k}/{variant}.{dtype}",
     k=KERNELS_CI,
-    variant=VARIANT_CI
+    variant=VARIANT_CI,
+    dtype=["f32", "f64"],
 )
 
 TESTSET_MAC = [
     # Validate CI test set neon executables
     *(f"{base}.neon.test.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.neon.test.log",
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.neon.time.txt",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.test.log",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.time.txt",
     # Generate CI test set x86 assembly
     *(f"{base}.x86.S" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.x86.S",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.x86.S",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.x86.S",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.x86.S",
 ]
 
 TESTSET_DOCKER = [
     # Validate CI test set x86 executables
     *(f"{base}.neon.S" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.neon.S",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.neon.S",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.S",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.neon.S",
     # Generate CI test set neon assembly
     *(f"{base}.x86.test.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.x86.test.log",
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.x86.time.txt",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.x86.time.txt",
-    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.x86.time.txt",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.x86.test.log",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.x86.time.txt",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.x86.time.txt",
+    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.f32.x86.time.txt",
 ]
 
 TESTSET = {

@@ -11,13 +11,13 @@
 #define NUM_ITERATIONS 128
 #define CLOCKS_PER_USEC ((double)CLOCKS_PER_SEC / 1000000.0)
 
-extern void matmul(float C[M * N], float A[M * K], float B[K * N]);
+extern void matmul(DTYPE C[M * N], DTYPE A[M * K], DTYPE B[K * N]);
 
 int main() {
   set_random_seed(42);
 
-  float A[M * K], B[K * N];
-  float C[(NUM_ITERATIONS + 1) * M * N];
+  DTYPE A[M * K], B[K * N];
+  DTYPE C[(NUM_ITERATIONS + 1) * M * N];
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);

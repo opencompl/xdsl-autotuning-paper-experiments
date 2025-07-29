@@ -10,12 +10,12 @@
 #include "../../headers/print_matrix.h"
 #include "../../headers/ref_matmul.h"
 
-extern void matmul_colmaj(float result[M * N], float A[M * K], float B[K * N]);
+extern void matmul_colmaj(DTYPE result[M * N], DTYPE A[M * K], DTYPE B[K * N]);
 
 int main() {
   set_random_seed(42);
 
-  float A[M * K], B[K * N], C[M * N], A_colmaj[M * K], B_colmaj[K * N],
+  DTYPE A[M * K], B[K * N], C[M * N], A_colmaj[M * K], B_colmaj[K * N],
       C_colmaj[M * N];
 
   fill_random_data(A, M * K);
@@ -46,7 +46,7 @@ int main() {
   printf("C out\n");
   print_matrix(C, M, N);
 
-  float res[M * N];
+  DTYPE res[M * N];
 
   printf("C_asm out\n");
   transpose(res, C_colmaj, N, M);
