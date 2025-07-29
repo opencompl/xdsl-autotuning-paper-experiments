@@ -121,22 +121,16 @@ def target_triple(wildcards):
 ########################################################################################
 
 rule templated_tensor:
-    input:
-        template="kernels/{kernel}/mlir.mlir",
-        awk="src/vector_intrinsic_template.awk",
+    input: "kernels/{kernel}/mlir.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/tensor.mlir"
-    shell:
-        # Use awk to substitute {{M}} for m and so on
-        # Use {{ to otuput a single { when executing command
-        "{input.awk} -v M={wildcards.m} -v N={wildcards.n} -v K={wildcards.k} {input.template} | mlir-opt > {output}"
+    template_engine:
+        "jinja2"
 
 rule templated_vector_intrinsic:
-    input:
-        template="kernels/{kernel}/vector_intrinsic.mlir",
-        awk="src/vector_intrinsic_template.awk",
+    input: "kernels/{kernel}/vector_intrinsic.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.arith.mlir"
-    shell:
-        "{input.awk} -v M={wildcards.m} -v N={wildcards.n} -v K={wildcards.k} {input.template} | mlir-opt > {output}"
+    template_engine:
+        "jinja2"
 
 rule transform_mlir:
     input:
