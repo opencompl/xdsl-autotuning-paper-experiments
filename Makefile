@@ -2,35 +2,20 @@
 filecheck:
 	uv run lit -v --order=smart tests/filecheck
 
+.PHONY: snakemake
+snakemake:
+	uv run snakemake --cores all tests --forceall
+
 .PHONY: tests
 tests: filecheck snakemake
 	@echo "All tests passed successfully"
 	@exit 0
 
-.PHONY: snakemake-mac
-snakemake-mac:
-	uv run snakemake --cores all build/test_mac.txt
-
-.PHONY: snakemake-docker
-snakemake-docker:
-	uv run snakemake --cores all build/test_docker.txt
-
-.PHONY: snakemake
-snakemake:
-	@if [ "$$(uname -s)" = "Darwin" ]; then \
-		$(MAKE) snakemake-mac; \
-	else \
-		$(MAKE) snakemake-docker; \
-	fi
-
 # --cores 1 to avoid contention issues when measuring performance
+# re-run time measurement every time
 .PHONY: dataset
 dataset:
-	@if [ "$$(uname -s)" = "Darwin" ]; then \
-		uv run snakemake --cores 1 dataset_neon; \
-	else \
-		uv run snakemake --cores 1 dataset_x86; \
-	fi
+	uv run snakemake --cores 1 dataset --forcerun time
 
 
 PLOTS = plots/ttile.neon.png plots/ttile.x86.png plots/cube.neon.png plots/cube.x86.png
