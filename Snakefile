@@ -47,6 +47,16 @@ def target_dataset(wildcards):
 
 ########################################################################################
 
+import platform
+# "Darwin" for macOS, "Linux" for Linux, etc.
+THIS_SYSTEM = platform.system()
+
+# NOTE: we should make this more precise in the future
+THIS_TARGET = {
+    "Darwin": "neon",
+    "Linux": "x86"
+}[THIS_SYSTEM]
+
 KERNELS_CI = [
     Kernel3D("matmul_rowmaj", 4, 4, 4),
     Kernel3D("matmul_rowmaj", 5, 6, 7),
@@ -75,11 +85,6 @@ TESTSET_MAC = [
     f"build/matmul_rowmaj/4x4x4/vector_intrinsic.x86.S",
 ]
 
-rule test_mac:
-    input: TESTSET_MAC
-    output: "build/test_mac.txt"
-    shell: 'echo "tests passed" > {output}'
-
 
 TESTSET_DOCKER = [
     # Validate CI test set x86 executables
@@ -94,10 +99,13 @@ TESTSET_DOCKER = [
     f"build/matmul_rowmaj/5x6x7/vector_intrinsic.x86.time.txt",
 ]
 
-rule test_docker:
-    input: TESTSET_DOCKER
-    output: "build/test_docker.txt"
-    shell: 'echo "tests passed" > {output}'
+TESTSET = {
+    "neon": TESTSET_MAC,
+    "x86": TESTSET_DOCKER,
+}[THIS_TARGET]
+
+rule tests:
+    input: TESTSET
 
 ########################################################################################
 
@@ -266,12 +274,12 @@ rule target_dataset:
     output: "data/{testset}.{target}.jsonl"
     shell: "cat {input} > {output}"
 
-rule dataset_neon:
+rule dataset:
     input:
-        "data/ttile.neon.jsonl",
-        "data/cube.neon.jsonl",
-
-rule dataset_x86:
-    input:
-        "data/ttile.x86.jsonl",
-        "data/cube.x86.jsonl",
+        expand(
+            [
+                "data/ttile.{target}.jsonl",
+                "data/cube.{target}.jsonl",
+            ],
+            target=THIS_TARGET
+        )
