@@ -40,7 +40,7 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 
     ax.set_xlabel("Variant")
     ax.set_ylabel("Throughput (FLOPs per Time)")
-    ax.set_title("4x4x4 Matrix Multiplication: Throughput by Variant")
+    ax.set_title("8x8x8 Matrix Multiplication: Throughput by Variant")
     ax.grid(axis="y", alpha=0.3)
     ax.set_ylim(bottom=0)
     ax.spines["top"].set_visible(False)
@@ -56,7 +56,7 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Plot 4x4x4 performance bar chart.")
+    parser = argparse.ArgumentParser(description="Plot 8x8x8 performance bar chart.")
     parser.add_argument("input", type=Path, help="Input JSONL data file")
     parser.add_argument(
         "--output",
