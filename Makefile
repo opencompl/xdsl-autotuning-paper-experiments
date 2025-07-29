@@ -11,10 +11,14 @@ tests: filecheck snakemake
 	@echo "All tests passed successfully"
 	@exit 0
 
+.PHONY: dataset_code
+dataset_code:
+	uv run snakemake --cores all dataset_code
+
 # --cores 1 to avoid contention issues when measuring performance
 # re-run time measurement every time
 .PHONY: dataset
-dataset:
+dataset: dataset_code
 	uv run snakemake --cores 1 dataset --forcerun time
 
 
