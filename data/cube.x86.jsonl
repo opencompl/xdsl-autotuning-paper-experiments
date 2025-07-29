@@ -1,2 +1,2 @@
-{"M":4,"N":4,"K":4,"flops":128,"time":69.664062,"variant":"naive_c","target":"x86"}
-{"M":4,"N":4,"K":4,"flops":128,"time":10.804688,"variant":"transform_mlir","target":"x86"}
+{"M":4,"N":4,"K":4,"flops":128,"time":66.062500,"variant":"naive_c","target":"x86"}
+{"M":4,"N":4,"K":4,"flops":128,"time":10.960938,"variant":"transform_mlir","target":"x86"}
