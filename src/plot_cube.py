@@ -1,4 +1,4 @@
-# uv run plot-4x4x4 data/4x4x4.neon.jsonl
+# uv run plot-cube data/cube.neon.jsonl
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
-def plot_4x4x4_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
-    """Plot a bar chart of throughput for each variant in the 4x4x4 dataset."""
+def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
+    """Plot a bar chart of throughput for each variant in the cube dataset."""
 
     # Filter out invalid time values (negative or zero)
     valid_data = df[df["time"] > 0].copy()
@@ -67,7 +67,7 @@ def main():
     args = parser.parse_args()
 
     df = pd.read_json(args.input, lines=True)
-    plot_4x4x4_bar_chart(df, output_file=args.output)
+    plot_cube_bar_chart(df, output_file=args.output)
 
 
 if __name__ == "__main__":

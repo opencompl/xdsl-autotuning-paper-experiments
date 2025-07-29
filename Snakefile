@@ -16,7 +16,7 @@ DATASET_VARIANTS = {
         "neon": ["naive_c"],
         "x86": ["naive_c"],
     },
-    "4x4x4": {
+    "cube": {
         "neon": ["naive_c", "transform_mlir"],
         "x86": ["naive_c", "transform_mlir"],
     }
@@ -31,10 +31,10 @@ def target_dataset(wildcards):
                 variant=DATASET_VARIANTS["ttile"][wildcards.target],
             )
         ],
-        "4x4x4": [
+        "cube": [
             *expand(
                 f"build/matmul_rowmaj/4x4x4/{{variant}}.{wildcards.target}.json",
-                variant=DATASET_VARIANTS["4x4x4"][wildcards.target],
+                variant=DATASET_VARIANTS["cube"][wildcards.target],
             )
         ]
     }
@@ -48,8 +48,8 @@ def target_dataset(wildcards):
 PLOTS = [
     "plots/ttile.neon.png",
     "plots/ttile.x86.png",
-    "plots/4x4x4.neon.png",
-    "plots/4x4x4.x86.png",
+    "plots/cube.neon.png",
+    "plots/cube.x86.png",
 ]
 
 ########################################################################################
@@ -276,12 +276,12 @@ rule target_dataset:
 rule dataset_neon:
     input:
         "data/ttile.neon.jsonl",
-        "data/4x4x4.neon.jsonl",
+        "data/cube.neon.jsonl",
 
 rule dataset_x86:
     input:
         "data/ttile.x86.jsonl",
-        "data/4x4x4.x86.jsonl",
+        "data/cube.x86.jsonl",
 
 rule target_plot:
     input: "data/{testset}.{target}.jsonl"
