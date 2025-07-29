@@ -178,11 +178,11 @@ THIS_TARGET = {
 DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
-        "cube": ["naive_c", "transform_mlir"],
+        "cube": ["naive_c", "transform_mlir", "vector_intrinsic"],
     },
     "x86": {
         "ttile": ["naive_c"],
-        "cube": ["naive_c", "transform_mlir"],
+        "cube": ["naive_c", "transform_mlir", "vector_intrinsic"],
     }
 }[THIS_TARGET]
 
