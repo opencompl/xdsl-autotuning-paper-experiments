@@ -229,7 +229,7 @@ DATASET_BASES = {
         m=range(8, 50, 2),
     ),
     "cube": expand(
-        "build/matmul_rowmaj/4x4x4/{variant}." + THIS_TARGET,
+        "build/matmul_rowmaj/8x8x8/{variant}." + THIS_TARGET,
         variant=DATASET_VARIANTS["cube"],
     )
 }
@@ -285,24 +285,24 @@ _TESTSET_CI = expand(
 TESTSET_MAC = [
     # Validate CI test set neon executables
     *(f"{base}.neon.test.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.test.log",
-    f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.time.txt",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.neon.test.log",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.neon.time.txt",
     # Generate CI test set x86 assembly
     *(f"{base}.x86.S" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.S",
-    f"build/matmul_rowmaj/4x4x4/vector_intrinsic.x86.S",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.x86.S",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.x86.S",
 ]
 
 TESTSET_DOCKER = [
     # Validate CI test set x86 executables
     *(f"{base}.neon.S" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/4x4x4/transform_mlir.neon.S",
-    f"build/matmul_rowmaj/4x4x4/vector_intrinsic.neon.S",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.neon.S",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.neon.S",
     # Generate CI test set neon assembly
     *(f"{base}.x86.test.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.test.log",
-    f"build/matmul_rowmaj/4x4x4/transform_mlir.x86.time.txt",
-    f"build/matmul_rowmaj/4x4x4/vector_intrinsic.x86.time.txt",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.x86.test.log",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.x86.time.txt",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.x86.time.txt",
     f"build/matmul_rowmaj/5x6x7/vector_intrinsic.x86.time.txt",
 ]
 
