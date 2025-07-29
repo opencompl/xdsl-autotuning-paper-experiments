@@ -23,7 +23,7 @@ snakemake:
 		$(MAKE) snakemake-docker; \
 	fi
 
-# --cores 1 to avoid caching issues when generating data
+# --cores 1 to avoid contention issues when measuring performance
 .PHONY: dataset
 dataset:
 	@if [ "$$(uname -s)" = "Darwin" ]; then \
