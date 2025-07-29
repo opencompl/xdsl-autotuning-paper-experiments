@@ -246,7 +246,7 @@ _TESTSET_CI = expand(
     "build/{k.kernel}/{k.m}x{k.n}x{k.k}/{variant}.{dtype}",
     k=KERNELS_CI,
     variant=VARIANT_CI,
-    dtype=["f32"],
+    dtype=["f32", "f64"],
 )
 
 TESTSET_MAC = [
