@@ -45,13 +45,6 @@ def target_dataset(wildcards):
         )
     return sets[name]
 
-PLOTS = [
-    "plots/ttile.neon.png",
-    "plots/ttile.x86.png",
-    "plots/cube.neon.png",
-    "plots/cube.x86.png",
-]
-
 ########################################################################################
 
 KERNELS_CI = [
@@ -282,12 +275,3 @@ rule dataset_x86:
     input:
         "data/ttile.x86.jsonl",
         "data/cube.x86.jsonl",
-
-rule target_plot:
-    input: "data/{testset}.{target}.jsonl"
-    output: "plots/{testset}.{target}.png"
-    shell:
-        "plot-{wildcards.testset} {input} --output {output}"
-
-rule plots:
-    input: PLOTS

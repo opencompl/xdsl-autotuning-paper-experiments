@@ -46,9 +46,13 @@ will not be executed.
 
 ### Computing Data
 
-Not yet implemented :)
+Generate the data for the host platform by running `make dataset`.
 
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
+
+### Plotting
+
+Plot data using `make plots`, this command will fail if all the data necessary to generate the plots is not present, instead of running the data generation.
 
 ## Building The Docker Container
 
