@@ -16,13 +16,13 @@ def target_triple(wildcards):
 
 rule templated_tensor:
     input: "kernels/{kernel}/mlir.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/tensor.f32.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
     template_engine:
         "jinja2"
 
 rule templated_vector_intrinsic:
     input: "kernels/{kernel}/vector_intrinsic.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.f32.arith.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.{dtype}.arith.mlir"
     template_engine:
         "jinja2"
 
