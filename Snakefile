@@ -273,8 +273,8 @@ DATASET_EXECUTABLES = [
     base + ".time.o"
     for testset in DATASET_VARIANTS
     for base in target_dataset_bases(
-        target= THIS_TARGET,
-        testset= testset
+        target=THIS_TARGET,
+        testset=testset
     )
 ]
 
