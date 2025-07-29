@@ -22,37 +22,41 @@ DATASET_VARIANTS = {
     }
 }
 
-def target_dataset(wildcards):
-    sets = {
+def target_dataset_bases(target: str, testset: str):
+    bases = {
         "ttile": [
             *expand(
-                f"build/matmul_rowmaj/{{m}}x128x128/{{variant}}.{wildcards.target}.json",
-                variant=DATASET_VARIANTS["ttile"][wildcards.target],
+                f"build/matmul_rowmaj/{{m}}x128x128/{{variant}}.{target}",
+                variant=DATASET_VARIANTS["ttile"][target],
                 m=range(8, 50, 2),
             )
         ],
         "cube": [
             *expand(
-                f"build/matmul_rowmaj/8x8x8/{{variant}}.{wildcards.target}.json",
-                variant=DATASET_VARIANTS["cube"][wildcards.target],
+                f"build/matmul_rowmaj/8x8x8/{{variant}}.{target}",
+                variant=DATASET_VARIANTS["cube"][target],
             )
         ]
     }
-    name = wildcards.testset
-    if name not in sets:
+    name = testset
+    if name not in bases:
         raise ValueError(
-            f"unknown test set name '{name}', valid values are: {sets.keys()}"
+            f"unknown test set name '{name}', valid values are: {bases.keys()}"
         )
-    return sets[name]
+    return bases[name]
 
-PLOTS = [
-    "plots/ttile.neon.png",
-    "plots/ttile.x86.png",
-    "plots/cube.neon.png",
-    "plots/cube.x86.png",
-]
 
 ########################################################################################
+
+import platform
+# "Darwin" for macOS, "Linux" for Linux, etc.
+THIS_SYSTEM = platform.system()
+
+# NOTE: we should make this more precise in the future
+THIS_TARGET = {
+    "Darwin": "neon",
+    "Linux": "x86"
+}[THIS_SYSTEM]
 
 KERNELS_CI = [
     Kernel3D("matmul_rowmaj", 4, 4, 4),
@@ -82,11 +86,6 @@ TESTSET_MAC = [
     f"build/matmul_rowmaj/4x4x4/vector_intrinsic.x86.S",
 ]
 
-rule test_mac:
-    input: TESTSET_MAC
-    output: "build/test_mac.txt"
-    shell: 'echo "tests passed" > {output}'
-
 
 TESTSET_DOCKER = [
     # Validate CI test set x86 executables
@@ -101,10 +100,13 @@ TESTSET_DOCKER = [
     f"build/matmul_rowmaj/5x6x7/vector_intrinsic.x86.time.txt",
 ]
 
-rule test_docker:
-    input: TESTSET_DOCKER
-    output: "build/test_docker.txt"
-    shell: 'echo "tests passed" > {output}'
+TESTSET = {
+    "neon": TESTSET_MAC,
+    "x86": TESTSET_DOCKER,
+}[THIS_TARGET]
+
+rule tests:
+    input: TESTSET
 
 ########################################################################################
 
@@ -120,22 +122,16 @@ def target_triple(wildcards):
 ########################################################################################
 
 rule templated_tensor:
-    input:
-        template="kernels/{kernel}/mlir.mlir",
-        awk="src/vector_intrinsic_template.awk",
+    input: "kernels/{kernel}/mlir.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/tensor.mlir"
-    shell:
-        # Use awk to substitute {{M}} for m and so on
-        # Use {{ to otuput a single { when executing command
-        "{input.awk} -v M={wildcards.m} -v N={wildcards.n} -v K={wildcards.k} {input.template} | mlir-opt > {output}"
+    template_engine:
+        "jinja2"
 
 rule templated_vector_intrinsic:
-    input:
-        template="kernels/{kernel}/vector_intrinsic.mlir",
-        awk="src/vector_intrinsic_template.awk",
+    input: "kernels/{kernel}/vector_intrinsic.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.arith.mlir"
-    shell:
-        "{input.awk} -v M={wildcards.m} -v N={wildcards.n} -v K={wildcards.k} {input.template} | mlir-opt > {output}"
+    template_engine:
+        "jinja2"
 
 rule transform_mlir:
     input:
@@ -305,27 +301,28 @@ rule json:
         """
 
 rule target_dataset:
-    input: target_dataset
+    input: lambda wildcards: [base + ".json" for base in target_dataset_bases(testset=wildcards.testset, target=wildcards.target)]
     output: "data/{testset}.{target}.jsonl"
     shell: "cat {input} > {output}"
 
-rule dataset_neon:
-    input:
-        "data/ttile.neon.jsonl",
-        "data/cube.neon.jsonl",
+DATASET_EXECUTABLES = [
+    base + ".time.o"
+    for testset in DATASET_VARIANTS
+    for base in target_dataset_bases(
+        target=THIS_TARGET,
+        testset=testset
+    )
+]
 
-rule dataset_x86:
-    input:
-        "data/ttile.x86.jsonl",
-        "data/cube.x86.jsonl",
+rule dataset_code:
+    input: DATASET_EXECUTABLES
 
-rule target_plot:
+rule dataset:
     input:
-        jsonl="data/{testset}.{target}.jsonl",
-        script="src/plot_{testset}.py",
-    output: "plots/{testset}.{target}.png"
-    shell:
-        "plot-{wildcards.testset} {input.jsonl} --output {output}"
-
-rule plots:
-    input: PLOTS
+        expand(
+            [
+                "data/ttile.{target}.jsonl",
+                "data/cube.{target}.jsonl",
+            ],
+            target=THIS_TARGET
+        )

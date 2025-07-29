@@ -5,6 +5,7 @@ description = "Benchmarks repository for xDSL autotuning paper."
 readme = "README.md"
 requires-python = ">=3.11.2"
 dependencies = [
+    "jinja2>=3.1.6",
     "matplotlib>=3.10.3",
     "pandas>=2.3.1",
     "snakemake>=8.30.0",
