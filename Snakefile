@@ -126,7 +126,7 @@ rule libxsmm_colmaj_c:
         libxsmm_gemm_generator dense {output} matmul_colmaj \
             {wildcards.m} {wildcards.n} {wildcards.k} \
             {wildcards.m} {wildcards.k} {wildcards.m} \
-            1 1 0 0 hsw nopf {params.dtype} && \
+            1 1 0 0 hsw nopf {params.dtype}
         """
 
 rule libxsmm_rowmaj_c:
