@@ -123,11 +123,10 @@ rule libxsmm_colmaj_c:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
-        libxsmm_gemm_generator dense {output} matmul_colmaj_abc \
+        libxsmm_gemm_generator dense {output} matmul_colmaj \
             {wildcards.m} {wildcards.n} {wildcards.k} \
             {wildcards.m} {wildcards.k} {wildcards.m} \
             1 1 0 0 hsw nopf {params.dtype} && \
-        echo 'void matmul_colmaj(float *C, const float *A, const float *B) {{matmul_colmaj_abc(A, B, C);}}' >> {output}
         """
 
 rule libxsmm_rowmaj_c:
