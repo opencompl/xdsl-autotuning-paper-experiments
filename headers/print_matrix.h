@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-void _print_matrix(const float *matrix, int num_rows, int num_cols,
+void _print_matrix(const DTYPE *matrix, int num_rows, int num_cols,
                    bool colmajor) {
   printf("[");
   for (int i = 0; i < num_rows; i++) {
@@ -23,10 +23,10 @@ void _print_matrix(const float *matrix, int num_rows, int num_cols,
   printf("]\n");
 }
 
-void print_matrix(const float *matrix, int num_rows, int num_cols) {
+void print_matrix(const DTYPE *matrix, int num_rows, int num_cols) {
   _print_matrix(matrix, num_rows, num_cols, false);
 }
 
-void print_matrix_colmaj(const float *matrix, int num_rows, int num_cols) {
+void print_matrix_colmaj(const DTYPE *matrix, int num_rows, int num_cols) {
   _print_matrix(matrix, num_rows, num_cols, true);
 }

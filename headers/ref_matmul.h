@@ -1,5 +1,5 @@
 // C += AB, where C: M * N, A: M * K, B: K * N, all row-major
-void ref_matmul(float *C, float *A, float *B, int M, int N, int K) {
+void ref_matmul(DTYPE *C, DTYPE *A, DTYPE *B, int M, int N, int K) {
   for (int m = 0; m < M; m++) {
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {
@@ -10,7 +10,7 @@ void ref_matmul(float *C, float *A, float *B, int M, int N, int K) {
 }
 
 // C += AB, where C: M * N, A: M * K, B: K * N, all column-major
-void ref_matmul_colmaj(float *C, float *A, float *B, int M, int N, int K) {
+void ref_matmul_colmaj(DTYPE *C, DTYPE *A, DTYPE *B, int M, int N, int K) {
   for (int m = 0; m < M; m++) {
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {
@@ -20,7 +20,7 @@ void ref_matmul_colmaj(float *C, float *A, float *B, int M, int N, int K) {
   }
 }
 
-void transpose(float *out, float *in, int rows, int cols) {
+void transpose(DTYPE *out, DTYPE *in, int rows, int cols) {
   for (int r = 0; r < rows; r++) {
     for (int c = 0; c < cols; c++) {
       out[c * rows + r] = in[r * cols + c];

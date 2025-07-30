@@ -1,11 +1,15 @@
-// RUN: clang-20 -DCROWS=4 -DCCOLS=4 -DINNER=4 -o %t \
+// RUN: clang-20 -DCROWS=4 -DCCOLS=4 -DINNER=4 -DDTYPE=float -o %t \
 // RUN: kernels/matmul_colmaj/test.c %s && %t | filecheck %s
-// RUN: clang-20 -DCROWS=5 -DCCOLS=6 -DINNER=7 -o %t \
+// RUN: clang-20 -DCROWS=5 -DCCOLS=6 -DINNER=7 -DDTYPE=float -o %t \
+// RUN: kernels/matmul_colmaj/test.c %s && %t | filecheck %s
+// RUN: clang-20 -DCROWS=4 -DCCOLS=4 -DINNER=4 -DDTYPE=double -o %t \
+// RUN: kernels/matmul_colmaj/test.c %s && %t | filecheck %s
+// RUN: clang-20 -DCROWS=5 -DCCOLS=6 -DINNER=7 -DDTYPE=double -o %t \
 // RUN: kernels/matmul_colmaj/test.c %s && %t | filecheck %s
 
 #include "../../headers/mnk.h"
 
-void matmul_colmaj(float *C, float *A, float *B) {
+void matmul_colmaj(DTYPE *C, DTYPE *A, DTYPE *B) {
   for (int m = 0; m < M; m++) {
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {

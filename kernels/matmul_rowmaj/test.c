@@ -11,12 +11,12 @@
 #include "../../headers/print_matrix.h"
 #include "../../headers/ref_matmul.h"
 
-extern void matmul(float result[M * N], float A[M * K], float B[K * N]);
+extern void matmul(DTYPE result[M * N], DTYPE A[M * K], DTYPE B[K * N]);
 
 int main() {
   set_random_seed(42);
 
-  float A[M * K], B[K * N], C[M * N], A_asm[M * K], B_asm[K * N], C_asm[M * N];
+  DTYPE A[M * K], B[K * N], C[M * N], A_asm[M * K], B_asm[K * N], C_asm[M * N];
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
@@ -28,9 +28,9 @@ int main() {
   printf("C\n");
   print_matrix(C, M, N);
 
-  memcpy(A_asm, A, M * K * sizeof(float));
-  memcpy(B_asm, B, K * N * sizeof(float));
-  memcpy(C_asm, C, M * N * sizeof(float));
+  memcpy(A_asm, A, M * K * sizeof(DTYPE));
+  memcpy(B_asm, B, K * N * sizeof(DTYPE));
+  memcpy(C_asm, C, M * N * sizeof(DTYPE));
 
   ref_matmul(C, A, B, M, N, K);
   matmul(C_asm, A_asm, B_asm);
