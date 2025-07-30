@@ -10,6 +10,7 @@ snakemake:
 avx:
 	uv run lit -v tests/filecheck/avx
 	uv run snakemake --cores 1 data/handwritten.x86.jsonl --forcerun time
+	cat data/handwritten.x86.jsonl
 
 .PHONY: tests
 tests: filecheck snakemake
