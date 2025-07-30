@@ -325,6 +325,7 @@ TESTSET_DOCKER = [
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.x86.time.txt",
     f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.x86.time.txt",
     f"build/matmul_rowmaj/5x6x7/vector_intrinsic.f32.x86.time.txt",
+    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.x86.time.txt",
 ]
 
 TESTSET = {

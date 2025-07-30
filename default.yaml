@@ -1,7 +1,6 @@
 cc: clang-20
 
 xdsl-opt-passes-vector:
-  - vector-infer-shuffles
   - canonicalize
   - convert-vector-to-ptr
   - convert-memref-to-ptr{lower_func=true}
