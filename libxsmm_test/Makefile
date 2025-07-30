@@ -1,6 +1,6 @@
-I := 16
-J := 16
-K := 16
+I := 4
+J := 4
+K := 4
 
 a.out: main.o xsmm.o
 	gcc -O3 $^ -o $@ 
