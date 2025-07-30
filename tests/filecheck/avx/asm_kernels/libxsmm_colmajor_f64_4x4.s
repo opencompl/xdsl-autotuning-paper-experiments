@@ -89,37 +89,6 @@ matmul_colmaj:                             # @matmul_colmaj
         .size   matmul_colmaj, .Lfunc_end0-matmul_colmaj
         .cfi_endproc
                                         # -- End function
-        .globl  matmul                          # -- Begin function matmul
-        .p2align        4
-        .type   matmul,@function
-matmul:                                 # @matmul
-        .cfi_startproc
-# %bb.0:
-        pushq   %rbp
-        .cfi_def_cfa_offset 16
-        .cfi_offset %rbp, -16
-        movq    %rsp, %rbp
-        .cfi_def_cfa_register %rbp
-        subq    $32, %rsp
-        movq    %rdi, -8(%rbp)
-        movq    %rsi, -16(%rbp)
-        movq    %rdx, -24(%rbp)
-        movq    -24(%rbp), %rdi
-        movq    -16(%rbp), %rsi
-        movq    -8(%rbp), %rdx
-        callq   matmul_colmaj
-        addq    $32, %rsp
-        popq    %rbp
-        .cfi_def_cfa %rsp, 8
-        retq
-.Lfunc_end1:
-        .size   matmul, .Lfunc_end1-matmul
-        .cfi_endproc
-                                        # -- End function
-        .ident  "clang version 20.1.1 (https://github.com/llvm/llvm-project 424c2d9b7e4de40d0804dd374721e6411c27d1d1)"
-        .section        ".note.GNU-stack","",@progbits
-        .addrsig
-        .addrsig_sym matmul_colmaj
 
 
 
