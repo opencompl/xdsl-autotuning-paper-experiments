@@ -58,8 +58,8 @@ rule vector_to_arith:
             -o {output}"""
 
 rule transform_xdsl:
-    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.vector.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_xdsl.x86.S"
+    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.vector.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_xdsl.{dtype}.x86.S"
     params:
         passes = ",".join(config["xdsl-opt-passes-vector"])
     shell:
