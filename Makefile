@@ -22,12 +22,12 @@ dataset: dataset_code
 	uv run snakemake --cores 1 dataset --forcerun time
 
 
-PLOTS = plots/ttile.f32.neon.png plots/ttile.f32.x86.png plots/cube.f32.neon.png plots/cube.f32.x86.png
+PLOTS = plots/ttile.f32.neon.png plots/ttile.f32.x86.png plots/cube.f32.neon.png plots/cube.f32.x86.png plots/cube.f64.neon.png
 
-plots/ttile.%.png: data/ttile.%.jsonl
+plots/ttile.%.png: data/ttile.%.jsonl src/plot_ttile.py
 	uv run plot-ttile $< --output $@
 
-plots/cube.%.png: data/cube.%.jsonl
+plots/cube.%.png: data/cube.%.jsonl src/plot_cube.py
 	uv run plot-cube $< --output $@
 
 .PHONY: plots
