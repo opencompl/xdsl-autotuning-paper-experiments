@@ -126,7 +126,7 @@ rule libxsmm_colmaj_c:
         libxsmm_gemm_generator dense {output} matmul_colmaj_abc \
             {wildcards.m} {wildcards.n} {wildcards.k} \
             {wildcards.m} {wildcards.k} {wildcards.m} \
-            1 1 1 1 hsw nopf {params.dtype} && \
+            1 1 0 0 hsw nopf {params.dtype} && \
         echo 'void matmul_colmaj(float *C, const float *A, const float *B) {{matmul_colmaj_abc(A, B, C);}}' >> {output}
         """
 
@@ -141,7 +141,7 @@ rule libxsmm_rowmaj_c:
         libxsmm_gemm_generator dense {output} matmul_bac \
             {wildcards.n} {wildcards.m} {wildcards.k} \
             {wildcards.n} {wildcards.k} {wildcards.n} \
-            1 1 1 1 hsw nopf {params.dtype} && \
+            1 1 0 0 hsw nopf {params.dtype} && \
         echo 'void matmul(float *C, const float *A, const float *B) {{matmul_bac(B, A, C);}}' >> {output}
         """
 
