@@ -5,15 +5,15 @@
 
 // Returns index of first value not within tolerance, size otherwise.
 static inline int first_mismatch_index(const DTYPE *lhs, const DTYPE *rhs,
-                                       int size, DTYPE rtol, DTYPE atol) {
+                                       int size, float rtol, float atol) {
   int i = 0;
   for (; i < size; i++) {
-    DTYPE l = lhs[i];
-    DTYPE r = rhs[i];
+    float l = (float)lhs[i];
+    float r = (float)rhs[i];
 
-    DTYPE diff = fabsf(l - r);
+    float diff = fabsf(l - r);
 
-    if (diff > rtol * fabsf(r) + atol) {
+    if (diff > rtol * fabsf((float)r) + atol) {
       break;
     }
   }
