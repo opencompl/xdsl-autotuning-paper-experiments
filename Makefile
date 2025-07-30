@@ -6,6 +6,10 @@ filecheck:
 snakemake:
 	uv run snakemake --cores all tests --forceall
 
+.PHONY: avx
+avx:
+	uv run snakemake --cores 1 data/handwritten.x86.jsonl --forcerun time
+
 .PHONY: tests
 tests: filecheck snakemake
 	@echo "All tests passed successfully"

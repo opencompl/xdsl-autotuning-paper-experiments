@@ -263,6 +263,24 @@ rule dataset:
             dataset_base=DATASET_BASES,
         )
 
+# temporary avx2 asm rules
+rule:
+    input: "tests/filecheck/avx/asm_kernels/libxsmm_colmajor_f64_4x4.s"
+    output: "build/matmul_colmaj/4x4x4/reference.f64.x86.S"
+    shell: "cp {input} {output}"
+
+rule:
+    input: "tests/filecheck/avx/asm_kernels/unrolled_colmajor_f64_4x4.s"
+    output: "build/matmul_colmaj/4x4x4/unrolled.f64.x86.S"
+    shell: "cp {input} {output}"
+
+rule:
+    input:
+        "build/matmul_colmaj/4x4x4/reference.f64.x86.json",
+        "build/matmul_colmaj/4x4x4/unrolled.f64.x86.json",
+    output: f"data/handwritten.x86.jsonl"
+    shell: "cat {input} > {output}"
+
 ########################################################################################
 # CI
 ########################################################################################
