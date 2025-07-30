@@ -11,7 +11,7 @@
 #define NUM_ITERATIONS 128
 #define CLOCKS_PER_USEC ((double)CLOCKS_PER_SEC / 1000000.0)
 
-extern void matmul(DTYPE C[M * N], DTYPE A[M * K], DTYPE B[K * N]);
+extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
 
 int main() {
   set_random_seed(42);
@@ -26,14 +26,14 @@ int main() {
   }
 
   // Warm up the cache with one iteration
-  matmul(C, A, B);
+  matmul(A, B, C);
 
   // Timing loop - NUM_ITERATIONS iterations
   struct timespec ts_start;
   clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
   for (int i = 0; i < NUM_ITERATIONS; i++) {
-    matmul(&C[(i + 1) * M * N], A, B);
+    matmul(A, B, &C[(i + 1) * M * N]);
   }
 
   struct timespec ts_end;

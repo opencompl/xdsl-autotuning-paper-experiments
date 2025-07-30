@@ -32,8 +32,8 @@ int main() {
   memcpy(B_asm, B, K * N * sizeof(DTYPE));
   memcpy(C_asm, C, M * N * sizeof(DTYPE));
 
-  ref_matmul(C, A, B, M, N, K);
-  matmul(C_asm, A_asm, B_asm);
+  ref_matmul(A, B, C, M, N, K);
+  matmul(A_asm, B_asm, C_asm);
 
   printf("C out\n");
   print_matrix(C, M, N);

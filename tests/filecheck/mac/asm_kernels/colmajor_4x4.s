@@ -4,23 +4,23 @@
 
 ///
 //  Function for 4x4 matrix multiplication of 32-bit floating-point values (C += A * B).
-//  Args are passed in registers x0, x1, ... and the return value is stored in x0.
-//  Therefore, the result address (of matrix C) is passed as the first arg (x0).
-//  The address of Matrix C is passed as x0.
-//  The address of Matrix A is passed as x1.
-//  The address of Matrix B is passed as x2.
+//  Args are passed in registers x0, x1, ... and the return value is stored in x2.
+//  Therefore, the result address (of matrix C) is passed as the first arg (x2).
+//  The address of Matrix A is passed as x0.
+//  The address of Matrix B is passed as x1.
+//  The address of Matrix C is passed as x2.
 ///
 
 _matmul_colmaj:
 
-    // Load one column (4 elements) of matrix C into each of registers V8-V11
-    ld1 {V8.4S, V9.4S, V10.4S, V11.4S}, [X0]
-
     // Load one column (4 elements) of matrix A into each of registers V0-V3
-    ld1  {v0.4S, v1.4S, v2.4S, v3.4S}, [x1]
+    ld1  {v0.4S, v1.4S, v2.4S, v3.4S}, [x0]
 
     // Load one column (4 elements) of matrix B into each of registers V4-V7
-    ld1  {V4.4S, V5.4S, V6.4S, V7.4S}, [X2]
+    ld1  {V4.4S, V5.4S, V6.4S, V7.4S}, [X1]
+
+    // Load one column (4 elements) of matrix C into each of registers V8-V11
+    ld1 {V8.4S, V9.4S, V10.4S, V11.4S}, [X2]
 
     // Multiply each column of A by the first element of each column of B
     FMLA V8.4S, V0.4S, V4.S[0]
@@ -44,7 +44,7 @@ _matmul_colmaj:
     FMLA V10.4S, V3.4S, V6.S[3]
     FMLA V11.4S, V3.4S, V7.S[3]
 
-    ST1  {V8.4S, V9.4S, V10.4S, V11.4S}, [X0]
+    ST1  {V8.4S, V9.4S, V10.4S, V11.4S}, [X2]
     RET
 
 
