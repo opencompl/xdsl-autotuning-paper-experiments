@@ -6,6 +6,8 @@ module {
     transform.apply_patterns to %2 {
       transform.apply_patterns.vector.lower_outerproduct
       transform.apply_patterns.vector.lower_contraction
+      transform.apply_patterns.vector.transfer_to_scf full_unroll = true
+      transform.apply_patterns.vector.lower_transfer
     } : !transform.any_op
     transform.yield
   }
