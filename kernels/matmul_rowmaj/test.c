@@ -16,7 +16,12 @@ extern void matmul(DTYPE result[M * N], DTYPE A[M * K], DTYPE B[K * N]);
 int main() {
   set_random_seed(42);
 
-  DTYPE A[M * K], B[K * N], C[M * N], A_asm[M * K], B_asm[K * N], C_asm[M * N];
+  DTYPE *A = malloc(M * K * sizeof(DTYPE));
+  DTYPE *B = malloc(K * N * sizeof(DTYPE));
+  DTYPE *C = malloc(M * N * sizeof(DTYPE));
+  DTYPE *A_asm = malloc(M * K * sizeof(DTYPE));
+  DTYPE *B_asm = malloc(K * N * sizeof(DTYPE));
+  DTYPE *C_asm = malloc(M * N * sizeof(DTYPE));
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
