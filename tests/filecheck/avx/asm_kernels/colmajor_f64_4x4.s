@@ -35,30 +35,30 @@ matmul_colmaj:                             # @matmul_colmaj
         movq    $0, %r10
 .Ltmp1:
         addq    $4, %r10
-        vmovapd (%rdx), %ymm14
-        vmovapd 32(%rdx), %ymm15
-        vmovapd (%rdi), %ymm2
+        vmovupd (%rdx), %ymm14
+        vmovupd 32(%rdx), %ymm15
+        vmovupd (%rdi), %ymm2
         addq    $32, %rdi
         vbroadcastsd    (%rsi), %ymm0
         vfmadd231pd     %ymm2, %ymm0, %ymm14    # ymm14 = (ymm0 * ymm2) + ymm14
         vbroadcastsd    32(%rsi), %ymm1
         addq    $8, %rsi
         vfmadd231pd     %ymm2, %ymm1, %ymm15    # ymm15 = (ymm1 * ymm2) + ymm15
-        vmovapd (%rdi), %ymm2
+        vmovupd (%rdi), %ymm2
         addq    $32, %rdi
         vbroadcastsd    (%rsi), %ymm0
         vfmadd231pd     %ymm2, %ymm0, %ymm14    # ymm14 = (ymm0 * ymm2) + ymm14
         vbroadcastsd    32(%rsi), %ymm1
         addq    $8, %rsi
         vfmadd231pd     %ymm2, %ymm1, %ymm15    # ymm15 = (ymm1 * ymm2) + ymm15
-        vmovapd (%rdi), %ymm2
+        vmovupd (%rdi), %ymm2
         addq    $32, %rdi
         vbroadcastsd    (%rsi), %ymm0
         vfmadd231pd     %ymm2, %ymm0, %ymm14    # ymm14 = (ymm0 * ymm2) + ymm14
         vbroadcastsd    32(%rsi), %ymm1
         addq    $8, %rsi
         vfmadd231pd     %ymm2, %ymm1, %ymm15    # ymm15 = (ymm1 * ymm2) + ymm15
-        vmovapd (%rdi), %ymm2
+        vmovupd (%rdi), %ymm2
         addq    $32, %rdi
         vbroadcastsd    (%rsi), %ymm0
         vfmadd231pd     %ymm2, %ymm0, %ymm14    # ymm14 = (ymm0 * ymm2) + ymm14
@@ -66,8 +66,8 @@ matmul_colmaj:                             # @matmul_colmaj
         addq    $8, %rsi
         vfmadd231pd     %ymm2, %ymm1, %ymm15    # ymm15 = (ymm1 * ymm2) + ymm15
         subq    $32, %rsi
-        vmovapd %ymm14, (%rdx)
-        vmovapd %ymm15, 32(%rdx)
+        vmovupd %ymm14, (%rdx)
+        vmovupd %ymm15, 32(%rdx)
         addq    $32, %rdx
         subq    $96, %rdi
         cmpq    $4, %r10
