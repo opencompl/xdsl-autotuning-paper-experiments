@@ -115,6 +115,46 @@ rule asm_c:
     shell:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -o {output} {input}"
 
+rule libxsmm_colmaj_c:
+    output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.{dtype}.x86.c"
+    params:
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        libxsmm_gemm_generator dense {output} matmul_colmaj_abc \
+            {wildcards.m} {wildcards.n} {wildcards.k} \
+            {wildcards.m} {wildcards.k} {wildcards.m} \
+            1 1 0 0 hsw nopf {params.dtype} && \
+        echo 'void matmul_colmaj(float *C, const float *A, const float *B) {{matmul_colmaj_abc(A, B, C);}}' >> {output}
+        """
+
+rule libxsmm_rowmaj_c:
+    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{dtype}.x86.c"
+    params:
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        libxsmm_gemm_generator dense {output} matmul_bac \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 0 0 hsw nopf {params.dtype} && \
+        echo 'void matmul(float *C, const float *A, const float *B) {{matmul_bac(B, A, C);}}' >> {output}
+        """
+
+
+rule libxsmm_s:
+    input: "build/{kernel}/{m}x{n}x{k}/libxsmm.{dtype}.{target}.c"
+    output: "build/{kernel}/{m}x{n}x{k}/libxsmm.{dtype}.{target}.S"
+    params:
+        target_triple=target_triple,
+        cc=config["cc"],
+    shell:
+        "{params.cc} -mavx2 -DNDEBUG -c {input} -S -target {params.target_triple} -o {output}"
+
 rule executable:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.{executable}.o"
@@ -185,9 +225,9 @@ DATASET_VARIANTS = {
         "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
     },
     "x86": {
-        "ttile": ["naive_c"],
-        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "ttile": ["naive_c", "libxsmm"],
+        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
     },
 }[THIS_TARGET]
 
