@@ -196,7 +196,8 @@ rule json:
         TIME=$(head -n 1 {input.time_txt} | tr -d '[:space:]')
         VARIANT="{wildcards.variant}"
         TARGET="{wildcards.target}"
-        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'"}}' > {output.json}
+        DTYPE="{wildcards.dtype}"
+        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'"}}' > {output.json}
         """
 
 ########################################################################################
@@ -216,12 +217,14 @@ THIS_TARGET = {
 DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
-        "cube": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
     },
     "x86": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-    }
+        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+    },
 }[THIS_TARGET]
 
 DATASET_BASES = {
@@ -232,8 +235,12 @@ DATASET_BASES = {
     ),
     "cube.f32": expand(
         "build/matmul_rowmaj/8x8x8/{variant}.f32." + THIS_TARGET,
-        variant=DATASET_VARIANTS["cube"],
-    )
+        variant=DATASET_VARIANTS["cube.f32"],
+    ),
+    "cube.f64": expand(
+        "build/matmul_rowmaj/4x4x4/{variant}.f64." + THIS_TARGET,
+        variant=DATASET_VARIANTS["cube.f64"],
+    ),
 }
 
 for dataset, samples in DATASET_BASES.items():

@@ -12,6 +12,16 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
     # Filter out invalid time values (negative or zero)
     valid_data = df[df["time"] > 0].copy()
 
+    ms = set(df.M)
+    ns = set(df.N)
+    ks = set(df.K)
+    dtypes = set(df["dtype"])
+    assert len(ms) == len(ns) == len(ks) == len(dtypes) == 1
+    (m,) = ms
+    (n,) = ns
+    (k,) = ks
+    (dtype,) = dtypes
+
     # Calculate throughput (FLOPs per time)
     valid_data["throughput"] = valid_data["flops"] / valid_data["time"]
 
@@ -40,7 +50,7 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 
     ax.set_xlabel("Variant")
     ax.set_ylabel("Throughput (FLOPs per Time)")
-    ax.set_title("8x8x8 Matrix Multiplication: Throughput by Variant")
+    ax.set_title(f"{m}x{n}x{k} {dtype} Matrix Multiplication: Throughput by Variant")
     ax.grid(axis="y", alpha=0.3)
     ax.set_ylim(bottom=0)
     ax.spines["top"].set_visible(False)
@@ -56,7 +66,7 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Plot 8x8x8 performance bar chart.")
+    parser = argparse.ArgumentParser(description="Plot M=N=K performance bar chart.")
     parser.add_argument("input", type=Path, help="Input JSONL data file")
     parser.add_argument(
         "--output",
