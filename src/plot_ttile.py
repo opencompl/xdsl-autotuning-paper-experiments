@@ -7,18 +7,37 @@ from pathlib import Path
 
 
 def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
-    """Plot FLOPs per time with various visualizations."""
+    """Plot FLOPs per time for each kernel variant."""
 
     # Filter out invalid time values (negative or zero)
     valid_data = df[df["time"] > 0].copy()
-    # Note: invalid_data contains data points with negative or zero time values
-    # invalid_data = df[df["time"] <= 0]
 
-    # Calculate FLOPs per time (throughput) and plot only throughput vs M
+    # Calculate FLOPs per time (throughput)
     valid_data["throughput"] = valid_data["flops"] / valid_data["time"]
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(valid_data["M"], valid_data["throughput"], "bo-", linewidth=2, markersize=6)
+
+    # Assign a color and marker for each variant
+    import itertools
+
+    colors = itertools.cycle(["b", "g", "r", "c", "m", "y", "k"])
+    markers = itertools.cycle(["o", "s", "D", "^", "v", ">", "<", "p", "*", "h", "x"])
+
+    for (variant, group), color, marker in zip(
+        valid_data.groupby("variant"), colors, markers
+    ):
+        assert isinstance(group, pd.DataFrame)
+        group = group.sort_values("M")
+        ax.plot(
+            group["M"],
+            group["throughput"],
+            label=variant,
+            color=color,
+            marker=marker,
+            linewidth=2,
+            markersize=6,
+        )
+
     ax.set_xlabel("M")
     ax.set_ylabel("Throughput (FLOPs per Time)")
     ax.set_title(
@@ -26,9 +45,11 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     )
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0, valid_data["M"].max() + 2)
-    ax.set_ylim(bottom=0)
+    ax.set_yscale("log")
+    ax.set_ylim(bottom=1e-2)  # Avoid log(0); adjust as needed for your data
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+    ax.legend(title="Variant")
     plt.tight_layout()
 
     if output_file:
