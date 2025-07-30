@@ -29,7 +29,6 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
     # valid_data = valid_data.sort_values("throughput", ascending=False)
 
     # Bar chart: x = variant, y = throughput
-
     fig, ax = plt.subplots(figsize=(7, 5))
     bars = ax.bar(
         valid_data["variant"],
