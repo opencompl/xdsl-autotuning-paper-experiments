@@ -8,7 +8,7 @@ snakemake:
 
 .PHONY: avx
 avx:
-	lit -v tests/filecheck/avx
+	uv run lit -v tests/filecheck/avx
 	uv run snakemake --cores 1 data/handwritten.x86.jsonl --forcerun time
 
 .PHONY: tests
