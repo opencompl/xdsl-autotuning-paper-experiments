@@ -23,7 +23,7 @@ int main() {
   // CHECK-NEXT: [3.00, 5.00],
   // CHECK-NEXT: [4.00, 6.00]
 
-  ref_matmul(C, A, B, 2, 2, 3);
+  ref_matmul(A, B, C, 2, 2, 3);
 
   printf("C out:\n");
   // CHECK: C out:
@@ -33,7 +33,7 @@ int main() {
   // CHECK-NEXT: [31.00, 18.00],
   // CHECK-NEXT: [84.00, 50.00]
 
-  ref_matmul_colmaj(C_T, A_T, B_T, 2, 2, 3);
+  ref_matmul_colmaj(A_T, B_T, C_T, 2, 2, 3);
 
   printf("C_T out:\n");
   // CHECK: C_T out:

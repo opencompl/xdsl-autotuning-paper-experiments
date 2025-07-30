@@ -5,7 +5,7 @@
 
 #include "../../headers/mnk.h"
 
-void matmul(DTYPE *C, DTYPE *A, DTYPE *B) {
+void matmul(DTYPE *A, DTYPE *B, DTYPE *C) {
   // Do nothing
 }
 

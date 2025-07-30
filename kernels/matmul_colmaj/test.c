@@ -10,7 +10,7 @@
 #include "../../headers/print_matrix.h"
 #include "../../headers/ref_matmul.h"
 
-extern void matmul_colmaj(DTYPE result[M * N], DTYPE A[M * K], DTYPE B[K * N]);
+extern void matmul_colmaj(DTYPE A[M * K], DTYPE B[K * N], DTYPE result[M * N]);
 
 int main() {
   set_random_seed(42);
@@ -40,8 +40,8 @@ int main() {
   printf("C_colmaj\n");
   print_matrix_colmaj(C_colmaj, M, N);
 
-  ref_matmul(C, A, B, M, N, K);
-  matmul_colmaj(C_colmaj, A_colmaj, B_colmaj);
+  ref_matmul(A, B, C, M, N, K);
+  matmul_colmaj(A_colmaj, B_colmaj, C_colmaj);
 
   printf("C out\n");
   print_matrix(C, M, N);
