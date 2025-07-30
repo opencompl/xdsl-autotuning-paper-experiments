@@ -15,12 +15,8 @@ extern void matmul_colmaj(DTYPE result[M * N], DTYPE A[M * K], DTYPE B[K * N]);
 int main() {
   set_random_seed(42);
 
-  DTYPE *A = malloc(M * K * sizeof(DTYPE));
-  DTYPE *B = malloc(K * N * sizeof(DTYPE));
-  DTYPE *C = malloc(M * N * sizeof(DTYPE));
-  DTYPE *A_colmaj = malloc(M * K * sizeof(DTYPE));
-  DTYPE *B_colmaj = malloc(K * N * sizeof(DTYPE));
-  DTYPE *C_colmaj = malloc(M * N * sizeof(DTYPE));
+  DTYPE A[M * K], B[K * N], C[M * N], A_colmaj[M * K], B_colmaj[K * N],
+      C_colmaj[M * N];
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
