@@ -26,6 +26,7 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     for (variant, group), color, marker in zip(
         valid_data.groupby("variant"), colors, markers
     ):
+        assert isinstance(group, pd.DataFrame)
         group = group.sort_values("M")
         ax.plot(
             group["M"],
