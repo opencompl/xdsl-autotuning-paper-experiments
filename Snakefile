@@ -116,7 +116,9 @@ rule asm_c:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -o {output} {input}"
 
 rule libxsmm_colmaj_c:
-    output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.x86.c"
+    output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.{dtype}.x86.c"
+    params:
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
     shell:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
@@ -124,12 +126,14 @@ rule libxsmm_colmaj_c:
         libxsmm_gemm_generator dense {output} matmul_colmaj_abc \
             {wildcards.m} {wildcards.n} {wildcards.k} \
             {wildcards.m} {wildcards.k} {wildcards.m} \
-            1 1 1 1 hsw nopf SP && \
+            1 1 1 1 hsw nopf {params.dtype} && \
         echo 'void matmul_colmaj(float *C, const float *A, const float *B) {{matmul_colmaj_abc(A, B, C);}}' >> {output}
         """
 
 rule libxsmm_rowmaj_c:
-    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.x86.c"
+    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{dtype}.x86.c"
+    params:
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
     shell:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
@@ -137,14 +141,14 @@ rule libxsmm_rowmaj_c:
         libxsmm_gemm_generator dense {output} matmul_bac \
             {wildcards.n} {wildcards.m} {wildcards.k} \
             {wildcards.n} {wildcards.k} {wildcards.n} \
-            1 1 1 1 hsw nopf SP && \
+            1 1 1 1 hsw nopf {params.dtype} && \
         echo 'void matmul(float *C, const float *A, const float *B) {{matmul_bac(B, A, C);}}' >> {output}
         """
 
 
 rule libxsmm_s:
-    input: "build/{kernel}/{m}x{n}x{k}/libxsmm.{target}.c"
-    output: "build/{kernel}/{m}x{n}x{k}/libxsmm.{target}.S"
+    input: "build/{kernel}/{m}x{n}x{k}/libxsmm.{dtype}.{target}.c"
+    output: "build/{kernel}/{m}x{n}x{k}/libxsmm.{dtype}.{target}.S"
     params:
         target_triple=target_triple,
         cc=config["cc"],
