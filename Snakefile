@@ -234,7 +234,7 @@ DATASET_VARIANTS = {
     "x86": {
         "ttile": ["naive_c", "libxsmm"],
         "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "transform_xdsl"],
     },
 }[THIS_TARGET]
 
