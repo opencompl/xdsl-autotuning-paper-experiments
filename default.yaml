@@ -1,2 +1,40 @@
 cc: clang-20
 target: ci
+transform-to-llvm-passes:
+  - --canonicalize
+  - --cse
+  - --sccp
+  # From complex control to the soup of basic blocks
+  - --expand-strided-metadata
+  - --convert-linalg-to-loops
+  - --lower-affine
+  - --convert-vector-to-scf=full-unroll
+  - --scf-forall-to-parallel
+  - --convert-scf-to-openmp
+  - --canonicalize
+  - --cse
+  - --sccp
+  - --convert-scf-to-cf
+  - --canonicalize
+  - --cse
+  - --sccp
+  # Memory accesses to LLVM
+  - --buffer-results-to-out-params
+  - --convert-func-to-llvm=use-bare-ptr-memref-call-conv
+  - --finalize-memref-to-llvm
+  - --canonicalize
+  - --cse
+  - --sccp
+  # Data flow to LLVM
+  - --convert-vector-to-llvm=enable-x86vector
+  - --convert-index-to-llvm
+  - --convert-arith-to-llvm
+  - --canonicalize
+  - --cse
+  - --sccp
+  # Control flow to LLVM
+  - --convert-cf-to-llvm
+  - --convert-openmp-to-llvm
+  - --canonicalize
+  - --cse
+  - --sccp

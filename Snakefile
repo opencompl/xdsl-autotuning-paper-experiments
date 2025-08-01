@@ -49,14 +49,13 @@ rule execute_transform:
             --allow-unregistered-dialect \
             -o {output}"""
 
-rule vector_to_arith:
+rule transformed_to_llvm:
     input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.vector.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.arith.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.llvm.mlir"
+    params:
+        passes = config["transform-to-llvm-passes"]
     shell:
-        """mlir-opt {input} \
-            --convert-vector-to-scf \
-            --convert-scf-to-cf \
-            -o {output}"""
+        """mlir-opt {input} {params.passes} -o {output}"""
 
 rule memref_mlir:
     input: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
@@ -77,8 +76,8 @@ rule naive_mlir:
             -o {output}"""
 
 rule arith_to_llvm:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.arith.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.llvm.mlir"
+    input: "build/{kernel}/{m}x{n}x{k}/naive_mlir.{dtype}.arith.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/naive_mlir.{dtype}.llvm.mlir"
     shell:
         """mlir-opt {input} \
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
