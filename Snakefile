@@ -7,8 +7,8 @@ configfile: "default.yaml"
 # clang -dumpmachine
 TARGET_TRIPLE_DICT = {
     "neon": "arm64-apple-darwin24.3.0 ", # Sasha's Mac
-    "docker": "x86_64-unknown-linux-gnu", # Docker
-    "tower": "x86_64-pc-linux-gnu", # Docker
+    "ci": "x86_64-unknown-linux-gnu", # Docker
+    "tower": "x86_64-pc-linux-gnu",
 }
 
 def target_triple(wildcards):
@@ -225,7 +225,7 @@ DATASET_VARIANTS = {
         "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
         "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
     },
-    "docker": {
+    "ci": {
         "ttile": ["naive_c"],
         "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
         "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
@@ -303,28 +303,28 @@ TESTSET_MAC = [
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.test.log",
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.time.txt",
     # Generate CI test set x86 assembly
-    *(f"{base}.docker.S" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.docker.S",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.docker.S",
+    *(f"{base}.ci.S" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.S",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.S",
 ]
 
-TESTSET_DOCKER = [
+TESTSET_CI = [
     # Validate CI test set x86 executables
     *(f"{base}.neon.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.S",
     f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.neon.S",
     # Generate CI test set neon assembly
-    *(f"{base}.docker.test.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.docker.test.log",
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.docker.time.txt",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.docker.time.txt",
-    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.f32.docker.time.txt",
+    *(f"{base}.ci.test.log" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.test.log",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.time.txt",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.time.txt",
+    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.f32.ci.time.txt",
 ]
 
 TESTSET = {
     "neon": TESTSET_MAC,
-    "docker": TESTSET_DOCKER,
-    "tower": TESTSET_DOCKER,
+    "ci": TESTSET_CI,
+    "tower": TESTSET_CI,
 }[THIS_TARGET]
 
 rule tests:

@@ -1,3 +1,8 @@
+# On macs, the default target is "neon"
+ifeq ($(shell uname -s),Darwin)
+TARGET := neon
+endif
+
 ifneq ("$(wildcard .env)","")
 	include .env
 	export
