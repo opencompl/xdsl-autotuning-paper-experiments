@@ -1,10 +1,15 @@
+ifneq ("$(wildcard .env)","")
+	include .env
+	export
+endif
+
 .PHONY: filecheck
 filecheck:
 	uv run lit -v --order=smart tests/filecheck
 
 .PHONY: snakemake
 snakemake:
-	uv run snakemake --cores all tests --forceall
+	uv run snakemake --cores all tests --forceall $(if $(TARGET),--config target=$(TARGET),)
 
 .PHONY: tests
 tests: filecheck snakemake
@@ -13,13 +18,13 @@ tests: filecheck snakemake
 
 .PHONY: dataset_code
 dataset_code:
-	uv run snakemake --cores all dataset_code
+	uv run snakemake --cores all dataset_code $(if $(TARGET),--config target=$(TARGET),)
 
 # --cores 1 to avoid contention issues when measuring performance
 # re-run time measurement every time
 .PHONY: dataset
 dataset: dataset_code
-	uv run snakemake --cores 1 dataset --forcerun time
+	uv run snakemake --cores 1 dataset --forcerun time $(if $(TARGET),--config target=$(TARGET),)
 
 
 PLOTS = plots/ttile.f32.neon.png plots/ttile.f32.x86.png plots/cube.f32.neon.png plots/cube.f32.x86.png plots/cube.f64.neon.png plots/cube.f64.x86.png
