@@ -1,4 +1,4 @@
-func.func @matmul(
+func.func public @matmul(
     %arg0: tensor<{{wildcards.m}}x{{wildcards.k}}x{{wildcards.dtype}}> {llvm.noalias},
     %arg1: tensor<{{wildcards.k}}x{{wildcards.n}}x{{wildcards.dtype}}> {llvm.noalias},
     %arg2: tensor<{{wildcards.m}}x{{wildcards.n}}x{{wildcards.dtype}}> {llvm.noalias}

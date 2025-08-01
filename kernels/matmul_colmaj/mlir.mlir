@@ -1,4 +1,4 @@
-func.func @matmul_colmaj(
+func.func public @matmul_colmaj(
     %arg0: tensor<{{wildcards.k}}x{{wildcards.m}}x{{wildcards.dtype}}> {llvm.noalias},
     %arg1: tensor<{{wildcards.n}}x{{wildcards.k}}x{{wildcards.dtype}}> {llvm.noalias},
     %arg2: tensor<{{wildcards.n}}x{{wildcards.m}}x{{wildcards.dtype}}> {llvm.noalias}
