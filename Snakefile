@@ -207,15 +207,11 @@ rule json:
 # Dataset
 ########################################################################################
 
-import platform
-# "Darwin" for macOS, "Linux" for Linux, etc.
-THIS_SYSTEM = platform.system()
-
-# NOTE: we should make this more precise in the future
-THIS_TARGET = {
-    "Darwin": "neon",
-    "Linux": "x86"
-}[THIS_SYSTEM]
+# Set the target by:
+# passing `--target=THIS_TARGET` when running snakemake
+# passing TARGET="THIS_TARGET" when running make
+# adding `TARGET="THIS_TARGET"` in .env, which will be read by make automatically
+THIS_TARGET = config["target"]
 
 DATASET_VARIANTS = {
     "neon": {
