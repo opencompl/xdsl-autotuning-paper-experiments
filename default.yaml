@@ -1,2 +1,2 @@
 cc: clang-20
-target: x86
+target: ci
