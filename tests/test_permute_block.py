@@ -5,6 +5,7 @@ from xdsl.ir import Block
 
 from autotuner.permute_block import permute
 
+
 def test_permute_block_ops():
     # Operations on these constants
     a = test.TestOp()
