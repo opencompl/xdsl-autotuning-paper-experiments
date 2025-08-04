@@ -35,7 +35,7 @@ rule transform_mlir:
         transform="kernels/{kernel}/vectorize.transform.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
     shell:
-        './src/merge_transform.awk {input.matmul} {input.transform} > {output}'
+        './src/autotuner/merge_transform.awk {input.matmul} {input.transform} > {output}'
 
 rule execute_transform:
     input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
