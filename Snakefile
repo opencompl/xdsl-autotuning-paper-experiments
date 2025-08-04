@@ -60,7 +60,7 @@ rule vector_to_arith:
 
 rule transform_xdsl:
     input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.vector.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_xdsl.{dtype}.x86.S"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_xdsl.{dtype}.tower.S"
     params:
         passes = ",".join(config["xdsl-opt-passes-vector"])
     shell:
@@ -314,6 +314,7 @@ TESTSET_MAC = [
     *(f"{base}.ci.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.S",
     f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.S",
+    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.tower.S",
 ]
 
 TESTSET_CI = [

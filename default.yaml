@@ -6,6 +6,7 @@ xdsl-opt-passes-vector:
   - convert-vector-to-ptr
   - convert-memref-to-ptr{lower_func=true}
   - convert-ptr-type-offsets
+  - vector-split-load-extract
   - canonicalize
   - convert-func-to-x86-func
   - convert-vector-to-x86{arch=avx2}
@@ -13,5 +14,6 @@ xdsl-opt-passes-vector:
   - convert-arith-to-x86
   - reconcile-unrealized-casts
   - canonicalize
+  - x86-infer-broadcast
   - x86-allocate-registers
   - canonicalize
