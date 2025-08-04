@@ -1,4 +1,5 @@
 cc: clang-20
+target: ci
 
 xdsl-opt-passes-vector:
   - canonicalize

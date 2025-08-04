@@ -7,7 +7,8 @@ configfile: "default.yaml"
 # clang -dumpmachine
 TARGET_TRIPLE_DICT = {
     "neon": "arm64-apple-darwin24.3.0 ", # Sasha's Mac
-    "x86": "x86_64-unknown-linux-gnu", # Docker
+    "ci": "x86_64-unknown-linux-gnu", # Docker
+    "tower": "x86_64-pc-linux-gnu",
 }
 
 def target_triple(wildcards):
@@ -124,7 +125,7 @@ rule asm_c:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -o {output} {input}"
 
 rule libxsmm_colmaj_c:
-    output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.{dtype}.x86.c"
+    output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.{dtype}.tower.c"
     params:
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
     shell:
@@ -138,7 +139,7 @@ rule libxsmm_colmaj_c:
         """
 
 rule libxsmm_rowmaj_c:
-    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{dtype}.x86.c"
+    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{dtype}.tower.c"
     params:
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
     shell:
@@ -215,15 +216,11 @@ rule json:
 # Dataset
 ########################################################################################
 
-import platform
-# "Darwin" for macOS, "Linux" for Linux, etc.
-THIS_SYSTEM = platform.system()
-
-# NOTE: we should make this more precise in the future
-THIS_TARGET = {
-    "Darwin": "neon",
-    "Linux": "x86"
-}[THIS_SYSTEM]
+# Set the target by:
+# passing `--target=THIS_TARGET` when running snakemake
+# passing TARGET="THIS_TARGET" when running make
+# adding `TARGET="THIS_TARGET"` in .env, which will be read by make automatically
+THIS_TARGET = config["target"]
 
 DATASET_VARIANTS = {
     "neon": {
@@ -231,10 +228,15 @@ DATASET_VARIANTS = {
         "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
         "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
     },
-    "x86": {
+    "tower": {
         "ttile": ["naive_c", "libxsmm"],
         "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
         "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "transform_xdsl"],
+    },
+    "ci": {
+        "ttile": ["naive_c"],
+        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
     },
 }[THIS_TARGET]
 
@@ -309,28 +311,29 @@ TESTSET_MAC = [
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.test.log",
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.time.txt",
     # Generate CI test set x86 assembly
-    *(f"{base}.x86.S" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.x86.S",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.x86.S",
+    *(f"{base}.ci.S" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.S",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.S",
 ]
 
-TESTSET_DOCKER = [
+TESTSET_CI = [
     # Validate CI test set x86 executables
     *(f"{base}.neon.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.S",
     f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.neon.S",
     # Generate CI test set neon assembly
-    *(f"{base}.x86.test.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.x86.test.log",
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.x86.time.txt",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.x86.time.txt",
-    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.f32.x86.time.txt",
-    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.x86.time.txt",
+    *(f"{base}.ci.test.log" for base in _TESTSET_CI),
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.test.log",
+    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.time.txt",
+    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.time.txt",
+    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.f32.ci.time.txt",
+    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.ci.time.txt",
 ]
 
 TESTSET = {
     "neon": TESTSET_MAC,
-    "x86": TESTSET_DOCKER,
+    "ci": TESTSET_CI,
+    "tower": TESTSET_CI,
 }[THIS_TARGET]
 
 rule tests:
