@@ -35,7 +35,7 @@ rule transform_mlir:
         transform="kernels/{kernel}/vectorize.transform.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
     shell:
-        './src/merge_transform.awk {input.matmul} {input.transform} > {output}'
+        './src/autotuner/merge_transform.awk {input.matmul} {input.transform} > {output}'
 
 rule execute_transform:
     input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
@@ -255,6 +255,17 @@ DATASET_BASES = {
         variant=DATASET_VARIANTS["cube.f64"],
     ),
 }
+
+BARS_INPUTS = expand(
+    "{base}/{variant}.f64." + THIS_TARGET + ".json",
+    base="build/matmul_rowmaj/{m}x{n}x{k}",
+    variant=DATASET_VARIANTS["cube.f64"]
+)
+
+rule bars_data:
+    input: BARS_INPUTS
+    output: "data/bars.{m}x{n}x{k}.f64." + THIS_TARGET + ".jsonl"
+    shell: "cat {input} > {output}"
 
 for dataset, samples in DATASET_BASES.items():
     rule:
