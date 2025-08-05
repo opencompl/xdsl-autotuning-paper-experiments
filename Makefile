@@ -32,6 +32,11 @@ dataset: dataset_code
 	uv run snakemake --cores 1 dataset --forcerun time $(if $(TARGET),--config target=$(TARGET),)
 
 
+# Prevent Make from deleting this intermediate file
+.PRECIOUS: data/bars.%.jsonl
+data/bars.%.jsonl:
+	uv run snakemake --cores 1 $@ $(if $(TARGET),--config target=$(TARGET),)
+
 PLOTS =
 
 PLOTS += plots/ttile.f32.neon.png
@@ -45,6 +50,9 @@ plots/ttile.%.png: data/ttile.%.jsonl src/plot_ttile.py
 	uv run plot-ttile $< --output $@
 
 plots/cube.%.png: data/cube.%.jsonl src/plot_cube.py
+	uv run plot-cube $< --output $@
+
+plots/bars.%.png: data/bars.%.jsonl src/plot_cube.py
 	uv run plot-cube $< --output $@
 
 .PHONY: plots

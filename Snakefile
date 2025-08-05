@@ -248,6 +248,17 @@ DATASET_BASES = {
     ),
 }
 
+BARS_INPUTS = expand(
+    "{base}/{variant}.f64." + THIS_TARGET + ".json",
+    base="build/matmul_rowmaj/{m}x{n}x{k}",
+    variant=DATASET_VARIANTS["cube.f64"]
+)
+
+rule bars_data:
+    input: BARS_INPUTS
+    output: "data/bars.{m}x{n}x{k}.f64." + THIS_TARGET + ".jsonl"
+    shell: "cat {input} > {output}"
+
 for dataset, samples in DATASET_BASES.items():
     rule:
         input: [base + ".json" for base in samples]
