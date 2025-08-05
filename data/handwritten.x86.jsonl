@@ -1,2 +1,0 @@
-{"M":4,"N":4,"K":4,"flops":128,"time":4.468750,"variant":"reference","target":"x86","dtype":"f64"}
-{"M":4,"N":4,"K":4,"flops":128,"time":4.382812,"variant":"unrolled","target":"x86","dtype":"f64"}
