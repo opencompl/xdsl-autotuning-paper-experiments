@@ -264,36 +264,38 @@ class IntGraph(IntAdjacency, AbstractMutableGraph[Index, None]):
 
 def _iter_topological_sort(
     g: AbstractAdjacency[Node],
-    root_nodes: Sequence[Node],
+    root_nodes: AbstractSet[Node],
     explored_nodes: MutableSet[Node],
-) -> Iterator[tuple[Node, ...]]:
+    acc: list[Node],
+) -> Iterator[list[Node]]:
     """
     Assumes that the input is acyclic.
     """
     if not root_nodes:
-        yield ()
+        yield acc
         return
 
-    for i, root in enumerate(root_nodes):
-        # Add root to explored nodes
+    for root in root_nodes:
+        # Add root to explored nodes and accumulator
         explored_nodes.add(root)
-        # Remove root from root nodes
-        # Check for new roots (nodes whose sources are in the explored nodes)
-        new_root_nodes = [*root_nodes[:i], *root_nodes[i + 1 :]]
-        for target in g.targets_for_source(root):
-            if g.sources_for_target(target) <= explored_nodes:
-                new_root_nodes.append(target)
-        # The new root nodes are the remaining roots plus any new candidates
-        for permutation in _iter_topological_sort(g, new_root_nodes, explored_nodes):
-            yield (root, *permutation)
+        acc.append(root)
+        # Calculate new roots
+        maybe_roots = g.targets_for_sources(explored_nodes) - explored_nodes
+        maybe_roots_sources = g.sources_for_targets(maybe_roots)
+        non_explored_sources = maybe_roots_sources - explored_nodes
+        invalid_roots = g.targets_for_sources(non_explored_sources)
+        new_roots = maybe_roots - invalid_roots
+        yield from _iter_topological_sort(g, new_roots, explored_nodes, acc)
+        # Remove root from explored nodes and accumulator
         explored_nodes.remove(root)
+        acc.pop()
 
 
 def iter_topological_sort(g: AbstractAdjacency[Node]) -> Iterator[Sequence[Node]]:
     g.assert_acyclic()
     root_nodes = g.nodes() - g.targets()
     empty = g.empty()
-    yield from _iter_topological_sort(g, tuple(root_nodes), empty)
+    yield from _iter_topological_sort(g, root_nodes, empty, [])
 
 
 def topological_sort(g: AbstractGraph[Node, Any]) -> Sequence[Node]:
