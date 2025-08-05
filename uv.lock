@@ -186,7 +186,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "snakemake", specifier = ">=8.30.0" },
-    { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=105c3cd28c34cd05a863222b3c7c61f955c6e753" },
+    { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=902ab914cfa0b9dc56db15ba777f8f029fac448e" },
 ]
 
 [[package]]
@@ -2918,8 +2918,8 @@ wheels = [
 
 [[package]]
 name = "xdsl"
-version = "0.47.1.dev57+g105c3cd2"
-source = { git = "https://github.com/xdslproject/xdsl.git?rev=105c3cd28c34cd05a863222b3c7c61f955c6e753#105c3cd28c34cd05a863222b3c7c61f955c6e753" }
+version = "0.47.1.dev57+g902ab914c"
+source = { git = "https://github.com/xdslproject/xdsl.git?rev=902ab914cfa0b9dc56db15ba777f8f029fac448e#902ab914cfa0b9dc56db15ba777f8f029fac448e" }
 dependencies = [
     { name = "immutabledict" },
     { name = "ordered-set" },
