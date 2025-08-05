@@ -1,3 +1,4 @@
+import re
 import pytest
 
 from xdsl.dialects import test
@@ -16,16 +17,16 @@ def test_permute_block_ops():
     f = test.TestOp()
 
     # Create Block from operations
-    block0 = Block([a, b, c, d, e, f])
+    block = Block([a, b, c, d, e, f])
     orderings = [2, 5, 0, 4, 1, 3]
-    permute(block0, orderings)
+    permute(block, orderings)
 
-    assert tuple(block0.ops) == (c, f, a, e, b, d)
+    assert tuple(block.ops) == (c, f, a, e, b, d)
 
-    with pytest.raises(AssertionError, match="Invalid permutation provided"):
-        a = test.TestOp()
-        b = test.TestOp()
-        c = test.TestOp()
-        block1 = Block([a, b, c])
-        orderings_invalid = [2, 5, 6]
-        permute(block1, orderings_invalid)
+    with pytest.raises(
+        ValueError, match=re.escape("Indices [1, 1] are not a valid permutation")
+    ):
+        permute(block, [1, 1])
+
+    with pytest.raises(ValueError, match="Invalid permutation length 2, expected 6"):
+        permute(block, [0, 1])
