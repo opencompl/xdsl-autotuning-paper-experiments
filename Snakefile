@@ -329,17 +329,18 @@ TESTSET_MAC = [
 ]
 
 TESTSET_CI = [
-    # Validate CI test set x86 executables
+    # Generate CI test set neon assembly
     *(f"{base}.neon.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.S",
     f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.neon.S",
-    # Generate CI test set neon assembly
+    # Generate CI test set avx assembly
+    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.tower.S",
+    # Validate CI test set x86 executables
     *(f"{base}.ci.test.log" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.test.log",
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.time.txt",
     f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.time.txt",
     f"build/matmul_rowmaj/5x6x7/vector_intrinsic.f32.ci.time.txt",
-    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.ci.time.txt",
 ]
 
 TESTSET = {
