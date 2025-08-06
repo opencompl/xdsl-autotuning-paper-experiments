@@ -105,6 +105,8 @@ rule arith_to_llvm:
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.llvm.mlir"
     shell:
         """mlir-opt {input} \
+            --expand-strided-metadata \
+            --lower-affine \
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
             --finalize-memref-to-llvm \
             --canonicalize --cse --sccp \
@@ -113,6 +115,7 @@ rule arith_to_llvm:
             --convert-arith-to-llvm \
             --convert-cf-to-llvm \
             --canonicalize --cse --sccp \
+            --reconcile-unrealized-casts \
             -o {output}"""
 
 rule mlir_to_ll:
