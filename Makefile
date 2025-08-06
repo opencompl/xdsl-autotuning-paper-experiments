@@ -8,6 +8,10 @@ ifneq ("$(wildcard .env)","")
 	export
 endif
 
+.PHONY: pytest
+pytest:
+	uv run pytest -W error
+
 .PHONY: filecheck
 filecheck:
 	uv run lit -v --order=smart tests/filecheck
@@ -17,7 +21,7 @@ snakemake:
 	uv run snakemake --cores all tests --forceall $(if $(TARGET),--config target=$(TARGET),)
 
 .PHONY: tests
-tests: filecheck snakemake
+tests: pytest filecheck snakemake
 	@echo "All tests passed successfully"
 	@exit 0
 
