@@ -9,10 +9,34 @@ TARGET_TRIPLE_DICT = {
     "neon": "arm64-apple-darwin24.3.0 ", # Sasha's Mac
     "ci": "x86_64-unknown-linux-gnu", # Docker
     "tower": "x86_64-pc-linux-gnu",
+    "pinocchio": "x86_64-pc-linux-gnu",
 }
+
+TARGET_ARCH_DICT = {
+    "neon": "armv8.5-a",
+    "ci": "x86-64", # TODO
+    "tower": "znver5",
+    "pinocchio": "skylake-avx512",
+}
+
+def arch_to_xsmm(arch):
+    match arch:
+        case 'skylake-avx512':
+            return 'skx'
+        case _:
+            return 'noarch'
+
+TARGET_XSMM_DICT = { k: arch_to_xsmm(v) for k, v in TARGET_ARCH_DICT.items() }
+    
 
 def target_triple(wildcards):
     return TARGET_TRIPLE_DICT[wildcards.target]
+
+def target_arch(wildcards):
+    return TARGET_ARCH_DICT[wildcards.target]
+
+def target_xsmm(wildcards):
+    return TARGET_XSMM_DICT[wildcards.target]
 
 
 rule templated_tensor:
@@ -102,22 +126,24 @@ rule asm_ll:
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
     params:
         target_triple=target_triple,
+        target_arch=target_arch,
         cc=config["cc"],
     shell:
-        "{params.cc} -S -fenable-matrix -target {params.target_triple} -o {output} {input}"
+        "{params.cc} -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
     output: "build/{kernel}/{m}x{n}x{k}/naive_c.{dtype}.{target}.S"
     params:
         target_triple=target_triple,
+        target_arch=target_arch,
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -o {output} {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
 
 rule libxsmm_colmaj_c:
-    output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.{dtype}.tower.c"
+    output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.{dtype}.{target}.c"
     params:
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
     shell:
@@ -131,8 +157,9 @@ rule libxsmm_colmaj_c:
         """
 
 rule libxsmm_rowmaj_c:
-    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{dtype}.tower.c"
+    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{dtype}.{target}.c"
     params:
+        target_xsmm=target_xsmm,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
     shell:
         """
@@ -141,7 +168,10 @@ rule libxsmm_rowmaj_c:
         libxsmm_gemm_generator dense {output} matmul_bac \
             {wildcards.n} {wildcards.m} {wildcards.k} \
             {wildcards.n} {wildcards.k} {wildcards.n} \
-            1 1 0 0 hsw nopf {params.dtype} && \
+            1 1 0 0 \
+            {params.target_xsmm} \
+            nopf \
+            {params.dtype} && \
         echo 'void matmul(const float *A, const float *B, float *C) {{matmul_bac(B, A, C);}}' >> {output}
         """
 
@@ -151,19 +181,21 @@ rule libxsmm_s:
     output: "build/{kernel}/{m}x{n}x{k}/libxsmm.{dtype}.{target}.S"
     params:
         target_triple=target_triple,
+        target_arch=target_arch,
         cc=config["cc"],
     shell:
-        "{params.cc} -mavx2 -DNDEBUG -c {input} -S -target {params.target_triple} -o {output}"
+        "{params.cc} -mavx2 -DNDEBUG -c {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
 
 rule executable:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.{executable}.o"
     params:
         target_triple=target_triple,
+        target_arch=target_arch,
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -target {params.target_triple} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
@@ -221,6 +253,11 @@ DATASET_VARIANTS = {
         "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
     },
     "tower": {
+        "ttile": ["naive_c", "libxsmm"],
+        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+    },
+    "pinocchio": {
         "ttile": ["naive_c", "libxsmm"],
         "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
         "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
@@ -336,6 +373,7 @@ TESTSET = {
     "neon": TESTSET_MAC,
     "ci": TESTSET_CI,
     "tower": TESTSET_CI,
+    "pinocchio": TESTSET_CI,
 }[THIS_TARGET]
 
 rule tests:
