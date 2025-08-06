@@ -41,10 +41,13 @@ PLOTS =
 
 PLOTS += plots/ttile.f32.neon.png
 PLOTS += plots/ttile.f32.tower.png
+PLOTS += plots/ttile.f32.pinocchio.png
 PLOTS += plots/cube.f32.neon.png
 PLOTS += plots/cube.f32.tower.png
+PLOTS += plots/cube.f32.pinocchio.png
 PLOTS += plots/cube.f64.neon.png
 PLOTS += plots/cube.f64.tower.png
+PLOTS += plots/cube.f64.pinocchio.png
 
 plots/ttile.%.png: data/ttile.%.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile $< --output $@
