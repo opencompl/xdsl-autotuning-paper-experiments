@@ -1,7 +1,7 @@
 module {
   transform.named_sequence @_vecto(%arg0: !transform.any_op {transform.consumed}) {
     transform.structured.vectorize %arg0 : !transform.any_op
-    transform.yield 
+    transform.yield
   }
   transform.named_sequence @__transform_main(%arg0: !transform.any_op {transform.readonly}) {
     %0 = transform.structured.match ops{["linalg.matmul"]} in %arg0 : (!transform.any_op) -> !transform.any_op
@@ -17,6 +17,9 @@ module {
       transform.apply_patterns.vector.lower_outerproduct
       transform.apply_patterns.vector.lower_contraction
     } : !transform.any_op
-    transform.yield 
+    transform.apply_patterns to %1 {
+      transform.apply_patterns.memref.expand_strided_metadata
+    } : !transform.any_op
+    transform.yield
   }
 }
