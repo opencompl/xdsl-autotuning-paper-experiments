@@ -80,8 +80,6 @@ rule vector_to_arith:
     output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.arith.mlir"
     shell:
         """mlir-opt {input} \
-            --canonicalize \
-            --lower-affine \
             --convert-vector-to-scf \
             --convert-scf-to-cf \
             -o {output}"""
@@ -109,6 +107,8 @@ rule arith_to_llvm:
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.llvm.mlir"
     shell:
         """mlir-opt {input} \
+            --expand-strided-metadata \
+            --lower-affine \
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
             --finalize-memref-to-llvm \
             --canonicalize --cse --sccp \
