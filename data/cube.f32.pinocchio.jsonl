@@ -1,0 +1,4 @@
+{"M":8,"N":8,"K":8,"flops":1024,"time":406.007812,"variant":"naive_c","target":"pinocchio","dtype":"f32"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":47.531250,"variant":"transform_mlir","target":"pinocchio","dtype":"f32"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":71.070312,"variant":"vector_intrinsic","target":"pinocchio","dtype":"f32"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":112.828125,"variant":"libxsmm","target":"pinocchio","dtype":"f32"}
