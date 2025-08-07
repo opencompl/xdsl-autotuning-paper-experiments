@@ -29,7 +29,7 @@ def arch_to_xsmm(arch):
             return 'noarch'
 
 TARGET_XSMM_DICT = { k: arch_to_xsmm(v) for k, v in TARGET_ARCH_DICT.items() }
-    
+
 
 def target_triple(wildcards):
     return TARGET_TRIPLE_DICT[wildcards.target]
@@ -58,7 +58,7 @@ rule templated_vector_intrinsic:
 rule transform_mlir:
     input:
         matmul="build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir",
-        transform="kernels/{kernel}/vectorize.transform.mlir"
+        transform="kernels/vectorize.transform.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
     shell:
         './src/autotuner/merge_transform.awk {input.matmul} {input.transform} > {output}'
@@ -80,6 +80,8 @@ rule vector_to_arith:
     output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.arith.mlir"
     shell:
         """mlir-opt {input} \
+            --canonicalize \
+            --lower-affine \
             --convert-vector-to-scf \
             --convert-scf-to-cf \
             -o {output}"""
@@ -115,8 +117,6 @@ rule arith_to_llvm:
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.llvm.mlir"
     shell:
         """mlir-opt {input} \
-            --expand-strided-metadata \
-            --lower-affine \
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
             --finalize-memref-to-llvm \
             --canonicalize --cse --sccp \
