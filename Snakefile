@@ -23,6 +23,8 @@ def arch_to_xsmm(arch):
     match arch:
         case 'skylake-avx512':
             return 'skx'
+        case 'znver5':
+            return 'skx'
         case _:
             return 'noarch'
 
