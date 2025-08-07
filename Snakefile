@@ -115,7 +115,6 @@ rule arith_to_llvm:
             --convert-arith-to-llvm \
             --convert-cf-to-llvm \
             --canonicalize --cse --sccp \
-            --reconcile-unrealized-casts \
             -o {output}"""
 
 rule mlir_to_ll:
@@ -132,7 +131,7 @@ rule asm_ll:
         target_arch=target_arch,
         cc=config["cc"],
     shell:
-        "{params.cc} -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
+        "{params.cc} -O3 -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
@@ -143,7 +142,7 @@ rule asm_c:
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
+        "{params.cc} -O3 -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
 
 rule libxsmm_colmaj_c:
     output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.{dtype}.{target}.c"
@@ -187,7 +186,7 @@ rule libxsmm_s:
         target_arch=target_arch,
         cc=config["cc"],
     shell:
-        "{params.cc} -mavx2 -DNDEBUG -c {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        "{params.cc} -O3 -mavx2 -DNDEBUG -c {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
 
 rule executable:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
