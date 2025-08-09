@@ -2,6 +2,7 @@ cc: clang-20
 target: ci
 
 xdsl-opt-passes-vector:
+  - test-vectorize-matmul
   - canonicalize
   - convert-vector-to-ptr
   - convert-memref-to-ptr{lower_func=true}
