@@ -1,6 +1,12 @@
 from typing import Sequence
 from xdsl.ir import Block
 
+from xdsl.traits import IsTerminator, MemoryWriteEffect, MemoryReadEffect
+from xdsl.dialects.x86.ops import LabelOp
+from xdsl.backend.register_type import RegisterAllocatedMemoryEffect
+
+from autotuner.graph import IntAdjacency
+
 
 def permute(block: Block, old_indices: Sequence[int]) -> None:
     """
@@ -20,3 +26,45 @@ def permute(block: Block, old_indices: Sequence[int]) -> None:
         op.detach()
     for old_index in old_indices:
         block.add_op(tuple_ops[old_index])
+
+
+def generate_adjacency(block: Block) -> IntAdjacency:
+    """
+    Generates an adjacency from a basic block.
+    Nodes are integer-valued, based on enumeration of the instructions in the input block.
+    Edges represent the dependencies between them.
+
+    Rules:
+    - Any memory write depends on all earlier memory reads and writes.
+    - Any memory read depends on all earlier memory writes.
+    - If the op is a label or a terminator, it must remain in place. Make all other ops depend on it.
+    - Any op with an allocated register effect depends on all earlier ops and all later ops depend on it
+
+    """
+    tuples_src_dst: list[tuple[int, int]] = []
+    tuple_ops = tuple(block.ops)
+    num_ops = len(tuple_ops)
+    for i, insn in enumerate(block.ops):
+        if insn.has_trait(IsTerminator) or isinstance(insn, LabelOp):
+            for j in range(num_ops):
+                if i != j:
+                    tuples_src_dst.append((i, j))
+            continue
+        if insn.has_trait(MemoryWriteEffect):
+            for j in range(i + 1, num_ops):
+                if (
+                    tuple_ops[j].has_trait(MemoryReadEffect)
+                    or tuple_ops[j].has_trait(MemoryWriteEffect)
+                    or tuple_ops[j].has_trait(RegisterAllocatedMemoryEffect)
+                ):
+                    tuples_src_dst.append((i, j))
+        elif insn.has_trait(MemoryReadEffect):
+            for j in range(i + 1, num_ops):
+                if tuple_ops[j].has_trait(MemoryWriteEffect) or tuple_ops[j].has_trait(
+                    RegisterAllocatedMemoryEffect
+                ):
+                    tuples_src_dst.append((i, j))
+        if insn.has_trait(RegisterAllocatedMemoryEffect):
+            for j in range(i + 1, num_ops):
+                tuples_src_dst.append((i, j))
+    return IntAdjacency.from_tuples(tuples_src_dst)
