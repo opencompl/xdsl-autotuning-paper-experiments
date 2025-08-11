@@ -16,8 +16,9 @@ extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
 int main() {
   set_random_seed(42);
 
-  DTYPE A[M * K], B[K * N];
-  DTYPE C[(NUM_ITERATIONS + 1) * M * N];
+  DTYPE *A = aligned_alloc(64, M * K * sizeof(DTYPE));
+  DTYPE *B = aligned_alloc(64, K * N * sizeof(DTYPE));
+  DTYPE *C = aligned_alloc(64, (NUM_ITERATIONS + 1) * M * N * sizeof(DTYPE));
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
@@ -43,5 +44,9 @@ int main() {
 
   double average_cycles = (double)elapsed / (double)NUM_ITERATIONS;
   printf("%f\n", average_cycles);
+
+  free(A);
+  free(B);
+  free(C);
   return 0;
 }
