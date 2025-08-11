@@ -16,7 +16,12 @@ extern void matmul(DTYPE result[M * N], DTYPE A[M * K], DTYPE B[K * N]);
 int main() {
   set_random_seed(42);
 
-  DTYPE A[M * K], B[K * N], C[M * N], A_asm[M * K], B_asm[K * N], C_asm[M * N];
+  DTYPE *A = aligned_alloc(64, M * K * sizeof(DTYPE));
+  DTYPE *B = aligned_alloc(64, K * N * sizeof(DTYPE));
+  DTYPE *C = aligned_alloc(64, M * N * sizeof(DTYPE));
+  DTYPE *A_asm = aligned_alloc(64, M * K * sizeof(DTYPE));
+  DTYPE *B_asm = aligned_alloc(64, K * N * sizeof(DTYPE));
+  DTYPE *C_asm = aligned_alloc(64, M * N * sizeof(DTYPE));
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
@@ -47,4 +52,11 @@ int main() {
     printf("\nTest Failed: The results do not match.\n");
     return 1;
   }
+
+  free(A);
+  free(B);
+  free(C);
+  free(A_asm);
+  free(B_asm);
+  free(C_asm);
 }

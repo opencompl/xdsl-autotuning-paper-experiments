@@ -15,8 +15,12 @@ extern void matmul_colmaj(DTYPE A[M * K], DTYPE B[K * N], DTYPE result[M * N]);
 int main() {
   set_random_seed(42);
 
-  DTYPE A[M * K], B[K * N], C[M * N], A_colmaj[M * K], B_colmaj[K * N],
-      C_colmaj[M * N];
+  DTYPE *A = aligned_alloc(64, M * K * sizeof(DTYPE));
+  DTYPE *B = aligned_alloc(64, K * N * sizeof(DTYPE));
+  DTYPE *C = aligned_alloc(64, M * N * sizeof(DTYPE));
+  DTYPE *A_colmaj = aligned_alloc(64, M * K * sizeof(DTYPE));
+  DTYPE *B_colmaj = aligned_alloc(64, K * N * sizeof(DTYPE));
+  DTYPE *C_colmaj = aligned_alloc(64, M * N * sizeof(DTYPE));
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
@@ -60,4 +64,10 @@ int main() {
     printf("\nTest Failed: The results do not match.\n");
     return 1;
   }
+  free(A);
+  free(B);
+  free(C);
+  free(A_colmaj);
+  free(B_colmaj);
+  free(C_colmaj);
 }
