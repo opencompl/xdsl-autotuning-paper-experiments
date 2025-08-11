@@ -18,12 +18,12 @@ int main() {
 
   DTYPE *A = aligned_alloc(64, M * K * sizeof(DTYPE));
   DTYPE *B = aligned_alloc(64, K * N * sizeof(DTYPE));
-  DTYPE *C = aligned_alloc(64, (NUM_ITERATIONS + 1) * M * N * sizeof(DTYPE));
+  DTYPE *C = aligned_alloc(64, M * N * sizeof(DTYPE));
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
   for (int i = 0; i < NUM_ITERATIONS + 1; i++) {
-    fill_random_data(&C[i * M * N], M * N);
+    fill_random_data(C, M * N);
   }
 
   // Warm up the cache with one iteration
@@ -34,7 +34,7 @@ int main() {
   clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
   for (int i = 0; i < NUM_ITERATIONS; i++) {
-    matmul(A, B, &C[(i + 1) * M * N]);
+    matmul(A, B, C);
   }
 
   struct timespec ts_end;
