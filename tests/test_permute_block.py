@@ -4,6 +4,7 @@ import pytest
 from xdsl.dialects import test
 from xdsl.dialects.x86.ops import LabelOp
 from xdsl.ir import Block
+from xdsl.builder import ImplicitBuilder
 
 from autotuner.permute_block import permute, generate_adjacency
 
@@ -34,45 +35,44 @@ def test_permute_block_ops():
 
 
 def test_generate_adjacency():
-    op0 = LabelOp("start")
-    op1 = test.TestWriteOp()
-    op2 = test.TestReadOp()
-    op3 = test.TestWriteOp()
-    op4 = test.TestReadOp()
-    op5 = test.TestReadOp()
-    op6 = test.TestWriteOp()
-    op7 = test.TestTermOp()
-
     block = Block()
-    for op in [op0, op1, op2, op3, op4, op5, op6, op7]:
-        block.add_op(op)
 
-    adj = generate_adjacency(block)
-    expected_edges = {
-        (1, 2),
-        (1, 3),
-        (1, 4),
-        (1, 5),
-        (1, 6),
-        (2, 3),
-        (2, 6),
-        (3, 4),
-        (3, 4),
-        (3, 5),
-        (3, 6),
-        (4, 6),
-        (5, 6),
-    }
+    with ImplicitBuilder(block):
+        LabelOp("start")
+        test.TestWriteOp()
+        test.TestReadOp()
+        test.TestWriteOp()
+        test.TestReadOp()
+        test.TestReadOp()
+        test.TestWriteOp()
+        test.TestTermOp()
 
-    # Check terminators and labels do not move and have all other ops dependent on them
-    num_ops = len(block.ops)
-    for fixed_idx in [0, 7]:
-        for i in range(num_ops):
-            if i != fixed_idx:
-                expected_edges.add((fixed_idx, i))
+        adj = generate_adjacency(block)
+        expected_edges = {
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (1, 5),
+            (1, 6),
+            (2, 3),
+            (2, 6),
+            (3, 4),
+            (3, 4),
+            (3, 5),
+            (3, 6),
+            (4, 6),
+            (5, 6),
+        }
 
-    actual_edges = set()
-    for src in adj.sources():
-        for tgt in adj.targets_for_source(src):
-            actual_edges.add((src, tgt))
-    assert expected_edges == actual_edges
+        # Check terminators and labels do not move and have all other ops dependent on them
+        num_ops = len(block.ops)
+        for fixed_idx in [0, 7]:
+            for i in range(num_ops):
+                if i != fixed_idx:
+                    expected_edges.add((fixed_idx, i))
+
+        actual_edges = set()
+        for src in adj.sources():
+            for tgt in adj.targets_for_source(src):
+                actual_edges.add((src, tgt))
+        assert expected_edges == actual_edges
