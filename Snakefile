@@ -108,6 +108,17 @@ rule memref_mlir:
             --one-shot-bufferize='bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map' \
             -o {output}"""
 
+rule good_xdsl:
+    input: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/good_xdsl.{dtype}.{target}.S"
+    params:
+        backend_passes = ",".join(config["xdsl-opt-backend-passes"])
+    shell:
+        """
+        xdsl-opt {input} -p vectorize-libxsmm,{params.backend_passes} \
+            -t x86-asm -o {output}"""
+
+
 rule naive_mlir:
     input: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/naive_mlir.{dtype}.arith.mlir"

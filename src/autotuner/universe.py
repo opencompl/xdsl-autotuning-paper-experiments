@@ -2,7 +2,7 @@ from xdsl.universe import Universe
 
 from autotuner.passes.convert_scf_to_x86_scf import ConvertScfToX86ScfPass
 from autotuner.passes.convert_x86_scf_to_x86 import ConvertX86ScfToX86Pass
-from autotuner.passes.tile_libxsmm import VectorizeLibxsmmPass
+from autotuner.passes.vectorize_libxsmm import VectorizeLibxsmmPass
 from autotuner.x86_scf import X86_Scf
 
 AUTOTUNER_UNIVERSE = Universe(

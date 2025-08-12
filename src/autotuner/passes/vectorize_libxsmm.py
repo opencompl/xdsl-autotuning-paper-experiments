@@ -105,20 +105,22 @@ class VectorizeLibxsmmPattern(RewritePattern):
                     for n in range(0, N, self.vector_size)
                 )
 
-                for i, (m, n) in enumerate(
-                    product(range(M), range(0, N // self.vector_size))
-                ):
-                    c_vectors[i] = vector.FMAOp(
-                        a_col_vectors[m], b_row[n], c_vectors[i]
-                    ).res
+                fma_results = tuple(
+                    vector.FMAOp(a_col_vectors[m], b_row[n], acc[i]).res
+                    for i, (m, n) in enumerate(
+                        product(range(M), range(0, N // self.vector_size))
+                    )
+                )
 
-                scf.YieldOp(*c_vectors)
+                scf.YieldOp(*fma_results)
 
             for i, (m, n) in enumerate(
                 product(range(M), range(0, N // self.vector_size))
             ):
                 vector.StoreOp(
-                    c_vectors[i], c, (constants[m], constants[n * self.vector_size])
+                    for_loop.results[i],
+                    c,
+                    (constants[m], constants[n * self.vector_size]),
                 )
 
         rewriter.erase_matched_op()
