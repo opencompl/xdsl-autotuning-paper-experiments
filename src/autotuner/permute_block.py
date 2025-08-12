@@ -41,14 +41,14 @@ def generate_adjacency(block: Block) -> IntAdjacency:
     - Any op with an allocated register effect depends on all earlier ops and all later ops depend on it
 
     """
-    tuples_src_dst: list[tuple[int, int]] = []
+    adjacency = IntAdjacency()
     tuple_ops = tuple(block.ops)
     num_ops = len(tuple_ops)
     for i, insn in enumerate(block.ops):
         if insn.has_trait(IsTerminator) or isinstance(insn, LabelOp):
             for j in range(num_ops):
                 if i != j:
-                    tuples_src_dst.append((i, j))
+                    adjacency.insert_edge(i, j)
             continue
         if insn.has_trait(MemoryWriteEffect):
             for j in range(i + 1, num_ops):
@@ -57,14 +57,14 @@ def generate_adjacency(block: Block) -> IntAdjacency:
                     or tuple_ops[j].has_trait(MemoryWriteEffect)
                     or tuple_ops[j].has_trait(RegisterAllocatedMemoryEffect)
                 ):
-                    tuples_src_dst.append((i, j))
+                    adjacency.insert_edge(i, j)
         elif insn.has_trait(MemoryReadEffect):
             for j in range(i + 1, num_ops):
                 if tuple_ops[j].has_trait(MemoryWriteEffect) or tuple_ops[j].has_trait(
                     RegisterAllocatedMemoryEffect
                 ):
-                    tuples_src_dst.append((i, j))
+                    adjacency.insert_edge(i, j)
         if insn.has_trait(RegisterAllocatedMemoryEffect):
             for j in range(i + 1, num_ops):
-                tuples_src_dst.append((i, j))
-    return IntAdjacency.from_tuples(tuples_src_dst)
+                adjacency.insert_edge(i, j)
+    return adjacency
