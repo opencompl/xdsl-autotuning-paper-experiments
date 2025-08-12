@@ -15,12 +15,14 @@ extern void matmul_colmaj(DTYPE A[M * K], DTYPE B[K * N], DTYPE result[M * N]);
 int main() {
   set_random_seed(42);
 
-  DTYPE *A = aligned_alloc(64, M * K * sizeof(DTYPE));
-  DTYPE *B = aligned_alloc(64, K * N * sizeof(DTYPE));
-  DTYPE *C = aligned_alloc(64, M * N * sizeof(DTYPE));
-  DTYPE *A_colmaj = aligned_alloc(64, M * K * sizeof(DTYPE));
-  DTYPE *B_colmaj = aligned_alloc(64, K * N * sizeof(DTYPE));
-  DTYPE *C_colmaj = aligned_alloc(64, M * N * sizeof(DTYPE));
+  DTYPE *A, *B, *C, *A_colmaj, *B_colmaj, *C_colmaj;
+
+  posix_memalign((void **)&A, 64, M * K * sizeof(DTYPE));
+  posix_memalign((void **)&B, 64, K * N * sizeof(DTYPE));
+  posix_memalign((void **)&C, 64, M * N * sizeof(DTYPE));
+  posix_memalign((void **)&A_colmaj, 64, M * K * sizeof(DTYPE));
+  posix_memalign((void **)&B_colmaj, 64, K * N * sizeof(DTYPE));
+  posix_memalign((void **)&C_colmaj, 64, M * N * sizeof(DTYPE));
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
