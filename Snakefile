@@ -1,5 +1,7 @@
 configfile: "default.yaml"
 
+import os
+
 ########################################################################################
 # Build
 ########################################################################################
@@ -16,13 +18,13 @@ TARGET_ARCH_DICT = {
     "neon": "armv8.5-a",
     "ci": "x86-64", # TODO
     "tower": "znver5",
-    "pinocchio": "skylake-avx512",
+    "pinocchio": "cascadelake",
 }
 
 def arch_to_xsmm(arch):
     match arch:
-        case 'skylake-avx512':
-            return 'skx'
+        case 'cascadelake':
+            return 'clx'
         case 'znver5':
             return 'skx'
         case _:
@@ -30,7 +32,19 @@ def arch_to_xsmm(arch):
 
 TARGET_XSMM_DICT = { k: arch_to_xsmm(v) for k, v in TARGET_ARCH_DICT.items() }
 
+TARGET_LIBS_DICT = {
+    "neon": [],
+    "ci": [],
+    "tower": ['papi'],
+    "pinocchio": ['papi'],
+}
 
+if os.environ.get("INSIDE_DOCKER") == "1":
+    TARGET_LIBS_DICT["ci"].append('papi')
+
+def target_libs_opts(wildcards):
+    return " ".join(f"-l{x}" for x in TARGET_LIBS_DICT[wildcards.target])
+    
 def target_triple(wildcards):
     return TARGET_TRIPLE_DICT[wildcards.target]
 
@@ -197,10 +211,11 @@ rule executable:
     params:
         target_triple=target_triple,
         target_arch=target_arch,
+        target_libs_opts=target_libs_opts,
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
@@ -281,11 +296,11 @@ DATASET_BASES = {
         m=range(8, 50, 2),
     ),
     "cube.f32": expand(
-        "build/matmul_rowmaj/8x8x8/{variant}.f32." + THIS_TARGET,
+        "build/matmul_rowmaj/32x32x32/{variant}.f32." + THIS_TARGET,
         variant=DATASET_VARIANTS["cube.f32"],
     ),
     "cube.f64": expand(
-        "build/matmul_rowmaj/4x4x4/{variant}.f64." + THIS_TARGET,
+        "build/matmul_rowmaj/32x32x32/{variant}.f64." + THIS_TARGET,
         variant=DATASET_VARIANTS["cube.f64"],
     ),
 }
