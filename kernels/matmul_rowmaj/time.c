@@ -69,7 +69,6 @@ int main() {
 
   if (hw_counters) {
 #if __has_include(<papi.h>)
-    printf("hardware\n");
     CHECK(PAPI_add_event(EventSet, PAPI_TOT_CYC));
 #endif
   }
