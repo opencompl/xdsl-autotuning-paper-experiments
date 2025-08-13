@@ -2,8 +2,8 @@ from itertools import product
 from dataclasses import dataclass
 from xdsl.builder import ImplicitBuilder
 from xdsl.context import Context
-from xdsl.dialects import arith, builtin, linalg, memref, vector, scf
-from xdsl.ir import Block, Region, field
+from xdsl.dialects import arith, builtin, linalg, vector, scf, ptr
+from xdsl.ir import Block, Region, SSAValue, field
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
     PatternRewriter,
@@ -56,7 +56,8 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 f"Can only tile matrices where the result row length is divisible by {self.vector_size}"
             )
 
-        vector_type = builtin.VectorType(a_type.element_type, (self.vector_size,))
+        element_type = a_type.element_type
+        vector_type = builtin.VectorType(element_type, (self.vector_size,))
 
         # All operations created inside this block are inserted before the matched op
         with ImplicitBuilder(rewriter):
@@ -71,6 +72,15 @@ class VectorizeLibxsmmPattern(RewritePattern):
             c0 = constants[0]
             c_k = arith.ConstantOp(builtin.IntegerAttr(K, _index_type)).result
 
+            a_ptr = ptr.ToPtrOp(a).res
+            b_ptr = ptr.ToPtrOp(b).res
+            element_size = ptr.TypeOffsetOp(element_type, _index_type).offset
+            a_leading = arith.MuliOp(element_size, c_k).result
+
+            a_row_ptrs = [a_ptr]
+            for i in range(1, M):
+                a_row_ptrs.append(ptr.PtrAddOp(a_row_ptrs[-1], a_leading).result)
+
             # Load the rows of C as vectors, potentially multiple vectors per row
             c_vectors = [
                 vector.LoadOp(c, (constants[m], constants[n]), vector_type).result
@@ -82,43 +92,61 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 c0,
                 c_k,
                 constants[1],
-                c_vectors,
+                a_row_ptrs + [b_ptr] + c_vectors,
                 Region(
                     Block(
-                        arg_types=(_index_type,)
+                        arg_types=(
+                            _index_type,
+                            ptr.PtrType(),
+                        )
+                        + (ptr.PtrType(),) * M
                         + (vector_type,) * (M * N // self.vector_size)
                     )
                 ),
             )
 
             with ImplicitBuilder(for_loop.body) as (k, *acc):
+                a_col_ptrs = acc[:M]
+                b_vector_ptr = acc[M]
+                acc = acc[M + 1 :]
+
                 a_col = tuple(
-                    memref.LoadOp.get(a, (constants[m], k)).res for m in range(M)
+                    ptr.LoadOp(a_col_ptr, element_type).res for a_col_ptr in a_col_ptrs
                 )
                 # Broadcast the mth column of A to vectors
                 a_col_vectors = tuple(
                     vector.BroadcastOp(a_col[m], vector_type) for m in range(M)
                 )
-                # Load the row as vectors
-                b_row = tuple(
-                    vector.LoadOp(b, (k, constants[n]), vector_type)
-                    for n in range(0, N, self.vector_size)
+                fma_results: list[SSAValue] = []
+                for n in range(N // self.vector_size):
+                    b_vector = ptr.LoadOp(b_vector_ptr, vector_type).res
+
+                    for m in range(M):
+                        fma_results.append(
+                            vector.FMAOp(
+                                a_col_vectors[m],
+                                b_vector,
+                                acc[m * N // self.vector_size + n],
+                            ).res
+                        )
+
+                    # Next vector in B
+                    b_vector_ptr = ptr.PtrAddOp(
+                        b_vector_ptr, constants[self.vector_size]
+                    ).result
+
+                new_a_col_ptrs = tuple(
+                    ptr.PtrAddOp(prev_ptr, element_size).result
+                    for m, prev_ptr in enumerate(a_col_ptrs)
                 )
 
-                fma_results = tuple(
-                    vector.FMAOp(a_col_vectors[m], b_row[n], acc[i]).res
-                    for i, (m, n) in enumerate(
-                        product(range(M), range(0, N // self.vector_size))
-                    )
-                )
-
-                scf.YieldOp(*fma_results)
+                scf.YieldOp(*new_a_col_ptrs, b_vector_ptr, *fma_results)
 
             for i, (m, n) in enumerate(
                 product(range(M), range(0, N // self.vector_size))
             ):
                 vector.StoreOp(
-                    for_loop.results[i],
+                    for_loop.results[i + M + 1],
                     c,
                     (constants[m], constants[n * self.vector_size]),
                 )
