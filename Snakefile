@@ -295,7 +295,7 @@ DATASET_BASES = {
         variant=DATASET_VARIANTS["cube.f32"],
     ),
     "cube.f64": expand(
-        "build/matmul_rowmaj/16x16x16/{variant}.f64." + THIS_TARGET,
+        "build/matmul_rowmaj/32x32x32/{variant}.f64." + THIS_TARGET,
         variant=DATASET_VARIANTS["cube.f64"],
     ),
 }
