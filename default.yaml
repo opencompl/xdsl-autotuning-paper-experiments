@@ -22,6 +22,4 @@ xdsl-opt-backend-passes:
   - x86-infer-broadcast
   - dce
   - x86-allocate-registers
-  - canonicalize
   - convert-x86-scf-to-x86
-  - canonicalize

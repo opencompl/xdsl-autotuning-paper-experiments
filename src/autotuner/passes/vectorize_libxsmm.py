@@ -1,8 +1,9 @@
-from itertools import product
 from dataclasses import dataclass
+from itertools import product
+
 from xdsl.builder import ImplicitBuilder
 from xdsl.context import Context
-from xdsl.dialects import arith, builtin, linalg, vector, scf, ptr
+from xdsl.dialects import arith, builtin, linalg, ptr, scf, vector
 from xdsl.ir import Block, Region, SSAValue, field
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
@@ -53,7 +54,8 @@ class VectorizeLibxsmmPattern(RewritePattern):
 
         if N % self.vector_size:
             raise PassFailedException(
-                f"Can only tile matrices where the result row length is divisible by {self.vector_size}"
+                f"Can only tile matrices where the result row length {N} is divisible "
+                f"by {self.vector_size}."
             )
 
         element_type = a_type.element_type
@@ -84,8 +86,8 @@ class VectorizeLibxsmmPattern(RewritePattern):
             # Load the rows of C as vectors, potentially multiple vectors per row
             c_vectors = [
                 vector.LoadOp(c, (constants[m], constants[n]), vector_type).result
-                for m in range(M)
                 for n in range(0, N, self.vector_size)
+                for m in range(M)
             ]
 
             for_loop = scf.ForOp(
@@ -108,7 +110,7 @@ class VectorizeLibxsmmPattern(RewritePattern):
             with ImplicitBuilder(for_loop.body) as (k, *acc):
                 a_col_ptrs = acc[:M]
                 b_vector_ptr = acc[M]
-                acc = acc[M + 1 :]
+                c_rows = acc[M + 1 :]
 
                 a_col = tuple(
                     ptr.LoadOp(a_col_ptr, element_type).res for a_col_ptr in a_col_ptrs
@@ -126,7 +128,7 @@ class VectorizeLibxsmmPattern(RewritePattern):
                             vector.FMAOp(
                                 a_col_vectors[m],
                                 b_vector,
-                                acc[m * N // self.vector_size + n],
+                                c_rows[n * M + m],
                             ).res
                         )
 
