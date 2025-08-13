@@ -49,9 +49,10 @@ int hardware_counters_available(void) {
 
 int main() {
 
-  DTYPE *A = aligned_alloc(64, M * K * sizeof(DTYPE));
-  DTYPE *B = aligned_alloc(64, K * N * sizeof(DTYPE));
-  DTYPE *C = aligned_alloc(64, M * N * sizeof(DTYPE));
+  DTYPE *A, *B, *C;
+  posix_memalign((void **)&A, 64, M * K * sizeof(DTYPE));
+  posix_memalign((void **)&B, 64, K * N * sizeof(DTYPE));
+  posix_memalign((void **)&C, 64, M * N * sizeof(DTYPE));
   
   long long values[1];
   struct timespec ts_start;
