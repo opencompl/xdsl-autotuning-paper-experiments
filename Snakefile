@@ -1,5 +1,7 @@
 configfile: "default.yaml"
 
+import os
+
 ########################################################################################
 # Build
 ########################################################################################
@@ -32,10 +34,13 @@ TARGET_XSMM_DICT = { k: arch_to_xsmm(v) for k, v in TARGET_ARCH_DICT.items() }
 
 TARGET_LIBS_DICT = {
     "neon": [],
-    "ci": ['papi'],
+    "ci": [],
     "tower": ['papi'],
     "pinocchio": ['papi'],
 }
+
+if os.environ.get("INSIDE_DOCKER") == "1":
+    TARGET_LIBS_DICT["ci"].append('papi')
 
 def target_libs_opts(wildcards):
     return " ".join(f"-l{x}" for x in TARGET_LIBS_DICT[wildcards.target])
