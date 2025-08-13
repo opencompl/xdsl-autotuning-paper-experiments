@@ -30,13 +30,18 @@ extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
 int hardware_counters_available(void) {
   int res = 0;
 #if __has_include(<papi.h>)
-  FILE *f = fopen("/proc/sys/kernel/perf_event_paranoid", "r");
-  if (f) {
-    int val;
-    if (fscanf(f, "%d", &val) == 1) {
-      res = (val <= 2);
+  // Check the availability of the event
+  int av = PAPI_query_event(PAPI_TOT_CYC);
+  if (av == PAPI_OK) {
+    // Check the level of paranoid
+    FILE *f = fopen("/proc/sys/kernel/perf_event_paranoid", "r");
+    if (f) {
+      int val;
+      if (fscanf(f, "%d", &val) == 1) {
+        res = (val <= 2);
+      }
+      fclose(f);
     }
-    fclose(f);
   }
 #endif
   return res;
@@ -58,11 +63,16 @@ int main() {
   if (ret != PAPI_VER_CURRENT) { fprintf(stderr, "papi init failed\n"); return 1; }
   int EventSet = PAPI_NULL;
   CHECK(PAPI_create_eventset(&EventSet));
-  CHECK(PAPI_add_event(EventSet, PAPI_TOT_CYC));
 #endif
   
   int hw_counters = hardware_counters_available();
-  
+
+  if (hw_counters) {
+#if __has_include(<papi.h>)
+    CHECK(PAPI_add_event(EventSet, PAPI_TOT_CYC));
+#endif
+  }
+    
   set_random_seed(42);
 
   fill_random_data(A, M * K);
