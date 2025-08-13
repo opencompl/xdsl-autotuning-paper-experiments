@@ -1,4 +1,4 @@
-{"M":8,"N":8,"K":8,"flops":1024,"time":406.820312,"variant":"naive_c","target":"pinocchio","dtype":"f32"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":48.156250,"variant":"transform_mlir","target":"pinocchio","dtype":"f32"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":70.460938,"variant":"vector_intrinsic","target":"pinocchio","dtype":"f32"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":121.007812,"variant":"libxsmm","target":"pinocchio","dtype":"f32"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":822.562500,"variant":"naive_c","target":"pinocchio","dtype":"f32"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":111.273438,"variant":"transform_mlir","target":"pinocchio","dtype":"f32"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":161.671875,"variant":"vector_intrinsic","target":"pinocchio","dtype":"f32"}
+{"M":8,"N":8,"K":8,"flops":1024,"time":288.203125,"variant":"libxsmm","target":"pinocchio","dtype":"f32"}
