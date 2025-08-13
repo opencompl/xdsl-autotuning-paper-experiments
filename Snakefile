@@ -16,13 +16,13 @@ TARGET_ARCH_DICT = {
     "neon": "armv8.5-a",
     "ci": "x86-64", # TODO
     "tower": "znver5",
-    "pinocchio": "skylake-avx512",
+    "pinocchio": "cascadelake",
 }
 
 def arch_to_xsmm(arch):
     match arch:
-        case 'skylake-avx512':
-            return 'skx'
+        case 'cascadelake':
+            return 'clx'
         case 'znver5':
             return 'skx'
         case _:
