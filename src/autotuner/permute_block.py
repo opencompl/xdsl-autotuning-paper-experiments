@@ -50,21 +50,21 @@ def generate_adjacency(block: Block) -> IntAdjacency:
 
     """
     adjacency = IntAdjacency()
-    tuple_ops = tuple(block.ops)
-    num_ops = len(tuple_ops)
+
+    writes = set()
+    reads = set()
+
     for i, insn in enumerate(block.ops):
         if insn.has_trait(IsTerminator) or isinstance(insn, LabelOp):
             continue
         if has_effect(insn, MemoryEffectKind.WRITE):
-            for j in range(i + 1, num_ops - 1):
-                if has_effect(tuple_ops[j], MemoryEffectKind.READ) or has_effect(
-                    tuple_ops[j], MemoryEffectKind.WRITE
-                ):
-                    print(f"insn {i} has memory write. insn {j} depends on it")
-                    adjacency.insert_edge(i, j)
+            for w in writes:
+                adjacency.insert_edge(w, i)
+            for r in reads:
+                adjacency.insert_edge(r, i)
+            writes.add(i)
         elif has_effect(insn, MemoryEffectKind.READ):
-            for j in range(i + 1, num_ops - 1):
-                if has_effect(tuple_ops[j], MemoryEffectKind.WRITE):
-                    print(f"insn {i} has memory read. insn {j} depends on it")
-                    adjacency.insert_edge(i, j)
+            for w in writes:
+                adjacency.insert_edge(w, i)
+            reads.add(i)
     return adjacency
