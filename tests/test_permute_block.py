@@ -6,7 +6,7 @@ from xdsl.dialects.x86.ops import LabelOp
 from xdsl.ir import Block
 from xdsl.builder import ImplicitBuilder
 
-from autotuner.permute_block import permute, generate_adjacency
+from autotuner.permute_block import iter_permutations, permute, generate_adjacency
 
 
 def test_permute_block_ops():
@@ -69,3 +69,28 @@ def test_generate_adjacency():
             for tgt in adj.targets_for_source(src):
                 actual_edges.add((src, tgt))
         assert expected_edges == actual_edges
+
+
+def test_iter_permutations_label_and_terminator():
+    block = Block()
+    with ImplicitBuilder(block):
+        LabelOp("start")
+        test.TestWriteOp()
+        test.TestReadOp()
+        test.TestWriteOp()
+        test.TestTermOp()
+
+    perms = list(iter_permutations(block))
+
+    for perm in perms:
+        assert perm[0] == 0
+        assert perm[-1] == 4
+        assert set(perm[1:-1]) == {1, 2, 3}
+
+    adjacency = generate_adjacency(block)
+    for perm in perms:
+        # For every edge (src, tgt), src must come before tgt in perm
+        pos = {v: i for i, v in enumerate(perm)}
+        for src in adjacency.sources():
+            for tgt in adjacency.targets_for_source(src):
+                assert pos[src] < pos[tgt]

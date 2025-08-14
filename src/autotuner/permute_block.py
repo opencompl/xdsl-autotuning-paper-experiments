@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Sequence
 from xdsl.ir import Block
 
@@ -5,7 +6,7 @@ from xdsl.traits import IsTerminator, MemoryEffectKind, get_effects
 from xdsl.dialects.x86.ops import LabelOp
 from xdsl.ir.core import Operation
 
-from autotuner.graph import IntAdjacency
+from autotuner.graph import IntAdjacency, iter_topological_sort
 
 
 def permute(block: Block, old_indices: Sequence[int]) -> None:
@@ -68,3 +69,14 @@ def generate_adjacency(block: Block) -> IntAdjacency:
                 adjacency.insert_edge(w, i)
             reads.add(i)
     return adjacency
+
+
+def iter_permutations(block: Block) -> Iterator[tuple[int, ...]]:
+    adjacency = generate_adjacency(block)
+    last_index = len(block.ops) - 1
+    if isinstance(block.first_op, LabelOp):
+        for p in iter_topological_sort(adjacency):
+            yield (0, *p, last_index)
+    else:
+        for p in iter_topological_sort(adjacency):
+            yield (*p, last_index)
