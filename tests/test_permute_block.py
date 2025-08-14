@@ -16,14 +16,14 @@ def test_permute_block_ops():
     c = test.TestOp()
     d = test.TestOp()
     e = test.TestOp()
-    f = test.TestOp()
+    f = test.TestTermOp()
 
     # Create Block from operations
     block = Block([a, b, c, d, e, f])
-    orderings = [2, 5, 0, 4, 1, 3]
+    orderings = [2, 0, 4, 1, 3, 5]
     permute(block, orderings)
 
-    assert tuple(block.ops) == (c, f, a, e, b, d)
+    assert tuple(block.ops) == (c, a, e, b, d, f)
 
     with pytest.raises(
         ValueError, match=re.escape("Indices [1, 1] are not a valid permutation")
@@ -63,13 +63,6 @@ def test_generate_adjacency():
             (4, 6),
             (5, 6),
         }
-
-        # Check terminators and labels do not move and have all other ops dependent on them
-        num_ops = len(block.ops)
-        for fixed_idx in [0, 7]:
-            for i in range(num_ops):
-                if i != fixed_idx:
-                    expected_edges.add((fixed_idx, i))
 
         actual_edges = set()
         for src in adj.sources():

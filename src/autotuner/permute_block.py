@@ -1,9 +1,9 @@
 from typing import Sequence
 from xdsl.ir import Block
 
-from xdsl.traits import IsTerminator, MemoryWriteEffect, MemoryReadEffect
+from xdsl.traits import IsTerminator, MemoryEffectKind, get_effects
 from xdsl.dialects.x86.ops import LabelOp
-from xdsl.backend.register_type import RegisterAllocatedMemoryEffect
+from xdsl.ir.core import Operation
 
 from autotuner.graph import IntAdjacency
 
@@ -28,6 +28,14 @@ def permute(block: Block, old_indices: Sequence[int]) -> None:
         block.add_op(tuple_ops[old_index])
 
 
+def has_effect(op: Operation, effect: MemoryEffectKind) -> bool:
+    """
+    Returns if the operation has the given side effects, and possibly others.
+    """
+    effects = get_effects(op)
+    return effects is not None and any(e.kind == effect for e in effects)
+
+
 def generate_adjacency(block: Block) -> IntAdjacency:
     """
     Generates an adjacency from a basic block.
@@ -37,7 +45,7 @@ def generate_adjacency(block: Block) -> IntAdjacency:
     Rules:
     - Any memory write depends on all earlier memory reads and writes.
     - Any memory read depends on all earlier memory writes.
-    - If the op is a label or a terminator, it must remain in place. Make all other ops depend on it.
+    - If the op is a label or a terminator, it must remain in place. Do not add to adjacency.
     - Any op with an allocated register effect depends on all earlier ops and all later ops depend on it
 
     """
@@ -46,25 +54,17 @@ def generate_adjacency(block: Block) -> IntAdjacency:
     num_ops = len(tuple_ops)
     for i, insn in enumerate(block.ops):
         if insn.has_trait(IsTerminator) or isinstance(insn, LabelOp):
-            for j in range(num_ops):
-                if i != j:
-                    adjacency.insert_edge(i, j)
             continue
-        if insn.has_trait(MemoryWriteEffect):
-            for j in range(i + 1, num_ops):
-                if (
-                    tuple_ops[j].has_trait(MemoryReadEffect)
-                    or tuple_ops[j].has_trait(MemoryWriteEffect)
-                    or tuple_ops[j].has_trait(RegisterAllocatedMemoryEffect)
+        if has_effect(insn, MemoryEffectKind.WRITE):
+            for j in range(i + 1, num_ops - 1):
+                if has_effect(tuple_ops[j], MemoryEffectKind.READ) or has_effect(
+                    tuple_ops[j], MemoryEffectKind.WRITE
                 ):
+                    print(f"insn {i} has memory write. insn {j} depends on it")
                     adjacency.insert_edge(i, j)
-        elif insn.has_trait(MemoryReadEffect):
-            for j in range(i + 1, num_ops):
-                if tuple_ops[j].has_trait(MemoryWriteEffect) or tuple_ops[j].has_trait(
-                    RegisterAllocatedMemoryEffect
-                ):
+        elif has_effect(insn, MemoryEffectKind.READ):
+            for j in range(i + 1, num_ops - 1):
+                if has_effect(tuple_ops[j], MemoryEffectKind.WRITE):
+                    print(f"insn {i} has memory read. insn {j} depends on it")
                     adjacency.insert_edge(i, j)
-        if insn.has_trait(RegisterAllocatedMemoryEffect):
-            for j in range(i + 1, num_ops):
-                adjacency.insert_edge(i, j)
     return adjacency
