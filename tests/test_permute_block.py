@@ -51,9 +51,6 @@ def test_generate_adjacency():
         expected_edges = {
             (1, 2),
             (1, 3),
-            (1, 4),
-            (1, 5),
-            (1, 6),
             (2, 3),
             (2, 6),
             (3, 4),

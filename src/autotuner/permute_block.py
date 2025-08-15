@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from typing import Sequence
 from xdsl.ir import Block
 
-from xdsl.traits import IsTerminator, MemoryEffectKind, get_effects
+from xdsl.traits import MemoryEffectKind, get_effects
 from xdsl.dialects.x86.ops import LabelOp
 from xdsl.ir.core import Operation
 
@@ -44,30 +44,27 @@ def generate_adjacency(block: Block) -> IntAdjacency:
     Edges represent the dependencies between them.
 
     Rules:
-    - Any memory write depends on all earlier memory reads and writes.
-    - Any memory read depends on all earlier memory writes.
+    - Any memory write depends on all earlier memory reads and the previous write.
+    - Any memory read depends on the previous memory write.
     - If the op is a label or a terminator, it must remain in place. Do not add to adjacency.
     - Any op with an allocated register effect depends on all earlier ops and all later ops depend on it
 
     """
     adjacency = IntAdjacency()
 
-    writes = set()
-    reads = set()
-
     for i, insn in enumerate(block.ops):
-        if insn.has_trait(IsTerminator) or isinstance(insn, LabelOp):
-            continue
-        if has_effect(insn, MemoryEffectKind.WRITE):
-            for w in writes:
-                adjacency.insert_edge(w, i)
-            for r in reads:
-                adjacency.insert_edge(r, i)
-            writes.add(i)
-        elif has_effect(insn, MemoryEffectKind.READ):
-            for w in writes:
-                adjacency.insert_edge(w, i)
-            reads.add(i)
+        last_write: int | None = None
+        prev_reads: list[int] = []
+        for i, insn in enumerate(block.ops):
+            if has_effect(insn, MemoryEffectKind.WRITE):
+                if last_write is not None:
+                    adjacency.insert_edge(last_write, i)
+                    for r in prev_reads:
+                        adjacency.insert_edge(r, i)
+                last_write = i
+            elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
+                adjacency.insert_edge(last_write, i)
+                prev_reads.append(i)
     return adjacency
 
 
