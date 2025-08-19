@@ -73,11 +73,15 @@ class VectorizeLibxsmmPattern(RewritePattern):
             # Zero for convenience
             c0 = constants[0]
             c_k = arith.ConstantOp(builtin.IntegerAttr(K, _index_type)).result
+            c_vector_size = arith.ConstantOp(
+                builtin.IntegerAttr(self.vector_size, _index_type)
+            ).result
 
             a_ptr = ptr.ToPtrOp(a).res
             b_ptr = ptr.ToPtrOp(b).res
-            element_size = ptr.TypeOffsetOp(element_type, _index_type).offset
-            a_leading = arith.MuliOp(element_size, c_k).result
+            element_bytes = ptr.TypeOffsetOp(element_type, _index_type).offset
+            a_leading = arith.MuliOp(element_bytes, c_k).result
+            c_vector_bytes = arith.MuliOp(element_bytes, c_vector_size).result
 
             a_row_ptrs = [a_ptr]
             for i in range(1, M):
@@ -133,12 +137,10 @@ class VectorizeLibxsmmPattern(RewritePattern):
                         )
 
                     # Next vector in B
-                    b_vector_ptr = ptr.PtrAddOp(
-                        b_vector_ptr, constants[self.vector_size]
-                    ).result
+                    b_vector_ptr = ptr.PtrAddOp(b_vector_ptr, c_vector_bytes).result
 
                 new_a_col_ptrs = tuple(
-                    ptr.PtrAddOp(prev_ptr, element_size).result
+                    ptr.PtrAddOp(prev_ptr, element_bytes).result
                     for m, prev_ptr in enumerate(a_col_ptrs)
                 )
 
