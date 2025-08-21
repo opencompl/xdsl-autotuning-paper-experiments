@@ -73,7 +73,9 @@ def target_peak_flops(wildcards):
             factor = 2.0
         case _:
             assert False
-    return TARGET_PEAK_F32_DICT[wildcards.target] * (TARGET_FREQ_DICT[wildcards.target]/factor)
+    flops_per_cycle = TARGET_PEAK_F32_DICT[wildcards.target] / factor
+    flops_per_time = flops_per_cycle * TARGET_FREQ_DICT[wildcards.target]
+    return flops_per_time
 
 def target_arch(wildcards):
     return TARGET_ARCH_DICT[wildcards.target]
