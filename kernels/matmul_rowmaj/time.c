@@ -105,7 +105,7 @@ int main() {
 #if __has_include(<papi.h>)
     CHECK(PAPI_stop(EventSet, values));
 #endif
-    elapsed = (double) values[0];
+    elapsed = (double) values[0] * FREQ;
   }
   else {
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
