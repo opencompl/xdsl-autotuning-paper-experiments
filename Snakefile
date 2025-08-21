@@ -73,7 +73,7 @@ def target_peak_flops(wildcards):
             factor = 2.0
         case _:
             assert False
-    return TARGET_PEAK_F32_DICT[wildcards.target] * TARGET_FREQ_DICT[wildcards.target] * factor
+    return TARGET_PEAK_F32_DICT[wildcards.target] * (TARGET_FREQ_DICT[wildcards.target]/factor)
 
 def target_arch(wildcards):
     return TARGET_ARCH_DICT[wildcards.target]
