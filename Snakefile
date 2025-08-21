@@ -28,6 +28,13 @@ TARGET_ARCH_DICT = {
     "pinocchio": "cascadelake",
 }
 
+TARGET_PEAK_F32_DICT = {
+    "neon": 0,
+    "ci": 0,
+    "tower": 0,
+    "pinocchio": 64
+}
+
 def arch_to_xsmm(arch):
     match arch:
         case 'cascadelake':
@@ -57,6 +64,16 @@ def target_freq(wildcards):
 
 def target_triple(wildcards):
     return TARGET_TRIPLE_DICT[wildcards.target]
+
+def target_peak_flops(wildcards):
+    match wildcards.dtype:
+        case 'f32':
+            factor = 1.0
+        case 'f64':
+            factor = 2.0
+        case _:
+            assert False
+    return TARGET_PEAK_F32_DICT[wildcards.target] * factor
 
 def target_arch(wildcards):
     return TARGET_ARCH_DICT[wildcards.target]
@@ -254,17 +271,20 @@ rule json:
         flops_txt="build/{kernel}/{m}x{n}x{k}/flops.txt"
     output:
         json="build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.json"
+    params:
+        target_peak_flops=target_peak_flops,
     shell:
         """
         M={wildcards.m}
         N={wildcards.n}
         K={wildcards.k}
+        PEAK="{params.target_peak_flops}"
         FLOPS=$(head -n 1 {input.flops_txt} | tr -d '[:space:]')
         TIME=$(head -n 1 {input.time_txt} | tr -d '[:space:]')
         VARIANT="{wildcards.variant}"
         TARGET="{wildcards.target}"
         DTYPE="{wildcards.dtype}"
-        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'"}}' > {output.json}
+        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"peak":'${{PEAK}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'"}}' > {output.json}
         """
 
 ########################################################################################
