@@ -30,6 +30,17 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 
     # Bar chart: x = variant, y = throughput
     fig, ax = plt.subplots(figsize=(7, 5))
+
+    # Peak perf
+    peak = None
+    if "peak" in df.columns:
+        peaks = df["peak"].dropna().unique()
+        peak = float(peaks[0])
+        ax.axhline(peak, linestyle="--", linewidth=1, label=f"Peak perf (100%)")
+        ymax = float(valid_data["throughput"].max()) if len(valid_data) else 0.0
+        ymax = max(ymax, peak)
+        ax.set_ylim(0, ymax * 1.1 if ymax > 0 else 1)
+        
     bars = ax.bar(
         valid_data["variant"],
         valid_data["throughput"],
@@ -38,8 +49,13 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 
     # Annotate bars with throughput values
     for bar, throughput in zip(bars, valid_data["throughput"]):
+        if peak:
+            percent = (throughput/peak)*100
+            t = f"{percent:.1f}%"
+        else:
+            t = f"{throughput:.1f}"
         ax.annotate(
-            f"{throughput:.1f}",
+            t,
             xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
             xytext=(0, 3),
             textcoords="offset points",
@@ -47,6 +63,7 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
             va="bottom",
             fontsize=10,
         )
+
 
     ax.set_xlabel("Variant")
     ax.set_ylabel("Throughput (FLOPs per Time)")
