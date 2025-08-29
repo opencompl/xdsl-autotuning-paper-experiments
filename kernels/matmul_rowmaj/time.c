@@ -105,11 +105,11 @@ int main() {
 #if __has_include(<papi.h>)
     CHECK(PAPI_stop(EventSet, values));
 #endif
-    elapsed = (double) values[0] / (double)FREQ;
+    elapsed = (double) values[0];
   }
   else {
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  elapsed = ts_end.tv_nsec - ts_start.tv_nsec;
+  elapsed = (ts_end.tv_nsec - ts_start.tv_nsec) * (double)FREQ;
   }
   
   double average_cycles = (double)elapsed / (double)NUM_ITERATIONS;

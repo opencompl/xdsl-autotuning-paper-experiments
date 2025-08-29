@@ -53,6 +53,8 @@ TARGET_LIBS_DICT = {
     "pinocchio": ['papi'],
 }
 
+
+
 if os.environ.get("INSIDE_DOCKER") == "1":
     TARGET_LIBS_DICT["ci"].append('papi')
 
@@ -74,8 +76,7 @@ def target_peak_flops(wildcards):
         case _:
             assert False
     flops_per_cycle = TARGET_PEAK_F32_DICT[wildcards.target] / factor
-    flops_per_time = flops_per_cycle * TARGET_FREQ_DICT[wildcards.target]
-    return flops_per_time
+    return flops_per_cycle
 
 def target_arch(wildcards):
     return TARGET_ARCH_DICT[wildcards.target]
