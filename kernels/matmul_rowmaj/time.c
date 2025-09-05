@@ -109,7 +109,7 @@ int main() {
   }
   else {
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  elapsed = ts_end.tv_nsec - ts_start.tv_nsec;
+  elapsed = (ts_end.tv_nsec - ts_start.tv_nsec) * (double)FREQ;
   }
   
   double average_cycles = (double)elapsed / (double)NUM_ITERATIONS;

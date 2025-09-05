@@ -14,11 +14,25 @@ TARGET_TRIPLE_DICT = {
     "pinocchio": "x86_64-pc-linux-gnu",
 }
 
+TARGET_FREQ_DICT = {
+    "neon": 0.0,
+    "ci": 0.0,
+    "tower": 0.0,
+    "pinocchio": 2.1
+}
+
 TARGET_ARCH_DICT = {
     "neon": "armv8.5-a",
     "ci": "x86-64", # TODO
     "tower": "znver5",
     "pinocchio": "cascadelake",
+}
+
+TARGET_PEAK_F32_DICT = {
+    "neon": 0,
+    "ci": 0,
+    "tower": 0,
+    "pinocchio": 64
 }
 
 def arch_to_xsmm(arch):
@@ -39,14 +53,30 @@ TARGET_LIBS_DICT = {
     "pinocchio": ['papi'],
 }
 
+
+
 if os.environ.get("INSIDE_DOCKER") == "1":
     TARGET_LIBS_DICT["ci"].append('papi')
 
 def target_libs_opts(wildcards):
     return " ".join(f"-l{x}" for x in TARGET_LIBS_DICT[wildcards.target])
-    
+
+def target_freq(wildcards):
+    return TARGET_FREQ_DICT[wildcards.target]
+
 def target_triple(wildcards):
     return TARGET_TRIPLE_DICT[wildcards.target]
+
+def target_peak_flops(wildcards):
+    match wildcards.dtype:
+        case 'f32':
+            factor = 1.0
+        case 'f64':
+            factor = 2.0
+        case _:
+            assert False
+    flops_per_cycle = TARGET_PEAK_F32_DICT[wildcards.target] / factor
+    return flops_per_cycle
 
 def target_arch(wildcards):
     return TARGET_ARCH_DICT[wildcards.target]
@@ -212,10 +242,11 @@ rule executable:
         target_triple=target_triple,
         target_arch=target_arch,
         target_libs_opts=target_libs_opts,
+        target_freq=target_freq,
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
@@ -243,17 +274,20 @@ rule json:
         flops_txt="build/{kernel}/{m}x{n}x{k}/flops.txt"
     output:
         json="build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.json"
+    params:
+        target_peak_flops=target_peak_flops,
     shell:
         """
         M={wildcards.m}
         N={wildcards.n}
         K={wildcards.k}
+        PEAK="{params.target_peak_flops}"
         FLOPS=$(head -n 1 {input.flops_txt} | tr -d '[:space:]')
         TIME=$(head -n 1 {input.time_txt} | tr -d '[:space:]')
         VARIANT="{wildcards.variant}"
         TARGET="{wildcards.target}"
         DTYPE="{wildcards.dtype}"
-        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'"}}' > {output.json}
+        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"peak":'${{PEAK}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'"}}' > {output.json}
         """
 
 ########################################################################################
