@@ -1,7 +1,7 @@
 from typing import cast
 from xdsl.context import Context
 from xdsl.dialects import builtin, x86
-from xdsl.dialects.x86.register import RFLAGS, GeneralRegisterType
+from xdsl.dialects.x86.registers import RFLAGS, GeneralRegisterType
 from xdsl.ir import SSAValue
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (

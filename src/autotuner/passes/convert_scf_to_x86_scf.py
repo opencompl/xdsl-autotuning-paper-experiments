@@ -1,7 +1,8 @@
+from dataclasses import dataclass
 from typing import Iterable
 from xdsl.context import Context
 from xdsl.dialects import builtin, scf, x86
-from xdsl.dialects.x86.register import X86RegisterType
+from xdsl.dialects.x86.registers import X86RegisterType
 from xdsl.ir import Block, Operation, SSAValue, Attribute
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
@@ -14,13 +15,11 @@ from xdsl.pattern_rewriter import (
 from xdsl.rewriter import InsertPoint
 
 from autotuner import x86_scf
-from xdsl.backend.x86.lowering.helpers import (
-    cast_operands_to_regs,
-    scalar_type_to_register_type,
-)
+
+from xdsl.backend.x86.lowering.helpers import Arch
 
 
-def cast_block_args_to_regs(block: Block, rewriter: PatternRewriter):
+def cast_block_args_to_regs(arch: Arch, block: Block, rewriter: PatternRewriter):
     """
     Change the type of the block arguments to registers and add cast operations just after
     the block entry.
@@ -35,7 +34,7 @@ def cast_block_args_to_regs(block: Block, rewriter: PatternRewriter):
         )
         new_val = cast_op.results[0]
 
-        new_type = scalar_type_to_register_type(arg.type).unallocated()
+        new_type = arch.register_type_for_type(arg.type).unallocated()
         arg.replace_by_if(new_val, lambda use: use.operation != cast_op)
         rewriter.replace_value_with_new_type(arg, new_type)
 
@@ -62,6 +61,7 @@ def cast_matched_op_results(rewriter: PatternRewriter) -> list[SSAValue]:
 
 
 def move_to_unallocated_regs(
+    arch: Arch,
     values: Iterable[SSAValue],
     value_types: Iterable[Attribute],
 ) -> tuple[list[Operation], list[SSAValue]]:
@@ -73,7 +73,7 @@ def move_to_unallocated_regs(
     new_values = list[SSAValue]()
 
     for value, value_type in zip(values, value_types, strict=True):
-        register_type = scalar_type_to_register_type(value.type)
+        register_type = arch.register_type_for_type(value.type)
         assert isinstance(register_type, X86RegisterType)
         move_op = x86.ops.DS_MovOp(value, destination=register_type.unallocated())
         new_ops.append(move_op)
@@ -82,38 +82,47 @@ def move_to_unallocated_regs(
     return new_ops, new_values
 
 
+@dataclass
 class ScfForLowering(RewritePattern):
+    arch: Arch
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.ForOp, rewriter: PatternRewriter) -> None:
-        lb, ub, step, *args = cast_operands_to_regs(rewriter)
+        lb, ub, step, *args = self.arch.cast_operands_to_regs(rewriter)
         new_region = rewriter.move_region_contents_to_new_regions(op.body)
-        cast_block_args_to_regs(new_region.block, rewriter)
-        mv_ops, values = move_to_unallocated_regs(args, op.iter_args.types)
+        cast_block_args_to_regs(self.arch, new_region.block, rewriter)
+        mv_ops, values = move_to_unallocated_regs(self.arch, args, op.iter_args.types)
         rewriter.insert_op_before_matched_op(mv_ops)
         cast_matched_op_results(rewriter)
         new_op = x86_scf.ForOp(lb, ub, step, values, new_region)
         mv_res_ops, res_values = move_to_unallocated_regs(
-            new_op.results, op.iter_args.types
+            self.arch, new_op.results, op.iter_args.types
         )
 
         rewriter.replace_matched_op((new_op, *mv_res_ops), res_values)
 
 
+@dataclass
 class ScfYieldLowering(RewritePattern):
+    arch: Arch
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: scf.YieldOp, rewriter: PatternRewriter) -> None:
-        rewriter.replace_matched_op(x86_scf.YieldOp(*cast_operands_to_regs(rewriter)))
+        rewriter.replace_matched_op(
+            x86_scf.YieldOp(*self.arch.cast_operands_to_regs(rewriter))
+        )
 
 
 class ConvertScfToX86ScfPass(ModulePass):
     name = "convert-scf-to-x86-scf"
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
+        arch = Arch.arch_for_name(None)
         PatternRewriteWalker(
             GreedyRewritePatternApplier(
                 [
-                    ScfYieldLowering(),
-                    ScfForLowering(),
+                    ScfYieldLowering(arch),
+                    ScfForLowering(arch),
                 ]
             )
         ).rewrite_module(op)
