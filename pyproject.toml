@@ -12,8 +12,11 @@ dependencies = [
     "xdsl[dev]",
 ]
 
+[project.entry-points.'xdsl.universe']
+autotuner = 'autotuner.universe:AUTOTUNER_UNIVERSE'
+
 [tool.uv.sources]
-xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "c736fb7c1bf7ac3a3a86f4780b319bccd359bd40" }
+xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "2198490958e7e0240ae3ebff2ac81d778831b707" }
 
 [project.scripts]
 hello = "autotuner.main:main"

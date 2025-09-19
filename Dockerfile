@@ -7,6 +7,7 @@ LABEL org.opencontainers.image.licenses=MIT
 # Install dependencies and clean up in a single layer
 RUN apt-get update && apt-get install -y \
     libz3-dev libedit-dev libzstd-dev git make gpg libxml2 binutils \
+    papi-tools libpapi-dev \
     build-essential gcc libc6-dev \
     graphviz \
     binutils-aarch64-linux-gnu binutils-x86-64-linux-gnu \
