@@ -47,24 +47,24 @@ def generate_adjacency(block: Block) -> IntAdjacency:
     - Any memory write depends on all earlier memory reads and the previous write.
     - Any memory read depends on the previous memory write.
     - If the op is a label or a terminator, it must remain in place. Do not add to adjacency.
-    - Any op with an allocated register effect depends on all earlier ops and all later ops depend on it
 
     """
     adjacency = IntAdjacency()
 
+    last_write: int | None = None
+    prev_reads: list[int] = []
+
     for i, insn in enumerate(block.ops):
-        last_write: int | None = None
-        prev_reads: list[int] = []
-        for i, insn in enumerate(block.ops):
-            if has_effect(insn, MemoryEffectKind.WRITE):
-                if last_write is not None:
-                    adjacency.insert_edge(last_write, i)
-                    for r in prev_reads:
-                        adjacency.insert_edge(r, i)
-                last_write = i
-            elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
+        if has_effect(insn, MemoryEffectKind.WRITE):
+            if last_write is not None:
                 adjacency.insert_edge(last_write, i)
-                prev_reads.append(i)
+                for r in prev_reads:
+                    adjacency.insert_edge(r, i)
+            last_write = i
+        elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
+            adjacency.insert_edge(last_write, i)
+            prev_reads.append(i)
+
     return adjacency
 
 
