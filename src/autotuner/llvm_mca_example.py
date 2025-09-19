@@ -1,12 +1,12 @@
 from typing import cast
-from xdsl.dialects.x86.register import X86VectorRegisterType
+from xdsl.dialects.x86.registers import X86VectorRegisterType
 from xdsl.ir import Block, BlockArgument, Region
 from xdsl.dialects import x86_func, x86
 from analyzers import LLVM_MCA
 
 
 def build_basic_block():
-    input_types = [x86.register.YMM0, x86.register.YMM1, x86.register.YMM2]
+    input_types = [x86.registers.YMM0, x86.registers.YMM1, x86.registers.YMM2]
 
     new_block = Block(arg_types=input_types)
     block_args = cast(

@@ -9,7 +9,7 @@ from typing_extensions import Self
 from xdsl.backend.register_allocatable import RegisterAllocatableOperation
 from xdsl.backend.register_allocator import BlockAllocator
 from xdsl.backend.register_type import RegisterType
-from xdsl.dialects.x86.register import X86RegisterType, GeneralRegisterType
+from xdsl.dialects.x86.registers import X86RegisterType, GeneralRegisterType
 from xdsl.dialects.utils import (
     AbstractYieldOperation,
     parse_for_op_like,
