@@ -17,7 +17,7 @@ TARGET_TRIPLE_DICT = {
 TARGET_FREQ_DICT = {
     "neon": 1.0,
     "ci": 1.0,
-    "tower": 1.0,
+    "tower": 4.5,
     "pinocchio": 2.1
 }
 
@@ -31,7 +31,7 @@ TARGET_ARCH_DICT = {
 TARGET_PEAK_F32_DICT = {
     "neon": 0,
     "ci": 0,
-    "tower": 0,
+    "tower": 64,
     "pinocchio": 64
 }
 
