@@ -1,3 +1,0 @@
-{"M":8,"N":8,"K":8,"flops":1024,"time":729.570312,"variant":"naive_c","target":"docker","dtype":"f32"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":33.656250,"variant":"transform_mlir","target":"docker","dtype":"f32"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":55.414062,"variant":"vector_intrinsic","target":"docker","dtype":"f32"}
