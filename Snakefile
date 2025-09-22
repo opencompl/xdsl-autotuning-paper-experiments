@@ -15,9 +15,9 @@ TARGET_TRIPLE_DICT = {
 }
 
 TARGET_FREQ_DICT = {
-    "neon": 0.0,
-    "ci": 0.0,
-    "tower": 0.0,
+    "neon": 1.0,
+    "ci": 1.0,
+    "tower": 1.0,
     "pinocchio": 2.1
 }
 
