@@ -62,10 +62,7 @@ PLOTS += plots/cube_2048.f64.pinocchio.png
 plots/ttile.%.png: data/ttile.%.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile $< --output $@
 
-plots/cube_256.%.png: data/cube.%.jsonl src/autotuner/plot_cube.py
-	uv run plot-cube $< --output $@
-
-plots/cube_2048.%.png: data/cube.%.jsonl src/autotuner/plot_cube.py
+plots/cube%.png: data/cube%.jsonl src/autotuner/plot_cube.py
 	uv run plot-cube $< --output $@
 
 plots/bars.%.png: data/bars.%.jsonl src/autotuner/plot_cube.py

@@ -338,11 +338,11 @@ DATASET_BASES = {
         m=range(8, 50, 2),
     ),
     "cube_256.f32": expand(
-        "build/matmul_rowmaj/8x8x32/{variant}.f32." + THIS_TARGET,
+        "build/matmul_rowmaj/8x8x8/{variant}.f32." + THIS_TARGET,
         variant=DATASET_VARIANTS["cube_256.f32"],
     ),
     "cube_256.f64": expand(
-        "build/matmul_rowmaj/4x4x32/{variant}.f64." + THIS_TARGET,
+        "build/matmul_rowmaj/4x4x4/{variant}.f64." + THIS_TARGET,
         variant=DATASET_VARIANTS["cube_256.f64"],
     ),
     "cube_2048.f32": expand(
