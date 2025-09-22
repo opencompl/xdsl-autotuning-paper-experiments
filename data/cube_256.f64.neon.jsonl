@@ -1,0 +1,3 @@
+{"M":4,"N":4,"K":32,"peak":0.0,"flops":1024,"time":242.187500,"variant":"naive_c","target":"neon","dtype":"f64"}
+{"M":4,"N":4,"K":32,"peak":0.0,"flops":1024,"time":62.500000,"variant":"transform_mlir","target":"neon","dtype":"f64"}
+{"M":4,"N":4,"K":32,"peak":0.0,"flops":1024,"time":70.312500,"variant":"vector_intrinsic","target":"neon","dtype":"f64"}
