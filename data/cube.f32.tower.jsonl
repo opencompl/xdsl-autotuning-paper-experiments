@@ -1,4 +1,0 @@
-{"M":8,"N":8,"K":8,"flops":1024,"time":103.710938,"variant":"naive_c","target":"tower","dtype":"f32"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":9.468750,"variant":"transform_mlir","target":"tower","dtype":"f32"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":9.390625,"variant":"vector_intrinsic","target":"tower","dtype":"f32"}
-{"M":8,"N":8,"K":8,"flops":1024,"time":10.804688,"variant":"libxsmm","target":"tower","dtype":"f32"}

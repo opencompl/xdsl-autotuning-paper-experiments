@@ -15,9 +15,9 @@ TARGET_TRIPLE_DICT = {
 }
 
 TARGET_FREQ_DICT = {
-    "neon": 0.0,
-    "ci": 0.0,
-    "tower": 0.0,
+    "neon": 1.0,
+    "ci": 1.0,
+    "tower": 1.0,
     "pinocchio": 2.1
 }
 
@@ -311,23 +311,31 @@ THIS_TARGET = config["target"]
 DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
-        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "transform_xdsl"],
+        "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "transform_xdsl"],
+        "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
     },
     "ci": {
         "ttile": ["naive_c"],
-        "cube.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
     },
 }[THIS_TARGET]
 
@@ -337,20 +345,28 @@ DATASET_BASES = {
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
     ),
-    "cube.f32": expand(
-        "build/matmul_rowmaj/32x32x32/{variant}.f32." + THIS_TARGET,
-        variant=DATASET_VARIANTS["cube.f32"],
+    "cube_256.f32": expand(
+        "build/matmul_rowmaj/8x8x8/{variant}.f32." + THIS_TARGET,
+        variant=DATASET_VARIANTS["cube_256.f32"],
     ),
-    "cube.f64": expand(
-        "build/matmul_rowmaj/32x32x32/{variant}.f64." + THIS_TARGET,
-        variant=DATASET_VARIANTS["cube.f64"],
+    "cube_256.f64": expand(
+        "build/matmul_rowmaj/4x4x4/{variant}.f64." + THIS_TARGET,
+        variant=DATASET_VARIANTS["cube_256.f64"],
+    ),
+    "cube_2048.f32": expand(
+        "build/matmul_rowmaj/32x32x32/{variant}.f32." + THIS_TARGET,
+        variant=DATASET_VARIANTS["cube_2048.f32"],
+    ),
+    "cube_2048.f64": expand(
+        "build/matmul_rowmaj/16x16x16/{variant}.f64." + THIS_TARGET,
+        variant=DATASET_VARIANTS["cube_2048.f64"],
     ),
 }
 
 BARS_INPUTS = expand(
     "{base}/{variant}.f64." + THIS_TARGET + ".json",
     base="build/matmul_rowmaj/{m}x{n}x{k}",
-    variant=DATASET_VARIANTS["cube.f64"]
+    variant=DATASET_VARIANTS["cube_256.f64"]
 )
 
 rule bars_data:
