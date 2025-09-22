@@ -130,6 +130,14 @@ rule vector_to_arith:
             --convert-scf-to-cf \
             -o {output}"""
 
+rule transform_xdsl:
+    input: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
+    output: "build/{kernel}/{m}x{n}x{k}/transform_xdsl.{dtype}.tower.S"
+    params:
+        passes = ",".join(config["xdsl-opt-passes-vector"])
+    shell:
+        """xdsl-opt -p {params.passes} -t x86-asm {input} -o {output}"""
+
 rule memref_mlir:
     input: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
     output: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
@@ -311,7 +319,7 @@ DATASET_VARIANTS = {
     "tower": {
         "ttile": ["naive_c", "libxsmm"],
         "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "transform_xdsl"],
         "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
         "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
     },
@@ -424,14 +432,17 @@ TESTSET_MAC = [
     *(f"{base}.ci.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.S",
     f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.S",
+    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.tower.S",
 ]
 
 TESTSET_CI = [
-    # Validate CI test set x86 executables
+    # Generate CI test set neon assembly
     *(f"{base}.neon.S" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.S",
     f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.neon.S",
-    # Generate CI test set neon assembly
+    # Generate CI test set avx assembly
+    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.tower.S",
+    # Validate CI test set x86 executables
     *(f"{base}.ci.test.log" for base in _TESTSET_CI),
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.test.log",
     f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.time.txt",
