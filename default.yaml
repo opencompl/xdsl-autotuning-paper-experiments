@@ -13,6 +13,8 @@ xdsl-opt-backend-passes:
   - licm
   - scf-for-loop-range-folding
   - canonicalize
+  - scf-for-loop-unroll
+  - canonicalize
   - convert-func-to-x86-func
   - convert-ptr-to-x86{arch=avx2}
   - convert-scf-to-x86-scf{arch=avx2}
