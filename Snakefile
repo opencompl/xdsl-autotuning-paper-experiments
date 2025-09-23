@@ -14,12 +14,18 @@ TARGET_TRIPLE_DICT = {
     "pinocchio": "x86_64-pc-linux-gnu",
 }
 
+def target_triple(wildcards):
+    return TARGET_TRIPLE_DICT[wildcards.target]
+
 TARGET_FREQ_DICT = {
     "neon": 1.0,
     "ci": 1.0,
     "tower": 4.5,
     "pinocchio": 2.1
 }
+
+def target_freq(wildcards):
+    return TARGET_FREQ_DICT[wildcards.target]
 
 TARGET_ARCH_DICT = {
     "neon": "armv8.5-a",
@@ -28,44 +34,15 @@ TARGET_ARCH_DICT = {
     "pinocchio": "cascadelake",
 }
 
+def target_arch(wildcards):
+    return TARGET_ARCH_DICT[wildcards.target]
+
 TARGET_PEAK_F32_DICT = {
     "neon": 0,
     "ci": 0,
     "tower": 64,
     "pinocchio": 64
 }
-
-def arch_to_xsmm(arch):
-    match arch:
-        case 'cascadelake':
-            return 'clx'
-        case 'znver5':
-            return 'skx'
-        case _:
-            return 'noarch'
-
-TARGET_XSMM_DICT = { k: arch_to_xsmm(v) for k, v in TARGET_ARCH_DICT.items() }
-
-TARGET_LIBS_DICT = {
-    "neon": [],
-    "ci": [],
-    "tower": ['papi'],
-    "pinocchio": ['papi'],
-}
-
-
-
-if os.environ.get("INSIDE_DOCKER") == "1":
-    TARGET_LIBS_DICT["ci"].append('papi')
-
-def target_libs_opts(wildcards):
-    return " ".join(f"-l{x}" for x in TARGET_LIBS_DICT[wildcards.target])
-
-def target_freq(wildcards):
-    return TARGET_FREQ_DICT[wildcards.target]
-
-def target_triple(wildcards):
-    return TARGET_TRIPLE_DICT[wildcards.target]
 
 def target_peak_flops(wildcards):
     match wildcards.dtype:
@@ -78,11 +55,42 @@ def target_peak_flops(wildcards):
     flops_per_cycle = TARGET_PEAK_F32_DICT[wildcards.target] / factor
     return flops_per_cycle
 
-def target_arch(wildcards):
-    return TARGET_ARCH_DICT[wildcards.target]
+TARGET_ENV_DICT = {
+    "neon": {},
+    "ci": {},
+    "tower": {'LIBPFM_FORCE_PMU':'amd64'},
+    "pinocchio": {}
+}   
+
+def target_env(wildcards):
+    return ' '.join([f"{k}={v}" for k,v in TARGET_ENV_DICT[wildcards.target].items()])
+
+def arch_to_xsmm(arch):
+    match arch:
+        case 'cascadelake':
+            return 'clx'
+        case 'znver5':
+            return 'skx'
+        case _:
+            return 'noarch'
+
+TARGET_XSMM_DICT = { k: arch_to_xsmm(v) for k, v in TARGET_ARCH_DICT.items() }
 
 def target_xsmm(wildcards):
     return TARGET_XSMM_DICT[wildcards.target]
+
+TARGET_LIBS_DICT = {
+    "neon": [],
+    "ci": [],
+    "tower": ['papi'],
+    "pinocchio": ['papi'],
+}
+
+if os.environ.get("INSIDE_DOCKER") == "1":
+    TARGET_LIBS_DICT["ci"].append('papi')
+
+def target_libs_opts(wildcards):
+    return " ".join(f"-l{x}" for x in TARGET_LIBS_DICT[wildcards.target])
 
 
 rule templated_tensor:
@@ -269,7 +277,8 @@ rule validation:
 rule time:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.time.o"
     output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.time.txt"
-    shell: '{input} > {output}'
+    params: target_env=target_env,
+    shell: '{params.target_env} {input} > {output}'
 
 rule flops:
     input: "kernels/{kernel}/flops.sh"
