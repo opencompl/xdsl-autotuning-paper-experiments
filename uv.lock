@@ -186,7 +186,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "snakemake", specifier = ">=8.30.0" },
-    { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=2198490958e7e0240ae3ebff2ac81d778831b707" },
+    { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=954e2943ffd10c5481681859b3feb866e723e631" },
 ]
 
 [[package]]
@@ -1272,7 +1272,7 @@ wheels = [
 
 [[package]]
 name = "marimo"
-version = "0.16.0"
+version = "0.16.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -1293,9 +1293,9 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websockets" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c2/ad/10292a9410786135e9a9ad35297590df4fa7538161c54b3c669d5a7be999/marimo-0.16.0.tar.gz", hash = "sha256:81377a0cfe4e95f9d7341a860a0a2772caccc1e8a7bbc8d3ad20c7945d77b07c", size = 33640723, upload-time = "2025-09-18T21:20:42.815Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7f/73/7f9156d9842c556861fe3dd82b819a90229a0f71cffc256b9532167cddff/marimo-0.16.1.tar.gz", hash = "sha256:c3d99f0bcd34fe28ba262eaa44797e79bd91db2a27a47522520f2601dd1cb67a", size = 33650084, upload-time = "2025-09-22T19:34:46.338Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a4/16/387627a14a18eac0556e3f9ca85b3264d120f6492cd4d3477dc32abd012b/marimo-0.16.0-py3-none-any.whl", hash = "sha256:8b7d092894a23461e087b0fdf86942876602a779b6403c01f324b35be4c99495", size = 34033289, upload-time = "2025-09-18T21:20:37.108Z" },
+    { url = "https://files.pythonhosted.org/packages/21/38/6b3bebaa8c3f745f5d3e34efe11749d7fcc2bc2cbe83c5da7c972b62b4ba/marimo-0.16.1-py3-none-any.whl", hash = "sha256:0513426a53348c4e3b5d648a3f67db1464205e0e3eab71da1a249d2ff12a2fa2", size = 34044898, upload-time = "2025-09-22T19:34:50.866Z" },
 ]
 
 [[package]]
@@ -3091,8 +3091,8 @@ wheels = [
 
 [[package]]
 name = "xdsl"
-version = "0.51.1.dev39+g219849095"
-source = { git = "https://github.com/xdslproject/xdsl.git?rev=2198490958e7e0240ae3ebff2ac81d778831b707#2198490958e7e0240ae3ebff2ac81d778831b707" }
+version = "0.52.1.dev14+g954e2943f"
+source = { git = "https://github.com/xdslproject/xdsl.git?rev=954e2943ffd10c5481681859b3feb866e723e631#954e2943ffd10c5481681859b3feb866e723e631" }
 dependencies = [
     { name = "immutabledict" },
     { name = "ordered-set" },
