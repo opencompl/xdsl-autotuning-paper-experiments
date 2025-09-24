@@ -1,3 +1,4 @@
+from dataclasses import field
 from xdsl.context import Context
 from xdsl.dialects import builtin, scf
 from xdsl.ir import Block, dataclass
@@ -85,7 +86,7 @@ class ScfYieldLowering(RewritePattern):
 class ConvertScfToX86ScfPass(ModulePass):
     name = "convert-scf-to-x86-scf"
 
-    arch: str
+    arch: str = field(default="unknown")
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
         arch = Arch.arch_for_name(self.arch)
