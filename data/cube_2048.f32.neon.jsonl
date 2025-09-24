@@ -1,3 +1,0 @@
-{"M":32,"N":32,"K":32,"peak":0.0,"flops":65536,"time":2742.187500,"variant":"naive_c","target":"neon","dtype":"f32"}
-{"M":32,"N":32,"K":32,"peak":0.0,"flops":65536,"time":960.937500,"variant":"transform_mlir","target":"neon","dtype":"f32"}
-{"M":32,"N":32,"K":32,"peak":0.0,"flops":65536,"time":2054.687500,"variant":"vector_intrinsic","target":"neon","dtype":"f32"}

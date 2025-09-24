@@ -72,6 +72,20 @@ def target_file(
     var = target_variant(variant=variant,dtype=dtype,ext=ext)
     return f"{base}/{var}"
 
+def target_ll_file(
+    ext,
+    kernel = "{kernel}",
+    m = "{m}",
+    n = "{n}",
+    k = "{k}",
+    variant = "{variant}",
+    dtype = "{dtype}",
+    target = "{target}"
+):
+    base = target_base(kernel=kernel,m=m,n=n,k=k)
+    var = target_variant(variant=variant,dtype=dtype,ext=f"{target}.{ext}")
+    return f"{base}/{var}"
+
 # Rules
 
 wildcard_constraints:
@@ -79,6 +93,8 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm"
 
+VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
+    
 rule templated_tensor:
     input: "kernels/{kernel}/mlir.mlir"
     output: target_file(variant='tensor',ext='mlir')
@@ -124,7 +140,7 @@ rule vector_to_arith:
 
 rule transform_xdsl:
     input: target_file(variant='memref',ext='mlir')
-    output: target_file(variant='transform_xdsl',ext='tower.S')
+    output: target_ll_file(variant='transform_xdsl',ext='S')
     params:
         passes = ",".join(config["xdsl-opt-backend-passes"])
     shell:
@@ -160,6 +176,8 @@ rule naive_mlir:
             -o {output}"""
 
 rule arith_to_llvm:
+    wildcard_constraints:
+        variant = VARIANTS_ARITH
     input: target_file(ext='arith.mlir')
     output: target_file(ext='llvm.mlir')
     shell:
@@ -175,14 +193,18 @@ rule arith_to_llvm:
             -o {output}"""
 
 rule mlir_to_ll:
+    wildcard_constraints:
+        variant = VARIANTS_ARITH
     input: target_file(ext='llvm.mlir')
     output: target_file(ext='ll')
     shell:
         "mlir-translate --mlir-to-llvmir {input} -o {output}"
 
 rule asm_ll:
+    wildcard_constraints:
+        variant = VARIANTS_ARITH
     input: target_file(ext='ll')
-    output: target_file(ext='{target}.S')
+    output: target_ll_file(ext='S')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
@@ -192,7 +214,7 @@ rule asm_ll:
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
-    output: target_file(variant='naive_c',ext='{target}.S')
+    output: target_ll_file(variant='naive_c',ext='S')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
@@ -202,7 +224,7 @@ rule asm_c:
         "{params.cc} -O3 -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
 
 rule libxsmm_colmaj_c:
-    output: target_file(kernel='matmul_colmaj',variant='libxsmm',ext='{target}.c')
+    output: target_ll_file(kernel='matmul_colmaj',variant='libxsmm',ext='c')
     params:
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
     shell:
@@ -216,7 +238,7 @@ rule libxsmm_colmaj_c:
         """
 
 rule libxsmm_rowmaj_c:
-    output: target_file(kernel='matmul_rowmaj',variant='libxsmm',ext='{target}.c')
+    output: target_ll_file(kernel='matmul_rowmaj',variant='libxsmm',ext='c')
     params:
         target_xsmm=target_xsmm,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
@@ -237,18 +259,18 @@ rule libxsmm_rowmaj_c:
 
 
 rule libxsmm_s:
-    input: target_file(variant='libxsmm',ext='{target}.c')
-    output: target_file(variant='libxsmm',ext='{target}.S')
+    input: target_ll_file(variant='libxsmm',ext='c')
+    output: target_ll_file(variant='libxsmm',ext='S')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
         cc=config["cc"],
     shell:
-        "{params.cc} -O3 -mavx2 -DNDEBUG -c {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        "{params.cc} -O3 -DNDEBUG -c {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
 
 rule executable:
-    input: target_file(ext='{target}.S')
-    output: target_file(ext='{target}.{executable}.o')
+    input: target_ll_file(ext='S')
+    output: target_ll_file(ext='{executable}.o')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
@@ -270,8 +292,8 @@ rule validation:
 ########################################################################################
 
 rule time:
-    input: target_file(ext="{target}.time.o")
-    output: target_file(ext="{target}.time.txt")
+    input: target_ll_file(ext="time.o")
+    output: target_ll_file(ext="time.txt")
     params: target_env=target_env,
     shell: '{params.target_env} {input} > {output}'
 
@@ -282,10 +304,10 @@ rule flops:
 
 rule json:
     input:
-        time_txt=target_file(ext="{target}.time.txt"),
+        time_txt=target_ll_file(ext="time.txt"),
         flops_txt="build/{kernel}/{m}x{n}x{k}/flops.txt"
     output:
-        json=target_file(ext="{target}.json")
+        json=target_ll_file(ext="json")
     params:
         target_peak_flops=target_peak_flops,
     shell:
@@ -315,31 +337,27 @@ THIS_TARGET = config["target"]
 DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
-        "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_8.f64": ["naive_c", "transform_mlir"],
+        "cube_16.f64": ["naive_c", "transform_mlir"],
+        "cube_64.f64": ["naive_c", "transform_mlir"],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "transform_xdsl"],
-        "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "transform_xdsl"],
+        "cube_16.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
+        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm","transform_xdsl"],
+        "cube_16.f64": ["naive_c", "transform_mlir", "libxsmm"],
+        "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm"],
     },
     "ci": {
         "ttile": ["naive_c"],
-        "cube_256.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube_256.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube_2048.f32": ["naive_c", "transform_mlir", "vector_intrinsic"],
-        "cube_2048.f64": ["naive_c", "transform_mlir", "vector_intrinsic"],
+        "cube_8.f64": ["naive_c", "transform_mlir"],
+        "cube_16.f64": ["naive_c", "transform_mlir"],
+        "cube_64.f64": ["naive_c", "transform_mlir"],
     },
 }[THIS_TARGET]
 
@@ -349,28 +367,24 @@ DATASET_BASES = {
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
     ),
-    "cube_256.f32": expand(
-        target_file(kernel="matmul_rowmaj",m="8",n="8",k="8",dtype="f32",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["cube_256.f32"],
+    "cube_8.f64": expand(
+        target_file(kernel="matmul_rowmaj",m="8",n="8",k="8",dtype="f64",ext=THIS_TARGET),
+        variant=DATASET_VARIANTS["cube_8.f64"],
     ),
-    "cube_256.f64": expand(
-        target_file(kernel="matmul_rowmaj",m="4",n="4",k="4",dtype="f64",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["cube_256.f64"],
-    ),
-    "cube_2048.f32": expand(
-        target_file(kernel="matmul_rowmaj",m="32",n="32",k="32",dtype="f32",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["cube_2048.f32"],
-    ),
-    "cube_2048.f64": expand(
+    "cube_16.f64": expand(
         target_file(kernel="matmul_rowmaj",m="16",n="16",k="16",dtype="f64",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["cube_2048.f64"],
+        variant=DATASET_VARIANTS["cube_16.f64"],
+    ),
+    "cube_64.f64": expand(
+        target_file(kernel="matmul_rowmaj",m="64",n="64",k="64",dtype="f64",ext=THIS_TARGET),
+        variant=DATASET_VARIANTS["cube_64.f64"],
     ),
 }
 
 BARS_INPUTS = expand(
     "{base}/" + target_variant(dtype="f64",ext="json"),
     base=target_base(kernel="matmul_rowmaj"),
-    variant=DATASET_VARIANTS["cube_256.f64"]
+    variant=DATASET_VARIANTS["cube_8.f64"]
 )
 
 rule bars_data:

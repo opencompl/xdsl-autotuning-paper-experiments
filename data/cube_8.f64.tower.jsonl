@@ -1,0 +1,5 @@
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":550.149336,"variant":"naive_c","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":50.227003,"variant":"transform_mlir","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":57.176661,"variant":"vector_intrinsic","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":54.383127,"variant":"libxsmm","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":47.749001,"variant":"transform_xdsl","target":"tower","dtype":"f64"}
