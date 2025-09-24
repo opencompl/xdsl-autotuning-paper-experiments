@@ -44,20 +44,19 @@ data/bars.%.jsonl:
 PLOTS =
 
 PLOTS += plots/ttile.f32.neon.png
+PLOTS += plots/cube_8.f64.neon.png
+PLOTS += plots/cube_16.f64.neon.png
+PLOTS += plots/cube_64.f64.neon.png
+
 PLOTS += plots/ttile.f32.tower.png
+PLOTS += plots/cube_8.f64.tower.png
+PLOTS += plots/cube_16.f64.tower.png
+PLOTS += plots/cube_64.f64.tower.png
+
 PLOTS += plots/ttile.f32.pinocchio.png
-PLOTS += plots/cube_256.f32.neon.png
-PLOTS += plots/cube_256.f32.tower.png
-PLOTS += plots/cube_256.f32.pinocchio.png
-PLOTS += plots/cube_256.f64.neon.png
-PLOTS += plots/cube_256.f64.tower.png
-PLOTS += plots/cube_256.f64.pinocchio.png
-PLOTS += plots/cube_2048.f32.neon.png
-PLOTS += plots/cube_2048.f32.tower.png
-PLOTS += plots/cube_2048.f32.pinocchio.png
-PLOTS += plots/cube_2048.f64.neon.png
-PLOTS += plots/cube_2048.f64.tower.png
-PLOTS += plots/cube_2048.f64.pinocchio.png
+PLOTS += plots/cube_8.f64.pinocchio.png
+PLOTS += plots/cube_16.f64.pinocchio.png
+PLOTS += plots/cube_64.f64.pinocchio.png
 
 plots/ttile.%.png: data/ttile.%.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile $< --output $@
