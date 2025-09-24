@@ -1,3 +1,0 @@
-{"M":64,"N":64,"K":64,"peak":64.0,"flops":524288,"time":675019.110352,"variant":"naive_c","target":"pinocchio","dtype":"f32"}
-{"M":64,"N":64,"K":64,"peak":64.0,"flops":524288,"time":15310.326172,"variant":"transform_mlir","target":"pinocchio","dtype":"f32"}
-{"M":64,"N":64,"K":64,"peak":64.0,"flops":524288,"time":8778.241211,"variant":"libxsmm","target":"pinocchio","dtype":"f32"}
