@@ -26,3 +26,39 @@ xdsl-opt-backend-passes:
   - dce
   - x86-allocate-registers
   - convert-x86-scf-to-x86
+
+targets:
+  neon: {
+    triple: "arm64-apple-darwin24.3.0",
+    arch: "armv8.5-a",
+    freq: 1.0,
+    peak_f32: 0,
+    libs: [],
+    env: {}
+  }
+  ci: {
+    triple: "x86_64-unknown-linux-gnu",
+    arch: "x86-64",
+    freq: 1.0,
+    peak_f32: 0,
+    libs: [],
+    env: {}
+  }
+  tower: {
+    triple: "x86_64-pc-linux-gnu",
+    arch: "znver5",
+    freq: 4.5,
+    peak_f32: 64,
+    libs: ["papi"],
+    env: {"LIBPFM_FORCE_PMU":"amd64"}
+  }
+  pinocchio: {
+    triple: "x86_64-pc-linux-gnu",
+    arch: "cascadelake",
+    freq: 2.1,
+    peak_f32: 64,
+    libs: ["papi"],
+    env: {}
+  }
+
+xsmm_map: {cascadelake: clx, znver5: skx, default: noarch}

@@ -6,66 +6,20 @@ import os
 # Build
 ########################################################################################
 
-# clang -dumpmachine
-TARGET_TRIPLE_DICT = {
-    "neon": "arm64-apple-darwin24.3.0 ", # Sasha's Mac
-    "ci": "x86_64-unknown-linux-gnu", # Docker
-    "tower": "x86_64-pc-linux-gnu",
-    "pinocchio": "x86_64-pc-linux-gnu",
-}
+# Target-specific parameters
 
-TARGET_FREQ_DICT = {
-    "neon": 1.0,
-    "ci": 1.0,
-    "tower": 1.0,
-    "pinocchio": 2.1
-}
-
-TARGET_ARCH_DICT = {
-    "neon": "armv8.5-a",
-    "ci": "x86-64", # TODO
-    "tower": "znver5",
-    "pinocchio": "cascadelake",
-}
-
-TARGET_PEAK_F32_DICT = {
-    "neon": 0,
-    "ci": 0,
-    "tower": 0,
-    "pinocchio": 64
-}
-
-def arch_to_xsmm(arch):
-    match arch:
-        case 'cascadelake':
-            return 'clx'
-        case 'znver5':
-            return 'skx'
-        case _:
-            return 'noarch'
-
-TARGET_XSMM_DICT = { k: arch_to_xsmm(v) for k, v in TARGET_ARCH_DICT.items() }
-
-TARGET_LIBS_DICT = {
-    "neon": [],
-    "ci": [],
-    "tower": ['papi'],
-    "pinocchio": ['papi'],
-}
-
-
-
+T = config["targets"]
 if os.environ.get("INSIDE_DOCKER") == "1":
-    TARGET_LIBS_DICT["ci"].append('papi')
-
-def target_libs_opts(wildcards):
-    return " ".join(f"-l{x}" for x in TARGET_LIBS_DICT[wildcards.target])
-
-def target_freq(wildcards):
-    return TARGET_FREQ_DICT[wildcards.target]
+    T['ci']['libs'].append('papi')
 
 def target_triple(wildcards):
-    return TARGET_TRIPLE_DICT[wildcards.target]
+    return T[wildcards.target]['triple']
+
+def target_freq(wildcards):
+    return T[wildcards.target]['freq']
+
+def target_arch(wildcards):
+    return T[wildcards.target]['arch']
 
 def target_peak_flops(wildcards):
     match wildcards.dtype:
@@ -75,41 +29,79 @@ def target_peak_flops(wildcards):
             factor = 2.0
         case _:
             assert False
-    flops_per_cycle = TARGET_PEAK_F32_DICT[wildcards.target] / factor
+    flops_per_cycle = T[wildcards.target]['peak_f32'] / factor
     return flops_per_cycle
 
-def target_arch(wildcards):
-    return TARGET_ARCH_DICT[wildcards.target]
+def target_env(wildcards):
+    return ' '.join([f"{k}={v}" for k,v in T[wildcards.target]['env'].items()])
 
 def target_xsmm(wildcards):
-    return TARGET_XSMM_DICT[wildcards.target]
+    arch = target_arch(wildcards)
+    return config['xsmm_map'][arch]
 
+def target_libs_opts(wildcards):
+    return " ".join(f"-l{x}" for x in T[wildcards.target]['libs'])
+
+# Path management
+
+def target_base(
+        kernel = "{kernel}",
+        m = "{m}",
+        n = "{n}",
+        k = "{k}"
+):
+    return f"build/{kernel}/{m}x{n}x{k}"
+
+def target_variant(
+        ext,
+        variant = "{variant}",
+        dtype = "{dtype}"
+):
+    return f"{variant}.{dtype}.{ext}"
+
+def target_file(
+    ext,
+    kernel = "{kernel}",
+    m = "{m}",
+    n = "{n}",
+    k = "{k}",
+    variant = "{variant}",
+    dtype = "{dtype}",
+):
+    base = target_base(kernel=kernel,m=m,n=n,k=k)
+    var = target_variant(variant=variant,dtype=dtype,ext=ext)
+    return f"{base}/{var}"
+
+# Rules
+
+wildcard_constraints:
+    dtype = "f32|f64",
+    kernel="matmul_(rowmaj|colmaj)",
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm"
 
 rule templated_tensor:
     input: "kernels/{kernel}/mlir.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
-    wildcard_constraints:
-        dtype="f32|f64",
+    output: target_file(variant='tensor',ext='mlir')
     template_engine:
         "jinja2"
 
 rule templated_vector_intrinsic:
     input: "kernels/{kernel}/vector_intrinsic.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/vector_intrinsic.{dtype}.arith.mlir"
+    output: target_file(variant='vector_intrinsic',ext='arith.mlir')
     template_engine:
         "jinja2"
 
 rule transform_mlir:
     input:
-        matmul="build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir",
+        matmul=target_file(variant='memref',ext='mlir'),
         transform="kernels/vectorize.transform.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
+    output: target_file(variant='transform_mlir',ext='mlir')
     shell:
         './src/autotuner/merge_transform.awk {input.matmul} {input.transform} > {output}'
 
 rule execute_transform:
-    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.vector.mlir"
+    input: target_file(variant='transform_mlir',ext='mlir')
+    output: target_file(variant='transform_mlir',ext='vector.mlir')
     shell:
         """mlir-opt {input} \
             --transform-interpreter \
@@ -120,8 +112,8 @@ rule execute_transform:
             -o {output}"""
 
 rule vector_to_arith:
-    input: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.vector.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_mlir.{dtype}.arith.mlir"
+    input: target_file(variant='transform_mlir',ext='vector.mlir')
+    output: target_file(variant='transform_mlir',ext='arith.mlir')
     shell:
         """mlir-opt {input} \
             --canonicalize \
@@ -131,16 +123,16 @@ rule vector_to_arith:
             -o {output}"""
 
 rule transform_xdsl:
-    input: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/transform_xdsl.{dtype}.tower.S"
+    input: target_file(variant='memref',ext='mlir')
+    output: target_file(variant='transform_xdsl',ext='tower.S')
     params:
         passes = ",".join(config["xdsl-opt-backend-passes"])
     shell:
         """xdsl-opt -p {params.passes} -t x86-asm {input} -o {output}"""
 
 rule memref_mlir:
-    input: "build/{kernel}/{m}x{n}x{k}/tensor.{dtype}.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
+    input: target_file(variant='tensor',ext='mlir')
+    output: target_file(variant='memref',ext='mlir')
     shell:
         """mlir-opt {input} \
             --one-shot-bufferize='bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map' \
@@ -158,8 +150,8 @@ rule good_xdsl:
 
 
 rule naive_mlir:
-    input: "build/{kernel}/{m}x{n}x{k}/memref.{dtype}.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/naive_mlir.{dtype}.arith.mlir"
+    input: target_file(variant='memref',ext='mlir')
+    output: target_file(variant='naive_mlir',ext='arith.mlir')
     shell:
         """mlir-opt {input} \
             --convert-linalg-to-loops \
@@ -168,8 +160,8 @@ rule naive_mlir:
             -o {output}"""
 
 rule arith_to_llvm:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.arith.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.llvm.mlir"
+    input: target_file(ext='arith.mlir')
+    output: target_file(ext='llvm.mlir')
     shell:
         """mlir-opt {input} \
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
@@ -183,14 +175,14 @@ rule arith_to_llvm:
             -o {output}"""
 
 rule mlir_to_ll:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.llvm.mlir"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.ll"
+    input: target_file(ext='llvm.mlir')
+    output: target_file(ext='ll')
     shell:
         "mlir-translate --mlir-to-llvmir {input} -o {output}"
 
 rule asm_ll:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.ll"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
+    input: target_file(ext='ll')
+    output: target_file(ext='{target}.S')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
@@ -200,7 +192,7 @@ rule asm_ll:
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
-    output: "build/{kernel}/{m}x{n}x{k}/naive_c.{dtype}.{target}.S"
+    output: target_file(variant='naive_c',ext='{target}.S')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
@@ -210,7 +202,7 @@ rule asm_c:
         "{params.cc} -O3 -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
 
 rule libxsmm_colmaj_c:
-    output: "build/matmul_colmaj/{m}x{n}x{k}/libxsmm.{dtype}.{target}.c"
+    output: target_file(kernel='matmul_colmaj',variant='libxsmm',ext='{target}.c')
     params:
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
     shell:
@@ -224,7 +216,7 @@ rule libxsmm_colmaj_c:
         """
 
 rule libxsmm_rowmaj_c:
-    output: "build/matmul_rowmaj/{m}x{n}x{k}/libxsmm.{dtype}.{target}.c"
+    output: target_file(kernel='matmul_rowmaj',variant='libxsmm',ext='{target}.c')
     params:
         target_xsmm=target_xsmm,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
@@ -245,8 +237,8 @@ rule libxsmm_rowmaj_c:
 
 
 rule libxsmm_s:
-    input: "build/{kernel}/{m}x{n}x{k}/libxsmm.{dtype}.{target}.c"
-    output: "build/{kernel}/{m}x{n}x{k}/libxsmm.{dtype}.{target}.S"
+    input: target_file(variant='libxsmm',ext='{target}.c')
+    output: target_file(variant='libxsmm',ext='{target}.S')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
@@ -255,8 +247,8 @@ rule libxsmm_s:
         "{params.cc} -O3 -mavx2 -DNDEBUG -c {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
 
 rule executable:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.S"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.{executable}.o"
+    input: target_file(ext='{target}.S')
+    output: target_file(ext='{target}.{executable}.o')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
@@ -278,9 +270,10 @@ rule validation:
 ########################################################################################
 
 rule time:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.time.o"
-    output: "build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.time.txt"
-    shell: '{input} > {output}'
+    input: target_file(ext="{target}.time.o")
+    output: target_file(ext="{target}.time.txt")
+    params: target_env=target_env,
+    shell: '{params.target_env} {input} > {output}'
 
 rule flops:
     input: "kernels/{kernel}/flops.sh"
@@ -289,10 +282,10 @@ rule flops:
 
 rule json:
     input:
-        time_txt="build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.time.txt",
+        time_txt=target_file(ext="{target}.time.txt"),
         flops_txt="build/{kernel}/{m}x{n}x{k}/flops.txt"
     output:
-        json="build/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.{target}.json"
+        json=target_file(ext="{target}.json")
     params:
         target_peak_flops=target_peak_flops,
     shell:
@@ -352,31 +345,31 @@ DATASET_VARIANTS = {
 
 DATASET_BASES = {
     "ttile.f32": expand(
-        "build/matmul_rowmaj/{m}x128x128/{variant}.f32." + THIS_TARGET,
+        target_file(kernel="matmul_rowmaj",n="128",k="128",dtype="f32",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
     ),
     "cube_256.f32": expand(
-        "build/matmul_rowmaj/8x8x8/{variant}.f32." + THIS_TARGET,
+        target_file(kernel="matmul_rowmaj",m="8",n="8",k="8",dtype="f32",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["cube_256.f32"],
     ),
     "cube_256.f64": expand(
-        "build/matmul_rowmaj/4x4x4/{variant}.f64." + THIS_TARGET,
+        target_file(kernel="matmul_rowmaj",m="4",n="4",k="4",dtype="f64",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["cube_256.f64"],
     ),
     "cube_2048.f32": expand(
-        "build/matmul_rowmaj/32x32x32/{variant}.f32." + THIS_TARGET,
+        target_file(kernel="matmul_rowmaj",m="32",n="32",k="32",dtype="f32",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["cube_2048.f32"],
     ),
     "cube_2048.f64": expand(
-        "build/matmul_rowmaj/16x16x16/{variant}.f64." + THIS_TARGET,
+        target_file(kernel="matmul_rowmaj",m="16",n="16",k="16",dtype="f64",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["cube_2048.f64"],
     ),
 }
 
 BARS_INPUTS = expand(
-    "{base}/{variant}.f64." + THIS_TARGET + ".json",
-    base="build/matmul_rowmaj/{m}x{n}x{k}",
+    "{base}/" + target_variant(dtype="f64",ext="json"),
+    base=target_base(kernel="matmul_rowmaj"),
     variant=DATASET_VARIANTS["cube_256.f64"]
 )
 
@@ -437,28 +430,63 @@ _TESTSET_CI = expand(
 TESTSET_MAC = [
     # Validate CI test set neon executables
     *(f"{base}.neon.test.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.test.log",
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.time.txt",
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="transform_mlir",dtype="f32",ext="neon.test.log"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="transform_mlir",dtype="f32",ext="neon.time.txt"
+    ),
     # Generate CI test set x86 assembly
     *(f"{base}.ci.S" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.S",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.S",
-    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.tower.S",
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="transform_mlir",dtype="f32",ext="ci.S"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="vector_intrinsic",dtype="f32",ext="ci.S"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="4",n="4",k="4",
+        variant="transform_xdsl",dtype="f64",ext="tower.S"
+    ),
 ]
 
 TESTSET_CI = [
     # Generate CI test set neon assembly
     *(f"{base}.neon.S" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.neon.S",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.neon.S",
-    # Generate CI test set avx assembly
-    f"build/matmul_rowmaj/4x4x4/transform_xdsl.f64.tower.S",
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="transform_mlir",dtype="f32",ext="neon.S"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="vector_intrinsic",dtype="f32",ext="neon.S"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="4",n="4",k="4",
+        variant="transform_xdsl",dtype="f64",ext="tower.S"
+    ),
     # Validate CI test set x86 executables
     *(f"{base}.ci.test.log" for base in _TESTSET_CI),
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.test.log",
-    f"build/matmul_rowmaj/8x8x8/transform_mlir.f32.ci.time.txt",
-    f"build/matmul_rowmaj/8x8x8/vector_intrinsic.f32.ci.time.txt",
-    f"build/matmul_rowmaj/5x6x7/vector_intrinsic.f32.ci.time.txt",
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="transform_mlir",dtype="f32",ext="ci.test.log"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="transform_mlir",dtype="f32",ext="ci.time.txt"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="vector_intrinsic",dtype="f32",ext="ci.time.txt"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="5",n="6",k="7",
+        variant="transform_mlir",dtype="f32",ext="ci.time.txt"
+    ),
 ]
 
 TESTSET = {
