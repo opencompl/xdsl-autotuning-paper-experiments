@@ -10,7 +10,8 @@
 #include "../../headers/gendata.h"
 #include "../../headers/mnk.h"
 
-#define NUM_ITERATIONS 128
+#define TARGET_SIZE 268435456
+#define NUM_ITERATIONS (TARGET_SIZE / (M * N * K))
 #define CLOCKS_PER_USEC ((double)CLOCKS_PER_SEC / 1000000.0)
 
 extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
