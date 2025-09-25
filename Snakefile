@@ -139,7 +139,7 @@ rule vector_to_arith:
             -o {output}"""
 
 rule transform_xdsl:
-    input: target_file(variant='memref',ext='mlir')
+    input: target_file(variant='transform_mlir',ext='vector.mlir')
     output: target_ll_file(variant='transform_xdsl',ext='S')
     params:
         passes = ",".join(config["xdsl-opt-backend-passes"])
