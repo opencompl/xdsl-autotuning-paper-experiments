@@ -9,7 +9,7 @@ import os
 # Target-specific parameters
 
 T = config["targets"]
-if os.environ.get("INSIDE_DOCKER") == "1":
+if os.environ.get("USE_PAPI") == "1":
     T['ci']['libs'].append('papi')
 
 def target_triple(wildcards):
@@ -94,7 +94,7 @@ wildcard_constraints:
     variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
-    
+
 rule templated_tensor:
     input: "kernels/{kernel}/mlir.mlir"
     output: target_file(variant='tensor',ext='mlir')
@@ -278,8 +278,9 @@ rule executable:
         target_freq=target_freq,
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+        use_papi=lambda wildcards: "-DUSE_PAPI=1" if os.environ.get("USE_PAPI") == "1" else "",
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
