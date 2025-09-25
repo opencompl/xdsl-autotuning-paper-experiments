@@ -16,21 +16,22 @@
 
 extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
 
-#if __has_include(<papi.h>)
+#ifdef USE_PAPI
 #include <papi.h>
 #endif
 
-#define CHECK(call) do { \
-  int __ret = (call); \
-  if (__ret != PAPI_OK) { \
-    fprintf(stderr, #call " failed: %s\n", PAPI_strerror(__ret)); \
-    exit(1); \
-  } \
-} while(0)
+#define CHECK(call)                                                            \
+  do {                                                                         \
+    int __ret = (call);                                                        \
+    if (__ret != PAPI_OK) {                                                    \
+      fprintf(stderr, #call " failed: %s\n", PAPI_strerror(__ret));            \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0)
 
 int hardware_counters_available(void) {
   int res = 0;
-#if __has_include(<papi.h>)
+#ifdef USE_PAPI
   // Check the availability of the event
   int av = PAPI_query_event(PAPI_TOT_CYC);
   if (av == PAPI_OK) {
@@ -54,27 +55,27 @@ int main() {
   posix_memalign((void **)&A, 64, M * K * sizeof(DTYPE));
   posix_memalign((void **)&B, 64, K * N * sizeof(DTYPE));
   posix_memalign((void **)&C, 64, M * N * sizeof(DTYPE));
-  
+
   long long values[1];
   struct timespec ts_start;
   struct timespec ts_end;
   double elapsed;
-  
-#if __has_include(<papi.h>)
+
+#ifdef USE_PAPI
   int ret = PAPI_library_init(PAPI_VER_CURRENT);
   if (ret != PAPI_VER_CURRENT) { fprintf(stderr, "papi init failed\n"); return 1; }
   int EventSet = PAPI_NULL;
   CHECK(PAPI_create_eventset(&EventSet));
 #endif
-  
+
   int hw_counters = hardware_counters_available();
 
   if (hw_counters) {
-#if __has_include(<papi.h>)
+#ifdef USE_PAPI
     CHECK(PAPI_add_event(EventSet, PAPI_TOT_CYC));
 #endif
   }
-    
+
   set_random_seed(42);
 
   fill_random_data(A, M * K);
@@ -85,40 +86,37 @@ int main() {
 
   // Warm up the cache with one iteration
   matmul(A, B, C);
-  
+
   // Start the counters
   if (hw_counters) {
-#if __has_include(<papi.h>)
+#ifdef USE_PAPI
     CHECK(PAPI_start(EventSet));
-    PAPI_start(EventSet);
 #endif
+  } else {
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
   }
-  else {
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  }
-  
+
   for (int i = 0; i < NUM_ITERATIONS; i++) {
     matmul(A, B, C);
   }
 
   // Stop the counters
   if (hw_counters) {
-#if __has_include(<papi.h>)
+#ifdef USE_PAPI
     CHECK(PAPI_stop(EventSet, values));
+    elapsed = (double)values[0];
 #endif
-    elapsed = (double) values[0];
+  } else {
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    elapsed = (ts_end.tv_nsec - ts_start.tv_nsec) * (double)FREQ;
   }
-  else {
-  clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  elapsed = (ts_end.tv_nsec - ts_start.tv_nsec) * (double)FREQ;
-  }
-  
+
   double average_cycles = (double)elapsed / (double)NUM_ITERATIONS;
   printf("%f\n", average_cycles);
 
   free(A);
   free(B);
   free(C);
-  
+
   return 0;
 }
