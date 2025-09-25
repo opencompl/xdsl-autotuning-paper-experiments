@@ -142,7 +142,7 @@ rule transform_xdsl:
     input: target_file(variant='memref',ext='mlir')
     output: target_ll_file(variant='transform_xdsl',ext='S')
     params:
-        passes = ",".join(config["xdsl-opt-passes-vector"])
+        passes = ",".join(config["xdsl-opt-backend-passes"])
     shell:
         """xdsl-opt -p {params.passes} -t x86-asm {input} -o {output}"""
 
