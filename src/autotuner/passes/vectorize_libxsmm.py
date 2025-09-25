@@ -20,6 +20,31 @@ _index_type = builtin.IndexType()
 
 @dataclass
 class VectorizeLibxsmmPattern(RewritePattern):
+    """
+    Vectorizes a matmul with a specific pattern:
+
+    Given:
+    ```
+    C += A * B
+    C: M x N, A: M x K, B: K x N
+    ```
+
+    Where:
+    1. All sizes are static
+    2. `N` divides the vector size
+    3. `M + M * N // vector size < #registers`
+
+    It will:
+
+    1. Load all of C into vector registers
+    2. For k in K (for loop)
+        1. Load the kth column of A and broadcast to vector registers (M registers)
+        2. for n in N // vector size (unrolled)
+            1. load the vector of elements of B
+            2. for m in M (unrolled)
+                1. fma the columns of A with the vector of B, accumulating into the element of C
+    """
+
     vector_size: int = field(default=4)
 
     @op_type_rewrite_pattern
