@@ -3,29 +3,21 @@ target: ci
 
 xdsl-opt-backend-passes:
   - vectorize-libxsmm
-  - canonicalize
+  - scf-for-loop-unroll
   - convert-vector-to-ptr
   - convert-memref-to-ptr{lower_func=true}
   - convert-ptr-type-offsets
-  - vector-split-load-extract
-  - canonicalize
-  - cse
-  - licm
-  - scf-for-loop-range-folding
-  - canonicalize
-  - scf-for-loop-unroll
   - canonicalize
   - convert-func-to-x86-func
-  - convert-ptr-to-x86{arch=avx512}
-  - convert-scf-to-x86-scf{arch=avx512}
   - convert-vector-to-x86{arch=avx512}
+  - convert-ptr-to-x86{arch=avx512}
   - convert-arith-to-x86
   - reconcile-unrealized-casts
   - canonicalize
   - x86-infer-broadcast
   - dce
   - x86-allocate-registers
-  - convert-x86-scf-to-x86
+  - canonicalize
 
 targets:
   neon: {
