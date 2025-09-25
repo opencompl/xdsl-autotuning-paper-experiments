@@ -6,6 +6,12 @@ import os
 # Build
 ########################################################################################
 
+# MKL paths (assuming intel-oneapi-mkl-2021.4.0)
+
+MKL_PKG_CONFIG = "/opt/intel/oneapi/mkl/2021.4.0/lib/pkgconfig/mkl-static-ilp64-iomp.pc"
+MKL_CFLAGS = shell("pkg-config --cflags {MKL_PKG_CONFIG}", read=True).strip()
+MKL_LIBS   = shell("pkg-config --libs {MKL_PKG_CONFIG}", read=True).strip()
+
 # Target-specific parameters
 
 T = config["targets"]
@@ -91,7 +97,7 @@ def target_ll_file(
 wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -257,7 +263,16 @@ rule libxsmm_rowmaj_c:
         echo 'void matmul(const float *A, const float *B, float *C) {{matmul_bac(B, A, C);}}' >> {output}
         """
 
-
+rule mkl_rowmaj_s:
+    output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
+    params:
+        target_triple=target_triple,
+        target_arch=target_arch,
+        cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+    shell:
+        "{params.cc} -O3 -c kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} -DMKL_DTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
     output: target_ll_file(variant='libxsmm',ext='S')
@@ -280,7 +295,7 @@ rule executable:
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
         use_papi=lambda wildcards: "-DUSE_PAPI=1" if os.environ.get("USE_PAPI") == "1" else "",
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts}"
+        "OMP_NUM_THREADS=1 {params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {MKL_LIBS}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
@@ -344,15 +359,15 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_16.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm"],
+        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "mkl"],
+        "cube_16.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm","mkl"],
+        "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm","mkl"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
-        "cube_16.f64": ["naive_c", "transform_mlir", "libxsmm"],
-        "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm"],
+        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm","mkl"],
+        "cube_16.f64": ["naive_c", "transform_mlir", "libxsmm", "mkl"],
+        "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm", "mkl"],
     },
     "ci": {
         "ttile": ["naive_c"],
@@ -501,6 +516,10 @@ TESTSET_CI = [
     target_file(
         kernel="matmul_rowmaj",m="8",n="8",k="8",
         variant="vector_intrinsic",dtype="f32",ext="ci.time.txt"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="8",n="8",k="8",
+        variant="mkl",dtype="f32",ext="ci.time.txt"
     ),
     target_file(
         kernel="matmul_rowmaj",m="5",n="6",k="7",
