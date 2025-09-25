@@ -1,7 +1,7 @@
-from dataclasses import dataclass, field
+from dataclasses import field
 from xdsl.context import Context
 from xdsl.dialects import builtin, scf
-from xdsl.ir import Block
+from xdsl.ir import Block, dataclass
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
     GreedyRewritePatternApplier,
