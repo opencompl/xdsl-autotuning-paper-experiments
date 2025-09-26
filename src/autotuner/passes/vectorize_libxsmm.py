@@ -36,11 +36,11 @@ class VectorizeLibxsmmPattern(RewritePattern):
 
     It will:
 
-    1. Load all of C into vector registers
+    1. Load all of C into vector registers (one vector size * M tile at a time)
     2. For k in K (for loop)
         1. Load the kth column of A and broadcast to vector registers (M registers)
         2. for n in N // vector size (unrolled)
-            1. load the vector of elements of B
+            1. load the vector of elements of B corresponding to the nth column
             2. for m in M (unrolled)
                 1. fma the columns of A with the vector of B, accumulating into the element of C
     """
@@ -88,6 +88,11 @@ class VectorizeLibxsmmPattern(RewritePattern):
         a_leading = a_strides[0]
         assert a_leading is not None
 
+        b_strides = b_type.get_strides()
+        assert b_strides is not None
+        b_leading = b_strides[0]
+        assert b_leading is not None
+
         element_type = a_type.element_type
         vector_type = builtin.VectorType(element_type, (self.vector_size,))
 
@@ -103,9 +108,14 @@ class VectorizeLibxsmmPattern(RewritePattern):
             # Zero for convenience
             c0 = constants[0]
             c_k = arith.ConstantOp(builtin.IntegerAttr(K, _index_type)).result
+            c_n = arith.ConstantOp(builtin.IntegerAttr(N, _index_type)).result
             c_a_leading_stride = arith.ConstantOp(
                 builtin.IntegerAttr(a_leading, _index_type)
             ).result
+            c_b_leading_stride = arith.ConstantOp(
+                builtin.IntegerAttr(b_leading, _index_type)
+            ).result
+
             c_vector_size = arith.ConstantOp(
                 builtin.IntegerAttr(self.vector_size, _index_type)
             ).result
@@ -115,6 +125,8 @@ class VectorizeLibxsmmPattern(RewritePattern):
             element_bytes = ptr.TypeOffsetOp(element_type, _index_type).offset
             a_leading = arith.MuliOp(element_bytes, c_a_leading_stride).result
             c_vector_bytes = arith.MuliOp(element_bytes, c_vector_size).result
+            c_row_bytes = arith.MuliOp(element_bytes, c_n).result
+            b_increment = arith.SubiOp(c_b_leading_stride, c_row_bytes).result
 
             a_row_ptrs = [a_ptr]
             for i in range(1, M):
@@ -171,6 +183,11 @@ class VectorizeLibxsmmPattern(RewritePattern):
 
                     # Next vector in B
                     b_vector_ptr = ptr.PtrAddOp(b_vector_ptr, c_vector_bytes).result
+
+                # The pointer has advanced past the last element of B in the row, but
+                # the next row of B is potentially further away due to tiling, so it
+                # must be incremented by the difference
+                b_vector_ptr = ptr.PtrAddOp(b_vector_ptr, b_increment).result
 
                 new_a_col_ptrs = tuple(
                     ptr.PtrAddOp(prev_ptr, element_bytes).result
