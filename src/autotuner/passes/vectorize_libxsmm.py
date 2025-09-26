@@ -180,7 +180,7 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 scf.YieldOp(*new_a_col_ptrs, b_vector_ptr, *fma_results)
 
             for i, (m, n) in enumerate(
-                product(range(M), range(0, N // self.vector_size))
+                product(range(M), range(0, N, self.vector_size))
             ):
                 vector.StoreOp(
                     for_loop.results[i + M + 1],
