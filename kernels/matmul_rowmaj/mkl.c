@@ -1,25 +1,24 @@
 #include <mkl.h>
 #include <stdio.h>
-#include <malloc.h>
 #include <stdlib.h>
 #include <assert.h>
 
-void matmul(void *C, const void *A, const void *B) {
-  if (sizeof(MKL_DTYPE) == 32) {
-    cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans,
+void matmul(MKL_DTYPE *A, const MKL_DTYPE *B, MKL_DTYPE *C) {
+  if (sizeof(MKL_DTYPE) == 4) {
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
                 MKL_M, MKL_N, MKL_K,
-                1.0 /* alpha */,
-                A, MKL_M,
-                B, MKL_K,
-                0.0 /* beta */,
-                C, MKL_M);
+                1.0f /* alpha */,
+                A, MKL_K,
+                B, MKL_N,
+                0.0f /* beta */,
+                C, MKL_N);
   } else {
-    cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans,
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
                 MKL_M, MKL_N, MKL_K,
-                1.0 /* alpha */,
-                A, MKL_M,
-                B, MKL_K,
-                0.0 /* beta */,
-                C, MKL_M);
+                1.0f /* alpha */,
+                A, MKL_K,
+                B, MKL_N,
+                0.0f /* beta */,
+                C, MKL_N);
   }
 }
