@@ -8,9 +8,10 @@ import os
 
 # MKL paths (assuming intel-oneapi-mkl-2021.4.0)
 
-MKL_PKG_CONFIG = "/opt/intel/oneapi/mkl/2021.4.0/lib/pkgconfig/mkl-static-ilp64-iomp.pc"
-MKL_CFLAGS = shell("pkg-config --cflags {MKL_PKG_CONFIG}", read=True).strip()
-MKL_LIBS   = shell("pkg-config --libs {MKL_PKG_CONFIG}", read=True).strip()
+if os.environ.get("IN_DOCKER") == "1":
+    MKL_PKG_CONFIG = "/opt/intel/oneapi/mkl/2021.4.0/lib/pkgconfig/mkl-static-ilp64-iomp.pc"
+    MKL_CFLAGS = shell("pkg-config --cflags {MKL_PKG_CONFIG}", read=True).strip()
+    MKL_LIBS   = shell("pkg-config --libs {MKL_PKG_CONFIG}", read=True).strip()
 
 # Target-specific parameters
 
