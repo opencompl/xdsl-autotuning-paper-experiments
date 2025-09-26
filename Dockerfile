@@ -4,11 +4,19 @@ LABEL org.opencontainers.image.source=https://github.com/opencompl/xdsl-autotuni
 LABEL org.opencontainers.image.description="LLVM Docker image for xdsl autotuner experiments"
 LABEL org.opencontainers.image.licenses=MIT
 
+# Pointer to Intel repos
+RUN wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+  | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null \
+  && echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+  | tee /etc/apt/sources.list.d/oneapi.list \
+  && apt update
+
 # Install dependencies and clean up in a single layer
 RUN apt-get update && apt-get install -y \
     libz3-dev libedit-dev libzstd-dev git make gpg libxml2 binutils \
     papi-tools libpapi-dev \
     build-essential gcc libc6-dev \
+    pkg-config intel-oneapi-mkl-2021.4.0 intel-oneapi-mkl-devel-2021.4.0 libomp-dev \
     graphviz \
     binutils-aarch64-linux-gnu binutils-x86-64-linux-gnu \
     gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \

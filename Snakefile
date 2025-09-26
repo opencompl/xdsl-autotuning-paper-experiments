@@ -504,11 +504,19 @@ TESTSET_CI = [
     ),
 ]
 
+# For targets that can execute AVX instructions
+TESTSET_AVX = [
+    target_file(
+        kernel="matmul_rowmaj",m="3",n="16",k="5",
+        variant="transform_xdsl",dtype="f64",ext="ci.test.log"
+    ),
+]
+
 TESTSET = {
     "neon": TESTSET_MAC,
     "ci": TESTSET_CI,
-    "tower": TESTSET_CI,
-    "pinocchio": TESTSET_CI,
+    "tower": TESTSET_CI + TESTSET_AVX,
+    "pinocchio": TESTSET_CI + TESTSET_AVX,
 }[THIS_TARGET]
 
 rule tests:

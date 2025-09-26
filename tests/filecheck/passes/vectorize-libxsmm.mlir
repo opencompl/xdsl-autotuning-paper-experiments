@@ -82,16 +82,16 @@ func.func @matmul(
 // CHECK-NEXT:        scf.yield %80, %81, %82, %79, %61, %62, %63, %66, %67, %68, %71, %72, %73, %76, %77, %78 : !ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      vector.store %25, %C[%c0, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %26, %C[%c0, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %27, %C[%c0, %c8] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %28, %C[%c0, %c12] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %29, %C[%c1, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %30, %C[%c1, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %31, %C[%c1, %c8] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %32, %C[%c1, %c12] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %33, %C[%c2, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %34, %C[%c2, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %35, %C[%c2, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %26, %C[%c1, %c0] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %27, %C[%c2, %c0] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %28, %C[%c0, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %29, %C[%c1, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %30, %C[%c2, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %31, %C[%c0, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %32, %C[%c1, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %33, %C[%c2, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %34, %C[%c0, %c12] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %35, %C[%c1, %c12] : memref<3x16xf64>, vector<4xf64>
 // CHECK-NEXT:      vector.store %36, %C[%c2, %c12] : memref<3x16xf64>, vector<4xf64>
 // CHECK-NEXT:      func.return
 // CHECK-NEXT:    }
