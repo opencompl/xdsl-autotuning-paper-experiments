@@ -139,18 +139,23 @@ rule vector_to_arith:
             -o {output}"""
 
 rule transform_xdsl:
-    input: target_file(variant='transform_mlir',ext='vector.mlir')
+    input:
+        "pyproject.toml",
+        "src/autotuner/passes/vectorize_libxsmm.py",
+        program = target_file(variant='transform_mlir',ext='vector.mlir'),
     output: target_file(variant='transform_xdsl',ext='vector.mlir')
     shell:
-        """xdsl-opt -p vectorize-libxsmm {input} -o {output}"""
+        """xdsl-opt -p vectorize-libxsmm {input.program} -o {output}"""
 
 rule backend_xdsl:
-    input: target_file(variant='transform_xdsl',ext='vector.mlir')
+    input:
+        "pyproject.toml",
+        program=target_file(variant='transform_xdsl',ext='vector.mlir'),
     output: target_ll_file(variant='transform_xdsl',ext='S')
     params:
         passes = ",".join(config["xdsl-opt-backend-passes"])
     shell:
-        """xdsl-opt -p {params.passes} -t x86-asm {input} -o {output}"""
+        """xdsl-opt -p {params.passes} -t x86-asm {input.program} -o {output}"""
 
 rule memref_mlir:
     input: target_file(variant='tensor',ext='mlir')
