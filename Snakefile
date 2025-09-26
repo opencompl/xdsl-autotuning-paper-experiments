@@ -140,6 +140,12 @@ rule vector_to_arith:
 
 rule transform_xdsl:
     input: target_file(variant='transform_mlir',ext='vector.mlir')
+    output: target_file(variant='transform_xdsl',ext='vector.mlir')
+    shell:
+        """xdsl-opt -p vectorize-libxsmm {input} -o {output}"""
+
+rule backend_xdsl:
+    input: target_file(variant='transform_xdsl',ext='vector.mlir')
     output: target_ll_file(variant='transform_xdsl',ext='S')
     params:
         passes = ",".join(config["xdsl-opt-backend-passes"])
