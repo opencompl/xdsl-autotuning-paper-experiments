@@ -126,7 +126,8 @@ class VectorizeLibxsmmPattern(RewritePattern):
             a_leading = arith.MuliOp(element_bytes, c_a_leading_stride).result
             c_vector_bytes = arith.MuliOp(element_bytes, c_vector_size).result
             c_row_bytes = arith.MuliOp(element_bytes, c_n).result
-            b_increment = arith.SubiOp(c_b_leading_stride, c_row_bytes).result
+            b_leading_bytes = arith.MuliOp(element_bytes, c_b_leading_stride).result
+            b_increment = arith.SubiOp(b_leading_bytes, c_row_bytes).result
 
             a_row_ptrs = [a_ptr]
             for i in range(1, M):
