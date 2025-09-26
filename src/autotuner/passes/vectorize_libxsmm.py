@@ -83,6 +83,11 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 f"by {self.vector_size}."
             )
 
+        a_strides = a_type.get_strides()
+        assert a_strides is not None
+        a_leading = a_strides[0]
+        assert a_leading is not None
+
         element_type = a_type.element_type
         vector_type = builtin.VectorType(element_type, (self.vector_size,))
 
@@ -98,6 +103,9 @@ class VectorizeLibxsmmPattern(RewritePattern):
             # Zero for convenience
             c0 = constants[0]
             c_k = arith.ConstantOp(builtin.IntegerAttr(K, _index_type)).result
+            c_a_leading_stride = arith.ConstantOp(
+                builtin.IntegerAttr(a_leading, _index_type)
+            ).result
             c_vector_size = arith.ConstantOp(
                 builtin.IntegerAttr(self.vector_size, _index_type)
             ).result
@@ -105,7 +113,7 @@ class VectorizeLibxsmmPattern(RewritePattern):
             a_ptr = ptr.ToPtrOp(a).res
             b_ptr = ptr.ToPtrOp(b).res
             element_bytes = ptr.TypeOffsetOp(element_type, _index_type).offset
-            a_leading = arith.MuliOp(element_bytes, c_k).result
+            a_leading = arith.MuliOp(element_bytes, c_a_leading_stride).result
             c_vector_bytes = arith.MuliOp(element_bytes, c_vector_size).result
 
             a_row_ptrs = [a_ptr]
