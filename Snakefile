@@ -467,6 +467,10 @@ TESTSET_MAC = [
         kernel="matmul_rowmaj",m="3",n="16",k="5",
         variant="transform_xdsl",dtype="f64",ext="tower.S"
     ),
+    target_file(
+        kernel="matmul_rowmaj",m="6",n="32",k="5",
+        variant="transform_xdsl",dtype="f64",ext="tower.S"
+    ),
 ]
 
 TESTSET_CI = [
@@ -508,6 +512,10 @@ TESTSET_CI = [
 TESTSET_AVX = [
     target_file(
         kernel="matmul_rowmaj",m="3",n="16",k="5",
+        variant="transform_xdsl",dtype="f64",ext="ci.test.log"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="6",n="32",k="5",
         variant="transform_xdsl",dtype="f64",ext="ci.test.log"
     ),
 ]
