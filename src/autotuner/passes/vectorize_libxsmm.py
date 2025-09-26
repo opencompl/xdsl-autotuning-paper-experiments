@@ -123,8 +123,8 @@ class VectorizeLibxsmmPattern(RewritePattern):
             # Load the rows of C as vectors, potentially multiple vectors per row
             c_vectors = [
                 vector.LoadOp(c, (constants[m], constants[n]), vector_type).result
-                for n in range(0, N, self.vector_size)
                 for m in range(M)
+                for n in range(0, N, self.vector_size)
             ]
 
             for_loop = scf.ForOp(
@@ -179,8 +179,8 @@ class VectorizeLibxsmmPattern(RewritePattern):
 
                 scf.YieldOp(*new_a_col_ptrs, b_vector_ptr, *fma_results)
 
-            for i, (n, m) in enumerate(
-                product(range(0, N // self.vector_size), range(M))
+            for i, (m, n) in enumerate(
+                product(range(M), range(0, N // self.vector_size))
             ):
                 vector.StoreOp(
                     for_loop.results[i + M + 1],
