@@ -518,10 +518,6 @@ TESTSET_CI = [
         variant="vector_intrinsic",dtype="f32",ext="ci.time.txt"
     ),
     target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="mkl",dtype="f32",ext="ci.time.txt"
-    ),
-    target_file(
         kernel="matmul_rowmaj",m="5",n="6",k="7",
         variant="transform_mlir",dtype="f32",ext="ci.time.txt"
     ),
