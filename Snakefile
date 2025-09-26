@@ -464,7 +464,7 @@ TESTSET_MAC = [
         variant="vector_intrinsic",dtype="f32",ext="ci.S"
     ),
     target_file(
-        kernel="matmul_rowmaj",m="4",n="4",k="4",
+        kernel="matmul_rowmaj",m="3",n="16",k="5",
         variant="transform_xdsl",dtype="f64",ext="tower.S"
     ),
 ]
