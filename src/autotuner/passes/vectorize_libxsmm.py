@@ -108,30 +108,45 @@ class VectorizeLibxsmmPattern(RewritePattern):
             # Zero for convenience
             c0 = constants[0]
             c_k = arith.ConstantOp(builtin.IntegerAttr(K, _index_type)).result
+            c_k.name_hint = "K"
             c_n = arith.ConstantOp(builtin.IntegerAttr(N, _index_type)).result
+            c_n.name_hint = "N"
             c_a_leading_stride = arith.ConstantOp(
                 builtin.IntegerAttr(a_leading, _index_type)
             ).result
+            c_a_leading_stride.name_hint = "a_leading_stride"
             c_b_leading_stride = arith.ConstantOp(
                 builtin.IntegerAttr(b_leading, _index_type)
             ).result
+            c_b_leading_stride.name_hint = "b_leading_stride"
 
             c_vector_size = arith.ConstantOp(
                 builtin.IntegerAttr(self.vector_size, _index_type)
             ).result
+            c_vector_size.name_hint = "vec_size"
 
             a_ptr = ptr.ToPtrOp(a).res
+            a_ptr.name_hint = "a_ptr"
             b_ptr = ptr.ToPtrOp(b).res
+            b_ptr.name_hint = "b_ptr"
             element_bytes = ptr.TypeOffsetOp(element_type, _index_type).offset
+            element_bytes.name_hint = "element_bytes"
             a_leading = arith.MuliOp(element_bytes, c_a_leading_stride).result
+            a_leading.name_hint = "a_leading"
             c_vector_bytes = arith.MuliOp(element_bytes, c_vector_size).result
+            c_vector_bytes.name_hint = "c_vector_bytes"
             c_row_bytes = arith.MuliOp(element_bytes, c_n).result
+            c_row_bytes.name_hint = "c_row_bytes"
             b_leading_bytes = arith.MuliOp(element_bytes, c_b_leading_stride).result
+            b_leading_bytes.name_hint = "b_leading_bytes"
             b_increment = arith.SubiOp(b_leading_bytes, c_row_bytes).result
+            b_increment.name_hint = "b_increment"
 
             a_row_ptrs = [a_ptr]
             for i in range(1, M):
                 a_row_ptrs.append(ptr.PtrAddOp(a_row_ptrs[-1], a_leading).result)
+            for a_row_ptr in a_row_ptrs[1:]:
+                a_row_ptr.name_hint = "a_ptr"
 
             # Load the rows of C as vectors, potentially multiple vectors per row
             c_vectors = [
@@ -139,6 +154,11 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 for n in range(0, N, self.vector_size)
                 for m in range(M)
             ]
+
+            for i, (n, m) in enumerate(
+                product(range(0, N, self.vector_size), range(M))
+            ):
+                c_vectors[i].name_hint = f"c_{m}_{n}_init"
 
             for_loop = scf.ForOp(
                 c0,
@@ -157,21 +177,36 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 ),
             )
 
+            for i, (n, m) in enumerate(
+                product(range(0, N, self.vector_size), range(M))
+            ):
+                for_loop.results[1 + M + i].name_hint = f"c_{m}_{n}_res"
+
             with ImplicitBuilder(for_loop.body) as (k, *acc):
                 a_col_ptrs = acc[:M]
                 b_vector_ptr = acc[M]
                 c_rows = acc[M + 1 :]
 
-                a_col = tuple(
+                for i, (n, m) in enumerate(
+                    product(range(0, N, self.vector_size), range(M))
+                ):
+                    c_rows[i].name_hint = f"c_{m}_{n}_in"
+
+                a_cols = tuple(
                     ptr.LoadOp(a_col_ptr, element_type).res for a_col_ptr in a_col_ptrs
                 )
+                for a_col in a_cols:
+                    a_col.name_hint = "a_col"
                 # Broadcast the mth column of A to vectors
                 a_col_vectors = tuple(
-                    vector.BroadcastOp(a_col[m], vector_type) for m in range(M)
+                    vector.BroadcastOp(a_cols[m], vector_type).vector for m in range(M)
                 )
+                for a_col_vector in a_col_vectors:
+                    a_col_vector.name_hint = "a_col_vector"
                 fma_results: list[SSAValue] = []
                 for n in range(N // self.vector_size):
                     b_vector = ptr.LoadOp(b_vector_ptr, vector_type).res
+                    b_vector.name_hint = "b_vector"
 
                     for m in range(M):
                         fma_results.append(
@@ -184,16 +219,25 @@ class VectorizeLibxsmmPattern(RewritePattern):
 
                     # Next vector in B
                     b_vector_ptr = ptr.PtrAddOp(b_vector_ptr, c_vector_bytes).result
+                    b_vector_ptr.name_hint = "b_vector_ptr"
 
                 # The pointer has advanced past the last element of B in the row, but
                 # the next row of B is potentially further away due to tiling, so it
                 # must be incremented by the difference
                 b_vector_ptr = ptr.PtrAddOp(b_vector_ptr, b_increment).result
+                b_vector_ptr.name_hint = "b_vector_ptr"
 
                 new_a_col_ptrs = tuple(
                     ptr.PtrAddOp(prev_ptr, element_bytes).result
                     for m, prev_ptr in enumerate(a_col_ptrs)
                 )
+                for new_a_col_ptr in new_a_col_ptrs:
+                    new_a_col_ptr.name_hint = "new_a_col_ptr"
+
+                for i, (n, m) in enumerate(
+                    product(range(0, N, self.vector_size), range(M))
+                ):
+                    fma_results[i].name_hint = f"c_{m}_{n}_out"
 
                 scf.YieldOp(*new_a_col_ptrs, b_vector_ptr, *fma_results)
 
