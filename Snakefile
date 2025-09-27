@@ -107,17 +107,17 @@ rule templated_vector_intrinsic:
     template_engine:
         "jinja2"
 
-rule transform_mlir:
+rule merge_transform:
     input:
         matmul=target_file(variant='memref',ext='mlir'),
-        transform="kernels/vectorize.transform.mlir"
-    output: target_file(variant='transform_mlir',ext='mlir')
+        transform="kernels/{variant}.transform.mlir"
+    output: target_file(ext='transform.mlir')
     shell:
         './src/autotuner/merge_transform.awk {input.matmul} {input.transform} > {output}'
 
 rule execute_transform:
-    input: target_file(variant='transform_mlir',ext='mlir')
-    output: target_file(variant='transform_mlir',ext='vector.mlir')
+    input: target_file(ext='transform.mlir')
+    output: target_file(ext='transformed.mlir')
     shell:
         """mlir-opt {input} \
             --transform-interpreter \
@@ -128,7 +128,7 @@ rule execute_transform:
             -o {output}"""
 
 rule vector_to_arith:
-    input: target_file(variant='transform_mlir',ext='vector.mlir')
+    input: target_file(variant='transform_mlir',ext='transformed.mlir')
     output: target_file(variant='transform_mlir',ext='arith.mlir')
     shell:
         """mlir-opt {input} \
