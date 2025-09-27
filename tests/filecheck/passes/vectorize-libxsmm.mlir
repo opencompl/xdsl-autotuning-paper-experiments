@@ -28,71 +28,71 @@ func.func @matmul(
 // CHECK-NEXT:      %c14 = arith.constant 14 : index
 // CHECK-NEXT:      %c15 = arith.constant 15 : index
 // CHECK-NEXT:      %c16 = arith.constant 16 : index
-// CHECK-NEXT:      %0 = arith.constant 42 : index
-// CHECK-NEXT:      %1 = arith.constant 4 : index
-// CHECK-NEXT:      %2 = ptr_xdsl.to_ptr %A : memref<3x42xf64> -> !ptr_xdsl.ptr
-// CHECK-NEXT:      %3 = ptr_xdsl.to_ptr %B : memref<42x16xf64> -> !ptr_xdsl.ptr
-// CHECK-NEXT:      %4 = ptr_xdsl.type_offset f64 : index
-// CHECK-NEXT:      %5 = arith.muli %4, %0 : index
-// CHECK-NEXT:      %6 = arith.muli %4, %1 : index
-// CHECK-NEXT:      %7 = ptr_xdsl.ptradd %2, %5 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:      %8 = ptr_xdsl.ptradd %7, %5 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:      %9 = vector.load %C[%c0, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %10 = vector.load %C[%c1, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %11 = vector.load %C[%c2, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %12 = vector.load %C[%c0, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %13 = vector.load %C[%c1, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %14 = vector.load %C[%c2, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %15 = vector.load %C[%c0, %c8] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %16 = vector.load %C[%c1, %c8] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %17 = vector.load %C[%c2, %c8] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %18 = vector.load %C[%c0, %c12] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %19 = vector.load %C[%c1, %c12] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %20 = vector.load %C[%c2, %c12] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, %34, %35, %36 = scf.for %37 = %c0 to %0 step %c1 iter_args(%38 = %2, %39 = %7, %40 = %8, %41 = %3, %42 = %9, %43 = %10, %44 = %11, %45 = %12, %46 = %13, %47 = %14, %48 = %15, %49 = %16, %50 = %17, %51 = %18, %52 = %19, %53 = %20) -> (!ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>) {
-// CHECK-NEXT:        %54 = ptr_xdsl.load %38 : !ptr_xdsl.ptr -> f64
-// CHECK-NEXT:        %55 = ptr_xdsl.load %39 : !ptr_xdsl.ptr -> f64
-// CHECK-NEXT:        %56 = ptr_xdsl.load %40 : !ptr_xdsl.ptr -> f64
-// CHECK-NEXT:        %57 = vector.broadcast %54 : f64 to vector<4xf64>
-// CHECK-NEXT:        %58 = vector.broadcast %55 : f64 to vector<4xf64>
-// CHECK-NEXT:        %59 = vector.broadcast %56 : f64 to vector<4xf64>
-// CHECK-NEXT:        %60 = ptr_xdsl.load %41 : !ptr_xdsl.ptr -> vector<4xf64>
-// CHECK-NEXT:        %61 = vector.fma %57, %60, %42 : vector<4xf64>
-// CHECK-NEXT:        %62 = vector.fma %58, %60, %43 : vector<4xf64>
-// CHECK-NEXT:        %63 = vector.fma %59, %60, %44 : vector<4xf64>
-// CHECK-NEXT:        %64 = ptr_xdsl.ptradd %41, %6 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:        %65 = ptr_xdsl.load %64 : !ptr_xdsl.ptr -> vector<4xf64>
-// CHECK-NEXT:        %66 = vector.fma %57, %65, %45 : vector<4xf64>
-// CHECK-NEXT:        %67 = vector.fma %58, %65, %46 : vector<4xf64>
-// CHECK-NEXT:        %68 = vector.fma %59, %65, %47 : vector<4xf64>
-// CHECK-NEXT:        %69 = ptr_xdsl.ptradd %64, %6 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:        %70 = ptr_xdsl.load %69 : !ptr_xdsl.ptr -> vector<4xf64>
-// CHECK-NEXT:        %71 = vector.fma %57, %70, %48 : vector<4xf64>
-// CHECK-NEXT:        %72 = vector.fma %58, %70, %49 : vector<4xf64>
-// CHECK-NEXT:        %73 = vector.fma %59, %70, %50 : vector<4xf64>
-// CHECK-NEXT:        %74 = ptr_xdsl.ptradd %69, %6 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:        %75 = ptr_xdsl.load %74 : !ptr_xdsl.ptr -> vector<4xf64>
-// CHECK-NEXT:        %76 = vector.fma %57, %75, %51 : vector<4xf64>
-// CHECK-NEXT:        %77 = vector.fma %58, %75, %52 : vector<4xf64>
-// CHECK-NEXT:        %78 = vector.fma %59, %75, %53 : vector<4xf64>
-// CHECK-NEXT:        %79 = ptr_xdsl.ptradd %74, %6 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:        %80 = ptr_xdsl.ptradd %38, %4 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:        %81 = ptr_xdsl.ptradd %39, %4 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:        %82 = ptr_xdsl.ptradd %40, %4 : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
-// CHECK-NEXT:        scf.yield %80, %81, %82, %79, %61, %62, %63, %66, %67, %68, %71, %72, %73, %76, %77, %78 : !ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>
+// CHECK-NEXT:      %K = arith.constant 42 : index
+// CHECK-NEXT:      %vec_size = arith.constant 4 : index
+// CHECK-NEXT:      %a_ptr = ptr_xdsl.to_ptr %A : memref<3x42xf64> -> !ptr_xdsl.ptr
+// CHECK-NEXT:      %b_ptr = ptr_xdsl.to_ptr %B : memref<42x16xf64> -> !ptr_xdsl.ptr
+// CHECK-NEXT:      %element_bytes = ptr_xdsl.type_offset f64 : index
+// CHECK-NEXT:      %a_leading = arith.muli %element_bytes, %K : index
+// CHECK-NEXT:      %c_vector_bytes = arith.muli %element_bytes, %vec_size : index
+// CHECK-NEXT:      %a_ptr_1 = ptr_xdsl.ptradd %a_ptr, %a_leading : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:      %a_ptr_2 = ptr_xdsl.ptradd %a_ptr_1, %a_leading : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:      %c_0_0_init = vector.load %C[%c0, %c0] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_1_0_init = vector.load %C[%c1, %c0] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_2_0_init = vector.load %C[%c2, %c0] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_0_4_init = vector.load %C[%c0, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_1_4_init = vector.load %C[%c1, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_2_4_init = vector.load %C[%c2, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_0_8_init = vector.load %C[%c0, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_1_8_init = vector.load %C[%c1, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_2_8_init = vector.load %C[%c2, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_0_12_init = vector.load %C[%c0, %c12] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_1_12_init = vector.load %C[%c1, %c12] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %c_2_12_init = vector.load %C[%c2, %c12] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      %0, %1, %2, %3, %c_0_0_res, %c_1_0_res, %c_2_0_res, %c_0_4_res, %c_1_4_res, %c_2_4_res, %c_0_8_res, %c_1_8_res, %c_2_8_res, %c_0_12_res, %c_1_12_res, %c_2_12_res = scf.for %4 = %c0 to %K step %c1 iter_args(%5 = %a_ptr, %6 = %a_ptr_1, %7 = %a_ptr_2, %8 = %b_ptr, %c_0_0_in = %c_0_0_init, %c_1_0_in = %c_1_0_init, %c_2_0_in = %c_2_0_init, %c_0_4_in = %c_0_4_init, %c_1_4_in = %c_1_4_init, %c_2_4_in = %c_2_4_init, %c_0_8_in = %c_0_8_init, %c_1_8_in = %c_1_8_init, %c_2_8_in = %c_2_8_init, %c_0_12_in = %c_0_12_init, %c_1_12_in = %c_1_12_init, %c_2_12_in = %c_2_12_init) -> (!ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>) {
+// CHECK-NEXT:        %a_col = ptr_xdsl.load %5 : !ptr_xdsl.ptr -> f64
+// CHECK-NEXT:        %a_col_1 = ptr_xdsl.load %6 : !ptr_xdsl.ptr -> f64
+// CHECK-NEXT:        %a_col_2 = ptr_xdsl.load %7 : !ptr_xdsl.ptr -> f64
+// CHECK-NEXT:        %a_col_vector = vector.broadcast %a_col : f64 to vector<4xf64>
+// CHECK-NEXT:        %a_col_vector_1 = vector.broadcast %a_col_1 : f64 to vector<4xf64>
+// CHECK-NEXT:        %a_col_vector_2 = vector.broadcast %a_col_2 : f64 to vector<4xf64>
+// CHECK-NEXT:        %b_vector = ptr_xdsl.load %8 : !ptr_xdsl.ptr -> vector<4xf64>
+// CHECK-NEXT:        %c_0_0_out = vector.fma %a_col_vector, %b_vector, %c_0_0_in : vector<4xf64>
+// CHECK-NEXT:        %c_1_0_out = vector.fma %a_col_vector_1, %b_vector, %c_1_0_in : vector<4xf64>
+// CHECK-NEXT:        %c_2_0_out = vector.fma %a_col_vector_2, %b_vector, %c_2_0_in : vector<4xf64>
+// CHECK-NEXT:        %b_vector_ptr = ptr_xdsl.ptradd %8, %c_vector_bytes : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:        %b_vector_1 = ptr_xdsl.load %b_vector_ptr : !ptr_xdsl.ptr -> vector<4xf64>
+// CHECK-NEXT:        %c_0_4_out = vector.fma %a_col_vector, %b_vector_1, %c_0_4_in : vector<4xf64>
+// CHECK-NEXT:        %c_1_4_out = vector.fma %a_col_vector_1, %b_vector_1, %c_1_4_in : vector<4xf64>
+// CHECK-NEXT:        %c_2_4_out = vector.fma %a_col_vector_2, %b_vector_1, %c_2_4_in : vector<4xf64>
+// CHECK-NEXT:        %b_vector_ptr_1 = ptr_xdsl.ptradd %b_vector_ptr, %c_vector_bytes : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:        %b_vector_2 = ptr_xdsl.load %b_vector_ptr_1 : !ptr_xdsl.ptr -> vector<4xf64>
+// CHECK-NEXT:        %c_0_8_out = vector.fma %a_col_vector, %b_vector_2, %c_0_8_in : vector<4xf64>
+// CHECK-NEXT:        %c_1_8_out = vector.fma %a_col_vector_1, %b_vector_2, %c_1_8_in : vector<4xf64>
+// CHECK-NEXT:        %c_2_8_out = vector.fma %a_col_vector_2, %b_vector_2, %c_2_8_in : vector<4xf64>
+// CHECK-NEXT:        %b_vector_ptr_2 = ptr_xdsl.ptradd %b_vector_ptr_1, %c_vector_bytes : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:        %b_vector_3 = ptr_xdsl.load %b_vector_ptr_2 : !ptr_xdsl.ptr -> vector<4xf64>
+// CHECK-NEXT:        %c_0_12_out = vector.fma %a_col_vector, %b_vector_3, %c_0_12_in : vector<4xf64>
+// CHECK-NEXT:        %c_1_12_out = vector.fma %a_col_vector_1, %b_vector_3, %c_1_12_in : vector<4xf64>
+// CHECK-NEXT:        %c_2_12_out = vector.fma %a_col_vector_2, %b_vector_3, %c_2_12_in : vector<4xf64>
+// CHECK-NEXT:        %b_vector_ptr_3 = ptr_xdsl.ptradd %b_vector_ptr_2, %c_vector_bytes : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:        %new_a_col_ptr = ptr_xdsl.ptradd %5, %element_bytes : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:        %new_a_col_ptr_1 = ptr_xdsl.ptradd %6, %element_bytes : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:        %new_a_col_ptr_2 = ptr_xdsl.ptradd %7, %element_bytes : (!ptr_xdsl.ptr, index) -> !ptr_xdsl.ptr
+// CHECK-NEXT:        scf.yield %new_a_col_ptr, %new_a_col_ptr_1, %new_a_col_ptr_2, %b_vector_ptr_3, %c_0_0_out, %c_1_0_out, %c_2_0_out, %c_0_4_out, %c_1_4_out, %c_2_4_out, %c_0_8_out, %c_1_8_out, %c_2_8_out, %c_0_12_out, %c_1_12_out, %c_2_12_out : !ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, !ptr_xdsl.ptr, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>, vector<4xf64>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      vector.store %25, %C[%c0, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %26, %C[%c1, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %27, %C[%c2, %c0] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %28, %C[%c0, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %29, %C[%c1, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %30, %C[%c2, %c4] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %31, %C[%c0, %c8] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %32, %C[%c1, %c8] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %33, %C[%c2, %c8] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %34, %C[%c0, %c12] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %35, %C[%c1, %c12] : memref<3x16xf64>, vector<4xf64>
-// CHECK-NEXT:      vector.store %36, %C[%c2, %c12] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_0_0_res, %C[%c0, %c0] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_1_0_res, %C[%c1, %c0] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_2_0_res, %C[%c2, %c0] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_0_4_res, %C[%c0, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_1_4_res, %C[%c1, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_2_4_res, %C[%c2, %c4] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_0_8_res, %C[%c0, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_1_8_res, %C[%c1, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_2_8_res, %C[%c2, %c8] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_0_12_res, %C[%c0, %c12] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_1_12_res, %C[%c1, %c12] : memref<3x16xf64>, vector<4xf64>
+// CHECK-NEXT:      vector.store %c_2_12_res, %C[%c2, %c12] : memref<3x16xf64>, vector<4xf64>
 // CHECK-NEXT:      func.return
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
