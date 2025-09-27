@@ -171,13 +171,13 @@ class VectorizeLibxsmmPattern(RewritePattern):
 
                 scf.YieldOp(*new_a_col_ptrs, b_vector_ptr, *fma_results)
 
-            for i, (m, n) in enumerate(
-                product(range(M), range(0, N // self.vector_size))
+            for i, (n, m) in enumerate(
+                product(range(0, N, self.vector_size), range(M))
             ):
                 vector.StoreOp(
                     for_loop.results[i + M + 1],
                     c,
-                    (constants[m], constants[n * self.vector_size]),
+                    (constants[m], constants[n]),
                 )
 
         rewriter.erase_matched_op()

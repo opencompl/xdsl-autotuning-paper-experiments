@@ -2,7 +2,6 @@ cc: clang-20
 target: ci
 
 xdsl-opt-backend-passes:
-  - vectorize-libxsmm
   - scf-for-loop-unroll
   - convert-vector-to-ptr
   - convert-memref-to-ptr{lower_func=true}
