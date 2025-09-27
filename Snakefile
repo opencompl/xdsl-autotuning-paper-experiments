@@ -142,7 +142,7 @@ rule transform_xdsl:
     input:
         "pyproject.toml",
         "src/autotuner/passes/vectorize_libxsmm.py",
-        program = target_file(variant='memref',ext='mlir'),
+        program = target_file(variant='transform_xdsl',ext='transformed.mlir'),
     output: target_file(variant='transform_xdsl',ext='vector.mlir')
     shell:
         """xdsl-opt -p vectorize-libxsmm {input.program} -o {output}"""
@@ -464,7 +464,11 @@ TESTSET_MAC = [
         variant="vector_intrinsic",dtype="f32",ext="ci.S"
     ),
     target_file(
-        kernel="matmul_rowmaj",m="4",n="4",k="4",
+        kernel="matmul_rowmaj",m="3",n="16",k="5",
+        variant="transform_xdsl",dtype="f64",ext="tower.S"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="6",n="32",k="5",
         variant="transform_xdsl",dtype="f64",ext="tower.S"
     ),
 ]
@@ -481,7 +485,7 @@ TESTSET_CI = [
         variant="vector_intrinsic",dtype="f32",ext="neon.S"
     ),
     target_file(
-        kernel="matmul_rowmaj",m="4",n="4",k="4",
+        kernel="matmul_rowmaj",m="3",n="16",k="5",
         variant="transform_xdsl",dtype="f64",ext="tower.S"
     ),
     # Validate CI test set x86 executables
@@ -508,6 +512,10 @@ TESTSET_CI = [
 TESTSET_AVX = [
     target_file(
         kernel="matmul_rowmaj",m="3",n="16",k="5",
+        variant="transform_xdsl",dtype="f64",ext="ci.test.log"
+    ),
+    target_file(
+        kernel="matmul_rowmaj",m="6",n="32",k="5",
         variant="transform_xdsl",dtype="f64",ext="ci.test.log"
     ),
 ]
