@@ -51,21 +51,23 @@ def generate_adjacency(block: Block) -> IntAdjacency:
     """
     adjacency = IntAdjacency()
 
-    # Forwards pass: handle dependencies from earlier instructions
     last_write: int | None = None
-    last_read: int | None = None
 
     for i, insn in enumerate(block.ops):
         if has_effect(insn, MemoryEffectKind.WRITE):
             if last_write is not None:
                 adjacency.insert_edge(last_write, i)
-            if last_read is not None:
-                adjacency.insert_edge(last_read, i)
             last_write = i
-            last_read = None
         elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
             adjacency.insert_edge(last_write, i)
-            last_read = i
+
+    last_write = None
+
+    for i, insn in reversed(list(enumerate(block.ops))):
+        if has_effect(insn, MemoryEffectKind.WRITE):
+            last_write = i
+        elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
+            adjacency.insert_edge(i, last_write)
 
     return adjacency
 

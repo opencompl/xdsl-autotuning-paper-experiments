@@ -55,6 +55,7 @@ def test_generate_adjacency():
             (3, 4),
             (3, 5),
             (3, 6),
+            (4, 6),
             (5, 6),
         }
 
