@@ -344,13 +344,13 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "transform_xdsl"],
+        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
         "cube_16.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
         "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm","transform_xdsl"],
+        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm"],
         "cube_16.f64": ["naive_c", "transform_mlir", "libxsmm"],
         "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm"],
     },
