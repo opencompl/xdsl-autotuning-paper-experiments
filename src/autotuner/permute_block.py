@@ -62,12 +62,13 @@ def generate_adjacency(block: Block) -> IntAdjacency:
             adjacency.insert_edge(last_write, i)
 
     last_write = None
+    num_ops = len(block.ops)
 
     for i, insn in enumerate(reversed(block.ops)):
         if has_effect(insn, MemoryEffectKind.WRITE):
-            last_write = i
+            last_write = num_ops - 1 - i
         elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
-            adjacency.insert_edge(i, last_write)
+            adjacency.insert_edge(num_ops - 1 - i, last_write)
 
     return adjacency
 
