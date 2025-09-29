@@ -61,6 +61,7 @@ def generate_adjacency(block: Block) -> IntAdjacency:
                 for r in prev_reads:
                     adjacency.insert_edge(r, i)
             last_write = i
+            prev_reads.clear()
         elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
             adjacency.insert_edge(last_write, i)
             prev_reads.append(i)
