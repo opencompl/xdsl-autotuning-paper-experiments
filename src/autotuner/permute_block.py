@@ -63,7 +63,7 @@ def generate_adjacency(block: Block) -> IntAdjacency:
 
     last_write = None
 
-    for i, insn in reversed(list(enumerate(block.ops))):
+    for i, insn in enumerate(reversed(block.ops)):
         if has_effect(insn, MemoryEffectKind.WRITE):
             last_write = i
         elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
