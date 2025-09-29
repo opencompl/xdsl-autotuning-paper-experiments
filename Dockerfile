@@ -42,6 +42,10 @@ RUN git clone https://github.com/libxsmm/libxsmm.git /opt/libxsmm && \
 RUN /root/.local/bin/uv pip install --python /opt/build_venv \
     plotly setuptools git+https://gitlab.inria.fr/tbastian/staticdeps.git
 
+# Install TVM
+RUN /root/.local/bin/uv pip install --python /opt/build_venv \
+    --index-url https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple tvm==0.19.0.2025010903
+
 # Install uiCA and its dependencies in build venv
 RUN git clone https://gitlab.inria.fr/CORSE/uica-staticdeps.git /opt/uica-staticdeps && \
     cd /opt/uica-staticdeps && \
