@@ -43,8 +43,8 @@ def test_generate_adjacency():
     with ImplicitBuilder(block):
         LabelOp("start")
         test.TestWriteOp()
-        op1 = test.TestOp(result_types=[i32])
-        op2 = test.TestOp(result_types=[i32], operands=[op1.results[0]])
+        op1 = test.TestPureOp(result_types=[i32])
+        op2 = test.TestPureOp(result_types=[i32], operands=[op1.results[0]])
         test.TestOp(result_types=[i32], operands=[op1.results[0], op2.results[0]])
         test.TestReadOp()
         test.TestWriteOp()
