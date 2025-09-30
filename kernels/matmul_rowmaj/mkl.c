@@ -15,10 +15,10 @@ void matmul(MKL_DTYPE *A, const MKL_DTYPE *B, MKL_DTYPE *C) {
   } else {
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
                 MKL_M, MKL_N, MKL_K,
-                1.0f /* alpha */,
+                1.0 /* alpha */,
                 A, MKL_K,
                 B, MKL_N,
-                0.0f /* beta */,
+                0.0 /* beta */,
                 C, MKL_N);
   }
 }
