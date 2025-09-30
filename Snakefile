@@ -299,7 +299,7 @@ rule executable:
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
         use_papi=lambda wildcards: "-DUSE_PAPI=1" if os.environ.get("USE_PAPI") == "1" else "",
     shell:
-        "OMP_NUM_THREADS=1 {params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {MKL_LIBS}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {MKL_LIBS}"
 
 rule validation:
     input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
@@ -315,7 +315,7 @@ rule time:
     input: target_ll_file(ext="time.o")
     output: target_ll_file(ext="time.txt")
     params: target_env=target_env,
-    shell: '{params.target_env} {input} > {output}'
+    shell: 'OMP_NUM_THREADS=1  {params.target_env} {input} > {output}'
 
 rule flops:
     input: "kernels/{kernel}/flops.sh"
