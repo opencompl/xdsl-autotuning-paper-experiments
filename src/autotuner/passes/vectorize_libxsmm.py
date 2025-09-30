@@ -177,6 +177,11 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 ),
             )
 
+            for m in range(M):
+                for_loop.results[m].name_hint = "a_ptr_out"
+
+            for_loop.results[M].name_hint = "b_ptr_out"
+
             for i, (n, m) in enumerate(
                 product(range(0, N, self.vector_size), range(M))
             ):
@@ -186,6 +191,13 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 a_col_ptrs = acc[:M]
                 b_vector_ptr = acc[M]
                 c_rows = acc[M + 1 :]
+
+                k.name_hint = "k"
+
+                for a_col_ptr in a_col_ptrs:
+                    a_col_ptr.name_hint = "a_col_ptr_in"
+
+                b_vector_ptr.name_hint = "b_ptr_in"
 
                 for i, (n, m) in enumerate(
                     product(range(0, N, self.vector_size), range(M))
