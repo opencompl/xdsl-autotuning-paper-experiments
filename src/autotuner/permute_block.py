@@ -1,5 +1,12 @@
+from collections.abc import Iterator
 from typing import Sequence
 from xdsl.ir import Block
+
+from xdsl.traits import MemoryEffectKind, get_effects
+from xdsl.dialects.x86.ops import LabelOp
+from xdsl.ir.core import Operation
+
+from autotuner.graph import IntAdjacency, iter_topological_sort
 
 
 def permute(block: Block, old_indices: Sequence[int]) -> None:
@@ -20,3 +27,63 @@ def permute(block: Block, old_indices: Sequence[int]) -> None:
         op.detach()
     for old_index in old_indices:
         block.add_op(tuple_ops[old_index])
+
+
+def has_effect(op: Operation, effect: MemoryEffectKind) -> bool:
+    """
+    Returns if the operation has the given side effects, and possibly others.
+    """
+    effects = get_effects(op)
+    return effects is not None and any(e.kind == effect for e in effects)
+
+
+def generate_adjacency(block: Block) -> IntAdjacency:
+    """
+    Generates an adjacency from a basic block.
+    Nodes are integer-valued, based on enumeration of the instructions in the input block.
+    Edges represent the dependencies between them.
+
+    Rules:
+    - Any memory write depends on all earlier memory reads and the previous write.
+    - Any memory read depends on the previous memory write.
+    - If the op is a label or a terminator, it must remain in place. Do not add to adjacency.
+
+    """
+    adjacency = IntAdjacency()
+
+    last_write: int | None = None
+    op_index = {op: idx for idx, op in enumerate(block.ops)}
+
+    for i, insn in enumerate(block.ops):
+        if has_effect(insn, MemoryEffectKind.WRITE):
+            if last_write is not None:
+                adjacency.insert_edge(last_write, i)
+            last_write = i
+        elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
+            adjacency.insert_edge(last_write, i)
+        for op in (use.operation for result in insn.results for use in result.uses):
+            j = op_index.get(op)
+            if j is not None:
+                adjacency.insert_edge(i, j)
+
+    last_write = None
+    last_op_idx = len(block.ops) - 1
+
+    for i, insn in enumerate(reversed(block.ops)):
+        if has_effect(insn, MemoryEffectKind.WRITE):
+            last_write = last_op_idx - i
+        elif last_write is not None and has_effect(insn, MemoryEffectKind.READ):
+            adjacency.insert_edge(last_op_idx - i, last_write)
+
+    return adjacency
+
+
+def iter_permutations(block: Block) -> Iterator[tuple[int, ...]]:
+    adjacency = generate_adjacency(block)
+    last_index = len(block.ops) - 1
+    if isinstance(block.first_op, LabelOp):
+        for p in iter_topological_sort(adjacency):
+            yield (0, *p, last_index)
+    else:
+        for p in iter_topological_sort(adjacency):
+            yield (*p, last_index)
