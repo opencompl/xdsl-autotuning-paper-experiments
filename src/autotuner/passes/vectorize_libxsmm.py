@@ -142,12 +142,6 @@ class VectorizeLibxsmmPattern(RewritePattern):
             b_increment = arith.SubiOp(b_leading_bytes, c_row_bytes).result
             b_increment.name_hint = "b_increment"
 
-            a_row_ptrs = [a_ptr]
-            for i in range(1, M):
-                a_row_ptrs.append(ptr.PtrAddOp(a_row_ptrs[-1], a_leading).result)
-            for a_row_ptr in a_row_ptrs[1:]:
-                a_row_ptr.name_hint = "a_ptr"
-
             # Load the rows of C as vectors, potentially multiple vectors per row
             c_vectors = [
                 vector.LoadOp(c, (constants[m], constants[n]), vector_type).result
@@ -164,54 +158,56 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 c0,
                 c_k,
                 constants[1],
-                a_row_ptrs + [b_ptr] + c_vectors,
+                [a_ptr, b_ptr] + c_vectors,
                 Region(
                     Block(
                         arg_types=(
                             _index_type,
                             ptr.PtrType(),
+                            ptr.PtrType(),
                         )
-                        + (ptr.PtrType(),) * M
                         + (vector_type,) * (M * N // self.vector_size)
                     )
                 ),
             )
 
-            for m in range(M):
-                for_loop.results[m].name_hint = "a_ptr_out"
-
-            for_loop.results[M].name_hint = "b_ptr_out"
+            for_loop.results[0].name_hint = "a_ptr_out"
+            for_loop.results[1].name_hint = "b_ptr_out"
 
             for i, (n, m) in enumerate(
                 product(range(0, N, self.vector_size), range(M))
             ):
-                for_loop.results[1 + M + i].name_hint = f"c_{m}_{n}_res"
+                for_loop.results[2 + i].name_hint = f"c_{m}_{n}_res"
 
-            with ImplicitBuilder(for_loop.body) as (k, *acc):
-                a_col_ptrs = acc[:M]
-                b_vector_ptr = acc[M]
-                c_rows = acc[M + 1 :]
-
+            with ImplicitBuilder(for_loop.body) as (
+                k,
+                a_0_k_ptr,
+                b_vector_ptr,
+                *c_rows,
+            ):
                 k.name_hint = "k"
-
-                for a_col_ptr in a_col_ptrs:
-                    a_col_ptr.name_hint = "a_col_ptr_in"
-
-                b_vector_ptr.name_hint = "b_ptr_in"
+                a_0_k_ptr.name_hint = "a_0_k_ptr"
+                b_vector_ptr.name_hint = "b_k_0_ptr"
 
                 for i, (n, m) in enumerate(
                     product(range(0, N, self.vector_size), range(M))
                 ):
                     c_rows[i].name_hint = f"c_{m}_{n}_in"
 
-                a_cols = tuple(
-                    ptr.LoadOp(a_col_ptr, element_type).res for a_col_ptr in a_col_ptrs
+                a_m_k_ptrs: list[SSAValue] = [a_0_k_ptr]
+                for m in range(1, M):
+                    a_m_k_ptr = ptr.PtrAddOp(a_m_k_ptrs[-1], a_leading).result
+                    a_m_k_ptrs.append(a_m_k_ptr)
+                    a_m_k_ptr.name_hint = f"a_{m}_k_ptr"
+
+                a_m_ks = tuple(
+                    ptr.LoadOp(a_col_ptr, element_type).res for a_col_ptr in a_m_k_ptrs
                 )
-                for a_col in a_cols:
-                    a_col.name_hint = "a_col"
+                for m, a_m_k in enumerate(a_m_ks):
+                    a_m_k.name_hint = f"a_{m}_k"
                 # Broadcast the mth column of A to vectors
                 a_col_vectors = tuple(
-                    vector.BroadcastOp(a_cols[m], vector_type).vector for m in range(M)
+                    vector.BroadcastOp(a_m_ks[m], vector_type).vector for m in range(M)
                 )
                 for a_col_vector in a_col_vectors:
                     a_col_vector.name_hint = "a_col_vector"
@@ -239,25 +235,21 @@ class VectorizeLibxsmmPattern(RewritePattern):
                 b_vector_ptr = ptr.PtrAddOp(b_vector_ptr, b_increment).result
                 b_vector_ptr.name_hint = "b_vector_ptr"
 
-                new_a_col_ptrs = tuple(
-                    ptr.PtrAddOp(prev_ptr, element_bytes).result
-                    for m, prev_ptr in enumerate(a_col_ptrs)
-                )
-                for new_a_col_ptr in new_a_col_ptrs:
-                    new_a_col_ptr.name_hint = "new_a_col_ptr"
+                a_0_k_plus_one_ptr = ptr.PtrAddOp(a_0_k_ptr, element_bytes).result
+                a_0_k_plus_one_ptr.name_hint = "a_0_k_plus_one_ptr"
 
                 for i, (n, m) in enumerate(
                     product(range(0, N, self.vector_size), range(M))
                 ):
                     fma_results[i].name_hint = f"c_{m}_{n}_out"
 
-                scf.YieldOp(*new_a_col_ptrs, b_vector_ptr, *fma_results)
+                scf.YieldOp(a_0_k_plus_one_ptr, b_vector_ptr, *fma_results)
 
             for i, (n, m) in enumerate(
                 product(range(0, N, self.vector_size), range(M))
             ):
                 vector.StoreOp(
-                    for_loop.results[i + M + 1],
+                    for_loop.results[2 + i],
                     c,
                     (constants[m], constants[n]),
                 )
