@@ -5,6 +5,9 @@ from xdsl.dialects import test
 from xdsl.dialects.x86.ops import LabelOp
 from xdsl.ir import Block
 from xdsl.builder import ImplicitBuilder
+from xdsl.dialects.builtin import (
+    i32,
+)
 
 from autotuner.permute_block import iter_permutations, permute, generate_adjacency
 
@@ -40,6 +43,9 @@ def test_generate_adjacency():
     with ImplicitBuilder(block):
         LabelOp("start")
         test.TestWriteOp()
+        op1 = test.TestOp(result_types=[i32])
+        op2 = test.TestOp(result_types=[i32], operands=[op1.results[0]])
+        test.TestOp(result_types=[i32], operands=[op1.results[0], op2.results[0]])
         test.TestReadOp()
         test.TestWriteOp()
         test.TestReadOp()
@@ -49,14 +55,17 @@ def test_generate_adjacency():
 
         adj = generate_adjacency(block)
         expected_edges = {
-            (1, 2),
-            (1, 3),
+            (1, 5),
+            (1, 6),
             (2, 3),
+            (2, 4),
             (3, 4),
-            (3, 5),
-            (3, 6),
-            (4, 6),
             (5, 6),
+            (6, 7),
+            (6, 8),
+            (6, 9),
+            (7, 9),
+            (8, 9),
         }
 
         actual_edges = set()
