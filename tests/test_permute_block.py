@@ -41,17 +41,17 @@ def test_generate_adjacency():
     block = Block()
 
     with ImplicitBuilder(block):
-        LabelOp("start")
-        test.TestWriteOp()
-        op1 = test.TestPureOp(result_types=[i32])
-        op2 = test.TestPureOp(result_types=[i32], operands=[op1.results[0]])
-        test.TestOp(result_types=[i32], operands=[op1.results[0], op2.results[0]])
-        test.TestReadOp()
-        test.TestWriteOp()
-        test.TestReadOp()
-        test.TestReadOp()
-        test.TestWriteOp()
-        test.TestTermOp()
+        LabelOp("start")  # 0
+        test.TestWriteOp()  # 1
+        op1 = test.TestPureOp(result_types=[i32])  # 2
+        op2 = test.TestPureOp(result_types=[i32], operands=[op1.results[0]])  # 3
+        test.TestOp(result_types=[i32], operands=[op1.results[0], op2.results[0]])  # 4
+        test.TestReadOp()  # 5
+        test.TestWriteOp()  # 6
+        test.TestReadOp()  # 7
+        test.TestReadOp()  # 8
+        test.TestWriteOp()  # 9
+        test.TestTermOp()  # 10
 
         adj = generate_adjacency(block)
         expected_edges = {
