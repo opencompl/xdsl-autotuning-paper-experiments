@@ -252,6 +252,7 @@ rule libxsmm_rowmaj_c:
     params:
         target_xsmm=target_xsmm,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+        c_dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
@@ -264,7 +265,7 @@ rule libxsmm_rowmaj_c:
             {params.target_xsmm} \
             nopf \
             {params.dtype} && \
-        echo 'void matmul(const float *A, const float *B, float *C) {{matmul_bac(B, A, C);}}' >> {output}
+        echo 'void matmul({params.c_dtype} *A, {params.c_dtype} *B, {params.c_dtype} *C) {{matmul_bac(B, A, C);}}' >> {output}
         """
 
 rule mkl_rowmaj_s:
@@ -273,9 +274,9 @@ rule mkl_rowmaj_s:
         target_triple=target_triple,
         target_arch=target_arch,
         cc=config["cc"],
-        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+        dtype_flag=lambda w: "-DMKL_DTYPE_IS_FLOAT=1" if w.dtype=="f32" else "-DMKL_DTYPE_IS_DOUBLE=1",
     shell:
-        "{params.cc} -O3 -c kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} -DMKL_DTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        "{params.cc} -O3 kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
         
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
@@ -285,7 +286,7 @@ rule libxsmm_s:
         target_arch=target_arch,
         cc=config["cc"],
     shell:
-        "{params.cc} -O3 -DNDEBUG -c {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        "{params.cc} -O3 -DNDEBUG {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
 
 rule executable:
     input: target_ll_file(ext='S')
