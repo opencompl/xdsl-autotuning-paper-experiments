@@ -101,7 +101,9 @@ def target_ll_file(
 wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics",
+    target = "[^.]+",
+    executable = "time|test"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -214,13 +216,13 @@ rule asm_ll:
     wildcard_constraints:
         variant = VARIANTS_ARITH
     input: target_file(ext='ll')
-    output: target_ll_file(ext='S')
+    output: target_ll_file(ext='o')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
         cc=config["cc"],
     shell:
-        "{params.cc} -O3 -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
+        "{params.cc} -O3 -fenable-matrix -target {params.target_triple} -march={params.target_arch} -o {output} -c {input}"
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
@@ -232,6 +234,17 @@ rule asm_c:
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
         "{params.cc} -O3 -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
+
+rule asm_o:
+    input: "kernels/{kernel}/naive_c.c"
+    output: target_ll_file(variant='naive_c',ext='o')
+    params:
+        target_triple=target_triple,
+        target_arch=target_arch,
+        cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+    shell:
+        "{params.cc} -O3 -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -target {params.target_triple} -march={params.target_arch} -o {output} -c {input}"
 
 rule libxsmm_colmaj_c:
     output: target_ll_file(kernel='matmul_colmaj',variant='libxsmm',ext='c')
@@ -267,18 +280,18 @@ rule libxsmm_rowmaj_c:
         echo 'void matmul(const float *A, const float *B, float *C) {{matmul_bac(B, A, C);}}' >> {output}
         """
 
-rule mkl_rowmaj_s:
-    output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
+rule mkl_rowmaj_o:
+    output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='o')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -O3 -c kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} -DMKL_DTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        "{params.cc} -O3 -c kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} -DMKL_DTYPE={params.dtype} -target {params.target_triple} -march={params.target_arch} -o {output}"
 
-rule llvm_intrinsics_rowmaj_s:
-    output: target_ll_file(kernel='matmul_rowmaj',variant='llvm_intrinsics',ext='S')
+rule llvm_intrinsics_rowmaj_o:
+    output: target_ll_file(kernel='matmul_rowmaj',variant='llvm_intrinsics',ext='o')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
@@ -287,18 +300,18 @@ rule llvm_intrinsics_rowmaj_s:
     shell:
         "{params.cc} -O3 -c kernels/matmul_rowmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -fenable-matrix -target {params.target_triple} -march={params.target_arch} -o {output} -ffp-contract=fast -ffast-math"
         
-rule libxsmm_s:
+rule libxsmm_o:
     input: target_ll_file(variant='libxsmm',ext='c')
-    output: target_ll_file(variant='libxsmm',ext='S')
+    output: target_ll_file(variant='libxsmm',ext='o')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
         cc=config["cc"],
     shell:
-        "{params.cc} -O3 -DNDEBUG -c {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        "{params.cc} -O3 -DNDEBUG -c {input} -target {params.target_triple} -march={params.target_arch} -o {output}"
 
 rule executable:
-    input: target_ll_file(ext='S')
+    input: target_ll_file(ext='o')
     output: target_ll_file(ext='{executable}.o')
     params:
         target_triple=target_triple,
@@ -484,39 +497,39 @@ TESTSET_MAC = [
         variant="transform_mlir",dtype="f32",ext="neon.time.txt"
     ),
     # Generate CI test set x86 assembly
-    *(f"{base}.ci.S" for base in _TESTSET_CI),
+    *(f"{base}.ci.o" for base in _TESTSET_CI),
     target_file(
         kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="transform_mlir",dtype="f32",ext="ci.S"
+        variant="transform_mlir",dtype="f32",ext="ci.o"
     ),
     target_file(
         kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="vector_intrinsic",dtype="f32",ext="ci.S"
+        variant="vector_intrinsic",dtype="f32",ext="ci.o"
     ),
     target_file(
         kernel="matmul_rowmaj",m="3",n="16",k="5",
-        variant="transform_xdsl",dtype="f64",ext="tower.S"
+        variant="transform_xdsl",dtype="f64",ext="tower.o"
     ),
     target_file(
         kernel="matmul_rowmaj",m="6",n="32",k="5",
-        variant="transform_xdsl",dtype="f64",ext="tower.S"
+        variant="transform_xdsl",dtype="f64",ext="tower.o"
     ),
 ]
 
 TESTSET_CI = [
     # Generate CI test set neon assembly
-    *(f"{base}.neon.S" for base in _TESTSET_CI),
+    *(f"{base}.neon.o" for base in _TESTSET_CI),
     target_file(
         kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="transform_mlir",dtype="f32",ext="neon.S"
+        variant="transform_mlir",dtype="f32",ext="neon.o"
     ),
     target_file(
         kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="vector_intrinsic",dtype="f32",ext="neon.S"
+        variant="vector_intrinsic",dtype="f32",ext="neon.o"
     ),
     target_file(
         kernel="matmul_rowmaj",m="3",n="16",k="5",
-        variant="transform_xdsl",dtype="f64",ext="tower.S"
+        variant="transform_xdsl",dtype="f64",ext="tower.o"
     ),
     # Validate CI test set x86 executables
     *(f"{base}.ci.test.log" for base in _TESTSET_CI),
