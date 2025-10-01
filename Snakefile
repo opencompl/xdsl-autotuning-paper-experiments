@@ -15,7 +15,7 @@ if os.environ.get("IN_DOCKER") == "1":
 else:
     MKL_CFLAGS = ""
     MKL_LIBS = ""
-    
+
 # Target-specific parameters
 
 T = config["targets"]
@@ -277,7 +277,7 @@ rule mkl_rowmaj_s:
         dtype_flag=lambda w: "-DMKL_DTYPE_IS_FLOAT=1" if w.dtype=="f32" else "-DMKL_DTYPE_IS_DOUBLE=1",
     shell:
         "{params.cc} -O3 kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
-        
+
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
     output: target_ll_file(variant='libxsmm',ext='S')
@@ -387,6 +387,11 @@ DATASET_BASES = {
         target_file(kernel="matmul_rowmaj",n="128",k="128",dtype="f32",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
+    ),
+    "ttile.f64": expand(
+        target_file(kernel="matmul_rowmaj",n="64",k="64",dtype="f64",ext=THIS_TARGET),
+        variant=DATASET_VARIANTS["ttile"],
+        m=range(9, 63, 3),
     ),
     "cube_8.f64": expand(
         target_file(kernel="matmul_rowmaj",m="8",n="8",k="8",dtype="f64",ext=THIS_TARGET),
