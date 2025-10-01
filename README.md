@@ -61,3 +61,17 @@ Run `make docker-build`.
 We have a CI script that publishes a new version of Docker automatically when a commit
 in `main` is tagged with a tag like `v1.2.3`.
 So far we've used 0ver (just incrementing the minor version, `v0.1.0`, `v0.2.0`, etc.).
+
+## Configuring Machines
+
+### Disabling Frequency Switching
+
+It's important for the cores to have predictable frequencies for a given target.
+
+On the tower:
+
+- reboot computer and press del to go into BIOS
+- Advanced Settings
+  - Ai Tweaker
+    - Disable CPU Core Performance boost
+    - Set Ai overclock TUner to Manual
