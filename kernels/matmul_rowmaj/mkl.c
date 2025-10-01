@@ -3,22 +3,26 @@
 #include <stdlib.h>
 #include <assert.h>
 
-void matmul(MKL_DTYPE *A, const MKL_DTYPE *B, MKL_DTYPE *C) {
-  if (sizeof(MKL_DTYPE) == 4) {
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-                MKL_M, MKL_N, MKL_K,
-                1.0f /* alpha */,
-                A, MKL_K,
-                B, MKL_N,
-                0.0f /* beta */,
-                C, MKL_N);
-  } else {
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-                MKL_M, MKL_N, MKL_K,
-                1.0 /* alpha */,
-                A, MKL_K,
-                B, MKL_N,
-                0.0 /* beta */,
-                C, MKL_N);
-  }
+#if defined(MKL_DTYPE_IS_FLOAT)
+  #define GEMM  cblas_sgemm
+  #define ALPHA 1.0f
+  #define BETA  0.0f
+  #define MKL_DTYPE float
+#elif defined(MKL_DTYPE_IS_DOUBLE)
+  #define GEMM  cblas_dgemm
+  #define ALPHA 1.0
+  #define BETA  0.0
+  #define MKL_DTYPE double
+#else
+  #error "You must define MKL_DTYPE_IS_FLOAT or MKL_DTYPE_IS_DOUBLE"
+#endif
+
+void matmul(MKL_DTYPE *A, MKL_DTYPE *B, MKL_DTYPE *C) {
+  GEMM(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+       MKL_M, MKL_N, MKL_K,
+       ALPHA,
+       A, MKL_K,
+       B, MKL_N,
+       BETA,
+       C, MKL_N);
 }
