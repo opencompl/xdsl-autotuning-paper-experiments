@@ -317,7 +317,7 @@ rule validation:
     input:  target_ll_file(ext='test.o')
     log:    target_ll_file(ext='test.log')
     shell:  '{input} > {log}'
-        
+
 ########################################################################################
 # Time
 ########################################################################################
@@ -544,20 +544,17 @@ TESTSET_CI = [
 ]
 
 # For targets that can execute AVX instructions
-TESTSET_AVX = [
+TESTSET_AVX = expand(
     target_file(
-        kernel="matmul_rowmaj",m="3",n="16",k="5",
-        variant="transform_xdsl",dtype="f64",ext="ci.test.log"
+        kernel="matmul_rowmaj",m="3",n="16",k="5",dtype="f64",ext="ci.test.log"
     ),
-        target_file(
-        kernel="matmul_rowmaj",m="5",n="8",k="7",
-        variant="llvm_intrinsics",dtype="f64",ext="ci.test.log"
-    ),
-    target_file(
-        kernel="matmul_rowmaj",m="6",n="32",k="5",
-        variant="transform_xdsl",dtype="f64",ext="ci.test.log"
-    ),
-]
+    variant=[
+        "transform_xdsl",
+        "llvm_intrinsics",
+        "libxsmm",
+        "mkl",
+    ]
+)
 
 TESTSET = {
     "neon": TESTSET_MAC,
