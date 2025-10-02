@@ -547,7 +547,7 @@ TESTSET_CI = [
 TESTSET_AVX = expand(
     target_file(
         kernel="matmul_rowmaj",m="3",n="16",k="5",dtype="f64",
-        target=THIS_TARGET,ext="test.log"
+        ext=f"{THIS_TARGET}.test.log"
     ),
     variant=[
         "transform_xdsl",
