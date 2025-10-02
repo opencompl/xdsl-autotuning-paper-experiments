@@ -286,7 +286,7 @@ rule llvm_intrinsics_rowmaj_s:
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -O3 -c kernels/matmul_rowmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -mtune={params.target_arch} -o {output} -ffp-contract=fast -ffast-math"
+        "{params.cc} -O3 -c kernels/matmul_rowmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -mtune={params.target_arch} -o {output} -ffp-contract=fast -ffast-math -mprefer-vector-width=512"
 
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
