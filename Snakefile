@@ -15,7 +15,7 @@ if os.environ.get("IN_DOCKER") == "1":
 else:
     MKL_CFLAGS = ""
     MKL_LIBS = ""
-    
+
 # Target-specific parameters
 
 T = config["targets"]
@@ -287,7 +287,7 @@ rule llvm_intrinsics_rowmaj_s:
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
         "{params.cc} -O3 -c kernels/matmul_rowmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -mtune={params.target_arch} -o {output} -ffp-contract=fast -ffast-math"
-        
+
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
     output: target_ll_file(variant='libxsmm',ext='S')
@@ -397,6 +397,11 @@ DATASET_BASES = {
         target_file(kernel="matmul_rowmaj",n="128",k="128",dtype="f32",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
+    ),
+    "ttile.f64": expand(
+        target_file(kernel="matmul_rowmaj",n="64",k="64",dtype="f64",ext=THIS_TARGET),
+        variant=DATASET_VARIANTS["ttile"] + ["transform_xdsl"],
+        m=range(9, 63, 3),
     ),
     "cube_8.f64": expand(
         target_file(kernel="matmul_rowmaj",m="8",n="8",k="8",dtype="f64",ext=THIS_TARGET),
