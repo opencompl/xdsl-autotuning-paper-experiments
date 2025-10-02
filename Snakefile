@@ -546,7 +546,8 @@ TESTSET_CI = [
 # For targets that can execute AVX instructions
 TESTSET_AVX = expand(
     target_file(
-        kernel="matmul_rowmaj",m="3",n="16",k="5",dtype="f64",ext="ci.test.log"
+        kernel="matmul_rowmaj",m="3",n="16",k="5",dtype="f64",
+        target=THIS_TARGET,ext="test.log"
     ),
     variant=[
         "transform_xdsl",
