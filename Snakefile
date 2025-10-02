@@ -101,7 +101,7 @@ def target_ll_file(
 wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -277,6 +277,16 @@ rule mkl_rowmaj_s:
         dtype_flag=lambda w: "-DMKL_DTYPE_IS_FLOAT=1" if w.dtype=="f32" else "-DMKL_DTYPE_IS_DOUBLE=1",
     shell:
         "{params.cc} -O3 kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+
+rule llvm_intrinsics_rowmaj_s:
+    output: target_ll_file(kernel='matmul_rowmaj',variant='llvm_intrinsics',ext='S')
+    params:
+        target_triple=target_triple,
+        target_arch=target_arch,
+        cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+    shell:
+        "{params.cc} -O3 -c kernels/matmul_rowmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -mtune={params.target_arch} -o {output} -ffp-contract=fast -ffast-math"
         
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
@@ -299,15 +309,15 @@ rule executable:
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
         use_papi=lambda wildcards: "-DUSE_PAPI=1" if os.environ.get("USE_PAPI") == "1" else "",
+        mkl_libs=lambda wc: MKL_LIBS if wc.variant == "mkl" else "",
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {MKL_LIBS}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} -fuse-ld=lld"
 
 rule validation:
-    input: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.o"
-    # A log won't be deleted by Snakemake if the script fails
-    log: "build/{kernel}/{m}x{n}x{k}/{variant}.{target}.test.log"
-    shell: '{input} > {log}'
-
+    input:  target_ll_file(ext='test.o')
+    log:    target_ll_file(ext='test.log')
+    shell:  '{input} > {log}'
+        
 ########################################################################################
 # Time
 ########################################################################################
@@ -364,15 +374,15 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm", "mkl"],
-        "cube_16.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm","mkl"],
-        "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm","mkl"],
+        "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
+        "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "vector_intrinsic", "libxsmm","mkl"],
-        "cube_16.f64": ["naive_c", "transform_mlir", "libxsmm", "mkl"],
-        "cube_64.f64": ["naive_c", "transform_mlir", "libxsmm", "mkl"],
+        "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
+        "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
     },
     "ci": {
         "ttile": ["naive_c"],
@@ -533,6 +543,10 @@ TESTSET_AVX = [
     target_file(
         kernel="matmul_rowmaj",m="3",n="16",k="5",
         variant="transform_xdsl",dtype="f64",ext="ci.test.log"
+    ),
+        target_file(
+        kernel="matmul_rowmaj",m="5",n="8",k="7",
+        variant="llvm_intrinsics",dtype="f64",ext="ci.test.log"
     ),
     target_file(
         kernel="matmul_rowmaj",m="6",n="32",k="5",
