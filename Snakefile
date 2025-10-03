@@ -258,8 +258,8 @@ rule libxsmm_rowmaj_c:
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
         libxsmm_gemm_generator dense {output} matmul_bac \
-            {wildcards.m} {wildcards.n} {wildcards.k} \
-            {wildcards.m} {wildcards.k} {wildcards.m} \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
             1 1 \
             1 1 \
             {params.target_xsmm} \
