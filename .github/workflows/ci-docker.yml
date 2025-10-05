@@ -28,7 +28,7 @@ jobs:
         cache-dependency-glob: "uv.lock"
 
     - name: Setup virtual environment
-      run: cp -r /opt/venv_template "$GITHUB_WORKSPACE/venv_docker"
+      run: cp -r /opt/build_venv "$GITHUB_WORKSPACE/venv_docker"
 
     - name: Run tests target
       run: make tests
