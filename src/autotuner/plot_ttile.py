@@ -52,6 +52,7 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     plt.tight_layout()
 
     if output_file:
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
     else:
         plt.show()
