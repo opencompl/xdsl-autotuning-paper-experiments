@@ -33,6 +33,10 @@ COPY --from=llvm-extractor /usr/local/bin/mlir-opt /usr/local/bin/
 COPY --from=llvm-extractor /usr/local/bin/clang-20 /usr/local/bin/
 RUN ln -s clang-20 /usr/local/bin/clang
 
+# Copy LLVM include directories
+COPY --from=llvm-extractor /usr/local/lib/clang/20/include/ /usr/local/lib/clang/20/include/
+COPY --from=llvm-extractor /usr/local/include/ /usr/local/include/
+
 # Install basic dependencies first (including ca-certificates for Intel repo)
 RUN apt-get update && apt-get install -y \
     ca-certificates wget gpg \
