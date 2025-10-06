@@ -33,6 +33,11 @@ COPY --from=llvm-extractor /usr/local/bin/mlir-opt /usr/local/bin/
 COPY --from=llvm-extractor /usr/local/bin/clang-20 /usr/local/bin/
 RUN ln -s clang-20 /usr/local/bin/clang
 
+# Install basic dependencies first (including ca-certificates for Intel repo)
+RUN apt-get update && apt-get install -y \
+    ca-certificates wget gpg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Pointer to Intel repos
 RUN wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
   | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null \
