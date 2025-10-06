@@ -32,7 +32,10 @@ COPY --from=llvm-extractor /usr/local/bin/mlir-translate /usr/local/bin/
 COPY --from=llvm-extractor /usr/local/bin/mlir-opt /usr/local/bin/
 COPY --from=llvm-extractor /usr/local/bin/clang-20 /usr/local/bin/
 COPY --from=llvm-extractor /usr/local/bin/lld /usr/local/bin/
-RUN ln -s clang-20 /usr/local/bin/clang
+RUN ln -s clang-20 /usr/local/bin/clang && \
+    ln -s lld /usr/local/bin/ld.lld && \
+    ln -s lld /usr/local/bin/wasm-ld && \
+    ln -s lld /usr/local/bin/lld-link
 
 # Copy LLVM include directories
 COPY --from=llvm-extractor /usr/local/lib/clang/20/include/ /usr/local/lib/clang/20/include/
@@ -60,6 +63,9 @@ RUN apt-get update && apt-get install -y \
     wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/*
+
+# Create symlink for system ld to use lld
+RUN ln -s /usr/local/bin/lld /usr/bin/ld
 
 # Set environment variables
 ENV INSIDE_DOCKER=1
