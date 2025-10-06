@@ -45,7 +45,6 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     )
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0, valid_data["M"].max() + 2)
-    ax.set_yscale("log")
     ax.set_ylim(bottom=1e-2)  # Avoid log(0); adjust as needed for your data
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -53,6 +52,7 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     plt.tight_layout()
 
     if output_file:
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
     else:
         plt.show()
