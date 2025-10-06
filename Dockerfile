@@ -64,9 +64,6 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/*
 
-# Create symlink for system ld to use lld
-RUN ln -s /usr/local/bin/lld /usr/bin/ld
-
 # Set environment variables
 ENV INSIDE_DOCKER=1
 
