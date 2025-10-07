@@ -155,7 +155,7 @@ rule transform_xdsl:
         program = target_file(variant='transform_xdsl',ext='transformed.mlir'),
     output: target_file(variant='transform_xdsl',ext='vector.mlir')
     shell:
-        """xdsl-opt -p vectorize-libxsmm {input.program} -o {output}"""
+        """xdsl-opt -p vectorize-libxsmm{{vector-size=8}} {input.program} -o {output}"""
 
 rule backend_xdsl:
     input:
