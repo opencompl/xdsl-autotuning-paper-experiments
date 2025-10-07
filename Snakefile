@@ -155,7 +155,7 @@ rule transform_xdsl:
         program = target_file(variant='transform_xdsl',ext='transformed.mlir'),
     output: target_file(variant='transform_xdsl',ext='vector.mlir')
     shell:
-        """xdsl-opt -p vectorize-libxsmm {input.program} -o {output}"""
+        """xdsl-opt -p vectorize-libxsmm{{vector-size=8}} {input.program} -o {output}"""
 
 rule backend_xdsl:
     input:
@@ -258,8 +258,8 @@ rule libxsmm_rowmaj_c:
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
         libxsmm_gemm_generator dense {output} matmul_bac \
-            {wildcards.m} {wildcards.n} {wildcards.k} \
-            {wildcards.m} {wildcards.k} {wildcards.m} \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
             1 1 \
             1 1 \
             {params.target_xsmm} \
@@ -317,7 +317,7 @@ rule validation:
     input:  target_ll_file(ext='test.o')
     log:    target_ll_file(ext='test.log')
     shell:  '{input} > {log}'
-        
+
 ########################################################################################
 # Time
 ########################################################################################
@@ -544,20 +544,18 @@ TESTSET_CI = [
 ]
 
 # For targets that can execute AVX instructions
-TESTSET_AVX = [
+TESTSET_AVX = expand(
     target_file(
-        kernel="matmul_rowmaj",m="3",n="16",k="5",
-        variant="transform_xdsl",dtype="f64",ext="ci.test.log"
+        kernel="matmul_rowmaj",m="3",n="16",k="5",dtype="f64",
+        ext=f"{THIS_TARGET}.test.log"
     ),
-        target_file(
-        kernel="matmul_rowmaj",m="5",n="8",k="7",
-        variant="llvm_intrinsics",dtype="f64",ext="ci.test.log"
-    ),
-    target_file(
-        kernel="matmul_rowmaj",m="6",n="32",k="5",
-        variant="transform_xdsl",dtype="f64",ext="ci.test.log"
-    ),
-]
+    variant=[
+        "transform_xdsl",
+        "llvm_intrinsics",
+        "libxsmm",
+        "mkl",
+    ]
+)
 
 TESTSET = {
     "neon": TESTSET_MAC,
