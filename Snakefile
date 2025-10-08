@@ -440,7 +440,7 @@ rule small_matrix_data:
         m = range(1, 17),
         n = range(1, 17),
     )
-    output: f"data/small_matrix.f64.tower.jsonl"
+    output: "data/small_matrix.f64.tower.jsonl"
     shell: "cat {input} > {output}"
 
 rule dataset_code:
