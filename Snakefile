@@ -435,11 +435,7 @@ for dataset, samples in DATASET_BASES.items():
         shell: "cat {input} > {output}"
 
 rule small_matrix_data:
-    input: expand(
-        "build/matmul_rowmaj/{m}x{n}x64/transform_mlir.f64." + THIS_TARGET + ".json",
-        m = range(1, 17),
-        n = range(1, 17),
-    )
+    input: expand( "build/matmul_rowmaj/{m}x{n}x64/transform_mlir.f64." + THIS_TARGET + ".json", m=range(1, 17), n=range(1, 17))
     output: "data/small_matrix.f64.tower.jsonl"
     shell: "cat {input} > {output}"
 
