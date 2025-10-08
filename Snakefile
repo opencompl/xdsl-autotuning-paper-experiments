@@ -434,10 +434,14 @@ for dataset, samples in DATASET_BASES.items():
         output: f"data/{dataset}.{THIS_TARGET}.jsonl"
         shell: "cat {input} > {output}"
 
-rule emma_data:
+rule small_matrix_data:
     input:
-        "build/matmul_rowmaj/8x8x8/transform_mlir.f64.tower.json",
-    output: "data/emma_data.f64.tower.jsonl"
+        expand(
+            "build/matmul_rowmaj/{m}x{n}x64/transform_mlir.f64." + THIS_TARGET + ".json",
+            m = range(1, 17, 1),
+            n = range(1, 17, 1),
+        )
+    output: f"data/small_matrix/{m}x{n}x64.f64.tower.jsonl"
     shell: "cat {input} > {output}"
 
 rule dataset_code:
