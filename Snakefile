@@ -434,6 +434,12 @@ for dataset, samples in DATASET_BASES.items():
         output: f"data/{dataset}.{THIS_TARGET}.jsonl"
         shell: "cat {input} > {output}"
 
+rule emma_data:
+    input:
+        "build/matmul_rowmaj/8x8x8/transform_mlir.f64.tower.json",
+    output: "data/emma_data.f64.tower.jsonl"
+    shell: "cat {input} > {output}"
+
 rule dataset_code:
     input: [p + ".time.o" for p in flatten(DATASET_BASES.values())]
 
