@@ -70,6 +70,10 @@ plots/cube%.png: data/cube%.jsonl src/autotuner/plot_cube.py
 plots/bars.%.png: data/bars.%.jsonl src/autotuner/plot_cube.py
 	uv run plot-cube $< --output $@
 
+.PHONY: plot-small-matrices
+plot-small-matrices: data/small_matrix.f64.tower.jsonl src/autotuner/plot_small_matrices.py
+	uv run plot-small-matrices $< --output plots/small_matrices
+
 .PHONY: plots
 plots: $(PLOTS)
 
