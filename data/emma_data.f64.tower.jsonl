@@ -1,0 +1,1 @@
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":47.913170,"variant":"transform_mlir","target":"tower","dtype":"f64"}
