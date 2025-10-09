@@ -419,7 +419,7 @@ DATASET_BASES = {
     "small_matrix.f64": expand(
         target_file(kernel="matmul_rowmaj",k="64",dtype="f64",ext=THIS_TARGET),
         m=range(1, 17), 
-        n=range(1, 17)
+        n=range(1, 17),
         variant=DATASET_VARIANTS["small_matrix.f64"]
     )
 }
