@@ -371,6 +371,7 @@ DATASET_VARIANTS = {
         "cube_8.f64": ["naive_c", "transform_mlir"],
         "cube_16.f64": ["naive_c", "transform_mlir"],
         "cube_64.f64": ["naive_c", "transform_mlir"],
+        "small_matrix.f64": ["naive_c", "transform_mlir"],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
@@ -384,12 +385,14 @@ DATASET_VARIANTS = {
         "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
         "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
         "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "small_matrix.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
     },
     "ci": {
         "ttile": ["naive_c"],
         "cube_8.f64": ["naive_c", "transform_mlir"],
         "cube_16.f64": ["naive_c", "transform_mlir"],
         "cube_64.f64": ["naive_c", "transform_mlir"],
+        "small_matrix.f64": ["naive_c", "transform_mlir"],
     },
 }[THIS_TARGET]
 
