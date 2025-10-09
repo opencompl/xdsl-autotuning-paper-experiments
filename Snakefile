@@ -377,6 +377,7 @@ DATASET_VARIANTS = {
         "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
         "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
         "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
+        "small_matrix.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
@@ -415,6 +416,12 @@ DATASET_BASES = {
         target_file(kernel="matmul_rowmaj",m="64",n="64",k="64",dtype="f64",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["cube_64.f64"],
     ),
+    "small_matrix.f64": expand(
+        target_file(kernel="matmul_rowmaj",k="64",dtype="f64",ext=THIS_TARGET),
+        m=range(1, 17), 
+        n=range(1, 17)
+        variant=DATASET_VARIANTS["small_matrix.f64"]
+    )
 }
 
 BARS_INPUTS = expand(
@@ -433,11 +440,6 @@ for dataset, samples in DATASET_BASES.items():
         input: [base + ".json" for base in samples]
         output: f"data/{dataset}.{THIS_TARGET}.jsonl"
         shell: "cat {input} > {output}"
-
-rule small_matrix_data:
-    input: expand( "build/matmul_rowmaj/{m}x{n}x64/transform_mlir.f64." + THIS_TARGET + ".json", m=range(1, 17), n=range(1, 17))
-    output: "data/small_matrix.f64.tower.jsonl"
-    shell: "cat {input} > {output}"
 
 rule dataset_code:
     input: [p + ".time.o" for p in flatten(DATASET_BASES.values())]
