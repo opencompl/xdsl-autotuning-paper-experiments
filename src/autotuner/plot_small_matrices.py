@@ -42,6 +42,8 @@ def plot_flops_per_time(
             markersize=6,
         )
 
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
     ax.set_ylabel("Throughput (FLOPs per Time)")
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0, valid_data["N"].max() + 2)
@@ -103,7 +105,6 @@ def plot_heatmap_throughput_over_peak(
 
     ax.set_xlabel("N")
     ax.set_ylabel("M")
-    ax.set_title("Performance Heatmap (% of Peak)")
 
     plt.tight_layout()
 
