@@ -22,7 +22,8 @@ xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "0186e47418101ea
 hello = "autotuner.main:main"
 plot-ttile = "autotuner.plot_ttile:main"
 plot-cube = "autotuner.plot_cube:main"
-plot-small-matrices = "autotuner.plot_small_matrices:main"
+plot-tiny-line = "autotuner.plot_small_matrices:main_line"
+plot-tiny-heatmap = "autotuner.plot_small_matrices:main_heatmap"
 
 [tool.setuptools]
 package-dir = { "autotuner" = "src/autotuner" }
