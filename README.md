@@ -24,6 +24,18 @@ There are two kinds of actions to perform in this repository: running tests (to 
 check that the code in this repo is correct), and compute the data and charts for the
 paper.
 
+### Setting up a new target
+
+The scripts in this repository refer to the machine that the code is run on as the "target".
+
+When running on a new machine, please create a `.env` file with the format:
+
+```sh
+TARGET=your_target_name_here
+```
+
+Then add a specification of the machine to the `targets` field in [[default.yaml]], and populate the `TESTSET` and `DATASET_VARIANTS` in the Snakefile.
+
 ### Running Tests
 
 We use two kinds of tests in this repository:
