@@ -11,12 +11,12 @@ RUN apt-get update && apt-get install -y \
 
 # Install uv for Python
 RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
-    /root/.local/bin/uv python install
+    /root/.local/bin/uv python install 3.12
 
 # Build libxsmm
 RUN git clone --depth 1 https://github.com/libxsmm/libxsmm.git /opt/libxsmm && \
     cd /opt/libxsmm && \
-    make STATIC=0 PYTHON='/root/.local/bin/uv run' && \
+    make STATIC=0 PYTHON='/root/.local/bin/uv run --python 3.12' && \
     rm -rf /opt/libxsmm/.git /opt/libxsmm/tests /opt/libxsmm/samples
 
 # Main image - minimal Ubuntu base with extracted LLVM tools
@@ -69,8 +69,8 @@ ENV INSIDE_DOCKER=1
 
 # Install uv and Python in a single layer with cache cleanup
 RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
-    /root/.local/bin/uv python install && \
-    /root/.local/bin/uv venv /opt/build_venv && \
+    /root/.local/bin/uv python install 3.12 && \
+    /root/.local/bin/uv venv --python 3.12 /opt/build_venv && \
     /root/.local/bin/uv cache clean
 
 # Copy libxsmm from builder stage
