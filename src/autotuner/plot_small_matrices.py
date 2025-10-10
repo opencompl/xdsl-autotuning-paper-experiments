@@ -138,6 +138,7 @@ def main(heatmap: bool):
 
     if heatmap:
         heatmap_df = df[df["variant"] == "libxsmm"]
+        assert isinstance(heatmap_df, pd.DataFrame)
         plot_heatmap_throughput_over_peak(df=heatmap_df, output_path=args.output)
         return
 
