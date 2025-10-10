@@ -1,6 +1,7 @@
 # uv run src/plot_ttile.py data/ttile.neon.jsonl
 
 import os
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -71,6 +72,65 @@ def plot_flops_per_time(
         plt.show()
 
 
+def plot_heatmap_throughput_over_peak(df: pd.DataFrame, output_dir: Path | None = None):
+    """Plot a heatmap of throughput over peak perf for small matrices."""
+
+    peaks = df["peak"].dropna().unique()
+    peak = float(peaks[0])
+
+    # Filter out invalid time values (negative or zero)
+    valid_data = df[df["time"] > 0].copy()
+
+    # Calculate FLOPs per time (throughput)
+    valid_data["throughput"] = valid_data["flops"] / valid_data["time"]
+
+    valid_data["perf"] = (valid_data["throughput"] / peak) * 100
+
+    heatmap_data = valid_data.pivot(index="M", columns="N", values="perf")
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    im = ax.imshow(heatmap_data, cmap="YlOrRd", aspect="auto", vmin=0, vmax=100)
+
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax)
+    cbar.set_label("% of Peak Performance", rotation=270, labelpad=20)
+
+    # Set ticks and labels
+    ax.set_xticks(np.arange(len(heatmap_data.columns)))
+    ax.set_yticks(np.arange(len(heatmap_data.index)))
+    ax.set_xticklabels(heatmap_data.columns)
+    ax.set_yticklabels(heatmap_data.index)
+
+    # Add text annotations
+    for i in range(len(heatmap_data.index)):
+        for j in range(len(heatmap_data.columns)):
+            ax.text(
+                j,
+                i,
+                f"{heatmap_data.iloc[i, j]:.1f}",
+                ha="center",
+                va="center",
+                color="black",
+            )
+
+    ax.set_xlabel("N")
+    ax.set_ylabel("M")
+    ax.set_title("Performance Heatmap (% of Peak)")
+
+    plt.tight_layout()
+
+    ax.set_title(
+        "Performance of small square matrix multiplication kernels, for 1 ≤ M ≤ 16, 1 ≤ N ≤ 16, K = 64"
+    )
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, "heatmap.png")
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    else:
+        plt.show()
+
+
 def main():
     import argparse
 
@@ -94,6 +154,9 @@ def main():
 
     square_matrices = df[df["M"] == df["N"]]
     plot_flops_per_time(square_matrices, m=None, output_dir=args.output)
+
+    heatmap_df = df[df["variant"] == "libxsmm"]
+    plot_heatmap_throughput_over_peak(df=heatmap_df, output_dir=args.output)
 
 
 if __name__ == "__main__":
