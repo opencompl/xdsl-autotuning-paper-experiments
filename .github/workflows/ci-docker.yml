@@ -24,11 +24,11 @@ jobs:
     - name: Setup virtual environment
       run: cp -r /opt/build_venv "$GITHUB_WORKSPACE/venv_docker"
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      with:
-        enable-cache: true
-        cache-dependency-glob: "uv.lock"
+    # - name: Install uv
+    #   uses: astral-sh/setup-uv@v5
+    #   with:
+    #     enable-cache: true
+    #     cache-dependency-glob: "uv.lock"
 
     - name: Set up Python 3.12
       run: uv python install 3.12
