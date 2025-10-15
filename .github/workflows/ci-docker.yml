@@ -34,6 +34,12 @@ jobs:
       run: which uv
 
     - name: bla
+      run: pwd
+
+    - name: bla
+      run: ls
+
+    - name: bla
       run: echo $UV_PROJECT_ENVIRONMENT
 
     - name: Set up Python 3.12
