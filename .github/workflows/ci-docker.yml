@@ -24,6 +24,9 @@ jobs:
     - name: Setup virtual environment
       run: cp -r /opt/build_venv "$GITHUB_WORKSPACE/venv_docker"
 
+    - name: bla
+      run: ls /opt/
+
     - name: Install uv
       uses: astral-sh/setup-uv@v5
       with:
