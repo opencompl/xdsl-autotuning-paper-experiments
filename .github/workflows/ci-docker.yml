@@ -22,7 +22,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Setup virtual environment
-      run: cp -r /opt/build_venv $UV_PROJECT_ENVIRONMENT
+      run: uv venv $UV_PROJECT_ENVIRONMENT --system-site-packages --python 3.12
 
     - name: bla
       run: ls /opt/
