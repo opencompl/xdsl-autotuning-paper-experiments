@@ -70,24 +70,23 @@ ENV INSIDE_DOCKER=1
 # Install uv and Python in a single layer with cache cleanup
 RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
     /root/.local/bin/uv python install 3.12 && \
-    /root/.local/bin/uv venv --python 3.12 /opt/build_venv && \
     /root/.local/bin/uv cache clean
 
 # Copy libxsmm from builder stage
 COPY --from=libxsmm-builder /opt/libxsmm /opt/libxsmm
 RUN ln -sf /opt/libxsmm/bin/libxsmm_gemm_generator /usr/bin/libxsmm_gemm_generator
 
-# Install Python dependencies in build venv
-RUN /root/.local/bin/uv pip install --python /opt/build_venv \
+# Install Python dependencies globally (not in a venv)
+RUN /root/.local/bin/uv pip install --python python3.12 --system --break-system-packages \
     plotly setuptools git+https://gitlab.inria.fr/tbastian/staticdeps.git
 
-# Install TVM
-RUN /root/.local/bin/uv pip install --python /opt/build_venv \
+# Install TVM globally
+RUN /root/.local/bin/uv pip install --python python3.12 --system --break-system-packages \
     --index-url https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple tvm==0.19.0.2025010903
 
-# Install uiCA and its dependencies in build venv
+# Install uiCA and its dependencies globally
 RUN git clone --depth 1 https://gitlab.inria.fr/CORSE/uica-staticdeps.git /opt/uica-staticdeps && \
     cd /opt/uica-staticdeps && \
-    /root/.local/bin/uv run --python /opt/build_venv ./setup.sh && \
+    /root/.local/bin/uv run --python python3.12 --with setuptools ./setup.sh && \
     rm -rf /opt/uica-staticdeps/.git && \
     /root/.local/bin/uv cache clean

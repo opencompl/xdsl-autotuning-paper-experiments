@@ -74,6 +74,17 @@ We have a CI script that publishes a new version of Docker automatically when a 
 in `main` is tagged with a tag like `v1.2.3`.
 So far we've used 0ver (just incrementing the minor version, `v0.1.0`, `v0.2.0`, etc.).
 
+### Virtual Environments
+
+The aim is for this project to run both natively on the host platform and in the Docker.
+For this to work smoothly, the virtual environments must be distinct.
+By default, the native virtual environment is called `.venv`, and the docker virtual environment is called `venv_docker`.
+UV finds the right one to use via the [`UV_PROJECT_ENVIRONMENT`](https://docs.astral.sh/uv/reference/environment/#uv_project_environment) variable set in the [[launch.sh]] script that is executed when running `docker-run`.
+
+The Docker virtual environment is partially created during the Docker image build phase.
+When building the docker image, we install some packages globally, these are imported into the `venv_docker` by `launch.sh`, by using the `--system-site-packages` flag, if `venv_docker` is not found.
+When updating the docker image, the venv might break, in which case the easiest fix is to just delete `venv_docker` outside of the docker container and run `make docker-run` again, then run `uv sync` in `/src`.
+
 ## Configuring Machines
 
 ### Disabling Frequency Switching
