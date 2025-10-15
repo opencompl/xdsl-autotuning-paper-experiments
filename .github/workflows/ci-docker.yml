@@ -40,6 +40,9 @@ jobs:
       run: ls
 
     - name: bla
+      run: ls ${{ github.workspace }}/venv_docker/bin
+
+    - name: bla
       run: echo $UV_PROJECT_ENVIRONMENT
 
     - name: Set up Python 3.12
