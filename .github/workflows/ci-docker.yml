@@ -22,7 +22,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Setup virtual environment
-      run: cp -r /opt/build_venv ${{ github.workspace }}/venv_docker
+      run: cp -r /opt/build_venv $UV_PROJECT_ENVIRONMENT
 
     - name: bla
       run: ls /opt/
@@ -43,7 +43,7 @@ jobs:
       run: ls
 
     - name: bla
-      run: ls ${{ github.workspace }}/venv_docker/bin
+      run: ls $UV_PROJECT_ENVIRONMENT/bin
 
     - name: bla
       run: echo $UV_PROJECT_ENVIRONMENT
