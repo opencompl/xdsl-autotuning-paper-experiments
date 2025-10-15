@@ -37,7 +37,7 @@ jobs:
       run: uv sync
 
     - name: Run tests target
-      run: make tests
+      run: source $UV_PROJECT_ENVIRONMENT/bin/activate && make tests
 
     - name: Prune uv cache
       run: uv cache prune --ci
