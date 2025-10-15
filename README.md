@@ -82,7 +82,7 @@ By default, the native virtual environment is called `.venv`, and the docker vir
 UV finds the right one to use via the [`UV_PROJECT_ENVIRONMENT`](https://docs.astral.sh/uv/reference/environment/#uv_project_environment) variable set in the [[launch.sh]] script that is executed when running `docker-run`.
 
 The Docker virtual environment is partially created during the Docker image build phase.
-When building the docker image, we create a virtual environment at `/opt/build_venv`, which is copied to `venv_docker` by `launch.sh`, if `venv_docker` is not found.
+When building the docker image, we install some packages globally, these are imported into the `venv_docker` by `launch.sh`, by using the `--system-site-packages` flag, if `venv_docker` is not found.
 When updating the docker image, the venv might break, in which case the easiest fix is to just delete `venv_docker` outside of the docker container and run `make docker-run` again, then run `uv sync` in `/src`.
 
 ## Configuring Machines
