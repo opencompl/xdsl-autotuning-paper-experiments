@@ -30,11 +30,23 @@ jobs:
         enable-cache: true
         cache-dependency-glob: "uv.lock"
 
+    - name: bla
+      run: which uv
+
+    - name: bla
+      run: echo $UV_PROJECT_ENVIRONMENT
+
     - name: Set up Python 3.12
       run: uv python install 3.12
 
+    - name: bla
+      run: uv pip list
+
     - name: Install the project
       run: uv sync
+
+    - name: bla
+      run: uv pip list
 
     - name: Run tests target
       run: make tests
