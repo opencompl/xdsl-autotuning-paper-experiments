@@ -8,6 +8,8 @@ import os
 
 # MKL paths (assuming intel-oneapi-mkl-2021.4.0)
 
+TVM_FUNC_NAME = "tvm_matmul"
+
 if os.environ.get("IN_DOCKER") == "1":
     MKL_PKG_CONFIG = "/opt/intel/oneapi/mkl/2021.4.0/lib/pkgconfig/mkl-static-ilp64-iomp.pc"
     MKL_CFLAGS = shell("pkg-config --cflags {MKL_PKG_CONFIG}", read=True).strip()
@@ -101,7 +103,7 @@ def target_ll_file(
 wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -288,6 +290,32 @@ rule llvm_intrinsics_rowmaj_s:
     shell:
         "{params.cc} -O3 -c kernels/matmul_rowmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -mtune={params.target_arch} -o {output} -ffp-contract=fast -ffast-math -mprefer-vector-width=512"
 
+rule tvm_rowmaj_c:
+    output: target_ll_file(kernel='matmul_rowmaj',variant='tvm',ext='c')
+    params:
+        target_arch=target_arch,
+        dtype=lambda wildcards: {"f32": "float32", "f64": "float64"}[wildcards.dtype],
+    shell:
+        """
+        {{
+            TVM_NUM_THREADS=1 /opt/build_venv/bin/python kernels/matmul_rowmaj/tvm_matmul_row_major.py \
+                --M {wildcards.m} --N {wildcards.n} --K {wildcards.k} \
+                --dtype {params.dtype} --symbol {TVM_FUNC_NAME} --cpu {params.target_arch}
+            cat kernels/matmul_rowmaj/tvm_matmul_wrapper.c
+        }} > {output}
+        """
+
+rule tvm_rowmaj_s:
+    input: target_ll_file(kernel='matmul_rowmaj',variant='tvm',ext='c')
+    output: target_ll_file(kernel='matmul_rowmaj',variant='tvm',ext='S')
+    params:
+        target_triple=target_triple,
+        target_arch=target_arch,
+        cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "MM_DTYPE_float", "f64": "MM_DTYPE_double"}[wildcards.dtype],
+    shell:
+                "{params.cc} -O3 -c {input} -DKERNEL_FUNC=matmul -DPACKED_FUNC={TVM_FUNC_NAME} -DMM_I={wildcards.m} -DMM_J={wildcards.n} -DMM_K={wildcards.k} -DMM_DTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
     output: target_ll_file(variant='libxsmm',ext='S')
@@ -382,9 +410,9 @@ DATASET_VARIANTS = {
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
-        "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "cube_8.f64": ["naive_c", "llvm_intrinsics", "libxsmm","mkl","tvm"],
+        "cube_16.f64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
+        "cube_64.f64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
         "small_matrix.f64": ["llvm_intrinsics", "libxsmm","mkl"],
     },
     "ci": {
