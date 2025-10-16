@@ -18,7 +18,7 @@ jobs:
       UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/venv_docker
       UV_LINK_MODE: copy
       # Add bin containing uv to PATH
-      PATH: /usr/.local/bin:${PATH}
+      PATH: /root/.local/bin:$PATH
 
     steps:
     - uses: actions/checkout@v4
