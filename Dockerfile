@@ -90,3 +90,10 @@ RUN git clone --depth 1 https://gitlab.inria.fr/CORSE/uica-staticdeps.git /opt/u
     /root/.local/bin/uv run --python python3.12 --with setuptools ./setup.sh && \
     rm -rf /opt/uica-staticdeps/.git && \
     /root/.local/bin/uv cache clean
+
+RUN /root/.local/bin/uv pip install --python python3.12 --system --break-system-packages \
+        "jinja2>=3.1.6" \
+        "matplotlib>=3.10.3" \
+        "pandas>=2.3.1" \
+        "snakemake>=8.30.0" \
+        "xdsl[dev]"
