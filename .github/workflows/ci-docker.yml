@@ -13,7 +13,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.14.0
+    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.16.0
     env:
       UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/venv_docker
       UV_LINK_MODE: copy
@@ -21,17 +21,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      with:
-        enable-cache: true
-        cache-dependency-glob: "uv.lock"
-
     - name: Setup virtual environment
-      run: cp -r /opt/build_venv "$GITHUB_WORKSPACE/venv_docker"
+      run: |
+        # Add bin containing uv to PATH
+        PATH=/root/.local/bin:$PATH
+        uv venv $UV_PROJECT_ENVIRONMENT --system-site-packages --python 3.12
 
     - name: Run tests target
-      run: make tests
+      run: |
+        PATH=/root/.local/bin:$PATH
+        make tests
 
     - name: Prune uv cache
-      run: uv cache prune --ci
+      run: |
+        PATH=/root/.local/bin:$PATH
+        uv cache prune --ci
