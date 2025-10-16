@@ -20,7 +20,7 @@ export UV_LINK_MODE=copy
 # Check if venv_docker exists
 if [ ! -d "$SCRIPT_DIR/venv_docker" ]; then
     echo "Setting up virtual environment..."
-    cp -r /opt/build_venv "$SCRIPT_DIR/venv_docker"
+    /root/.local/bin/uv venv "$SCRIPT_DIR/venv_docker" --system-site-packages --python 3.12
     echo "Virtual environment setup complete"
 else
     echo "Virtual environment already exists"
