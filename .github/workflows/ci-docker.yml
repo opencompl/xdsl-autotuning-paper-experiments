@@ -21,6 +21,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Print PATH
+      run: echo $PATH
+    - name: Where is uv?
+      run: which uv
+    - name: Python sys.path
+      run: python -c "import sys; print(sys.path)"
+
     - name: Install uv
       uses: astral-sh/setup-uv@v5
       with:
