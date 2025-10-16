@@ -25,9 +25,6 @@ jobs:
       run: |
         # Add bin containing uv to PATH
         PATH=/root/.local/bin:$PATH
-        echo $PATH
-        which uv
-        python -c "import sys; print(sys.path)"
         uv venv $UV_PROJECT_ENVIRONMENT --system-site-packages --python 3.12
 
     - name: Run tests target
