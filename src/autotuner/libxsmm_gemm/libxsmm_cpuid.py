@@ -1,0 +1,60 @@
+from __future__ import annotations
+from enum import Enum
+
+
+class Arch(Enum):
+    """
+    Enumerates the available target architectures and instruction
+    set extensions as returned by libxsmm_get_target_archid().
+    LIBXSMM_X86_ALLFEAT: pseudo-value enabling all features
+    used anywhere in LIBXSMM (never set as an architecture,
+    used as an upper bound in comparisons to distinct x86).
+    """
+
+    LIBXSMM_TARGET_ARCH_UNKNOWN = 0
+    LIBXSMM_TARGET_ARCH_GENERIC = 1
+    LIBXSMM_X86_GENERIC = 1002
+    LIBXSMM_X86_SSE3 = 1003
+    LIBXSMM_X86_SSE42 = 1004
+    LIBXSMM_X86_AVX = 1005
+    LIBXSMM_X86_AVX2 = 1006
+    LIBXSMM_X86_AVX2_ADL = 1007
+    LIBXSMM_X86_AVX2_SRF = 1008
+    LIBXSMM_X86_AVX512_VL128_SKX = 1041
+    LIBXSMM_X86_AVX512_VL256_SKX = 1051
+    LIBXSMM_X86_AVX512_VL256_CLX = 1052
+    LIBXSMM_X86_AVX512_VL256_CPX = 1053
+    LIBXSMM_X86_AVX512_SKX = 1101
+    LIBXSMM_X86_AVX512_CLX = 1102
+    LIBXSMM_X86_AVX512_CPX = 1103
+    LIBXSMM_X86_AVX512_SPR = 1104
+    LIBXSMM_X86_AVX512_GNR = 1105
+    LIBXSMM_X86_AVX512_DMR = 1106
+    LIBXSMM_X86_ALLFEAT = 1999
+    LIBXSMM_AARCH64_V81 = 2001  # Baseline
+    LIBXSMM_AARCH64_V82 = 2002  # A64FX minus SVE
+    LIBXSMM_AARCH64_APPL_M1 = 2101  # Apple M1
+    LIBXSMM_AARCH64_SVE128 = 2201  # SVE 128
+    LIBXSMM_AARCH64_NEOV2 = 2202  # Neoverse V2, NVIDIA Grace, Graviton 4
+    LIBXSMM_AARCH64_SVE256 = 2301  # SVE 256
+    LIBXSMM_AARCH64_NEOV1 = 2302  # Neoverse V1, Graviton 3
+    LIBXSMM_AARCH64_SVE512 = 2401  # SVE 512
+    LIBXSMM_AARCH64_A64FX = 2402  # A64FX
+    LIBXSMM_AARCH64_APPL_M4 = 2501  # Apple M4 SME without SVE
+    LIBXSMM_AARCH64_ALLFEAT = 2999
+    LIBXSMM_RV64_MVL128 = 3001  # RISCV 128-bit RVV
+    LIBXSMM_RV64_MVL256 = 3002  # RISCV 256-bit RVV
+    LIBXSMM_RV64_MVL128_LMUL = 3003  # RISCV 128-bit RVV with non-unit LMUL
+    LIBXSMM_RV64_MVL256_LMUL = 3004  # RISCV 256-bit RVV witb non-unit LMUL
+    LIBXSMM_RV64_ALLFEAT = 3999
+
+
+ARCH_BY_CODE = {
+    "wsm": Arch.LIBXSMM_X86_GENERIC,
+    "snb": Arch.LIBXSMM_X86_AVX,
+    "hsw": Arch.LIBXSMM_X86_AVX2,
+    "skx": Arch.LIBXSMM_X86_AVX512_SKX,
+    "clx": Arch.LIBXSMM_X86_AVX512_CLX,
+    "cpx": Arch.LIBXSMM_X86_AVX512_CPX,
+    "noarch": Arch.LIBXSMM_TARGET_ARCH_GENERIC,
+}
