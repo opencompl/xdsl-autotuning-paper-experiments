@@ -1,8 +1,8 @@
 from __future__ import annotations
-from enum import Enum
+from enum import IntEnum
 
 
-class Arch(Enum):
+class Arch(IntEnum):
     """
     Enumerates the available target architectures and instruction
     set extensions as returned by libxsmm_get_target_archid().
