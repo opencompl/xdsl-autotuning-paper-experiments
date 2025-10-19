@@ -1,6 +1,6 @@
 from pathlib import Path
 from autotuner.libxsmm_gemm.generator_gemm import libxsmm_generator_gemm_directasm
-from autotuner.libxsmm_gemm.libxsmm_main import DescDataType, GEMMDescriptor
+from autotuner.libxsmm_gemm.libxsmm_main import DescDataType, GEMMDescriptor, GemmFlag
 from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
 from autotuner.libxsmm_gemm.libxsmm_typedefs import DataType
 
@@ -72,6 +72,7 @@ def main():
         ldb=args.ldb,
         ldc=args.ldc,
         datatype=desc_datatype,
+        flags=GemmFlag(0),
     )
 
     assert args.density == "dense_asm", f"Only dense_asm supported, got {args.density}"
