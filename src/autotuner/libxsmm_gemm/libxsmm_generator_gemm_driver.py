@@ -1,5 +1,6 @@
 from pathlib import Path
 from autotuner.libxsmm_gemm.generator_gemm import libxsmm_generator_gemm_directasm
+from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
 from autotuner.libxsmm_gemm.libxsmm_main import DescDataType, GEMMDescriptor, GemmFlag
 from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
 from autotuner.libxsmm_gemm.libxsmm_typedefs import DataType
@@ -25,9 +26,13 @@ def main():
     parser.add_argument("ldb", type=int, help="Leading dimension B (LDB)")
     parser.add_argument("ldc", type=int, help="Leading dimension C (LDC)")
     parser.add_argument("alpha", type=int, help="Alpha (must be -1 or 1)")
-    parser.add_argument("beta", type=int, help="Beta (0 or 1)")
-    parser.add_argument("align_a", type=int, help="0: unaligned A, otherwise aligned")
-    parser.add_argument("align_c", type=int, help="0: unaligned C, otherwise aligned")
+    parser.add_argument("beta", type=int, choices=[0, 1], help="Beta (0 or 1)")
+    parser.add_argument(
+        "align_a", type=int, choices=[0, 1], help="0: unaligned A, otherwise aligned"
+    )
+    parser.add_argument(
+        "align_c", type=int, choices=[0, 1], help="0: unaligned C, otherwise aligned"
+    )
     parser.add_argument("arch", choices=ARCH_BY_CODE, help="Target architecture")
     parser.add_argument("prefetch", choices=["nopf", "AL2"], help="Prefetch strategy")
     parser.add_argument(
@@ -64,6 +69,17 @@ def main():
     except KeyError:
         parser.error(f"Unsupported architecture: {args.arch}")
 
+    flags = gemm_flags("N", "N")
+
+    if args.align_a:
+        flags |= GemmFlag.ALIGN_A
+
+    if args.align_c:
+        flags |= GemmFlag.ALIGN_C
+
+    if args.lbeta == 0:
+        flags |= GemmFlag.BETA_0
+
     descriptor = GEMMDescriptor(
         m=args.m,
         n=args.n,
@@ -72,7 +88,7 @@ def main():
         ldb=args.ldb,
         ldc=args.ldc,
         datatype=desc_datatype,
-        flags=GemmFlag(0),
+        flags=flags,
     )
 
     assert args.density == "dense_asm", f"Only dense_asm supported, got {args.density}"
