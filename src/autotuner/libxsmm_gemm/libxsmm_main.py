@@ -10,6 +10,9 @@ class DescDataType(NamedTuple):
     c: DataType
     comp: DataType
 
+    def ab(self) -> DataType | None:
+        return self.a if self.a == self.b else None
+
 
 class GemmFlag(IntFlag):
     NONE = 0
