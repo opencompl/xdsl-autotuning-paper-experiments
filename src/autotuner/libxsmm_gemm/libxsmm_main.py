@@ -1,4 +1,4 @@
-from enum import IntFlag
+from enum import IntEnum, IntFlag, unique
 from typing import NamedTuple
 
 from autotuner.libxsmm_gemm.libxsmm_typedefs import DataType
@@ -146,6 +146,26 @@ class GemmFlag(IntFlag):
     INVALID = 1073741824
 
 
+@unique
+class GEMMPrefetchType(IntEnum):
+    """Enumeration of the available prefetch strategies."""
+
+    # No data-prefetch.
+    NONE = 0  # Equivalent to LIBXSMM_PREFETCH_NONE
+
+    # Prefetch PA using accesses to A.
+    AL2 = 1
+
+    # Prefetch PA using accesses to B.
+    BL2 = 2
+
+    # The following options are currently not used, but included for completeness.
+    # Prefetch PA using accesses to C.
+    # CL1 = 4
+    # AL2BL2 = 3
+    # AL2BL2CL1 = 7
+
+
 class GEMMDescriptor(NamedTuple):
     m: int
     n: int
@@ -155,6 +175,7 @@ class GEMMDescriptor(NamedTuple):
     ldc: int
     datatype: DescDataType
     flags: GemmFlag
+    prefetch: GEMMPrefetchType
 
     def is_Amxfp4_Bi8_gemm(self) -> bool:
         return (
