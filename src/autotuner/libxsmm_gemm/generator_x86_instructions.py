@@ -1,5 +1,5 @@
 from xdsl.dialects import x86
-from autotuner.libxsmm_gemm.generator_common import GPRegMapping
+from autotuner.libxsmm_gemm.generator_common import GPRegMapping, LoopLabelTracker
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
 
@@ -22,3 +22,11 @@ def libxsmm_x86_instruction_open_stream_gemm(
     match prefetch:
         case GEMMPrefetchType.BL2 | GEMMPrefetchType.AL2:
             raise NotImplementedError
+
+
+def libxsmm_x86_instruction_register_jump_back_label(
+    generated_code: GeneratedCode, loop_label_tracker: LoopLabelTracker
+) -> None:
+    new_label = len(loop_label_tracker.label_address) + 32 + 1
+    loop_label_tracker.label_address.append(new_label)
+    generated_code.builder.insert(x86.ops.LabelOp(f"{new_label}"))
