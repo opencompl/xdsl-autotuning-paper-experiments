@@ -155,3 +155,72 @@ class GEMMDescriptor(NamedTuple):
     ldc: int
     datatype: DescDataType
     flags: GemmFlag
+
+    def is_Amxfp4_Bi8_gemm(self) -> bool:
+        return (
+            GemmFlag.INTERPRETE_A_AS_MXFP4_VNNI8_INTLV in self.flags
+            and self.datatype.a == DataType.I8
+            and self.datatype.b == DataType.I8
+            and self.datatype.c in (DataType.BF16, DataType.F32)
+        )
+
+    def is_Amxfp4_Bfp32_gemm(self) -> bool:
+        return (
+            GemmFlag.INTERPRETE_A_AS_MXFP4_VNNI2 in self.flags
+            and self.datatype.a == DataType.I8
+            and self.datatype.b == DataType.F32
+            and self.datatype.c == DataType.F32
+        )
+
+    def is_Amxfp4_Bbf16_gemm(self) -> bool:
+        return (
+            GemmFlag.INTERPRETE_A_AS_MXFP4_VNNI2 in self.flags
+            and self.datatype.a == DataType.I8
+            and self.datatype.b == DataType.BF16
+            and self.datatype.c in (DataType.BF16, DataType.F32)
+        )
+
+    def is_Ai4_Bi8_gemm(self) -> bool:
+        return (
+            GemmFlag.INTERPRETE_A_AS_INT4_VNNI8_INTLV in self.flags
+            and self.datatype.a == DataType.I8
+            and self.datatype.b == DataType.I8
+            and self.datatype.c == DataType.I32
+        )
+
+    def is_Ai2_Bi8_gemm(self) -> bool:
+        return (
+            GemmFlag.INTERPRETE_A_AS_INT2_VNNI4_INTLV in self.flags
+            and self.datatype.a == DataType.I8
+            and self.datatype.b == DataType.I8
+            and self.datatype.c == DataType.I32
+        )
+
+    def is_Ai1_Bi8_gemm(self) -> bool:
+        return (
+            GemmFlag.INTERPRETE_A_AS_INT1_VNNI4 in self.flags
+            and self.datatype.a == DataType.I8
+            and self.datatype.b == DataType.I8
+            and self.datatype.c == DataType.I32
+        )
+
+    def is_Abf8_Bbf16_gemm(self) -> bool:
+        return (
+            self.datatype.a == DataType.BF8
+            and self.datatype.b == DataType.BF16
+            and self.datatype.c in (DataType.BF16, DataType.F32)
+        )
+
+    def is_Abf8_Bf16_gemm(self) -> bool:
+        return (
+            self.datatype.a == DataType.BF8
+            and self.datatype.b == DataType.F16
+            and self.datatype.c in (DataType.F16, DataType.F32)
+        )
+
+    def is_Ahf8_Bbf16_gemm(self) -> bool:
+        return (
+            self.datatype.a == DataType.HF8
+            and self.datatype.b == DataType.BF16
+            and self.datatype.c in (DataType.BF16, DataType.F32)
+        )
