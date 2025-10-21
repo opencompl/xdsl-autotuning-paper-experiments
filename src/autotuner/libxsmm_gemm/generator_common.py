@@ -1,14 +1,20 @@
 from dataclasses import dataclass, field
 
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.dialects.x86 import registers
+from xdsl.dialects.x86.registers import (
+    GeneralRegisterType,
+    UNALLOCATED_GENERAL,
+    RDI,
+    RSI,
+    RDX,
+)
 from xdsl.ir import Block, Region
 from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.rewriter import InsertPoint, Rewriter
 
 
 def libxsmm_mmfunction_signature(module: ModuleOp, routine_name: str) -> FuncOp:
-    operand_types = (registers.RDI, registers.RSI, registers.RDX)
+    operand_types = (RDI, RSI, RDX)
 
     func = FuncOp(
         routine_name,
@@ -44,38 +50,38 @@ class GPRegMapping:
     libxsmm_gp_reg_mapping
     """
 
-    gp_reg_param_struct: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_a: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_a_base: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_b: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_b_base: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_c: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_a_prefetch: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_a_offset: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_b_prefetch: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_b_offset: registers.GeneralRegisterType | None = field(default=None)
+    gp_reg_param_struct: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_a: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_a_base: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_b: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_b_base: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_c: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_a_prefetch: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_a_offset: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_b_prefetch: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_b_offset: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
     # gp_reg_c_prefetch: int  # commented out in C code
-    gp_reg_mloop: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_nloop: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_kloop: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_reduce_count: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_reduce_loop: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_a_ptrs: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_b_ptrs: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_lda: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_ldb: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_ldc: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_scf: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_zpt: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_help_0: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_help_1: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_help_2: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_help_3: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_help_4: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_help_5: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_help_6: registers.GeneralRegisterType | None = field(default=None)
+    gp_reg_mloop: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_nloop: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_kloop: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_reduce_count: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_reduce_loop: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_a_ptrs: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_b_ptrs: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_lda: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_ldb: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_ldc: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_scf: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_zpt: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_help_0: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_help_1: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_help_2: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_help_3: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_help_4: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_help_5: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_help_6: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
     # Auxiliary regs for sparsity in A support
-    gp_reg_bitmap_a: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_decompressed_a: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_decompressed_elts: registers.GeneralRegisterType | None = field(default=None)
-    gp_reg_popcnt: registers.GeneralRegisterType | None = field(default=None)
+    gp_reg_bitmap_a: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_decompressed_a: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_decompressed_elts: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+    gp_reg_popcnt: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)

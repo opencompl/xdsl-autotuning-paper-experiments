@@ -65,7 +65,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         gp_reg_mapping.gp_reg_a_prefetch = R8
         gp_reg_mapping.gp_reg_b_prefetch = R9
     else:
-        gp_reg_mapping.gp_reg_scf = None  # GP_REG_UNDEF
+        gp_reg_mapping.gp_reg_scf = registers.UNALLOCATED_GENERAL  # GP_REG_UNDEF
         gp_reg_mapping.gp_reg_a_prefetch = RCX
         gp_reg_mapping.gp_reg_b_prefetch = R8
 
