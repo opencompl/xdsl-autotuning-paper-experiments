@@ -24,6 +24,37 @@ def libxsmm_x86_instruction_open_stream_gemm(
             raise NotImplementedError
 
 
+def libxsmm_x86_instruction_jump_back_to_label(
+    generated_code: GeneratedCode,
+    jmp_instr: type[x86.ops.ConditionalJumpOperation],
+    loop_label_tracker: LoopLabelTracker,
+):
+    assert loop_label_tracker.label_address
+
+    label_index = loop_label_tracker.label_address.pop()
+    label_str = f"{label_index}"
+    dest_blocks = [
+        block
+        for block in generated_code.func_op.body.blocks
+        if isinstance(block.first_op, x86.ops.LabelOp)
+        and block.first_op.label.data == label_str
+    ]
+    assert len(dest_blocks) == 1
+    dest_block = dest_blocks.pop()
+
+    builder = generated_code.builder
+
+    curr_block = builder.insertion_point.block
+    fallthrough_block = curr_block.next_block
+    assert fallthrough_block is not None
+
+    assert (cmp_op := curr_block.last_op) is not None
+    assert len(cmp_op.results) == 1
+
+    # TODO: handle block args
+    builder.insert(jmp_instr(cmp_op, (), (), dest_block, fallthrough_block))
+
+
 def libxsmm_x86_instruction_register_jump_back_label(
     generated_code: GeneratedCode, loop_label_tracker: LoopLabelTracker
 ) -> None:
