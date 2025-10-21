@@ -89,6 +89,7 @@ def main():
         ldc=args.ldc,
         datatype=desc_datatype,
         flags=flags,
+        prefetch=args.prefetch,
     )
 
     assert args.density == "dense_asm", f"Only dense_asm supported, got {args.density}"

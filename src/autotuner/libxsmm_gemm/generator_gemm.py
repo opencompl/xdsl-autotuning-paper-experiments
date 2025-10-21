@@ -32,7 +32,7 @@ def libxsmm_generator_gemm_directasm(
 
 
 def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescriptor):
-    m, n, k, lda, ldb, ldc, datatype, flags = desc
+    m, n, k, lda, ldb, ldc, datatype, flags, prefetch = desc
 
     vector_length = 1
     aarch64_bfdot = False
@@ -588,7 +588,7 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
     if ldb % vector_length:
         flags &= ~GemmFlag.ALIGN_C
 
-    desc_mod = GEMMDescriptor(m, n, k, lda, ldb, ldc, datatype, flags)
+    desc_mod = GEMMDescriptor(m, n, k, lda, ldb, ldc, datatype, flags, prefetch)
 
     if arch <= Arch.LIBXSMM_TARGET_ARCH_GENERIC:
         raise NotImplementedError
