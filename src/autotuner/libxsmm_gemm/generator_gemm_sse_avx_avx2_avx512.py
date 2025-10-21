@@ -8,7 +8,6 @@ from autotuner.libxsmm_gemm.generator_common import (
     MicroKernelConfig,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
-    libxsmm_x86_instruction_close_stream_gemm,
     libxsmm_x86_instruction_open_stream_gemm,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
@@ -103,9 +102,12 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         generated_code, loop_label_tracker, gp_reg_mapping, desc
     )
-    libxsmm_x86_instruction_close_stream_gemm(
-        generated_code, gp_reg_mapping, False, desc.prefetch
-    )
+
+    # In C, the stream is closed with the inline assembly register string, but we don't
+    # Need to do this
+    # libxsmm_x86_instruction_close_stream_gemm(
+    #     generated_code, gp_reg_mapping, False, desc.prefetch
+    # )
 
 
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
