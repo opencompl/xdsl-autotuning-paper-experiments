@@ -270,6 +270,26 @@ rule libxsmm_rowmaj_c:
         echo 'void matmul({params.c_dtype} *A, {params.c_dtype} *B, {params.c_dtype} *C) {{matmul_bac(B, A, C);}}' >> {output}
         """
 
+rule libxsmm_rowmaj_asm:
+    output: target_ll_file(kernel='matmul_rowmaj',variant='libxsmm_asm',ext='S')
+    params:
+        target_xsmm=target_xsmm,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+        c_dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        libxsmm_gemm_generator dense_asm {output} matmul_bac \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.target_xsmm} \
+            nopf \
+            {params.dtype}
+        """
+
 rule mkl_rowmaj_s:
     output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -315,7 +335,7 @@ rule tvm_rowmaj_s:
         dtype=lambda wildcards: {"f32": "MM_DTYPE_float", "f64": "MM_DTYPE_double"}[wildcards.dtype],
     shell:
                 "{params.cc} -O3 -c {input} -DKERNEL_FUNC=matmul -DPACKED_FUNC={TVM_FUNC_NAME} -DMM_I={wildcards.m} -DMM_J={wildcards.n} -DMM_K={wildcards.k} -DMM_DTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
-        
+
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
     output: target_ll_file(variant='libxsmm',ext='S')
