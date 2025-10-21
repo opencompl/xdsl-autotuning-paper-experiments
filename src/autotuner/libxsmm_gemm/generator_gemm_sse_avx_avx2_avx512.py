@@ -12,6 +12,7 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
+from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMDescriptor, GemmFlag
 
 
@@ -94,20 +95,21 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     ret_op = func_op.body.block.last_op
     assert isinstance(ret_op, RetOp)
     builder = Builder(InsertPoint.before(ret_op))
+    generated_code = GeneratedCode(func_op, builder)
 
     libxsmm_x86_instruction_open_stream_gemm(
-        builder, gp_reg_mapping, False, desc.prefetch
+        generated_code, gp_reg_mapping, False, desc.prefetch
     )
     libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
-        builder, loop_label_tracker, gp_reg_mapping, desc
+        generated_code, loop_label_tracker, gp_reg_mapping, desc
     )
     libxsmm_x86_instruction_close_stream_gemm(
-        builder, gp_reg_mapping, False, desc.prefetch
+        generated_code, gp_reg_mapping, False, desc.prefetch
     )
 
 
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
-    builder: Builder,
+    generated_code: GeneratedCode,
     label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     desc: GEMMDescriptor,

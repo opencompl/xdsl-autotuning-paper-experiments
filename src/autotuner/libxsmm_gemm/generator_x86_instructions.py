@@ -1,10 +1,10 @@
-from xdsl.builder import Builder
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping
+from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
 
 
 def libxsmm_x86_instruction_open_stream_gemm(
-    builder: Builder,
+    generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
     skip_callee_save: bool,
     prefetch: GEMMPrefetchType,
@@ -162,7 +162,7 @@ def libxsmm_x86_instruction_open_stream_gemm(
 
 
 def libxsmm_x86_instruction_close_stream_gemm(
-    builder: Builder,
+    generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
     skip_callee_save: bool,
     prefetch: GEMMPrefetchType,
