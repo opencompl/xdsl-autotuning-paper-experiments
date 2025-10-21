@@ -1,151 +1,113 @@
-from xdsl.dialects.x86_func import FuncOp
+from xdsl.builder import Builder
+from xdsl.dialects.x86 import registers
+from xdsl.dialects.x86_func import FuncOp, RetOp
+from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
     LoopLabelTracker,
     MicroKernelConfig,
 )
+from autotuner.libxsmm_gemm.generator_x86_instructions import (
+    libxsmm_x86_instruction_close_stream_gemm,
+    libxsmm_x86_instruction_open_stream_gemm,
+)
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.libxsmm_gemm.libxsmm_main import GEMMDescriptor
+from autotuner.libxsmm_gemm.libxsmm_main import GEMMDescriptor, GemmFlag
 
 
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     func_op: FuncOp, arch: Arch, desc: GEMMDescriptor
 ) -> None:
-    raise NotImplementedError
+    loop_label_tracker = LoopLabelTracker()
+    gp_reg_mapping = GPRegMapping()
+    is_amxfp4_bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    is_amxfp4_bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
+    is_amxfp4_bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
 
+    # Define GP register mapping
 
-#   libxsmm_loop_label_tracker l_loop_label_tracker;
-#   libxsmm_gp_reg_mapping l_gp_reg_mapping;
-#   unsigned int l_is_Amxfp4_Bfp32_gemm = libxsmm_x86_is_Amxfp4_Bfp32_gemm(i_xgemm_desc);
-#   unsigned int l_is_Amxfp4_Bi8_gemm = libxsmm_x86_is_Amxfp4_Bi8_gemm(i_xgemm_desc);
-#   unsigned int l_is_Amxfp4_Bbf16_gemm = libxsmm_x86_is_Amxfp4_Bbf16_gemm(i_xgemm_desc);
+    # #if defined(_WIN32) || defined(__CYGWIN__)
+    #   l_gp_reg_mapping.gp_reg_param_struct = LIBXSMM_X86_GP_REG_RCX;
+    # #else /* match calling convention on Linux */
+    gp_reg_mapping.gp_reg_param_struct = registers.RDI
+    # #endif
 
-#   /* define gp register mapping */
-#   libxsmm_reset_x86_gp_reg_mapping( &l_gp_reg_mapping );
-# #if defined(_WIN32) || defined(__CYGWIN__)
-#   l_gp_reg_mapping.gp_reg_param_struct = LIBXSMM_X86_GP_REG_RCX;
-# #else /* match calling convention on Linux */
-#   l_gp_reg_mapping.gp_reg_param_struct = LIBXSMM_X86_GP_REG_RDI;
-# #endif
-#   l_gp_reg_mapping.gp_reg_a = l_gp_reg_mapping.gp_reg_param_struct;
-#   l_gp_reg_mapping.gp_reg_b = LIBXSMM_X86_GP_REG_RSI;
-#   l_gp_reg_mapping.gp_reg_c = LIBXSMM_X86_GP_REG_RDX;
-#   l_gp_reg_mapping.gp_reg_a_prefetch = LIBXSMM_X86_GP_REG_RCX;
-#   l_gp_reg_mapping.gp_reg_b_prefetch = LIBXSMM_X86_GP_REG_R8;
-#   l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_R9;
-#   if ( (LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype )) && (LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype )) && (l_is_Amxfp4_Bi8_gemm == 0) ) {
-#     l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_RCX;
-#     l_gp_reg_mapping.gp_reg_a_prefetch = LIBXSMM_X86_GP_REG_R8;
-#     l_gp_reg_mapping.gp_reg_b_prefetch = LIBXSMM_X86_GP_REG_R9;
-#   } else if ( l_is_Amxfp4_Bfp32_gemm > 0 || l_is_Amxfp4_Bbf16_gemm > 0 || l_is_Amxfp4_Bi8_gemm > 0 ) {
-#     l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_RCX;
-#     if (l_is_Amxfp4_Bi8_gemm > 0) {
-#       l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_RBX;
-#     }
-#   } else if ( ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( i_xgemm_desc->datatype )) &&
-#               (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_B_PREC( i_xgemm_desc->datatype )) &&
-#               (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ))) ||
-#               ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( i_xgemm_desc->datatype )) &&
-#               (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_B_PREC( i_xgemm_desc->datatype )) &&
-#               (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ))) ) {
-#     l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_RBX;
-#     l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_RCX;
-#     l_gp_reg_mapping.gp_reg_a_prefetch = LIBXSMM_X86_GP_REG_R8;
-#     l_gp_reg_mapping.gp_reg_b_prefetch = LIBXSMM_X86_GP_REG_R9;
-#   } else {
-#     l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_UNDEF;
-#     l_gp_reg_mapping.gp_reg_a_prefetch = LIBXSMM_X86_GP_REG_RCX;
-#     l_gp_reg_mapping.gp_reg_b_prefetch = LIBXSMM_X86_GP_REG_R8;
-#   }
-#   if (i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_DECOMPRESS_A_VIA_BITMASK) {
-#     l_gp_reg_mapping.gp_reg_bitmap_a = LIBXSMM_X86_GP_REG_RCX;
-#     l_gp_reg_mapping.gp_reg_decompressed_elts = LIBXSMM_X86_GP_REG_R8;
-#     l_gp_reg_mapping.gp_reg_popcnt = LIBXSMM_X86_GP_REG_R9;
-#   }
+    gp_reg_mapping.gp_reg_a = gp_reg_mapping.gp_reg_param_struct
+    gp_reg_mapping.gp_reg_b = registers.RSI
+    gp_reg_mapping.gp_reg_c = registers.RDX
+    gp_reg_mapping.gp_reg_a_prefetch = registers.RCX
+    gp_reg_mapping.gp_reg_b_prefetch = registers.R8
+    gp_reg_mapping.gp_reg_zpt = registers.R9
 
-#   /* If we are generating the batchreduce kernel, then we rename the registers */
-#   if ((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_ADDRESS) || (i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_STRIDE)) {
-#     l_gp_reg_mapping.gp_reg_a = LIBXSMM_X86_GP_REG_RDI;
-#     l_gp_reg_mapping.gp_reg_b = LIBXSMM_X86_GP_REG_RSI;
-#     l_gp_reg_mapping.gp_reg_c = LIBXSMM_X86_GP_REG_RDX;
-#     l_gp_reg_mapping.gp_reg_reduce_count = LIBXSMM_X86_GP_REG_RCX;
-#     if ( (LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype )) && (LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype )) && (l_is_Amxfp4_Bi8_gemm == 0) ) {
-#       l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_R8;
-#       l_gp_reg_mapping.gp_reg_a_prefetch = LIBXSMM_X86_GP_REG_R9;
-#       l_gp_reg_mapping.gp_reg_b_prefetch = LIBXSMM_X86_GP_REG_UNDEF;
-#     } else if ( l_is_Amxfp4_Bfp32_gemm > 0 || l_is_Amxfp4_Bbf16_gemm > 0 || l_is_Amxfp4_Bi8_gemm > 0 ) {
-#       l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_R8;
-#       if (l_is_Amxfp4_Bi8_gemm > 0) {
-#         l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_RBX;
-#       }
-#     } else if (((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( i_xgemm_desc->datatype )) &&
-#                (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_B_PREC( i_xgemm_desc->datatype )) &&
-#                (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ))) ||
-#                ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( i_xgemm_desc->datatype )) &&
-#                (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_B_PREC( i_xgemm_desc->datatype )) &&
-#                (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype )))) {
-#       l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_RBX;
-#       l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_R8;
-#       l_gp_reg_mapping.gp_reg_a_prefetch = LIBXSMM_X86_GP_REG_R9;
-#       l_gp_reg_mapping.gp_reg_b_prefetch = LIBXSMM_X86_GP_REG_UNDEF;
-#     } else {
-#       l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_UNDEF;
-#       l_gp_reg_mapping.gp_reg_a_prefetch = LIBXSMM_X86_GP_REG_R8;
-#       l_gp_reg_mapping.gp_reg_b_prefetch = LIBXSMM_X86_GP_REG_R9;
-#       l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_R9;
-#     }
-#     l_gp_reg_mapping.gp_reg_reduce_loop = LIBXSMM_X86_GP_REG_R13;
-#   } else if (i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_OFFSET) {
-#     l_gp_reg_mapping.gp_reg_a = LIBXSMM_X86_GP_REG_RDI;
-#     l_gp_reg_mapping.gp_reg_b = LIBXSMM_X86_GP_REG_RSI;
-#     l_gp_reg_mapping.gp_reg_c = LIBXSMM_X86_GP_REG_RDX;
-#     l_gp_reg_mapping.gp_reg_reduce_count = LIBXSMM_X86_GP_REG_RCX;
-#     l_gp_reg_mapping.gp_reg_a_offset = LIBXSMM_X86_GP_REG_R8;
-#     l_gp_reg_mapping.gp_reg_b_offset = LIBXSMM_X86_GP_REG_R9;
-#     l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_RAX;
-#     if ( (LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype )) && (LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype )) && (l_is_Amxfp4_Bi8_gemm == 0) ) {
-#       l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_RAX;
-#     } else if ( l_is_Amxfp4_Bfp32_gemm > 0 || l_is_Amxfp4_Bbf16_gemm > 0 || l_is_Amxfp4_Bi8_gemm > 0) {
-#       l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_RAX;
-#       if (l_is_Amxfp4_Bi8_gemm > 0) {
-#         l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_RBX;
-#       }
-#     } else if( ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( i_xgemm_desc->datatype )) &&
-#                (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_B_PREC( i_xgemm_desc->datatype )) &&
-#                (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ))) ||
-#                ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( i_xgemm_desc->datatype )) &&
-#                (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_B_PREC( i_xgemm_desc->datatype )) &&
-#                (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ))) ) {
-#       l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_RBX;
-#       l_gp_reg_mapping.gp_reg_zpt = LIBXSMM_X86_GP_REG_RAX;
-#     } else {
-#       l_gp_reg_mapping.gp_reg_scf = LIBXSMM_X86_GP_REG_UNDEF;
-#     }
-#     l_gp_reg_mapping.gp_reg_reduce_loop = LIBXSMM_X86_GP_REG_R13;
-#   }
-#   l_gp_reg_mapping.gp_reg_mloop = LIBXSMM_X86_GP_REG_R10;
-#   l_gp_reg_mapping.gp_reg_nloop = LIBXSMM_X86_GP_REG_R11;
-#   l_gp_reg_mapping.gp_reg_kloop = LIBXSMM_X86_GP_REG_R12;
-#   l_gp_reg_mapping.gp_reg_help_0 = LIBXSMM_X86_GP_REG_R14;
-#   l_gp_reg_mapping.gp_reg_help_1 = LIBXSMM_X86_GP_REG_R15;
-#   l_gp_reg_mapping.gp_reg_help_2 = LIBXSMM_X86_GP_REG_RBX;
+    # Python translation of register assignment logic
+    dt = desc.datatype
 
-#   /* define loop_label_tracker */
-#   libxsmm_reset_loop_label_tracker( &l_loop_label_tracker );
+    # Import register symbols for clarity
+    RCX = registers.RCX
+    RBX = registers.RBX
+    R8 = registers.R8
+    R9 = registers.R9
+    # UNDEF is not a real register, so we use None in Python
 
-#   /* open asm */
-#   libxsmm_x86_instruction_open_stream_gemm( io_generated_code, &l_gp_reg_mapping, 0, i_xgemm_desc->prefetch );
+    if dt.a == dt.b == "I8" and dt.c == "F32" and not is_amxfp4_bi8_gemm:
+        gp_reg_mapping.gp_reg_scf = RCX
+        gp_reg_mapping.gp_reg_a_prefetch = R8
+        gp_reg_mapping.gp_reg_b_prefetch = R9
+    elif is_amxfp4_bfp32_gemm or is_amxfp4_bbf16_gemm or is_amxfp4_bi8_gemm:
+        gp_reg_mapping.gp_reg_scf = RCX
+        if is_amxfp4_bi8_gemm:
+            gp_reg_mapping.gp_reg_zpt = RBX
+    elif (dt.a == "I8" and dt.b == "F16" and dt.c in ("F16", "F32")) or (
+        dt.a == "I8" and dt.b == "BF16" and dt.c in ("BF16", "F32")
+    ):
+        gp_reg_mapping.gp_reg_scf = RBX
+        gp_reg_mapping.gp_reg_zpt = RCX
+        gp_reg_mapping.gp_reg_a_prefetch = R8
+        gp_reg_mapping.gp_reg_b_prefetch = R9
+    else:
+        gp_reg_mapping.gp_reg_scf = None  # GP_REG_UNDEF
+        gp_reg_mapping.gp_reg_a_prefetch = RCX
+        gp_reg_mapping.gp_reg_b_prefetch = R8
 
-#   /* call Intel SIMD kernel */
-#   libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel( io_generated_code, &l_loop_label_tracker, &l_gp_reg_mapping, i_xgemm_desc );
+    # Handle decompress A via bitmask flag
+    if GemmFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
+        gp_reg_mapping.gp_reg_bitmap_a = RCX
+        gp_reg_mapping.gp_reg_decompressed_elts = R8
+        gp_reg_mapping.gp_reg_popcnt = R9
 
-#   /* close asm */
-#   libxsmm_x86_instruction_close_stream_gemm( io_generated_code, &l_gp_reg_mapping, 0, i_xgemm_desc->prefetch );
-# }
+    # If we are generating the batchreduce kernel, then we rename the registers
+    if (
+        GemmFlag.BATCH_REDUCE_ADDRESS in desc.flags
+        or GemmFlag.BATCH_REDUCE_STRIDE in desc.flags
+    ):
+        raise NotImplementedError
+    elif GemmFlag.BATCH_REDUCE_OFFSET in desc.flags:
+        raise NotImplementedError
+
+    gp_reg_mapping.gp_reg_mloop = registers.R10
+    gp_reg_mapping.gp_reg_nloop = registers.R11
+    gp_reg_mapping.gp_reg_kloop = registers.R12
+    gp_reg_mapping.gp_reg_help_0 = registers.R14
+    gp_reg_mapping.gp_reg_help_1 = registers.R15
+    gp_reg_mapping.gp_reg_help_2 = registers.RBX
+
+    ret_op = func_op.body.block.last_op
+    assert isinstance(ret_op, RetOp)
+    builder = Builder(InsertPoint.before(ret_op))
+
+    libxsmm_x86_instruction_open_stream_gemm(
+        builder, gp_reg_mapping, False, desc.prefetch
+    )
+    libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
+        builder, loop_label_tracker, gp_reg_mapping, desc
+    )
+    libxsmm_x86_instruction_close_stream_gemm(
+        builder, gp_reg_mapping, False, desc.prefetch
+    )
 
 
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
-    func_op: FuncOp,
+    builder: Builder,
     label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     desc: GEMMDescriptor,
