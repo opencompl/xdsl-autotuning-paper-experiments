@@ -1560,35 +1560,32 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking(
     config: MicroKernelConfig, desc: GEMMDescriptor, arch: Arch
 ) -> int:
-    raise NotImplementedError
+    l_is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    l_is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
+    l_is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
+    l_is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
+    l_is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm()
 
-
-#   unsigned int l_is_Amxfp4_Bfp32_gemm = libxsmm_x86_is_Amxfp4_Bfp32_gemm(i_xgemm_desc);
-#   unsigned int l_is_Amxfp4_Bbf16_gemm = libxsmm_x86_is_Amxfp4_Bbf16_gemm(i_xgemm_desc);
-#   unsigned int l_is_Amxfp4_Bi8_gemm = libxsmm_x86_is_Amxfp4_Bi8_gemm(i_xgemm_desc);
-#   unsigned int l_is_Ai2_Bi8_gemm = libxsmm_x86_is_Ai2_Bi8_gemm(i_xgemm_desc);
-#   unsigned int l_is_Ai1_Bi8_gemm = libxsmm_x86_is_Ai1_Bi8_gemm(i_xgemm_desc);
-
-#   LIBXSMM_UNUSED(i_micro_kernel_config);
-
-#   if ( i_arch >= LIBXSMM_X86_GENERIC && (l_is_Amxfp4_Bfp32_gemm > 0 || l_is_Amxfp4_Bbf16_gemm > 0 || l_is_Amxfp4_Bi8_gemm > 0)  ) {
-#     return 4;
-#   } else if ( i_arch >= LIBXSMM_X86_GENERIC && i_arch < LIBXSMM_X86_AVX512_VL256_SKX ) {
-#     if (i_arch == LIBXSMM_X86_AVX2_SRF) {
-#       if (l_is_Ai2_Bi8_gemm > 0) {
-#         return 2;
-#       } else if (l_is_Ai1_Bi8_gemm > 0) {
-#         return 6;
-#       }else {
-#         return libxsmm_cpuid_x86_srf_gemm_set_n_max_blocking();
-#       }
-#     } else {
-#       return 3;
-#     }
-#   } else if ( i_arch >= LIBXSMM_X86_AVX512_VL256_SKX && i_arch <= LIBXSMM_X86_ALLFEAT ) {
-#     return 28;
-#   } else {
-#     /* shouldn’t happen */
-#   }
-#   return 0;
-# }
+    if arch >= Arch.LIBXSMM_X86_GENERIC and (
+        l_is_Amxfp4_Bfp32_gemm or l_is_Amxfp4_Bbf16_gemm or l_is_Amxfp4_Bi8_gemm
+    ):
+        return 4
+    elif arch >= Arch.LIBXSMM_X86_GENERIC and arch < Arch.LIBXSMM_X86_AVX512_VL256_SKX:
+        if arch == Arch.LIBXSMM_X86_AVX2_SRF:
+            if l_is_Ai2_Bi8_gemm:
+                return 2
+            elif l_is_Ai1_Bi8_gemm:
+                return 6
+            else:
+                # There's some strange logic in this function that seems to be to do
+                # with specifying what to return based on a command-line flag
+                # return libxsmm_cpuid_x86_srf_gemm_set_n_max_blocking()
+                return 3
+        else:
+            return 3
+    elif arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX and arch <= Arch.LIBXSMM_X86_ALLFEAT:
+        return 28
+    else:
+        # shouldn't happen
+        pass
+    return 0
