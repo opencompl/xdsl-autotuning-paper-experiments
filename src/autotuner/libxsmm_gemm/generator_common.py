@@ -40,9 +40,20 @@ class LoopLabelTracker:
     """
     Structure for tracking local labels in assembly we do not allow overlapping loops
     libxsmm_loop_label_tracker
+
+    We have to add more logic to track the SSA values corresponding to registers.
     """
 
-    label_address: list[int] = field(default_factory=list)
+    dest_blocks: list[Block] = field(default_factory=list)
+    """
+    Starting blocks of loops, and the index of the induction variable in the current arg
+    list.
+    """
+
+    @property
+    def current_loop_number(self) -> int:
+        # No idea why libxsmm does this
+        return len(self.dest_blocks) + 32
 
 
 @dataclass

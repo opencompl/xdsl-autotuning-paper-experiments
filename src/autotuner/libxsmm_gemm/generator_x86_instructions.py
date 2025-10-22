@@ -1,4 +1,5 @@
 from xdsl.dialects import x86
+from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping, LoopLabelTracker
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
@@ -29,20 +30,14 @@ def libxsmm_x86_instruction_jump_back_to_label(
     jmp_instr: type[x86.ops.ConditionalJumpOperation],
     loop_label_tracker: LoopLabelTracker,
 ):
-    assert loop_label_tracker.label_address
-
-    label_index = loop_label_tracker.label_address.pop()
-    label_str = f"{label_index}"
-    dest_blocks = [
-        block
-        for block in generated_code.func_op.body.blocks
-        if isinstance(block.first_op, x86.ops.LabelOp)
-        and block.first_op.label.data == label_str
-    ]
-    assert len(dest_blocks) == 1
-    dest_block = dest_blocks.pop()
-
+    """
+    In contrast to libxsmm, also inserts the comparison instruction
+    """
+    dest_block = loop_label_tracker.dest_blocks.pop()
     builder = generated_code.builder
+    curr_vals = generated_code.current_val_by_reg
+
+    curr_args = tuple(curr_vals[arg.type] for arg in dest_block.args)
 
     curr_block = builder.insertion_point.block
     fallthrough_block = curr_block.next_block
@@ -51,13 +46,19 @@ def libxsmm_x86_instruction_jump_back_to_label(
     assert (cmp_op := curr_block.last_op) is not None
     assert len(cmp_op.results) == 1
 
-    # TODO: handle block args
-    builder.insert(jmp_instr(cmp_op, (), (), dest_block, fallthrough_block))
+    builder.insert(
+        jmp_instr(cmp_op, curr_args, curr_args, dest_block, fallthrough_block)
+    )
+
+    # set insert point to fallthrough block and update current values
+    builder.insertion_point = InsertPoint.at_start(fallthrough_block)
+    curr_vals.clear()
+    curr_vals |= {arg.type: arg for arg in fallthrough_block.args}
 
 
 def libxsmm_x86_instruction_register_jump_back_label(
     generated_code: GeneratedCode, loop_label_tracker: LoopLabelTracker
 ) -> None:
-    new_label = len(loop_label_tracker.label_address) + 32 + 1
-    loop_label_tracker.label_address.append(new_label)
-    generated_code.builder.insert(x86.ops.LabelOp(f"{new_label}"))
+    generated_code.builder.insert(
+        x86.ops.LabelOp(f"{loop_label_tracker.current_loop_number}")
+    )
