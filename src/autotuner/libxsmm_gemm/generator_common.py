@@ -32,6 +32,8 @@ def libxsmm_mmfunction_signature(module: ModuleOp, routine_name: str) -> FuncOp:
 class MicroKernelConfig:
     """libxsmm_micro_kernel_config"""
 
+    datatype_size_in2: int
+
 
 @dataclass
 class LoopLabelTracker:
