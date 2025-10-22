@@ -33,6 +33,7 @@ class MicroKernelConfig:
     """libxsmm_micro_kernel_config"""
 
     datatype_size_in2: int
+    use_masking_a_c: int
 
 
 @dataclass
