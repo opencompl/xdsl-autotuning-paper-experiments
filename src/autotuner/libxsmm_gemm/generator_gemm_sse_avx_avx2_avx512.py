@@ -1,4 +1,5 @@
 from xdsl.builder import Builder
+from xdsl.dialects import x86
 from xdsl.dialects.x86 import registers
 from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.rewriter import InsertPoint
@@ -6,6 +7,13 @@ from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
     LoopLabelTracker,
     MicroKernelConfig,
+)
+from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
+    libxsmm_generator_gemm_avx512_kloop_kernel,
+)
+from autotuner.libxsmm_gemm.generator_gemm_common import (
+    libxsmm_generator_gemm_footer_kloop,
+    libxsmm_generator_gemm_header_kloop,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
@@ -1232,7 +1240,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
 
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
-    func_op: FuncOp,
+    generated_code: GeneratedCode,
     label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
@@ -1240,178 +1248,202 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     m_blocking: int,
     n_blocking: int,
 ) -> None:
-    raise NotImplementedError
+    # some hard coded parameters for k-blocking
+    k_blocking = 0
+    k_threshold = 0
+    _k_pack_factor = 1
+    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm
+    is_Ai8_Bbf16_gemm = (
+        desc.datatype.a == "I8"
+        and not is_Amxfp4_Bbf16_gemm
+        and desc.datatype.b == "BF16"
+    )
+    is_Ai4_Bf16_gemm = (
+        (desc.flags & GemmFlag.INTERPRETE_A_AS_INT4_VNNI2)
+        and desc.datatype.a == "I8"
+        and desc.datatype.b == "F16"
+        and (desc.datatype.c == "F16" or desc.datatype.c == "F32")
+    )
+    is_Ai8_Bbf16_gemm_bf16fma = (
+        False  # micro_kernel_config.vmul_instruction == "VDPBF16PS"
+    )
+    is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
+    is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
+    is_i8_uu_ss_gemm = desc.datatype.ab == "I8" and (
+        GemmFlag.A_UNSIGNED in desc.flags == GemmFlag.B_UNSIGNED in desc.flags
+    )
 
+    # a very simple k unrolling model */
+    k_blocking = 4
+    k_threshold = 23
 
-# LIBXSMM_API_INTERN void libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop( libxsmm_generated_code*            io_generated_code,
-#                                                                            libxsmm_loop_label_tracker*        io_loop_label_tracker,
-#                                                                            const libxsmm_gp_reg_mapping*      i_gp_reg_mapping,
-#                                                                            const libxsmm_micro_kernel_config* i_micro_kernel_config,
-#                                                                            const libxsmm_gemm_descriptor*     i_xgemm_desc,
-#                                                                            const unsigned int                 i_m_blocking,
-#                                                                            const unsigned int                 i_n_blocking ) {
-#   void (*l_generator_kloop_kernel)(libxsmm_generated_code*, const libxsmm_gp_reg_mapping*, const libxsmm_micro_kernel_config*,
-#                                    const libxsmm_gemm_descriptor*, const unsigned int, const unsigned int, const unsigned int);
-#   /* some hard coded parameters for k-blocking */
-#   unsigned int l_k_blocking = 0;
-#   unsigned int l_k_threshold = 0;
-#   unsigned int l_k_pack_factor = 1;
-#   unsigned int l_is_Amxfp4_Bbf16_gemm = libxsmm_x86_is_Amxfp4_Bbf16_gemm(i_xgemm_desc);
-#   unsigned int l_is_Ai8_Bbf16_gemm = ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( i_xgemm_desc->datatype ) && (l_is_Amxfp4_Bbf16_gemm == 0)) && (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_B_PREC( i_xgemm_desc->datatype ))) ? 1 : 0;
-#   unsigned int l_is_Ai4_Bf16_gemm = (((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_INTERPRETE_A_AS_INT4_VNNI2) > 0) &&
-#                                      ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( i_xgemm_desc->datatype )) &&
-#                                       (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_B_PREC( i_xgemm_desc->datatype )) &&
-#                                       ((LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype )) || (LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype ))))) ? 1 : 0;
-#   unsigned int l_is_Ai8_Bbf16_gemm_bf16fma = (i_micro_kernel_config->vmul_instruction == LIBXSMM_X86_INSTR_VDPBF16PS) ? 1 : 0;
-#   unsigned int l_is_Amxfp4_Bfp32_gemm = libxsmm_x86_is_Amxfp4_Bfp32_gemm(i_xgemm_desc);
-#   unsigned int l_is_Amxfp4_Bi8_gemm = libxsmm_x86_is_Amxfp4_Bi8_gemm(i_xgemm_desc);
-#   unsigned int l_is_Ai4_Bi8_gemm = libxsmm_x86_is_Ai4_Bi8_gemm(i_xgemm_desc);
-#   unsigned int l_is_i8_uu_ss_gemm = (LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype )) &&
-#                                     ( ( ((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_A_UNSIGNED) == 0) && ((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_B_UNSIGNED) == 0) ) ||
-#                                       ( ((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_A_UNSIGNED) >  0) && ((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_B_UNSIGNED) >  0) ) );
+    if GemmFlag.VNNI_A in desc.flags:
+        # VNNI kernel should maintain the same amount of unrolled instructions
+        raise NotImplementedError
 
-#   /* a very simple k unrolling model */
-#   l_k_blocking = 4;
-#   l_k_threshold = 23;
+    if is_i8_uu_ss_gemm and generated_code.arch in (
+        Arch.LIBXSMM_X86_AVX512_SKX,
+        Arch.LIBXSMM_X86_AVX512_VL256_SKX,
+    ):
+        # for uu ss int 8 we need to limit the unrolling, software emulation code is very large
+        k_blocking = 8
+        k_threshold = 23
 
-#   /* VNNI kernel should maintain the same amount of unrolled instructions */
-#   if ( (i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_VNNI_A) == LIBXSMM_GEMM_FLAG_VNNI_A ) {
-#     l_k_pack_factor = libxsmm_cpuid_dot_pack_factor( (libxsmm_datatype)LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype) );;
-#     l_k_blocking = l_k_blocking*l_k_pack_factor;
-#     l_k_threshold = ((l_k_threshold+1)*l_k_pack_factor)-1;
-#   }
+    if is_Ai8_Bbf16_gemm:
+        raise NotImplementedError
 
-#   /* for uu ss int 8 we need to limit the unrolling, software emulation code is very large */
-#   if ( ( l_is_i8_uu_ss_gemm != 0) && ((io_generated_code->arch == LIBXSMM_X86_AVX512_SKX) || (io_generated_code->arch == LIBXSMM_X86_AVX512_VL256_SKX)) ) {
-#     l_k_blocking = 8;
-#     l_k_threshold = 23;
-#   }
+    assert k_blocking <= k_threshold
 
-#   if (l_is_Ai8_Bbf16_gemm > 0) {
-#     if (l_is_Ai8_Bbf16_gemm_bf16fma > 0) {
-#       l_k_blocking = 4;
-#       l_k_threshold = 13;
-#     } else {
-#       l_k_blocking = 2;
-#       l_k_threshold = 5;
-#     }
-#   }
+    if is_Ai4_Bf16_gemm:
+        k_blocking = 4
+        k_threshold = 8
+    if is_Amxfp4_Bfp32_gemm or is_Amxfp4_Bbf16_gemm or is_Amxfp4_Bi8_gemm:
+        k_blocking = 32
+        k_threshold = desc.k
 
-#   if ( l_k_threshold < l_k_blocking ) {
-#     LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_K_BLOCK );
-#     return;
-#   }
+    # Set up architecture dependent compute micro kernel generator.
+    assert generated_code.arch >= Arch.LIBXSMM_TARGET_ARCH_GENERIC
 
-#   if (l_is_Ai4_Bf16_gemm > 0) {
-#     l_k_blocking = 4;
-#     l_k_threshold = 8;
-#   }
+    if is_Amxfp4_Bfp32_gemm or is_Amxfp4_Bbf16_gemm or is_Amxfp4_Bi8_gemm:
+        # generator_kloop_kernel = libxsmm_generator_gemm_avx2_kloop_kernel
+        raise NotImplementedError
+    elif generated_code.arch <= Arch.LIBXSMM_X86_SSE42:
+        # generator_kloop_kernel = libxsmm_generator_gemm_sse_kloop_kernel
+        raise NotImplementedError
+    elif generated_code.arch == Arch.LIBXSMM_X86_AVX:
+        # generator_kloop_kernel = libxsmm_generator_gemm_avx_kloop_kernel
+        raise NotImplementedError
+    elif (
+        generated_code.arch >= Arch.LIBXSMM_X86_AVX2
+        and generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX
+    ):
+        # generator_kloop_kernel = libxsmm_generator_gemm_avx2_kloop_kernel
+        raise NotImplementedError
+    elif (
+        generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX
+        and generated_code.arch <= Arch.LIBXSMM_X86_ALLFEAT
+    ):
+        generator_kloop_kernel = libxsmm_generator_gemm_avx512_kloop_kernel
+    else:
+        assert False, (
+            f"Unsupported architecture {generated_code.arch} for micro-kernel generation"
+        )
 
-#   if ( l_is_Amxfp4_Bfp32_gemm > 0 || l_is_Amxfp4_Bbf16_gemm > 0 || l_is_Amxfp4_Bi8_gemm > 0 ) {
-#     l_k_blocking = 32;
-#     l_k_threshold = i_xgemm_desc->k;
-#   }
+    if is_Ai4_Bi8_gemm and GemmFlag.USE_MxK_ZPT in desc.flags:
+        raise NotImplementedError
 
-#   /* set up architecture dependent compute micro kernel generator */
-#   if ( io_generated_code->arch < LIBXSMM_TARGET_ARCH_GENERIC ) {
-#     LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_ARCH );
-#     return;
-#   } else if ( l_is_Amxfp4_Bfp32_gemm > 0 || l_is_Amxfp4_Bbf16_gemm > 0 || l_is_Amxfp4_Bi8_gemm > 0) {
-#     l_generator_kloop_kernel = libxsmm_generator_gemm_avx2_kloop_kernel;
-#   } else if ( io_generated_code->arch <= LIBXSMM_X86_SSE42 ) {
-#     l_generator_kloop_kernel = libxsmm_generator_gemm_sse_kloop_kernel;
-#   } else if ( io_generated_code->arch == LIBXSMM_X86_AVX ) {
-#     l_generator_kloop_kernel = libxsmm_generator_gemm_avx_kloop_kernel;
-#   } else if ( (io_generated_code->arch >= LIBXSMM_X86_AVX2) && (io_generated_code->arch < LIBXSMM_X86_AVX512_VL128_SKX) ) {
-#     l_generator_kloop_kernel = libxsmm_generator_gemm_avx2_kloop_kernel;
-#   } else if ( ( io_generated_code->arch >= LIBXSMM_X86_AVX512_VL256_SKX ) && ( io_generated_code->arch <= LIBXSMM_X86_ALLFEAT ) ) {
-#     l_generator_kloop_kernel = libxsmm_generator_gemm_avx512_kloop_kernel;
-#   } else {
-#     LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_ARCH );
-#     return;
-#   }
+    if is_Ai8_Bbf16_gemm and is_Ai8_Bbf16_gemm_bf16fma:
+        raise NotImplementedError
 
-#   if (l_is_Ai4_Bi8_gemm > 0 &&  ((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_MxK_ZPT) > 0 )) {
-#     unsigned int l_m_blocking = ( i_m_blocking % i_micro_kernel_config->vector_length == 0 ) ? i_m_blocking/i_micro_kernel_config->vector_length : (i_m_blocking/i_micro_kernel_config->vector_length)+1;
-#     unsigned int l_m;
-#     libxsmm_generator_gemm_getval_stack_var( io_generated_code, i_micro_kernel_config, LIBXSMM_GEMM_STACK_VAR_ZPT_BRGEMM_PTR, i_gp_reg_mapping->gp_reg_help_2 );
-#     for ( l_m = 0; l_m < l_m_blocking; l_m++ ) {
-#       char vname_ld = 'x';
-#       unsigned int l_vreg = 3 + l_m;
-#       unsigned int l_vperm_reg = 2;
-#       libxsmm_x86_instruction_unified_vec_move( io_generated_code, LIBXSMM_X86_INSTR_VMOVDQU8,
-#           i_gp_reg_mapping->gp_reg_help_2, LIBXSMM_X86_GP_REG_UNDEF, 0,
-#           (l_m * i_micro_kernel_config->vector_length) * (i_micro_kernel_config->datatype_size_in2),
-#           vname_ld,
-#           l_vreg, ( l_m == (l_m_blocking - 1) ) ? i_micro_kernel_config->use_masking_a_c : 0, 1, 0 );
-#       if (io_generated_code->arch >= LIBXSMM_X86_AVX512_SPR) {
-#         /* Permute with vperm register 2 to get partially brodcasted vector: [0 0 0 0 1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 4 5 5 5 5 ...] */
-#         libxsmm_x86_instruction_vec_compute_3reg( io_generated_code, LIBXSMM_X86_INSTR_VPERMB, i_micro_kernel_config->vector_name, l_vreg, l_vperm_reg, l_vreg);
-#       } else {
-#         libxsmm_x86_instruction_vec_compute_2reg( io_generated_code, LIBXSMM_X86_INSTR_VPMOVZXBD, i_micro_kernel_config->vector_name, l_vreg, l_vreg);
-#         libxsmm_x86_instruction_vec_compute_2reg_imm8( io_generated_code, LIBXSMM_X86_INSTR_VPSLLD_I, i_micro_kernel_config->vector_name, l_vreg, l_vperm_reg, 8 );
-#         libxsmm_x86_instruction_vec_compute_3reg( io_generated_code, LIBXSMM_X86_INSTR_VPORD, i_micro_kernel_config->vector_name, l_vperm_reg, l_vreg, l_vreg );
-#         libxsmm_x86_instruction_vec_compute_2reg_imm8( io_generated_code, LIBXSMM_X86_INSTR_VPSLLD_I, i_micro_kernel_config->vector_name, l_vreg, l_vperm_reg, 16 );
-#         libxsmm_x86_instruction_vec_compute_3reg( io_generated_code, LIBXSMM_X86_INSTR_VPORD, i_micro_kernel_config->vector_name, l_vperm_reg, l_vreg, l_vreg );
-#       }
-#     }
-#   }
+    # Apply multiple k_blocking strategies
 
-#   if (l_is_Ai8_Bbf16_gemm > 0 && l_is_Ai8_Bbf16_gemm_bf16fma == 0) {
-#     libxsmm_generator_vcvtneps2bf16_avx512_prep_stack( io_generated_code, i_gp_reg_mapping->gp_reg_help_2 );
-#   }
+    if not desc.k % k_blocking and k_threshold < desc.k:
+        # 1. we are larger the k_threshold and a multiple of a predefined blocking parameter
+        libxsmm_generator_gemm_header_kloop(
+            generated_code,
+            label_tracker,
+            gp_reg_mapping,
+            micro_kernel_config,
+            m_blocking,
+            k_blocking,
+        )
+        generator_kloop_kernel(
+            generated_code,
+            gp_reg_mapping,
+            micro_kernel_config,
+            desc,
+            m_blocking,
+            n_blocking,
+            k_blocking,
+        )
+        libxsmm_generator_gemm_footer_kloop(
+            generated_code,
+            label_tracker,
+            gp_reg_mapping,
+            micro_kernel_config,
+            desc,
+            m_blocking,
+            desc.k,
+            True,
+        )
+    else:
+        b_offset = 0
+        # 2. we want to fully unroll below the threshold
+        if desc.k <= k_threshold:
+            generator_kloop_kernel(
+                generated_code,
+                gp_reg_mapping,
+                micro_kernel_config,
+                desc,
+                m_blocking,
+                n_blocking,
+                desc.k,
+            )
+        # 3. we are larger than the threshold but not a multiple of the blocking factor -> largest possible blocking + remainder handling
+        else:
+            # Largest possible blocking
+            l_max_blocked_k = (desc.k // k_blocking) * k_blocking
 
-#   /* apply multiple k_blocking strategies */
-#   /* 1. we are larger the k_threshold and a multiple of a predefined blocking parameter */
-#   if ((i_xgemm_desc->k % l_k_blocking) == 0 && (l_k_threshold < (unsigned int)i_xgemm_desc->k)) {
-#     libxsmm_generator_gemm_header_kloop( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, i_micro_kernel_config, i_m_blocking, l_k_blocking);
+            # We can block as k is large enough
+            if l_max_blocked_k > 0:
+                libxsmm_generator_gemm_header_kloop(
+                    generated_code,
+                    label_tracker,
+                    gp_reg_mapping,
+                    micro_kernel_config,
+                    m_blocking,
+                    k_blocking,
+                )
 
-#     l_generator_kloop_kernel(io_generated_code, i_gp_reg_mapping, i_micro_kernel_config,
-#       i_xgemm_desc, i_m_blocking, i_n_blocking, l_k_blocking);
+                generator_kloop_kernel(
+                    generated_code,
+                    gp_reg_mapping,
+                    micro_kernel_config,
+                    desc,
+                    m_blocking,
+                    n_blocking,
+                    k_blocking,
+                )
 
-#     libxsmm_generator_gemm_footer_kloop( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, i_micro_kernel_config,
-#       i_xgemm_desc, i_m_blocking, i_xgemm_desc->k, 1 );
-#   } else {
-#     int l_b_offset = 0;
-#     /* 2. we want to fully unroll below the threshold */
-#     if ((unsigned int)i_xgemm_desc->k <= l_k_threshold) {
-#       l_generator_kloop_kernel(io_generated_code, i_gp_reg_mapping, i_micro_kernel_config,
-#         i_xgemm_desc, i_m_blocking, i_n_blocking, (unsigned int)i_xgemm_desc->k);
-#     /* 3. we are larger than the threshold but not a multiple of the blocking factor -> largest possible blocking + remainder handling */
-#     } else {
-#       unsigned int l_max_blocked_k = ((i_xgemm_desc->k)/l_k_blocking)*l_k_blocking;
+                libxsmm_generator_gemm_footer_kloop(
+                    generated_code,
+                    label_tracker,
+                    gp_reg_mapping,
+                    micro_kernel_config,
+                    desc,
+                    m_blocking,
+                    l_max_blocked_k,
+                    False,
+                )
 
-#       /* we can block as k is large enough */
-#       if ( l_max_blocked_k > 0 ) {
-#         libxsmm_generator_gemm_header_kloop( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, i_micro_kernel_config, i_m_blocking, l_k_blocking);
+            # Now handle the remainder
+            generator_kloop_kernel(
+                generated_code,
+                gp_reg_mapping,
+                micro_kernel_config,
+                desc,
+                m_blocking,
+                n_blocking,
+                desc.k - l_max_blocked_k,
+            )
 
-#         l_generator_kloop_kernel(io_generated_code, i_gp_reg_mapping, i_micro_kernel_config,
-#           i_xgemm_desc, i_m_blocking, i_n_blocking, l_k_blocking);
+            # Reset B pointer
+            if GemmFlag.TRANS_B in desc.flags:
+                b_offset = desc.ldb * desc.k * micro_kernel_config.datatype_size_in2
+            else:
+                b_offset = desc.k * micro_kernel_config.datatype_size_in2
 
-#         libxsmm_generator_gemm_footer_kloop( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, i_micro_kernel_config,
-#           i_xgemm_desc, i_m_blocking, l_max_blocked_k, 0 );
-#       }
+            generated_code.insert(
+                x86.ops.RI_SubOp(
+                    generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b],
+                    b_offset,
+                    register_out=gp_reg_mapping.gp_reg_b,
+                )
+            )
 
-#       /* now we handle the remainder handling */
-#       l_generator_kloop_kernel(io_generated_code, i_gp_reg_mapping, i_micro_kernel_config,
-#         i_xgemm_desc, i_m_blocking, i_n_blocking, ((unsigned int)i_xgemm_desc->k) - l_max_blocked_k );
-#     }
-
-#     /* reset B pointer */
-#     if ( (i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_TRANS_B) > 0 ) {
-#       l_b_offset = i_xgemm_desc->ldb * i_xgemm_desc->k * i_micro_kernel_config->datatype_size_in2;
-#     } else {
-#       l_b_offset = i_xgemm_desc->k * i_micro_kernel_config->datatype_size_in2;
-#     }
-
-#     libxsmm_x86_instruction_alu_imm( io_generated_code, i_micro_kernel_config->alu_sub_instruction,
-#       i_gp_reg_mapping->gp_reg_b, l_b_offset );
-#   }
-
-#   if (l_is_Ai8_Bbf16_gemm > 0 && l_is_Ai8_Bbf16_gemm_bf16fma == 0) {
-#     libxsmm_generator_vcvtneps2bf16_avx512_clean_stack( io_generated_code, i_gp_reg_mapping->gp_reg_help_2 );
-#   }
-# }
+    if is_Ai8_Bbf16_gemm and not is_Ai8_Bbf16_gemm_bf16fma:
+        raise NotImplementedError
 
 
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
