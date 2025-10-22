@@ -46,9 +46,7 @@ def libxsmm_x86_instruction_jump_back_to_label(
     assert (cmp_op := curr_block.last_op) is not None
     assert len(cmp_op.results) == 1
 
-    builder.insert(
-        jmp_instr(cmp_op, curr_args, curr_args, dest_block, fallthrough_block)
-    )
+    builder.insert(jmp_instr(curr_args, curr_args, dest_block, fallthrough_block))
 
     # set insert point to fallthrough block and update current values
     builder.insertion_point = InsertPoint.at_start(fallthrough_block)

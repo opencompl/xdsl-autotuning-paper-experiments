@@ -80,7 +80,6 @@ def libxsmm_generator_gemm_footer_kloop(
         x86.ops.SI_CmpOp(
             generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_kloop],
             max_blocked_k,
-            result=x86.registers.RFLAGS,
         )
     )
 
