@@ -44,7 +44,7 @@ def libxsmm_x86_instruction_jump_back_to_label(
     assert len(cmp_op.results) == 1
 
     generated_code.insert(
-        jmp_instr(curr_args, curr_args, dest_block, fallthrough_block)
+        jmp_instr(cmp_op, curr_args, curr_args, dest_block, fallthrough_block)
     )
 
     # set insert point to fallthrough block and update current values
