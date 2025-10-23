@@ -1,6 +1,20 @@
 from xdsl.builder import Builder
 from xdsl.dialects import x86
-from xdsl.dialects.x86 import registers
+from xdsl.dialects.x86.registers import (
+    R10,
+    R11,
+    R12,
+    R14,
+    R15,
+    R8,
+    R9,
+    RBX,
+    RCX,
+    RDI,
+    RDX,
+    RSI,
+    UNALLOCATED_GENERAL,
+)
 from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import (
@@ -35,28 +49,17 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
 
     # Define GP register mapping
 
-    # #if defined(_WIN32) || defined(__CYGWIN__)
-    #   l_gp_reg_mapping.gp_reg_param_struct = LIBXSMM_X86_GP_REG_RCX;
-    # #else /* match calling convention on Linux */
-    gp_reg_mapping.gp_reg_param_struct = registers.RDI
-    # #endif
+    gp_reg_mapping.gp_reg_param_struct = RDI
 
     gp_reg_mapping.gp_reg_a = gp_reg_mapping.gp_reg_param_struct
-    gp_reg_mapping.gp_reg_b = registers.RSI
-    gp_reg_mapping.gp_reg_c = registers.RDX
-    gp_reg_mapping.gp_reg_a_prefetch = registers.RCX
-    gp_reg_mapping.gp_reg_b_prefetch = registers.R8
-    gp_reg_mapping.gp_reg_zpt = registers.R9
+    gp_reg_mapping.gp_reg_b = RSI
+    gp_reg_mapping.gp_reg_c = RDX
+    gp_reg_mapping.gp_reg_a_prefetch = RCX
+    gp_reg_mapping.gp_reg_b_prefetch = R8
+    gp_reg_mapping.gp_reg_zpt = R9
 
     # Python translation of register assignment logic
     dt = desc.datatype
-
-    # Import register symbols for clarity
-    RCX = registers.RCX
-    RBX = registers.RBX
-    R8 = registers.R8
-    R9 = registers.R9
-    # UNDEF is not a real register, so we use None in Python
 
     if dt.a == dt.b == "I8" and dt.c == "F32" and not is_amxfp4_bi8_gemm:
         gp_reg_mapping.gp_reg_scf = RCX
@@ -74,7 +77,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         gp_reg_mapping.gp_reg_a_prefetch = R8
         gp_reg_mapping.gp_reg_b_prefetch = R9
     else:
-        gp_reg_mapping.gp_reg_scf = registers.UNALLOCATED_GENERAL  # GP_REG_UNDEF
+        gp_reg_mapping.gp_reg_scf = UNALLOCATED_GENERAL  # GP_REG_UNDEF
         gp_reg_mapping.gp_reg_a_prefetch = RCX
         gp_reg_mapping.gp_reg_b_prefetch = R8
 
@@ -93,12 +96,12 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     elif GEMMFlag.BATCH_REDUCE_OFFSET in desc.flags:
         raise NotImplementedError
 
-    gp_reg_mapping.gp_reg_mloop = registers.R10
-    gp_reg_mapping.gp_reg_nloop = registers.R11
-    gp_reg_mapping.gp_reg_kloop = registers.R12
-    gp_reg_mapping.gp_reg_help_0 = registers.R14
-    gp_reg_mapping.gp_reg_help_1 = registers.R15
-    gp_reg_mapping.gp_reg_help_2 = registers.RBX
+    gp_reg_mapping.gp_reg_mloop = R10
+    gp_reg_mapping.gp_reg_nloop = R11
+    gp_reg_mapping.gp_reg_kloop = R12
+    gp_reg_mapping.gp_reg_help_0 = R14
+    gp_reg_mapping.gp_reg_help_1 = R15
+    gp_reg_mapping.gp_reg_help_2 = RBX
 
     ret_op = func_op.body.block.last_op
     assert isinstance(ret_op, RetOp)

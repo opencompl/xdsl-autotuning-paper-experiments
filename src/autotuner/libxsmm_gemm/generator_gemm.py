@@ -1,9 +1,9 @@
 from pathlib import Path
 
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.dialects.x86.ops import print_assembly
 from xdsl.dialects.x86_func import FuncOp
 from xdsl.ir import Block, Region
+from xdsl.printer import Printer
 
 from autotuner.libxsmm_gemm.generator_common import libxsmm_mmfunction_signature
 from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
@@ -28,7 +28,7 @@ def libxsmm_generator_gemm_directasm(
 
     # Append code to source file
     with open(file_out, "w") as f:
-        print_assembly(module_op, f)
+        Printer(stream=f).print_op(func_op)
 
 
 def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescriptor):
