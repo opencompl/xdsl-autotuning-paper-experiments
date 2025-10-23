@@ -562,7 +562,7 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         assert k <= ldb or var_ld
 
     # Check LDC
-    assert ldc >= m or var_ld != 0
+    assert ldc >= m or var_ld
 
     # Check for trans A cases which are not supported in the generator
     if flags & GEMMFlag.TRANS_A:
