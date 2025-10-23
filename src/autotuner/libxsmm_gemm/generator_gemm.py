@@ -27,7 +27,7 @@ def libxsmm_generator_gemm_directasm(
     libxsmm_generator_gemm_kernel(func_op, arch, desc)
 
     # Append code to source file
-    with open(file_out, "rw") as f:
+    with open(file_out, "w") as f:
         print_assembly(module_op, f)
 
 
