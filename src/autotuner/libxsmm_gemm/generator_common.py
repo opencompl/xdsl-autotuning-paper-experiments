@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects.x86.registers import (
     RDI,
@@ -22,3 +24,8 @@ def libxsmm_mmfunction_signature(module: ModuleOp, routine_name: str) -> FuncOp:
     Rewriter.insert_op(func, InsertPoint.at_end(module.body.block))
 
     return func
+
+
+@dataclass
+class MicroKernelConfig:
+    """libxsmm_micro_kernel_config"""
