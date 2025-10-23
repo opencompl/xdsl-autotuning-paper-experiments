@@ -22,6 +22,7 @@ xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "0186e47418101ea
 hello = "autotuner.main:main"
 plot-ttile = "autotuner.plot_ttile:main"
 plot-cube = "autotuner.plot_cube:main"
+libxsmm-gemm = "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver:main"
 
 [tool.setuptools]
 package-dir = { "autotuner" = "src/autotuner" }
