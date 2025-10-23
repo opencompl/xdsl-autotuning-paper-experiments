@@ -10,8 +10,8 @@ def gemm_flags(transa: str, transb: str) -> GEMMFlag:
         transb: Transpose argument for B. Should be a single character.
 
     Returns:
-        Integer value representing the combination of GemmFlag.TRANS_A and GemmFlag.TRANS_B as needed.
-        (Assumes GemmFlag enum is imported.)
+        Integer value representing the combination of GEMMFlag.TRANS_A and GEMMFlag.TRANS_B as needed.
+        (Assumes GEMMFlag enum is imported.)
     """
     flags = GEMMFlag.NONE
 
