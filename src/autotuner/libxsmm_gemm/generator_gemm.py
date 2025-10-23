@@ -538,6 +538,7 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
     ) and datatype.ab == DataType.F64:
         vector_length = 4
     else:
+        print(arch)
         assert False, (
             "Unsupported architecture or datatype for vector length determination"
         )

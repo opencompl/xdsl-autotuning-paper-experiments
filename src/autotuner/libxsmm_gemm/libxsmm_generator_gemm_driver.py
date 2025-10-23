@@ -53,7 +53,7 @@ def main():
 
     # parse DataType
     match args.precision:
-        case "F32" | "F64":
+        case "SP" | "DP":
             dt = DataType.F32 if args.precision == "SP" else DataType.F64
             desc_datatype = DescDataType(dt, dt, dt, dt)
         case "I16":
@@ -77,7 +77,7 @@ def main():
     if args.align_c:
         flags |= GemmFlag.ALIGN_C
 
-    if args.lbeta == 0:
+    if args.beta == 0:
         flags |= GemmFlag.BETA_0
 
     descriptor = GEMMDescriptor(
@@ -92,7 +92,7 @@ def main():
         prefetch=args.prefetch,
     )
 
-    assert args.density == "dense_asm", f"Only dense_asm supported, got {args.density}"
+    assert args.density == "dense", f"Only dense_asm supported, got {args.density}"
     assert arch == Arch.LIBXSMM_X86_AVX512_SKX, f"Only `skx` arch supported, got {arch}"
 
     libxsmm_generator_gemm_directasm(args.filename, args.routine_name, descriptor, arch)
