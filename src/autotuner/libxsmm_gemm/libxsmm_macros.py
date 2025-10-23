@@ -1,7 +1,7 @@
-from autotuner.libxsmm_gemm.libxsmm_main import GemmFlag
+from autotuner.libxsmm_gemm.libxsmm_main import GEMMFlag
 
 
-def gemm_flags(transa: str, transb: str) -> GemmFlag:
+def gemm_flags(transa: str, transb: str) -> GEMMFlag:
     """
     Consolidate BLAS-transpose indicators into a set of flags as in C macro LIBXSMM_GEMM_FLAGS.
 
@@ -10,15 +10,15 @@ def gemm_flags(transa: str, transb: str) -> GemmFlag:
         transb: Transpose argument for B. Should be a single character.
 
     Returns:
-        Integer value representing the combination of GemmFlag.TRANS_A and GemmFlag.TRANS_B as needed.
-        (Assumes GemmFlag enum is imported.)
+        Integer value representing the combination of GEMMFlag.TRANS_A and GEMMFlag.TRANS_B as needed.
+        (Assumes GEMMFlag enum is imported.)
     """
-    flags = GemmFlag.NONE
+    flags = GEMMFlag.NONE
 
     if transa not in "nN":
-        flags |= GemmFlag.TRANS_A
+        flags |= GEMMFlag.TRANS_A
 
     if transb not in "nN":
-        flags |= GemmFlag.TRANS_B
+        flags |= GEMMFlag.TRANS_B
 
     return flags

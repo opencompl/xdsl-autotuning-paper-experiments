@@ -1,9 +1,9 @@
 from pathlib import Path
 from autotuner.libxsmm_gemm.generator_gemm import libxsmm_generator_gemm_directasm
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
-from autotuner.libxsmm_gemm.libxsmm_main import DescDataType, GEMMDescriptor, GemmFlag
+from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
 from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
-from autotuner.libxsmm_gemm.libxsmm_typedefs import DataType
+from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
 def main():
@@ -51,14 +51,14 @@ def main():
         else:
             parser.error(f"Unrecognized density argument: {args.density}")
 
-    # parse DataType
+    # parse Datatype
     match args.precision:
         case "SP" | "DP":
-            dt = DataType.F32 if args.precision == "SP" else DataType.F64
-            desc_datatype = DescDataType(dt, dt, dt, dt)
+            dt = Datatype.F32 if args.precision == "SP" else Datatype.F64
+            desc_datatype = DescDatatype(dt, dt, dt, dt)
         case "I16":
-            desc_datatype = DescDataType(
-                DataType.I16, DataType.I16, DataType.I32, DataType.I32
+            desc_datatype = DescDatatype(
+                Datatype.I16, Datatype.I16, Datatype.I32, Datatype.I32
             )
         case _:
             parser.error(f"Unsupported precision: {args.precision}")
@@ -72,13 +72,13 @@ def main():
     flags = gemm_flags("N", "N")
 
     if args.align_a:
-        flags |= GemmFlag.ALIGN_A
+        flags |= GEMMFlag.ALIGN_A
 
     if args.align_c:
-        flags |= GemmFlag.ALIGN_C
+        flags |= GEMMFlag.ALIGN_C
 
     if args.beta == 0:
-        flags |= GemmFlag.BETA_0
+        flags |= GEMMFlag.BETA_0
 
     descriptor = GEMMDescriptor(
         m=args.m,
@@ -92,7 +92,7 @@ def main():
         prefetch=args.prefetch,
     )
 
-    assert args.density == "dense", f"Only dense_asm supported, got {args.density}"
+    assert args.density == "dense", f"Only dense supported, got {args.density}"
     assert arch == Arch.LIBXSMM_X86_AVX512_SKX, f"Only `skx` arch supported, got {arch}"
 
     libxsmm_generator_gemm_directasm(args.filename, args.routine_name, descriptor, arch)

@@ -1,7 +1,7 @@
 from enum import StrEnum, auto
 
 
-class DataType(StrEnum):
+class Datatype(StrEnum):
     # Order preserved from libxsmm
     F64 = auto()
     F32 = auto()

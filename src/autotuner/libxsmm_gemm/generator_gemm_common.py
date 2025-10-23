@@ -13,7 +13,7 @@ from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 
 from xdsl.dialects import x86
 
-from autotuner.libxsmm_gemm.libxsmm_main import GEMMDescriptor, GemmFlag
+from autotuner.libxsmm_gemm.libxsmm_main import GEMMDescriptor, GEMMFlag
 
 
 def libxsmm_generator_gemm_header_kloop(
@@ -86,7 +86,7 @@ def libxsmm_generator_gemm_footer_kloop(
     )
     if k_loop_complete:
         b_offset = 0
-        if GemmFlag.TRANS_B in gemm_desc.flags:
+        if GEMMFlag.TRANS_B in gemm_desc.flags:
             b_offset = (
                 gemm_desc.ldb * gemm_desc.k * micro_kernel_config.datatype_size_in2
             )

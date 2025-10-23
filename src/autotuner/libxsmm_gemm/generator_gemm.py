@@ -10,8 +10,8 @@ from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
     libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.libxsmm_gemm.libxsmm_main import DescDataType, GEMMDescriptor, GemmFlag
-from autotuner.libxsmm_gemm.libxsmm_typedefs import DataType
+from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
+from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
 def libxsmm_generator_gemm_directasm(
@@ -71,7 +71,7 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
                 arch = Arch.LIBXSMM_X86_AVX2
 
     # Check if it s a supported spmm with bitmap
-    if GemmFlag.DECOMPRESS_A_VIA_BITMASK in flags:
+    if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in flags:
         raise NotImplementedError
 
     #   /* check for generally supported precisions */
@@ -125,22 +125,22 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
     if arch >= Arch.LIBXSMM_RV64_MVL128:
         # Currently, RVV supports F32 without transpose only
         match datatype:
-            case DescDataType(
-                DataType.F32, DataType.F32, DataType.F32, DataType.F32
-            ) | DescDataType(
-                DataType.F64,
-                DataType.F64,
-                DataType.F64,
-                DataType.F64,
+            case DescDatatype(
+                Datatype.F32, Datatype.F32, Datatype.F32, Datatype.F32
+            ) | DescDatatype(
+                Datatype.F64,
+                Datatype.F64,
+                Datatype.F64,
+                Datatype.F64,
             ):
                 pass
             case _:
                 raise NotImplementedError
 
-    if GemmFlag.VNNI_A in flags:
+    if GEMMFlag.VNNI_A in flags:
         raise NotImplementedError
 
-    if GemmFlag.VNNI_B in flags:
+    if GEMMFlag.VNNI_B in flags:
         raise NotImplementedError
 
     if Arch.LIBXSMM_X86_GENERIC <= arch <= Arch.LIBXSMM_X86_ALLFEAT:
@@ -160,67 +160,67 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             raise NotImplementedError
 
     # We allow b vnniT for x86 and bf16 whenever possible
-    if GemmFlag.VNNI_B in flags and (
+    if GEMMFlag.VNNI_B in flags and (
         Arch.LIBXSMM_X86_GENERIC <= arch <= Arch.LIBXSMM_X86_ALLFEAT
     ):
-        assert GemmFlag.TRANS_B in flags
-        assert datatype.ab == DataType.BF16
+        assert GEMMFlag.TRANS_B in flags
+        assert datatype.ab == Datatype.BF16
         # We are fine, use avx512 path
         if arch >= Arch.LIBXSMM_X86_AVX512_SPR:
             arch = Arch.LIBXSMM_X86_AVX512_SKX
 
     # Overwrite VNNI Flag when K == 1
-    if datatype.ab == DataType.BF16 and k == 1 and GemmFlag.VNNI_A in flags:
-        flags &= ~GemmFlag.VNNI_A
+    if datatype.ab == Datatype.BF16 and k == 1 and GEMMFlag.VNNI_A in flags:
+        flags &= ~GEMMFlag.VNNI_A
 
-    assert datatype.c not in (DataType.I16, DataType.I8)
+    assert datatype.c not in (Datatype.I16, Datatype.I8)
 
     # determining vector length depending on architecture and precision
     if arch <= Arch.LIBXSMM_TARGET_ARCH_GENERIC:
         # Nothing to do
         pass
-    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == DataType.F64:
+    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == Datatype.F64:
         vector_length = 2
-    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == DataType.F32:
+    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == Datatype.F32:
         vector_length = 4
-    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == DataType.I8:
+    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == Datatype.I8:
         vector_length = 4
         assert not k % 4
-    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == DataType.I16:
+    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == Datatype.I16:
         vector_length = 4
         assert not k % 2
-    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == DataType.BF16:
+    elif arch < Arch.LIBXSMM_X86_AVX and datatype.ab == Datatype.BF16:
         # some checks as we cannot mask everything
-        assert not k % 2 or GemmFlag.VNNI_A not in flags
-        if GemmFlag.VNNI_A not in flags:
+        assert not k % 2 or GEMMFlag.VNNI_A not in flags
+        if GEMMFlag.VNNI_A not in flags:
             vector_length = 8
         else:
             vector_length = 4
-    elif arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and datatype.ab == DataType.F64:
+    elif arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and datatype.ab == Datatype.F64:
         vector_length = 4
-    elif arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and datatype.ab == DataType.F32:
+    elif arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and datatype.ab == Datatype.F32:
         vector_length = 8
     elif (
         Arch.LIBXSMM_X86_AVX2 <= arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX
-        and datatype.ab == DataType.I8
+        and datatype.ab == Datatype.I8
     ):
         vector_length = 8
         assert k % 4 == 0, "For AVX2-I8, K must be divisible by 4."
     elif (
         Arch.LIBXSMM_X86_AVX2 <= arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX
-        and datatype.ab == DataType.I16
+        and datatype.ab == Datatype.I16
     ):
         vector_length = 8
         assert k % 2 == 0, "For AVX2-I16, K must be divisible by 2."
     elif (
         Arch.LIBXSMM_X86_AVX2 <= arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX
-        and datatype.ab == DataType.BF16
+        and datatype.ab == Datatype.BF16
     ):
         # some checks as we cannot mask everything
-        assert not (k % 2 != 0 and GemmFlag.VNNI_A in flags), (
+        assert not (k % 2 != 0 and GEMMFlag.VNNI_A in flags), (
             "For AVX2-BF16 with VNNI_A, K must be even."
         )
-        if GemmFlag.VNNI_A not in flags:
+        if GEMMFlag.VNNI_A not in flags:
             vector_length = 16
         else:
             vector_length = 8
@@ -231,47 +231,47 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         assert k % 32 == 0, (
             "For Amxfp4_Bfp32/Bbf16/Bi8 kernels, K must be divisible by 32."
         )
-    elif arch <= Arch.LIBXSMM_X86_AVX512_VL256_SKX and datatype.ab == DataType.F64:
+    elif arch <= Arch.LIBXSMM_X86_AVX512_VL256_SKX and datatype.ab == Datatype.F64:
         vector_length = 4
-    elif arch <= Arch.LIBXSMM_X86_AVX512_VL256_SKX and datatype.ab == DataType.F32:
+    elif arch <= Arch.LIBXSMM_X86_AVX512_VL256_SKX and datatype.ab == Datatype.F32:
         vector_length = 8
-    elif arch == Arch.LIBXSMM_X86_AVX512_VL256_CLX and datatype.ab == DataType.F64:
+    elif arch == Arch.LIBXSMM_X86_AVX512_VL256_CLX and datatype.ab == Datatype.F64:
         vector_length = 4
-    elif arch == Arch.LIBXSMM_X86_AVX512_VL256_CLX and datatype.ab == DataType.F32:
+    elif arch == Arch.LIBXSMM_X86_AVX512_VL256_CLX and datatype.ab == Datatype.F32:
         vector_length = 8
-    elif arch == Arch.LIBXSMM_X86_AVX512_VL256_CPX and datatype.ab == DataType.F64:
+    elif arch == Arch.LIBXSMM_X86_AVX512_VL256_CPX and datatype.ab == Datatype.F64:
         vector_length = 4
-    elif arch == Arch.LIBXSMM_X86_AVX512_VL256_CPX and datatype.ab == DataType.F32:
+    elif arch == Arch.LIBXSMM_X86_AVX512_VL256_CPX and datatype.ab == Datatype.F32:
         vector_length = 8
-    elif arch <= Arch.LIBXSMM_X86_ALLFEAT and datatype.ab == DataType.F64:
+    elif arch <= Arch.LIBXSMM_X86_ALLFEAT and datatype.ab == Datatype.F64:
         vector_length = 8
-    elif arch <= Arch.LIBXSMM_X86_ALLFEAT and datatype.ab == DataType.F32:
+    elif arch <= Arch.LIBXSMM_X86_ALLFEAT and datatype.ab == Datatype.F32:
         vector_length = 16
     elif (
         arch <= Arch.LIBXSMM_X86_ALLFEAT
         and Arch.LIBXSMM_X86_AVX512_VL256_SKX <= arch < Arch.LIBXSMM_X86_AVX512_SKX
-        and datatype.ab == DataType.I16
+        and datatype.ab == Datatype.I16
     ):
         vector_length = 8
         # some checks as we cannot mask everything
         assert k % 2 == 0, "For AVX512VL_I16, K must be even."
     elif (
         Arch.LIBXSMM_X86_AVX512_SKX <= arch <= Arch.LIBXSMM_X86_ALLFEAT
-        and datatype.ab == DataType.I16
+        and datatype.ab == Datatype.I16
     ):
         vector_length = 16
         # some checks as we cannot mask everything
         assert not k % 2, "For AVX512SKX+ I16, K must be even."
     elif Arch.LIBXSMM_X86_AVX512_VL256_SKX <= arch < Arch.LIBXSMM_X86_AVX512_SKX and (
-        datatype.ab == DataType.I8
-        or datatype.ab == DataType.HF8
-        or datatype.ab == DataType.BF8
+        datatype.ab == Datatype.I8
+        or datatype.ab == Datatype.HF8
+        or datatype.ab == Datatype.BF8
     ):
         vector_length = 8
         assert not k % 4, "For AVX512VL_I8/HF8/BF8, K must be divisible by 4."
     elif (
         Arch.LIBXSMM_X86_AVX512_SKX <= arch <= Arch.LIBXSMM_X86_ALLFEAT
-        and datatype.ab in (DataType.I8, DataType.HF8, DataType.BF8)
+        and datatype.ab in (Datatype.I8, Datatype.HF8, Datatype.BF8)
     ):
         vector_length = 16
         # some checks as we cannot mask everything
@@ -279,7 +279,7 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             assert not (
                 arch >= Arch.LIBXSMM_X86_AVX512_SPR
                 and not k % 2
-                and GemmFlag.VNNI_A not in flags
+                and GEMMFlag.VNNI_A not in flags
             ), (
                 "For AVX512_SKX+ I8/HF8/BF8, K must be divisible by 4 (unless SPR+ and K even, no VNNI_A)."
             )
@@ -295,39 +295,39 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
     elif (
         arch <= Arch.LIBXSMM_X86_ALLFEAT
         and Arch.LIBXSMM_X86_AVX512_VL256_SKX <= arch < Arch.LIBXSMM_X86_AVX512_SKX
-        and datatype.ab == DataType.BF16
+        and datatype.ab == Datatype.BF16
     ):
         # some checks as we cannot mask everything
-        assert GemmFlag.VNNI_A not in flags or k % 2, (
+        assert GEMMFlag.VNNI_A not in flags or k % 2, (
             "For AVX512VL_BF16 with VNNI_A, K must be even."
         )
-        if GemmFlag.VNNI_A not in flags:
+        if GEMMFlag.VNNI_A not in flags:
             vector_length = 16
         else:
             vector_length = 8
     elif (
         Arch.LIBXSMM_X86_AVX512_SKX <= arch <= Arch.LIBXSMM_X86_ALLFEAT
-        and datatype.ab == DataType.BF16
+        and datatype.ab == Datatype.BF16
     ):
         # some checks as we cannot mask everything
-        assert GemmFlag.VNNI_A not in flags or k % 2, (
+        assert GEMMFlag.VNNI_A not in flags or k % 2, (
             "For AVX512_SKX+ BF16 with VNNI_A, K must be even."
         )
-        if GemmFlag.VNNI_A not in flags:
+        if GEMMFlag.VNNI_A not in flags:
             vector_length = 32
         else:
             vector_length = 16
     elif Arch.LIBXSMM_X86_AVX512_GNR <= arch <= Arch.LIBXSMM_X86_ALLFEAT and (
-        datatype.ab == DataType.F16 and not k % 2 and GemmFlag.VNNI_A in flags
+        datatype.ab == Datatype.F16 and not k % 2 and GEMMFlag.VNNI_A in flags
     ):
         vector_length = 16
     elif (
         arch <= Arch.LIBXSMM_X86_ALLFEAT
-        and datatype.a == DataType.I8
-        and datatype.b == DataType.BF16
-        and (datatype.c in (DataType.BF16, DataType.F32))
+        and datatype.a == Datatype.I8
+        and datatype.b == Datatype.BF16
+        and (datatype.c in (Datatype.BF16, Datatype.F32))
     ):
-        assert not (GemmFlag.VNNI_A in flags and not is_amxfp4_bbf16_gemm), (
+        assert not (GEMMFlag.VNNI_A in flags and not is_amxfp4_bbf16_gemm), (
             "Unsupported: VNNI_A for I8-BF16 unless Amxfp4_Bbf16_gemm."
         )
         if arch >= Arch.LIBXSMM_X86_AVX512_CPX:
@@ -336,74 +336,74 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             vector_length = 8
     elif (
         Arch.LIBXSMM_X86_AVX512_SPR <= arch <= Arch.LIBXSMM_X86_ALLFEAT
-        and (datatype.a in (DataType.I8, DataType.BF8))
-        and datatype.b == DataType.F16
-        and (datatype.c in (DataType.F16, DataType.F32))
+        and (datatype.a in (Datatype.I8, Datatype.BF8))
+        and datatype.b == Datatype.F16
+        and (datatype.c in (Datatype.F16, Datatype.F32))
     ):
-        assert not (GemmFlag.VNNI_A in flags and arch < Arch.LIBXSMM_X86_AVX512_GNR), (
+        assert not (GEMMFlag.VNNI_A in flags and arch < Arch.LIBXSMM_X86_AVX512_GNR), (
             "Unsupported: VNNI_A for I8/BF8-F16 unless >= AVX512_GNR."
         )
-        if datatype.comp == DataType.F16 or datatype.comp == DataType.IMPLICIT:
+        if datatype.comp == Datatype.F16 or datatype.comp == Datatype.IMPLICIT:
             vector_length = 32
         else:
             vector_length = 16
     elif (
         Arch.LIBXSMM_X86_AVX512_SPR <= arch <= Arch.LIBXSMM_X86_ALLFEAT
-        and datatype.a in (DataType.HF8, DataType.BF8)
-        and datatype.b == DataType.BF16
-        and (datatype.c == DataType.BF16 or datatype.c == DataType.F32)
+        and datatype.a in (Datatype.HF8, Datatype.BF8)
+        and datatype.b == Datatype.BF16
+        and (datatype.c == Datatype.BF16 or datatype.c == Datatype.F32)
     ):
-        assert GemmFlag.VNNI_A in flags and not k % 2, (
+        assert GEMMFlag.VNNI_A in flags and not k % 2, (
             "Unsupported: For HF8/BF8-BF16 with VNNI_A, K must be even."
         )
         vector_length = 16
     elif (
         Arch.LIBXSMM_X86_AVX512_SPR <= arch <= Arch.LIBXSMM_X86_ALLFEAT
-        and datatype.ab == DataType.F16
-        and (datatype.c in (DataType.F16, DataType.F32))
+        and datatype.ab == Datatype.F16
+        and (datatype.c in (Datatype.F16, Datatype.F32))
     ):
-        assert GemmFlag.VNNI_A not in flags, (
+        assert GEMMFlag.VNNI_A not in flags, (
             "Unsupported: VNNI_A with F16 input and F16/F32 output on >= AVX512_SPR."
         )
-        if datatype.comp == DataType.F16 or datatype.comp == DataType.IMPLICIT:
+        if datatype.comp == Datatype.F16 or datatype.comp == Datatype.IMPLICIT:
             vector_length = 32
         else:
             vector_length = 16
     elif (
         Arch.LIBXSMM_X86_AVX512_SKX <= arch < Arch.LIBXSMM_X86_AVX512_SPR
-        and datatype.ab == DataType.F16
-        and (datatype.c in (DataType.F16, DataType.F32))
+        and datatype.ab == Datatype.F16
+        and (datatype.c in (Datatype.F16, Datatype.F32))
     ):
-        assert GemmFlag.VNNI_A not in flags, (
+        assert GEMMFlag.VNNI_A not in flags, (
             "Unsupported: VNNI_A with F16 input and F16/F32 output on SKX family (before SPR)."
         )
         vector_length = 16
     elif (
         Arch.LIBXSMM_X86_AVX512_VL256_SKX <= arch < Arch.LIBXSMM_X86_AVX512_SKX
-        and datatype.ab == DataType.F16
-        and datatype.c in (DataType.F16, DataType.F32)
+        and datatype.ab == Datatype.F16
+        and datatype.c in (Datatype.F16, Datatype.F32)
     ):
-        assert GemmFlag.VNNI_A not in flags, (
+        assert GEMMFlag.VNNI_A not in flags, (
             "Unsupported: VNNI_A with F16 input and F16/F32 output on <= VL256_SKX and < SKX."
         )
         vector_length = 8
     elif (
         Arch.LIBXSMM_X86_AVX512_SKX <= arch < Arch.LIBXSMM_X86_AVX512_SPR
-        and datatype.a in (DataType.I8, DataType.BF8)
-        and datatype.b == DataType.F16
-        and datatype.c in (DataType.F16, DataType.F32)
+        and datatype.a in (Datatype.I8, Datatype.BF8)
+        and datatype.b == Datatype.F16
+        and datatype.c in (Datatype.F16, Datatype.F32)
     ):
-        assert GemmFlag.VNNI_A not in flags, (
+        assert GEMMFlag.VNNI_A not in flags, (
             "Unsupported: VNNI_A for I8/BF8-F16 unless >= AVX512_GNR."
         )
         vector_length = 16
     elif (
         Arch.LIBXSMM_X86_AVX512_VL256_SKX <= arch < Arch.LIBXSMM_X86_AVX512_SKX
-        and datatype.a in (DataType.I8, DataType.BF8)
-        and datatype.b == DataType.F16
-        and datatype.c in (DataType.F16, DataType.F32)
+        and datatype.a in (Datatype.I8, Datatype.BF8)
+        and datatype.b == Datatype.F16
+        and datatype.c in (Datatype.F16, Datatype.F32)
     ):
-        assert GemmFlag.VNNI_A not in flags, (
+        assert GEMMFlag.VNNI_A not in flags, (
             "Unsupported: VNNI_A for I8/BF8-F16 on VL256_SKX <= arch < SKX."
         )
         vector_length = 8
@@ -419,64 +419,64 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         or is_amxfp4_bi8_gemm
     ) and (Arch.LIBXSMM_AARCH64_V81 <= arch <= Arch.LIBXSMM_AARCH64_ALLFEAT):
         assert False, "Unsupported GEMM combination or architecture precision."
-    elif arch == Arch.LIBXSMM_AARCH64_V81 and datatype.ab == DataType.F32:
+    elif arch == Arch.LIBXSMM_AARCH64_V81 and datatype.ab == Datatype.F32:
         vector_length = 4
-    elif arch == Arch.LIBXSMM_AARCH64_V81 and datatype.ab == DataType.F64:
+    elif arch == Arch.LIBXSMM_AARCH64_V81 and datatype.ab == Datatype.F64:
         vector_length = 2
-    elif arch == Arch.LIBXSMM_AARCH64_V82 and datatype.ab == DataType.F32:
+    elif arch == Arch.LIBXSMM_AARCH64_V82 and datatype.ab == Datatype.F32:
         vector_length = 4
-    elif arch == Arch.LIBXSMM_AARCH64_V82 and datatype.ab == DataType.F64:
+    elif arch == Arch.LIBXSMM_AARCH64_V82 and datatype.ab == Datatype.F64:
         vector_length = 2
-    elif arch == Arch.LIBXSMM_AARCH64_APPL_M1 and datatype.ab == DataType.F32:
+    elif arch == Arch.LIBXSMM_AARCH64_APPL_M1 and datatype.ab == Datatype.F32:
         vector_length = 4
-    elif arch == Arch.LIBXSMM_AARCH64_APPL_M1 and datatype.ab == DataType.F64:
+    elif arch == Arch.LIBXSMM_AARCH64_APPL_M1 and datatype.ab == Datatype.F64:
         vector_length = 2
     elif (
         arch in (Arch.LIBXSMM_AARCH64_SVE128, Arch.LIBXSMM_AARCH64_NEOV2)
-        and datatype.ab == DataType.F32
+        and datatype.ab == Datatype.F32
     ):
         vector_length = 4
     elif (
         arch in (Arch.LIBXSMM_AARCH64_SVE128, Arch.LIBXSMM_AARCH64_NEOV2)
-        and datatype.ab == DataType.F64
+        and datatype.ab == Datatype.F64
     ):
         vector_length = 2
     elif (
         arch in (Arch.LIBXSMM_AARCH64_SVE256, Arch.LIBXSMM_AARCH64_NEOV1)
-        and datatype.ab == DataType.F32
+        and datatype.ab == Datatype.F32
     ):
         vector_length = 8
     elif (
         arch in (Arch.LIBXSMM_AARCH64_SVE256, Arch.LIBXSMM_AARCH64_NEOV1)
-        and datatype.ab == DataType.F64
+        and datatype.ab == Datatype.F64
     ):
         vector_length = 4
     elif (
         arch in (Arch.LIBXSMM_AARCH64_SVE512, Arch.LIBXSMM_AARCH64_A64FX)
-        and datatype.ab == DataType.F32
+        and datatype.ab == Datatype.F32
     ):
         vector_length = 16
     elif (
         arch in (Arch.LIBXSMM_AARCH64_SVE512, Arch.LIBXSMM_AARCH64_A64FX)
-        and datatype.ab == DataType.F64
+        and datatype.ab == Datatype.F64
     ):
         vector_length = 8
-    elif arch == Arch.LIBXSMM_AARCH64_APPL_M4 and datatype.ab == DataType.F32:
+    elif arch == Arch.LIBXSMM_AARCH64_APPL_M4 and datatype.ab == Datatype.F32:
         vector_length = 16
-    elif arch == Arch.LIBXSMM_AARCH64_APPL_M4 and datatype.ab == DataType.F64:
+    elif arch == Arch.LIBXSMM_AARCH64_APPL_M4 and datatype.ab == Datatype.F64:
         vector_length = 8
     elif Arch.LIBXSMM_AARCH64_V81 <= arch <= Arch.LIBXSMM_AARCH64_ALLFEAT and (
-        (datatype.ab == DataType.BF16 and aarch64_bfdot)
-        or (datatype.ab == DataType.I8 and aarch64_i8dot)
+        (datatype.ab == Datatype.BF16 and aarch64_bfdot)
+        or (datatype.ab == Datatype.I8 and aarch64_i8dot)
     ):
         # TODO (BFDOT): add flags and check on MMLA-formated A/B
         # TODO (BFDOT): add support for at least m % 2 == 0, k % 4 == 0 when running BF16
         # TODO (BFDOT): adjust checks for future SVE kernels
-        if datatype.ab == DataType.BF16:
-            assert not desc.k % 2 or GemmFlag.VNNI_A not in flags, (
+        if datatype.ab == Datatype.BF16:
+            assert not desc.k % 2 or GEMMFlag.VNNI_A not in flags, (
                 "Unsupported: k must be a multiple of 2 when VNNI_A flag is set for BF16/BFDOT on AARCH64_V81..ALLFEAT"
             )
-        elif datatype.ab == DataType.I8:
+        elif datatype.ab == Datatype.I8:
             assert desc.k % 4 == 0, (
                 "Unsupported: k must be a multiple of 4 for I8/i8dot on AARCH64_V81..ALLFEAT"
             )
@@ -493,19 +493,19 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         else:
             assert False, "Unsupported architecture for BFDOT"
     elif Arch.LIBXSMM_AARCH64_V81 <= arch <= Arch.LIBXSMM_AARCH64_ALLFEAT and (
-        (datatype.ab == DataType.BF16 and not aarch64_bfdot)
-        or (datatype.ab == DataType.I8 and not aarch64_i8dot)
+        (datatype.ab == Datatype.BF16 and not aarch64_bfdot)
+        or (datatype.ab == Datatype.I8 and not aarch64_i8dot)
     ):
         # TODO (MMLA): add flags and check on MMLA-formated A/B
         # TODO (MMLA): add support for at least m % 2 == 0, k % 4 == 0 when running BF16
         # TODO (MMLA): adjust checks for future SVE kernels
-        if datatype.ab == DataType.BF16:
-            assert GemmFlag.VNNI_A not in flags or not desc.k % 4, (
+        if datatype.ab == Datatype.BF16:
+            assert GEMMFlag.VNNI_A not in flags or not desc.k % 4, (
                 "Unsupported: k must be a multiple of 4 for BF16 + VNNI_A"
             )
-        elif datatype.ab == DataType.I8:
+        elif datatype.ab == Datatype.I8:
             assert desc.k % 8 == 0, "Unsupported: k must be a multiple of 8 for I8"
-            assert GemmFlag.A_UNSIGNED not in flags or GemmFlag.B_UNSIGNED in flags, (
+            assert GEMMFlag.A_UNSIGNED not in flags or GEMMFlag.B_UNSIGNED in flags, (
                 "Unsupported: A unsigned but B not for I8"
             )
         # ASIMD + MMLA
@@ -523,19 +523,19 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             assert False, "Unsupported architecture for MMLA"
     elif (
         arch in (Arch.LIBXSMM_RV64_MVL128, Arch.LIBXSMM_RV64_MVL128_LMUL)
-    ) and datatype.ab == DataType.F32:
+    ) and datatype.ab == Datatype.F32:
         vector_length = 4
     elif (
         arch in (Arch.LIBXSMM_RV64_MVL128, Arch.LIBXSMM_RV64_MVL128_LMUL)
-    ) and datatype.ab == DataType.F64:
+    ) and datatype.ab == Datatype.F64:
         vector_length = 2
     elif (
         arch in (Arch.LIBXSMM_RV64_MVL256, Arch.LIBXSMM_RV64_MVL256_LMUL)
-    ) and datatype.ab == DataType.F32:
+    ) and datatype.ab == Datatype.F32:
         vector_length = 8
     elif (
         arch in (Arch.LIBXSMM_RV64_MVL256, Arch.LIBXSMM_RV64_MVL256_LMUL)
-    ) and datatype.ab == DataType.F64:
+    ) and datatype.ab == Datatype.F64:
         vector_length = 4
     else:
         print(arch)
@@ -544,19 +544,19 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         )
 
     # Check LDA
-    if flags & GemmFlag.TRANS_A:
+    if flags & GEMMFlag.TRANS_A:
         assert k <= lda or var_ld
 
-        if datatype.ab not in (DataType.F32, DataType.F64, DataType.BF16):
-            assert datatype.ab == DataType.F16 and arch >= Arch.LIBXSMM_X86_AVX512_DMR
+        if datatype.ab not in (Datatype.F32, Datatype.F64, Datatype.BF16):
+            assert datatype.ab == Datatype.F16 and arch >= Arch.LIBXSMM_X86_AVX512_DMR
         else:
             # BF16 A transpose is supported forflat A
-            assert GemmFlag.VNNI_A not in flags
+            assert GEMMFlag.VNNI_A not in flags
     else:
         assert m <= lda or var_ld
 
     # Check LDB
-    if GemmFlag.TRANS_B in flags:
+    if GEMMFlag.TRANS_B in flags:
         assert n <= ldb or var_ld
     else:
         assert k <= ldb or var_ld
@@ -565,29 +565,29 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
     assert ldc >= m or var_ld != 0
 
     # Check for trans A cases which are not supported in the generator
-    if flags & GemmFlag.TRANS_A:
-        if datatype.ab not in (DataType.F32, DataType.F64, DataType.BF16):
-            assert datatype.ab == DataType.F16 and arch >= Arch.LIBXSMM_X86_AVX512_DMR
+    if flags & GEMMFlag.TRANS_A:
+        if datatype.ab not in (Datatype.F32, Datatype.F64, Datatype.BF16):
+            assert datatype.ab == Datatype.F16 and arch >= Arch.LIBXSMM_X86_AVX512_DMR
         else:
             # BF16 A transpose is supported for flat A
-            assert not flags & GemmFlag.VNNI_A
+            assert not flags & GEMMFlag.VNNI_A
 
     # Check for trans B cases which are not supported in the generator
-    if GemmFlag.TRANS_B in flags:
-        assert datatype.ab not in (DataType.I16, DataType.I8)
-        if datatype.ab == DataType.BF16:
+    if GEMMFlag.TRANS_B in flags:
+        assert datatype.ab not in (Datatype.I16, Datatype.I8)
+        if datatype.ab == Datatype.BF16:
             # we are fine, we do support mmla kernels with B in vnni4t
-            assert not aarch64_bfdot and GemmFlag.VNNI_B in flags
+            assert not aarch64_bfdot and GEMMFlag.VNNI_B in flags
 
-    if GemmFlag.VNNI_B in flags:
+    if GEMMFlag.VNNI_B in flags:
         raise NotImplementedError
 
     # Check if alignment is not possible
     if lda % vector_length:
-        flags &= ~GemmFlag.ALIGN_A
+        flags &= ~GEMMFlag.ALIGN_A
 
     if ldb % vector_length:
-        flags &= ~GemmFlag.ALIGN_C
+        flags &= ~GEMMFlag.ALIGN_C
 
     desc_mod = GEMMDescriptor(m, n, k, lda, ldb, ldc, datatype, flags, prefetch)
 
@@ -600,14 +600,14 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         if (
             (Arch.LIBXSMM_X86_AVX512_SPR <= arch < Arch.LIBXSMM_X86_ALLFEAT)
             and (
-                datatype.ab == DataType.BF16
-                or datatype.ab == DataType.F16
+                datatype.ab == Datatype.BF16
+                or datatype.ab == Datatype.F16
                 and Arch.LIBXSMM_X86_AVX512_GNR <= arch
-                or datatype.ab == DataType.I8
+                or datatype.ab == Datatype.I8
             )
             and (
-                GemmFlag.VNNI_A in flags
-                or GemmFlag.VNNI_A not in flags
+                GEMMFlag.VNNI_A in flags
+                or GEMMFlag.VNNI_A not in flags
                 and Arch.LIBXSMM_X86_AVX512_DMR <= arch
             )
         ):
@@ -618,14 +618,14 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             and is_abf8_bbf16_gemm
             or is_ahf8_bbf16_gemm
             or is_amxfp4_bbf16_gemm
-            or datatype.ab in (DataType.BF16, DataType.BF8, DataType.HF8)
+            or datatype.ab in (Datatype.BF16, Datatype.BF8, Datatype.HF8)
         ):
             raise NotImplementedError
             # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
         elif (
             (Arch.LIBXSMM_X86_AVX512_GNR <= arch < Arch.LIBXSMM_X86_ALLFEAT)
             and is_abf8_bf16_gemm
-            and GemmFlag.VNNI_A in flags
+            and GEMMFlag.VNNI_A in flags
         ):
             raise NotImplementedError
             # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
