@@ -10,6 +10,7 @@ class DescDatatype(NamedTuple):
     c: Datatype
     comp: Datatype
 
+    @property
     def ab(self) -> Datatype | None:
         return self.a if self.a == self.b else None
 
