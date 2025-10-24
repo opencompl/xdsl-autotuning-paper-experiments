@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 from xdsl.dialects import x86
 from xdsl.dialects.builtin import ModuleOp
@@ -312,3 +313,48 @@ class GPRegMapping:
     gp_reg_decompressed_a: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
     gp_reg_decompressed_elts: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
     gp_reg_popcnt: GeneralRegisterType = field(default=UNALLOCATED_GENERAL)
+
+
+class Blocking(NamedTuple):
+    range_1: int
+    block_1: int
+    range_2: int
+    block_2: int
+    ret: int
+
+
+def libxsmm_compute_equalized_blocking(size: int, max_block: int) -> Blocking:
+    size = max(size, 1)
+    number_of_chunks = ((size - 1) // max_block) + 1
+    modulo = size % number_of_chunks
+    n2 = size // number_of_chunks
+    n1 = n2 + 1
+    N2 = 0
+    N1 = 0
+    chunk = 0
+    ret = 0
+
+    # ranges
+    n1 = min(n1, max_block)
+    for chunk in range(number_of_chunks):
+        if chunk < modulo:
+            N1 += n1
+        else:
+            N2 += n2
+
+    # if we have perfect blocking, swap n2 and n1
+    if modulo == 0:
+        n1 = n2
+        N1 = N2
+        n2 = 0
+        N2 = 0
+
+    # some checks
+    if (N1 % n1) != 0:
+        ret = 1
+
+    if n2 != 0:
+        if N2 % n2 != 0:
+            ret = 1
+
+    return Blocking(N1, n1, N2, n2, ret)

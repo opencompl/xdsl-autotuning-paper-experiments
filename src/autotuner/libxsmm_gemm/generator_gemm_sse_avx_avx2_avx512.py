@@ -21,6 +21,7 @@ from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
     LoopLabelTracker,
     MicroKernelConfig,
+    libxsmm_compute_equalized_blocking,
 )
 from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
     libxsmm_generator_gemm_avx512_kloop_kernel,
@@ -136,7 +137,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     gp_reg_mapping: GPRegMapping,
     desc: GEMMDescriptor,
 ) -> None:
-    micro_kernel_config = MicroKernelConfig()
+    config = MicroKernelConfig()
     # These values may be modified below
     m, n, k, lda, ldb, ldc, dt, flags, prefetch = desc
 
@@ -191,16 +192,16 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     )
 
     # Initialize n-blocking variables
-    l_n_count = 0  # array counter for blocking arrays
-    l_n_done = 0  # progress tracker
-    l_n_n = [0, 0]  # blocking sizes for blocks
-    l_n_N = [0, 0]  # size of blocks
+    n_count = 0  # array counter for blocking arrays
+    n_done = 0  # progress tracker
+    n_n = [0, 0]  # blocking sizes for blocks
+    n_N = [0, 0]  # size of blocks
 
     adjust_A_pf_ptrs = 0
     adjust_B_pf_ptrs = 0
-    l_max_n_blocking = 0
+    max_n_blocking = 0
 
-    l_is_Ai8_Bbf16_gemm = (
+    is_Ai8_Bbf16_gemm = (
         (Datatype.I8 == dt.a and not is_Amxfp4_Bbf16_gemm)
         and (Datatype.BF16 == dt.b)
         and (dt.c in (Datatype.BF16, Datatype.F32))
@@ -262,226 +263,109 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     # Define the micro kernel code gen properties
     libxsmm_generator_gemm_init_micro_kernel_config(
-        micro_kernel_config, generated_code.arch, desc, False
+        config, generated_code.arch, desc, False
     )
 
+    # setup hf8 / bf8 conversion on stack before GEMM, we need to recheck as we now can update the field in ukernel config, need to use the original GEMM descriptor
+    if dt.ab == Datatype.BF8:
+        config.bf8_gemm_via_stack_alloc_tensors = 1
 
-#   /* setup hf8 / bf8 conversion on stack before GEMM, we need to recheck as we now can update the field in ukernel config, need to use the original GEMM descriptor */
-#   if (LIBXSMM_DATATYPE_BF8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype ) ) {
-#     l_micro_kernel_config.bf8_gemm_via_stack_alloc_tensors = 1;
-#   }
+    if dt.ab == Datatype.HF8:
+        config.bf8_gemm_via_stack_alloc_tensors = 1
 
-#   if (LIBXSMM_DATATYPE_HF8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype ) ) {
-#     l_micro_kernel_config.hf8_gemm_via_stack_alloc_tensors = 1;
-#   }
+    # in case when A needs to be transposed, we need to change temporarily the descriptor dimensions for gemm
+    if GEMMFlag.TRANS_A in flags:
+        assert dt.abc in (Datatype.F32, Datatype.F64)
+        lda = m
+        flags &= ~GEMMFlag.TRANS_A
+        config.atrans_gemm_stack_alloc_tensors = 1
+    elif GEMMFlag.TRANS_B | GEMMFlag.VNNI_B in flags:
+        raise NotImplementedError
 
-#   /* in case when A needs to be transposed, we need to change temporarily the descriptor dimensions for gemm */
-#   if (l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_TRANS_A) {
-#     if ((LIBXSMM_DATATYPE_F32 == (libxsmm_datatype)LIBXSMM_GEMM_GETENUM_ABC_COMMON_PREC(l_xgemm_desc->datatype)) || (LIBXSMM_DATATYPE_F64 == (libxsmm_datatype)LIBXSMM_GEMM_GETENUM_ABC_COMMON_PREC(l_xgemm_desc->datatype))) {
-#       l_xgemm_desc->lda = l_xgemm_desc->m;
-#       l_xgemm_desc->flags = (unsigned int)((unsigned int)(l_xgemm_desc->flags) & (~LIBXSMM_GEMM_FLAG_TRANS_A));
-#       l_micro_kernel_config.atrans_gemm_stack_alloc_tensors = 1;
-#     } else {
-#       LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_UNSUP_DATATYPE );
-#       return;
-#     }
-#   } else if (((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_TRANS_B) > 0) && ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_VNNI_B) > 0)) {
-#     if (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype )) {
-#       unsigned int aux_flags = (unsigned int)((unsigned int)l_xgemm_desc->flags & (~LIBXSMM_GEMM_FLAG_TRANS_B));
-#       l_xgemm_desc->ldb = l_xgemm_desc->k;
-#       l_xgemm_desc->flags = (unsigned int)((unsigned int)aux_flags & (~LIBXSMM_GEMM_FLAG_VNNI_B));
-#       l_micro_kernel_config.bvnni_btrans_gemm_stack_alloc_tensors = 1;
-#     } else {
-#       LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_UNSUP_DATATYPE );
-#       return;
-#     }
-#   }
+    # handle A VNNI on stack */
+    if avnni_gemm_stack_alloc_tensors:
+        lda = m
+        config.avnni_gemm_stack_alloc_tensors = True
 
-#   /* handle A VNNI on stack */
-#   if ( l_avnni_gemm_stack_alloc_tensors != 0 ) {
-#     l_xgemm_desc->lda = l_xgemm_desc->m;
-#     l_micro_kernel_config.avnni_gemm_stack_alloc_tensors = 1;
-#   }
-#   if ( l_atvnni_gemm_stack_alloc_tensors != 0 ) {
-#     l_xgemm_desc->lda = l_xgemm_desc->m;
-#     l_micro_kernel_config.atvnni_gemm_stack_alloc_tensors = 1;
-#   }
-#   if ( l_avnni_btrans_gemm_stack_alloc_tensors != 0 ) {
-#     l_xgemm_desc->lda = l_xgemm_desc->m;
-#     l_xgemm_desc->ldb = l_xgemm_desc->k;
-#     l_micro_kernel_config.avnni_btrans_gemm_stack_alloc_tensors = 1;
-#   }
-#   if ( l_atvnni_btrans_gemm_stack_alloc_tensors != 0 ) {
-#     l_xgemm_desc->lda = l_xgemm_desc->m;
-#     l_xgemm_desc->ldb = l_xgemm_desc->k;
-#     l_micro_kernel_config.atvnni_btrans_gemm_stack_alloc_tensors = 1;
-#   }
+    if atvnni_gemm_stack_alloc_tensors:
+        lda = m
+        config.atvnni_gemm_stack_alloc_tensors = True
 
-#   /* block according to the number of available registers or given limits */
-#   l_max_n_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking( &l_micro_kernel_config, l_xgemm_desc, io_generated_code->arch );
-# #if 1
-#   if (3 < l_max_n_blocking)
-# #endif
-#   {
-#     const unsigned int init_m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking( &l_micro_kernel_config, l_xgemm_desc, io_generated_code->arch, 0 );
-#     const unsigned int init_m_blocks = LIBXSMM_UPDIV(init_m_blocking, l_micro_kernel_config.vector_length);
-#     unsigned int l_is_Ai8_Bf16_gemm = ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( l_xgemm_desc->datatype )) &&
-#                                             (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_B_PREC( l_xgemm_desc->datatype )) &&
-#                                             (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype )) ) ? 1 : 0;
+    if avnni_btrans_gemm_stack_alloc_tensors:
+        lda = m
+        ldb = k
+        config.avnni_btrans_gemm_stack_alloc_tensors = True
 
-#     if (l_is_Ai8_Bf16_gemm > 0) {
-#       int l_m_scf_vregs = ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_COL_VEC_SCF) == 0) ? ((l_is_Ai4_Bf16_gemm > 0) ? 3 + init_m_blocks : 1) : (  (l_is_Ai4_Bf16_gemm > 0) ? 2 + 2*init_m_blocks : init_m_blocks);
-#       if ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_COL_VEC_ZPT) > 0) {
-#         l_m_scf_vregs += init_m_blocks;
-#       }
-#       /* In this case we need m vec regs for the scaling factors... */
-#       if ( (io_generated_code->arch >= LIBXSMM_X86_AVX512_VL256_SKX) && (io_generated_code->arch < LIBXSMM_X86_AVX512_SKX) && (l_is_Ai4_Bf16_gemm == 0) ) {
-#         while ((init_m_blocks * l_max_n_blocking + l_max_n_blocking + 1 + l_m_scf_vregs) > l_micro_kernel_config.vector_reg_count) {
-#           l_max_n_blocking--;
-#         }
-#       } else {
-#         while ((init_m_blocks * l_max_n_blocking + init_m_blocks + 1 + l_m_scf_vregs) > l_micro_kernel_config.vector_reg_count) {
-#           l_max_n_blocking--;
-#         }
-#       }
-#     } else if (l_is_Ai8_Bbf16_gemm > 0) {
-#       int l_m_scf_vregs = ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_COL_VEC_SCF) == 0) ? 1 : init_m_blocks;
-#       /* In this case we need m vec regs for the scaling factors... */
-#       while ((init_m_blocks * l_max_n_blocking + init_m_blocks + 2 + l_m_scf_vregs) > l_micro_kernel_config.vector_reg_count) {
-#         l_max_n_blocking--;
-#       }
-#     } else if (l_is_Ai4_Bi8_gemm > 0) {
-#       int l_m_zpt_vregs = 3 + init_m_blocks;
-#       if ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_COL_VEC_ZPT) > 0 || (l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_MxK_ZPT) > 0) {
-#         l_m_zpt_vregs += init_m_blocks;
-#       }
-#       while ((init_m_blocks * l_max_n_blocking + init_m_blocks + 1 + l_m_zpt_vregs) > l_micro_kernel_config.vector_reg_count) {
-#         l_max_n_blocking--;
-#       }
-#     } else if (l_is_Ai2_Bi8_gemm > 0) {
-#       int l_m_reserved_vregs = 3;
-#       while ((init_m_blocks * l_max_n_blocking + init_m_blocks + 1 + l_m_reserved_vregs) > l_micro_kernel_config.vector_reg_count) {
-#         l_max_n_blocking--;
-#       }
-#     } else if (l_is_Ai1_Bi8_gemm > 0) {
-#       int l_m_reserved_vregs = 2;
-#       while ((init_m_blocks * l_max_n_blocking + init_m_blocks + 1 + l_m_reserved_vregs) > l_micro_kernel_config.vector_reg_count) {
-#         l_max_n_blocking--;
-#       }
-#     } else {
-#       if ( (io_generated_code->arch >= LIBXSMM_X86_AVX2_SRF) && (io_generated_code->arch < LIBXSMM_X86_AVX512_SKX) ) {
-#         while ((init_m_blocks * l_max_n_blocking + l_max_n_blocking + 1) > l_micro_kernel_config.vector_reg_count) {
-#           l_max_n_blocking--;
-#         }
-#       } else {
-#         while ((init_m_blocks * l_max_n_blocking + init_m_blocks + 1) > l_micro_kernel_config.vector_reg_count) {
-#           l_max_n_blocking--;
-#         }
-#       }
-#     }
-#   }
-#   if ( l_max_n_blocking == 0 ) {
-#     LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_N_BLOCK );
-#     return;
-#   }
-#   libxsmm_compute_equalized_blocking( l_xgemm_desc->n, l_max_n_blocking, &(l_n_N[0]), &(l_n_n[0]), &(l_n_N[1]), &(l_n_n[1]) );
+    if atvnni_btrans_gemm_stack_alloc_tensors:
+        lda = m
+        ldb = k
+        config.atvnni_btrans_gemm_stack_alloc_tensors = True
 
-#   /* check that l_n_N1 is non-zero */
-#   if ( l_n_N[0] == 0 ) {
-#     LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_N_BLOCK );
-#     return;
-#   }
+    # Block according to the number of available registers or given limits
+    max_n_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking(
+        config, desc, generated_code.arch
+    )
+    if max_n_blocking > 3:
+        init_m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
+            config, desc, generated_code.arch, 0
+        )
+        init_m_blocks = (
+            init_m_blocking + config.vector_length - 1
+        ) // config.vector_length
+        is_Ai8_Bf16_gemm = (
+            dt.a == Datatype.I8
+            and dt.b == Datatype.F16
+            and (dt.c in (Datatype.F16, Datatype.F32))
+        )
 
-#   /* implementing load from struct */
-#   if ( ((LIBXSMM_GEMM_FLAG_USE_XGEMM_ABI & l_xgemm_desc->flags) == LIBXSMM_GEMM_FLAG_USE_XGEMM_ABI) ||
-#        ((LIBXSMM_GEMM_FLAG_USE_XGEMM_EXT_ABI & l_xgemm_desc->flags) == LIBXSMM_GEMM_FLAG_USE_XGEMM_EXT_ABI) ) {
-#     int l_offset_ptr_a = (int)sizeof(libxsmm_matrix_op_arg);
-#     int l_offset_ptr_b = (int)(sizeof(libxsmm_matrix_op_arg) + sizeof(libxsmm_matrix_arg));
-#     int l_offset_ptr_c = (int)(sizeof(libxsmm_matrix_op_arg) + 2*sizeof(libxsmm_matrix_arg));
+        if is_Ai8_Bf16_gemm:
+            raise NotImplementedError
+        elif is_Ai8_Bbf16_gemm:
+            raise NotImplementedError
+        elif is_Ai4_Bi8_gemm:
+            raise NotImplementedError
+        elif is_Ai2_Bi8_gemm:
+            raise NotImplementedError
+        elif is_Ai1_Bi8_gemm:
+            raise NotImplementedError
+        else:
+            if (
+                Arch.LIBXSMM_X86_AVX2_SRF
+                <= generated_code.arch
+                < Arch.LIBXSMM_X86_AVX512_SKX
+            ):
+                while (
+                    init_m_blocks * max_n_blocking + max_n_blocking + 1
+                ) > config.vector_reg_count:
+                    max_n_blocking -= 1
+            else:
+                while (
+                    init_m_blocks * max_n_blocking + init_m_blocks + 1
+                ) > config.vector_reg_count:
+                    max_n_blocking -= 1
 
-#     /* RDI holds the pointer to the struct, so lets first move this one into R15 */
-#     libxsmm_x86_instruction_alu_reg( io_generated_code, LIBXSMM_X86_INSTR_MOVQ, i_gp_reg_mapping->gp_reg_param_struct, i_gp_reg_mapping->gp_reg_help_1 );
-#     /* A pointer */
-#     libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                      i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_a, i_gp_reg_mapping->gp_reg_a, 0 );
-#     if (i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_DECOMPRESS_A_VIA_BITMASK) {
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_a + 8, i_gp_reg_mapping->gp_reg_bitmap_a, 0 );
-#     }
-#     if ( l_is_Amxfp4_Bfp32_gemm > 0  || l_is_Amxfp4_Bbf16_gemm > 0 || l_is_Amxfp4_Bi8_gemm > 0) {
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_a + 16, i_gp_reg_mapping->gp_reg_scf, 0 );
-#     }
-#     /* B pointer */
-#     libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                      i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_b, i_gp_reg_mapping->gp_reg_b, 0 );
-#     if (l_is_Amxfp4_Bi8_gemm > 0) {
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_b + 16, i_gp_reg_mapping->gp_reg_zpt, 0 );
-#     }
+    assert max_n_blocking
 
-#     /* C pointer */
-#     libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                      i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_c, i_gp_reg_mapping->gp_reg_c, 0 );
-#     if ( l_xgemm_desc->prefetch != LIBXSMM_GEMM_PREFETCH_NONE ) {
-#       /* A prefetch pointer */
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_a + LIBXSMM_MATRIX_ARG_OFFSET_PREFETCH, i_gp_reg_mapping->gp_reg_a_prefetch, 0 );
-#       /* B prefetch pointer */
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_b + LIBXSMM_MATRIX_ARG_OFFSET_PREFETCH, i_gp_reg_mapping->gp_reg_b_prefetch, 0 );
-#     }
-#     /* batch reduce count & offset arrays*/
-#     if ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_ADDRESS) || (l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_STRIDE) || (l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_OFFSET)) {
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, 16, i_gp_reg_mapping->gp_reg_reduce_count, 0 );
+    blocking = libxsmm_compute_equalized_blocking(n, max_n_blocking)
+    n_N[0] = blocking.range_1
+    n_n[0] = blocking.block_1
+    n_N[1] = blocking.range_2
+    n_n[1] = blocking.block_2
 
-#       if ( l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_OFFSET ) {
-#         libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                          i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_a + 8, i_gp_reg_mapping->gp_reg_a_offset, 0 );
-#         libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                          i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_b + 8, i_gp_reg_mapping->gp_reg_b_offset, 0 );
-#       }
-#     }
-#     /* loading scaling factor for ternary C */
-#     if ( (LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype )) && (LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype )) && (l_is_Amxfp4_Bi8_gemm == 0) ) {
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_c + 16, i_gp_reg_mapping->gp_reg_scf, 0 );
-#     }
+    # check that l_n_N1 is non-zero
+    assert n_N[0]
 
-#     /* Load scaling factor for A  */
-#     if (((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( l_xgemm_desc->datatype )) &&
-#         (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_B_PREC( l_xgemm_desc->datatype )) &&
-#         (LIBXSMM_DATATYPE_F16 == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype ))) ||
-#         ((LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_A_PREC( l_xgemm_desc->datatype ) && (l_is_Amxfp4_Bbf16_gemm == 0) ) &&
-#         (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_B_PREC( l_xgemm_desc->datatype )) &&
-#         (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype ) || LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype )))) {
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_a + 16, i_gp_reg_mapping->gp_reg_scf, 0 );
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_a + 24, i_gp_reg_mapping->gp_reg_zpt, 0 );
-#     }
+    # implementing load from struct
+    if GEMMFlag.USE_XGEMM_ABI in flags or GEMMFlag.USE_XGEMM_EXT_ABI in flags:
+        raise NotImplementedError
 
-#     if (l_is_Ai4_Bi8_gemm > 0 && (i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_COL_VEC_ZPT) > 0) {
-#       libxsmm_x86_instruction_alu_mem( io_generated_code, l_micro_kernel_config.alu_mov_instruction,
-#                                        i_gp_reg_mapping->gp_reg_help_1, LIBXSMM_X86_GP_REG_UNDEF, 0, l_offset_ptr_a + 24, i_gp_reg_mapping->gp_reg_zpt, 0 );
-#     }
-#   }
+    if GEMMFlag.USE_XGEMM_EXT_ABI in flags or config.vnni_format_C:
+        raise NotImplementedError
 
-#   if ( ((LIBXSMM_GEMM_FLAG_USE_XGEMM_EXT_ABI & l_xgemm_desc->flags) == LIBXSMM_GEMM_FLAG_USE_XGEMM_EXT_ABI) ||
-#        (l_micro_kernel_config.vnni_format_C > 0) ) {
-#     /* Illegal ext_abi when precision is not fp32 or bf16 */
-#     if (!(LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype ) ||
-#           LIBXSMM_DATATYPE_F16  == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype ) ||
-#           LIBXSMM_DATATYPE_BF8  == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype ) ||
-#           LIBXSMM_DATATYPE_HF8  == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype ) ||
-#           LIBXSMM_DATATYPE_F32  == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype )) ) {
-#       LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_ILLEGAL_ABI );
-#       return;
-#     }
-#   }
+    # Setting up the stack frame
+    # libxsmm_generator_gemm_setup_stack_frame
 
-#   /* Setting up the stack frame */
+
 #   libxsmm_generator_gemm_setup_stack_frame( io_generated_code, l_xgemm_desc, i_gp_reg_mapping, &l_micro_kernel_config);
 
 #   /* In this case we store C to scratch */
