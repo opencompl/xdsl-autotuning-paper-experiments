@@ -28,6 +28,7 @@ from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_footer_kloop,
     libxsmm_generator_gemm_header_kloop,
+    libxsmm_generator_gemm_init_micro_kernel_config,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
@@ -135,7 +136,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     gp_reg_mapping: GPRegMapping,
     desc: GEMMDescriptor,
 ) -> None:
-    # micro_kernel_config = MicroKernelConfig()
+    micro_kernel_config = MicroKernelConfig()
     # These values may be modified below
     m, n, k, lda, ldb, ldc, dt, flags, prefetch = desc
 
@@ -259,9 +260,11 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     if avnni_btrans_gemm_stack_alloc_tensors or atvnni_btrans_gemm_stack_alloc_tensors:
         flags &= ~GEMMFlag.TRANS_B
 
+    # Define the micro kernel code gen properties
+    libxsmm_generator_gemm_init_micro_kernel_config(
+        micro_kernel_config, generated_code.arch, desc, False
+    )
 
-#   /* define the micro kernel code gen properties */
-#   libxsmm_generator_gemm_init_micro_kernel_config( &l_micro_kernel_config, io_generated_code->arch, l_xgemm_desc, 0 );
 
 #   /* setup hf8 / bf8 conversion on stack before GEMM, we need to recheck as we now can update the field in ukernel config, need to use the original GEMM descriptor */
 #   if (LIBXSMM_DATATYPE_BF8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype ) ) {
