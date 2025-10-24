@@ -265,3 +265,24 @@ def libxsmm_generator_gemm_footer_kloop(
                 register_out=gp_reg_mapping.gp_reg_b,
             )
         )
+
+
+def libxsmm_generator_gemm_get_blocking_and_mask(
+    range: int, max_block: int, nomask_block: int, block: int
+) -> tuple[int, bool]:
+    """Returns new block and use_mask"""
+    use_mask = False
+    # TODO: check if there is a better blocking strategy
+    if block == max_block:
+        block = range % max_block
+        if block % nomask_block:
+            use_mask = True
+    elif block == 0:
+        if range >= max_block:
+            block = max_block
+        else:
+            block = range
+            # in case we do not have a full vector length, we use masking
+            if block % nomask_block:
+                use_mask = True
+    return block, use_mask

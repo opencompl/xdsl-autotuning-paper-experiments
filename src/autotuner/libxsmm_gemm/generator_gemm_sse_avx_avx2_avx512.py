@@ -28,6 +28,7 @@ from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_footer_kloop,
+    libxsmm_generator_gemm_get_blocking_and_mask,
     libxsmm_generator_gemm_header_kloop,
     libxsmm_generator_gemm_init_micro_kernel_config,
 )
@@ -148,12 +149,12 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and (dt.c in (Datatype.F16, Datatype.F32))
     )
 
-    is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm
-    is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm
-    is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm
-    is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm
-    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm
-    is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm
+    is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
+    is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
+    is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm()
+    is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
+    is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
 
     avnni_gemm_stack_alloc_tensors = (
         ((desc.flags & GEMMFlag.TRANS_A) == 0)
@@ -323,6 +324,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         elif is_Ai8_Bbf16_gemm:
             raise NotImplementedError
         elif is_Ai4_Bi8_gemm:
+            print(is_Ai4_Bi8_gemm, desc)
             raise NotImplementedError
         elif is_Ai2_Bi8_gemm:
             raise NotImplementedError
@@ -1525,8 +1527,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
         # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 64, 16, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (arch <= Arch.LIBXSMM_X86_ALLFEAT) and (Datatype.F64 == desc.datatype.ab):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 32, 8, &l_m_blocking, &l_use_masking_a_c );
-        raise NotImplementedError
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 32, 8, m_blocking
+        )
     else:
         # /* we should never end up here, if we do let the user know */
         assert False
