@@ -370,351 +370,63 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         generated_code, desc, gp_reg_mapping, config
     )
 
+    # In this case we store C to scratch */
+    if config.vnni_format_C:
+        raise NotImplementedError
 
-#   libxsmm_generator_gemm_setup_stack_frame( io_generated_code, l_xgemm_desc, i_gp_reg_mapping, &l_micro_kernel_config);
+    # Apply potential opA / opB
+    # libxsmm_generator_gemm_apply_opA_opB( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, &l_micro_kernel_config, l_xgemm_desc, i_xgemm_desc);
 
-#   /* In this case we store C to scratch */
-#   if (l_micro_kernel_config.vnni_format_C > 0) {
-#     libxsmm_generator_gemm_setval_stack_var( io_generated_code, &l_micro_kernel_config, LIBXSMM_GEMM_STACK_VAR_TRANS_EXT_BUF_C, i_gp_reg_mapping->gp_reg_c );
-#     libxsmm_generator_gemm_getval_stack_var( io_generated_code, &l_micro_kernel_config, LIBXSMM_GEMM_STACK_VAR_GEMM_SCRATCH_PTR, i_gp_reg_mapping->gp_reg_c );
-#     libxsmm_x86_instruction_alu_imm_i64( io_generated_code, LIBXSMM_X86_INSTR_MOVQ, i_gp_reg_mapping->gp_reg_help_1, 32LL * 64LL );
-#     libxsmm_x86_instruction_alu_reg( io_generated_code, l_micro_kernel_config.alu_add_instruction, i_gp_reg_mapping->gp_reg_help_1, i_gp_reg_mapping->gp_reg_c);
-#     l_xgemm_desc->ldc = l_xgemm_desc->m;
-#   }
+    loop_label_tracker = LoopLabelTracker()
 
-#   /* Apply potential opA / opB */
-#   libxsmm_generator_gemm_apply_opA_opB( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, &l_micro_kernel_config, l_xgemm_desc, i_xgemm_desc);
+    # generate hoisted BF16 emulation mask for AVX512
+    if desc.datatype.ab == Datatype.BF16:
+        raise NotImplementedError
 
-#   libxsmm_reset_loop_label_tracker( io_loop_label_tracker );
+    # generate hoisted UU SS i8 emulation mask for AVX512
+    if desc.datatype.ab == Datatype.I8:
+        raise NotImplementedError
 
-#   /* generate hoisted BF16 emulation mask for AVX512 */
-#   if ( (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype )) &&
-#          ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_VNNI_A) > 0) &&
-#          (io_generated_code->arch != LIBXSMM_X86_AVX512_CPX) &&
-#          (io_generated_code->arch >= LIBXSMM_X86_AVX512_VL256_SKX) &&
-#          (io_generated_code->arch <= LIBXSMM_X86_ALLFEAT) &&
-#          (io_generated_code->arch != LIBXSMM_X86_AVX512_VL256_CPX)) {
-#     libxsmm_x86_instruction_push_reg( io_generated_code, i_gp_reg_mapping->gp_reg_help_2 );
-#     libxsmm_x86_instruction_alu_imm_i64( io_generated_code,  LIBXSMM_X86_INSTR_MOVQ,
-#                                          i_gp_reg_mapping->gp_reg_help_2, 0xaaaaaaaa );
-#     libxsmm_x86_instruction_mask_move( io_generated_code, LIBXSMM_X86_INSTR_KMOVD_GPR_LD, i_gp_reg_mapping->gp_reg_help_2, 3 );
-#     libxsmm_x86_instruction_pop_reg( io_generated_code, i_gp_reg_mapping->gp_reg_help_2 );
-#   }
+    if is_Amxfp4_Bi8_gemm:
+        raise NotImplementedError
 
-#   /* generate hoisted UU SS i8 emulation mask for AVX512 */
-#   if ( (LIBXSMM_DATATYPE_I8 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( l_xgemm_desc->datatype )) &&
-#          ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_VNNI_A) > 0) &&
-#          ( ( ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_A_UNSIGNED) == 0) && ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_B_UNSIGNED) == 0) ) ||
-#            ( ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_A_UNSIGNED) >  0) && ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_B_UNSIGNED) >  0) ) ) &&
-#          (io_generated_code->arch >= LIBXSMM_X86_AVX512_VL256_SKX) &&
-#          (io_generated_code->arch <= LIBXSMM_X86_ALLFEAT)) {
-#     libxsmm_x86_instruction_push_reg( io_generated_code, i_gp_reg_mapping->gp_reg_help_2 );
-#     libxsmm_x86_instruction_alu_imm_i64( io_generated_code,  LIBXSMM_X86_INSTR_MOVQ,
-#                                          i_gp_reg_mapping->gp_reg_help_2, 0x55555555 );
-#     libxsmm_x86_instruction_mask_move( io_generated_code, LIBXSMM_X86_INSTR_KMOVD_GPR_LD, i_gp_reg_mapping->gp_reg_help_2, 3 );
-#     libxsmm_x86_instruction_pop_reg( io_generated_code, i_gp_reg_mapping->gp_reg_help_2 );
-#   }
+    if is_Ai4_Bf16_gemm:
+        raise NotImplementedError
 
-#   if ( l_is_Amxfp4_Bfp32_gemm > 0 || l_is_Amxfp4_Bbf16_gemm > 0 ) {
-#     /* Set to 0 lo mask and to 1 hi mask */
-#     float lut_mant[8] = { 0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f };
-#     unsigned int mask_sign[8] = { 8, 8, 8, 8, 8, 8, 8, 8 };
-#     l_micro_kernel_config.io_loop_label_tracker = io_loop_label_tracker;
-#     libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                          (const unsigned char *) lut_mant ,
-#                                                          "vperm_mant",
-#                                                          'y',
-#                                                          0 );
-#     libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                          (const unsigned char *) mask_sign ,
-#                                                          "vperm_sign",
-#                                                          'y',
-#                                                          1 );
-#   }
+    if is_Ai4_Bi8_gemm:
+        raise NotImplementedError
 
-#   if ( l_is_Amxfp4_Bi8_gemm > 0 ) {
-#     /* Set to 0 lo mask and to 1 hi mask */
-#     char lut_mxfp4[32] = { 0, 11, 21, 32, 42, 64, 85, 127, 0, (char)-11, (char)-21, (char)-32, (char)-42, (char)-64, (char)-85, (char)-127,
-#                            0, 11, 21, 32, 42, 64, 85, 127, 0, (char)-11, (char)-21, (char)-32, (char)-42, (char)-64, (char)-85, (char)-127 };
-#     unsigned int mask_idx[8] = { 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f };
-#     l_micro_kernel_config.io_loop_label_tracker = io_loop_label_tracker;
-#     libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                          (const unsigned char *) lut_mxfp4 ,
-#                                                          "vperm_lut",
-#                                                          'y',
-#                                                          0 );
-#     libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                          (const unsigned char *) mask_idx ,
-#                                                          "vmask_idx",
-#                                                          'y',
-#                                                          1 );
-#   }
+    if is_Ai2_Bi8_gemm:
+        raise NotImplementedError
 
-#   if (l_is_Ai4_Bf16_gemm > 0) {
-#     unsigned int l_use_perm_based_cvt = (io_generated_code->arch > LIBXSMM_X86_AVX2 && io_generated_code->arch < LIBXSMM_X86_AVX512_SKX) ? 0 : 1;
-#     if (l_use_perm_based_cvt > 0) {
-#       unsigned int lut_f32[16] = {0x00000000, 0x3f800000, 0x40000000, 0x40400000, 0x40800000, 0x40a00000, 0x40c00000, 0x40e00000, 0x41000000, 0x41100000, 0x41200000, 0x41300000, 0x41400000, 0x41500000, 0x41600000, 0x41700000};
-#       unsigned int signed_lut_f32[16] = {0x00000000, 0x3f800000, 0x40000000, 0x40400000, 0x40800000, 0x40a00000, 0x40c00000, 0x40e00000, 0xc1000000, 0xc0e00000, 0xc0c00000, 0xc0a00000, 0xc0800000, 0xc0400000, 0xc0000000, 0xbf800000};
-#       unsigned short lut[32] = {0x0000, 0x3C00, 0x4000, 0x4200, 0x4400, 0x4500, 0x4600, 0x4700, 0x4800, 0x4880, 0x4900, 0x4980, 0x4a00, 0x4a80, 0x4b00, 0x4b80,
-#                                 0x0000, 0x3C00, 0x4000, 0x4200, 0x4400, 0x4500, 0x4600, 0x4700, 0x4800, 0x4880, 0x4900, 0x4980, 0x4a00, 0x4a80, 0x4b00, 0x4b80};
-#       unsigned short signed_lut[32] = {0x0000, 0x3C00, 0x4000, 0x4200, 0x4400, 0x4500, 0x4600, 0x4700, 0xc800, 0xc700, 0xc600, 0xc500, 0xc400, 0xc200, 0xc000, 0xbc00,
-#                                        0x0000, 0x3C00, 0x4000, 0x4200, 0x4400, 0x4500, 0x4600, 0x4700, 0xc800, 0xc700, 0xc600, 0xc500, 0xc400, 0xc200, 0xc000, 0xbc00};
-#       if ( LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_COMP_PREC( i_xgemm_desc->datatype) || io_generated_code->arch < LIBXSMM_X86_AVX512_SPR ) {
-#         libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,  (const unsigned char *) (((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_A_UNSIGNED) > 0) ? lut_f32 : signed_lut_f32), "my_lut", 'z', 0 );
-#       } else {
-#         libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,  (const unsigned char *) (((i_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_A_UNSIGNED) > 0) ? lut : signed_lut), "my_lut", 'z', 0 );
-#       }
-#     } else {
-#       /* Set to 0 lo mask and to 1 hi mask */
-#       unsigned int mask_lo_i4[8] = { 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f};
-#       unsigned int mask_hi_i4[8] = { 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0};
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) mask_lo_i4 ,
-#                                                            "my_i4_lo",
-#                                                            'y',
-#                                                            0 );
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) mask_hi_i4 ,
-#                                                            "my_i4_hi",
-#                                                            'y',
-#                                                            1 );
-#     }
-#   }
+    if is_Ai1_Bi8_gemm:
+        raise NotImplementedError
 
-#   if (l_is_Ai4_Bi8_gemm > 0) {
-#     /* Set 2 to vperm reg */
-#     unsigned char perm_rpt_zpt[64] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7,
-#                                       8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15, 15, 15};
-#     /* Set to 0 lo mask and to 1 hi mask */
-#     unsigned int mask_lo_i4[16] = { 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f,
-#                                     0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f, 0x0f0f0f0f};
-#     unsigned int mask_hi_i4[16] = { 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0,
-#                                     0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0, 0xf0f0f0f0};
-#     libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                          (const unsigned char *) mask_lo_i4 ,
-#                                                          "my_i4_lo",
-#                                                          'z',
-#                                                          0 );
-#     libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                          (const unsigned char *) mask_hi_i4 ,
-#                                                          "my_i4_hi",
-#                                                          'z',
-#                                                          1 );
-#     if (io_generated_code->arch >= LIBXSMM_X86_AVX512_SPR) {
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,  (const unsigned char *) perm_rpt_zpt, "my_vperm_i4", 'z', 2 );
-#     }
-#   }
+    if is_Ai8_Bbf16_gemm:
+        raise NotImplementedError
 
-#   if (l_is_Ai2_Bi8_gemm > 0) {
-#     if (io_generated_code->arch == LIBXSMM_X86_AVX2_SRF) {
-#       char perm_bits_01[32];
-#       char perm_bits_23[32];
-#       char mask_bits[32];
-#       unsigned int __i;
+    if (
+        desc.datatype.a == Datatype.I8
+        and desc.datatype.b == Datatype.F16
+        and desc.datatype.c in (Datatype.F16, Datatype.F32)
+    ):
+        raise NotImplementedError
 
-#       for (__i = 0; __i < 32; __i++) {
-#         if ((__i & 0x3) == 0) {
-#           perm_bits_01[__i] = 0;
-#         }
-#         if ((__i & 0x3) == 1) {
-#           perm_bits_01[__i] = 1;
-#         }
-#         if ((__i & 0x3) == 2) {
-#           perm_bits_01[__i] = -1;
-#         }
-#         if ((__i & 0xc) == 0) {
-#           perm_bits_23[__i] = 0;
-#         }
-#         if ((__i & 0xc) == 4) {
-#           perm_bits_23[__i] = 1;
-#         }
-#         if ((__i & 0xc) == 8) {
-#           perm_bits_23[__i] = -1;
-#         }
-#         mask_bits[__i] = 15;
-#       }
+    if (
+        (desc.datatype.a == Datatype.I8 and not is_Amxfp4_Bbf16_gemm)
+        and desc.datatype.b == Datatype.BF16
+        and (desc.datatype in (Datatype.BF16, Datatype.F32))
+    ):
+        raise NotImplementedError
 
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) perm_bits_01 ,
-#                                                            "my_perm_01",
-#                                                            'y',
-#                                                            0 );
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) perm_bits_23 ,
-#                                                            "my_perm_23",
-#                                                            'y',
-#                                                            1 );
+    # Load the actual batch-reduce trip count
+    if (
+        GEMMFlag.BATCH_REDUCE_ADDRESS in desc.flags
+        or GEMMFlag.BATCH_REDUCE_OFFSET in desc.flags
+        or GEMMFlag.BATCH_REDUCE_STRIDE in desc.flags
+    ):
+        raise NotImplementedError
 
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) mask_bits ,
-#                                                            "my_mask_bits",
-#                                                            'y',
-#                                                            2 );
-
-#     } else {
-#       char perm_bits_01[64];
-#       char perm_bits_23[64];
-#       char perm_bits_45[64];
-#       unsigned int __i;
-
-#       for (__i = 0; __i < 64; __i++) {
-#         if ((__i & 0x3) == 0) {
-#           perm_bits_01[__i] = 0;
-#         }
-#         if ((__i & 0x3) == 1) {
-#           perm_bits_01[__i] = 1;
-#         }
-#         if ((__i & 0x3) == 2) {
-#           perm_bits_01[__i] = -1;
-#         }
-#         if ((__i & 0xc) == 0) {
-#           perm_bits_23[__i] = 0;
-#         }
-#         if ((__i & 0xc) == 4) {
-#           perm_bits_23[__i] = 1;
-#         }
-#         if ((__i & 0xc) == 8) {
-#           perm_bits_23[__i] = -1;
-#         }
-#         if ((__i & 0x30) == 0) {
-#           perm_bits_45[__i] = 0;
-#         }
-#         if ((__i & 0x30) == 16) {
-#           perm_bits_45[__i] = 1;
-#         }
-#         if ((__i & 0x30) == 32) {
-#           perm_bits_45[__i] = -1;
-#         }
-#       }
-
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) perm_bits_01 ,
-#                                                            "my_perm_01",
-#                                                            'z',
-#                                                            0 );
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) perm_bits_23 ,
-#                                                            "my_perm_23",
-#                                                            'z',
-#                                                            1 );
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) perm_bits_45 ,
-#                                                            "my_perm_45",
-#                                                            'z',
-#                                                            2 );
-#     }
-#   }
-
-#   if (l_is_Ai1_Bi8_gemm > 0) {
-#     if (io_generated_code->arch == LIBXSMM_X86_AVX2_SRF) {
-#       unsigned int l_lut_expand = 0;
-#       unsigned int l_mask_bits = 1;
-#       unsigned int l_vreg_one = 2;
-#       unsigned char l_expand_array[32] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-#                                            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-#                                            0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-#                                            0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03, 0x03 };
-#       unsigned char l_mask_array[32] = { 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80,
-#                                          0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80,
-#                                          0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80,
-#                                          0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80 };
-#       unsigned char l_one_array[32] = {    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-#                                            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-#                                            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
-#                                            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01 };
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) l_expand_array ,
-#                                                            "my_lut_expand",
-#                                                            'y',
-#                                                            l_lut_expand );
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) l_mask_array ,
-#                                                            "my_mask_bits",
-#                                                            'y',
-#                                                            l_mask_bits );
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) l_one_array ,
-#                                                            "my_ones",
-#                                                            'y',
-#                                                            l_vreg_one );
-#     } else {
-#       char neg_ones[64];
-#       unsigned char ones[64];
-#       unsigned int __i;
-
-#       for (__i = 0; __i < 64; __i++) {
-#         neg_ones[__i] = -1;
-#         ones[__i] = 1;
-#       }
-
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) neg_ones ,
-#                                                            "my_neg_ones",
-#                                                            'z',
-#                                                            0 );
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) ones ,
-#                                                            "my_ones",
-#                                                            'z',
-#                                                            1 );
-#     }
-#   }
-
-#   if (l_is_Ai8_Bbf16_gemm > 0) {
-#     unsigned int l_is_Ai8_Bbf16_gemm_bf16fma = (l_micro_kernel_config.vmul_instruction == LIBXSMM_X86_INSTR_VDPBF16PS) ? 1 : 0;
-#     if (l_is_Ai8_Bbf16_gemm_bf16fma > 0) {
-#       unsigned short l_bf16_zip_512[32] = { 0, 32, 1, 33, 2, 34, 3, 35, 4, 36, 5, 37, 6, 38, 7, 39, 8, 40, 9, 41, 10, 42, 11, 43, 12, 44, 13, 45, 14, 46, 15, 47 };
-#       unsigned short l_bf16_zip_256[16] = { 0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23 };
-#       libxsmm_x86_instruction_full_vec_load_of_constants ( io_generated_code,
-#                                                            (const unsigned char *) ( (io_generated_code->arch >= LIBXSMM_X86_AVX512_SKX) ? l_bf16_zip_512 : l_bf16_zip_256 ),
-#                                                            "my_bf16_zip",
-#                                                            l_micro_kernel_config.vector_name,
-#                                                            0 );
-#     }
-#   }
-
-#   if ( ( LIBXSMM_DATATYPE_I8  == LIBXSMM_GEMM_GETENUM_A_PREC( l_xgemm_desc->datatype ) ) && ( LIBXSMM_DATATYPE_F16  == LIBXSMM_GEMM_GETENUM_B_PREC( l_xgemm_desc->datatype ) ) && (( LIBXSMM_DATATYPE_F16  == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype ) ) || (LIBXSMM_DATATYPE_F32  == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype ) )) ) {
-#     /* In this case we have one scaling factor per full tensor, load it here */
-#     if ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_COL_VEC_SCF) == 0) {
-#       libxsmm_generator_gemm_getval_stack_var( io_generated_code, &l_micro_kernel_config, LIBXSMM_GEMM_STACK_VAR_INT8_SCF, i_gp_reg_mapping->gp_reg_scf );
-#       libxsmm_x86_instruction_vec_move( io_generated_code,
-#           l_micro_kernel_config.instruction_set,
-#           LIBXSMM_X86_INSTR_VPBROADCASTW,
-#           i_gp_reg_mapping->gp_reg_scf,
-#           LIBXSMM_X86_GP_REG_UNDEF, 0, 0,
-#           l_micro_kernel_config.vector_name,
-#           (l_is_Ai4_Bf16_gemm > 0) ? 2 : 0, 0, 1, 0 );
-#       if ( LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_COMP_PREC( l_xgemm_desc->datatype) || io_generated_code->arch < LIBXSMM_X86_AVX512_SPR ) {
-#         char vname_cvt = (l_micro_kernel_config.vector_name == 'y') ? 'z' : ((l_micro_kernel_config.vector_name == 'x') ? 'y' : 'z');
-#         libxsmm_x86_instruction_vec_compute_2reg( io_generated_code, LIBXSMM_X86_INSTR_VCVTPH2PS, vname_cvt, (l_is_Ai4_Bf16_gemm > 0) ? 2 : 0, (l_is_Ai4_Bf16_gemm > 0) ? 2 : 0 );
-#       }
-#     }
-#   }
-
-#   if ( ( LIBXSMM_DATATYPE_I8  == LIBXSMM_GEMM_GETENUM_A_PREC( l_xgemm_desc->datatype ) && (l_is_Amxfp4_Bbf16_gemm == 0)) && ( LIBXSMM_DATATYPE_BF16  == LIBXSMM_GEMM_GETENUM_B_PREC( l_xgemm_desc->datatype ) ) && (( LIBXSMM_DATATYPE_BF16  == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype ) ) || (LIBXSMM_DATATYPE_F32  == LIBXSMM_GEMM_GETENUM_C_PREC( l_xgemm_desc->datatype ) )) ) {
-#     /* In this case we have one scaling factor per full tensor, load it here */
-#     if ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_USE_COL_VEC_SCF) == 0) {
-#       libxsmm_generator_gemm_getval_stack_var( io_generated_code, &l_micro_kernel_config, LIBXSMM_GEMM_STACK_VAR_INT8_SCF, i_gp_reg_mapping->gp_reg_scf );
-#       libxsmm_x86_instruction_vec_move( io_generated_code,
-#           l_micro_kernel_config.instruction_set,
-#           LIBXSMM_X86_INSTR_VPBROADCASTD,
-#           i_gp_reg_mapping->gp_reg_scf,
-#           LIBXSMM_X86_GP_REG_UNDEF, 0, 0,
-#           l_micro_kernel_config.vector_name,
-#           1, 0, 1, 0 );
-#     }
-#   }
-
-#   /* Load the actual batch-reduce trip count */
-#   if ((l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_ADDRESS) || (l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_OFFSET) || (l_xgemm_desc->flags & LIBXSMM_GEMM_FLAG_BATCH_REDUCE_STRIDE)) {
-#     libxsmm_x86_instruction_alu_mem( io_generated_code,
-#         l_micro_kernel_config.alu_mov_instruction,
-#         i_gp_reg_mapping->gp_reg_reduce_count,
-#         LIBXSMM_X86_GP_REG_UNDEF, 0,
-#         0,
-#         i_gp_reg_mapping->gp_reg_reduce_count,
-#         0 );
-#   }
 
 #   /* apply n_blocking */
 #   while (l_n_done != (unsigned int)l_xgemm_desc->n) {
