@@ -432,16 +432,17 @@ def libxsmm_generator_gemm_setup_stack_frame(
     #      GEMM scratch, 64b aligned             <-- (RBP-48) contains this address
 
 
-# LIBXSMM_API_INTERN
-# void libxsmm_generator_gemm_destroy_stack_frame( libxsmm_generated_code*            io_generated_code,
-#     const libxsmm_gemm_descriptor*      i_xgemm_desc,
-#     const libxsmm_gp_reg_mapping*       i_gp_reg_mapping,
-#     const libxsmm_micro_kernel_config*  i_micro_kernel_config ) {
-#   LIBXSMM_UNUSED(i_xgemm_desc);
-#   LIBXSMM_UNUSED(i_gp_reg_mapping);
-#   libxsmm_x86_instruction_alu_reg( io_generated_code, i_micro_kernel_config->alu_mov_instruction, LIBXSMM_X86_GP_REG_RBP, LIBXSMM_X86_GP_REG_RSP);
-#   libxsmm_x86_instruction_pop_reg( io_generated_code, LIBXSMM_X86_GP_REG_RBP );
-# }
+def libxsmm_generator_gemm_destroy_stack_frame(
+    generated_code: GeneratedCode,
+    desc: GEMMDescriptor,
+    gp_reg_mapping: GPRegMapping,
+    config: MicroKernelConfig,
+) -> None:
+    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
+    rsp = generated_code.insert(
+        x86.ops.DS_MovOp(rbp, destination=x86.registers.RSP)
+    ).destination
+    rbp = generated_code.insert(x86.ops.D_PopOp(rsp, destination=x86.registers.RBP))
 
 
 def libxsmm_generator_gemm_setup_stack_frame_allocate_scratch(
