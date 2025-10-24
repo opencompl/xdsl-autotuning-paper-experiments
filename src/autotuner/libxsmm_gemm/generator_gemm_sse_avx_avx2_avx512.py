@@ -31,6 +31,7 @@ from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_get_blocking_and_mask,
     libxsmm_generator_gemm_header_kloop,
     libxsmm_generator_gemm_init_micro_kernel_config,
+    libxsmm_generator_gemm_setup_stack_frame,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
@@ -365,7 +366,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         raise NotImplementedError
 
     # Setting up the stack frame
-    # libxsmm_generator_gemm_setup_stack_frame
+    libxsmm_generator_gemm_setup_stack_frame(
+        generated_code, desc, gp_reg_mapping, config
+    )
 
 
 #   libxsmm_generator_gemm_setup_stack_frame( io_generated_code, l_xgemm_desc, i_gp_reg_mapping, &l_micro_kernel_config);
