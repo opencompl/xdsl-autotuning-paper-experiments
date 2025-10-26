@@ -991,3 +991,213 @@ def libxsmm_generator_gemm_footer_nloop(
     libxsmm_x86_instruction_jump_back_to_label(
         generated_code, x86.ops.C_JlOp, loop_label_tracker
     )
+
+
+def libxsmm_generator_gemm_header_mloop(
+    generated_code: GeneratedCode,
+    loop_label_tracker: LoopLabelTracker,
+    gp_reg_mapping: GPRegMapping,
+    micro_kernel_config: MicroKernelConfig,
+    m_init: int,
+    m_blocking: int,
+) -> None:
+    """
+    In original, adds three lines of assembly: set counter to m_init, add label, add m_blocking to loop counter.
+    We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
+    """
+    m_arg_reg = gp_reg_mapping.gp_reg_mloop
+
+    curr_vals = generated_code.current_val_by_reg
+    generated_code.insert(m_init_op := x86.ops.DI_MovOp(m_init, destination=m_arg_reg))
+
+    existing_block = m_init_op.parent
+    assert existing_block is not None
+    parent_region = existing_block.parent
+    assert parent_region is not None
+
+    if m_init_op.next_op is not None:
+        new_block = existing_block.split_before(
+            m_init_op.next_op, arg_types=(m_arg_reg,)
+        )
+    else:
+        new_block = Block(arg_types=(m_arg_reg,))
+        parent_region.insert_block_after(new_block, existing_block)
+
+    # Jump/fallthrough to the newly created block
+    # TODO: make sure that we don't print the jump in xDSL if the destination is the
+    # next block
+    Rewriter.insert_op(
+        x86.ops.C_JmpOp((m_init_op.destination,), new_block),
+        InsertPoint.at_end(existing_block),
+    )
+
+    generated_code.builder.insertion_point = InsertPoint.at_start(new_block)
+    curr_vals.clear()
+    curr_vals |= {arg.type: arg for arg in new_block.args}
+
+    libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
+    generated_code.insert(
+        x86.ops.RI_AddOp(curr_vals[m_arg_reg], m_blocking, register_out=m_arg_reg)
+    )
+
+
+def libxsmm_generator_gemm_footer_mloop(
+    generated_code: GeneratedCode,
+    loop_label_tracker: LoopLabelTracker,
+    gp_reg_mapping: GPRegMapping,
+    micro_kernel_config: MicroKernelConfig,
+    desc: GEMMDescriptor,
+    m_blocking: int,
+    m_done: int,
+) -> None:
+    # k packing factor for VNNI
+    k_pack_factor = 1
+    is_Ai4_Bf16_gemm = (
+        GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2 in desc.flags
+        and Datatype.I8 == desc.datatype.a
+        and Datatype.F16 == desc.datatype.b
+        and desc.datatype.c in (Datatype.F16, Datatype.F32)
+    )
+
+    is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
+    is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
+    is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm()
+    is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
+    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
+    k_scale = (
+        2
+        if (
+            is_Ai4_Bf16_gemm
+            or is_Ai4_Bi8_gemm
+            or is_Amxfp4_Bfp32_gemm
+            or is_Amxfp4_Bbf16_gemm
+            or is_Amxfp4_Bi8_gemm
+        )
+        else 4
+        if is_Ai2_Bi8_gemm
+        else 8
+        if is_Ai1_Bi8_gemm
+        else 1
+    )
+    a_adjust = 4 if is_Ai2_Bi8_gemm else 8 if is_Ai1_Bi8_gemm else 1
+
+    # for VNNI we are stepping through to pack ks
+    if GEMMFlag.VNNI_A in desc.flags:
+        raise NotImplementedError
+
+    # Advance C pointer
+    c = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_c]
+    c = generated_code.insert(
+        x86.ops.RI_AddOp(c, m_blocking * micro_kernel_config.datatype_size_out)
+    ).register_out
+
+    if (
+        (desc.datatype.c in (Datatype.F16, Datatype.F32))
+        and desc.datatype.b == Datatype.F16
+        and desc.datatype.a == Datatype.I8
+        and (
+            GEMMFlag.USE_COL_VEC_SCF in desc.flags
+            or GEMMFlag.USE_COL_VEC_ZPT in desc.flags
+        )
+    ):
+        raise NotImplementedError
+
+    if is_Ai4_Bi8_gemm and GEMMFlag.USE_COL_VEC_ZPT in desc.flags:
+        raise NotImplementedError
+
+    if (
+        desc.datatype.c in (Datatype.BF16, Datatype.F32)
+        and desc.datatype.b == Datatype.BF16
+        and desc.datatype.a == Datatype.I8
+        and GEMMFlag.USE_COL_VEC_SCF in desc.flags
+    ):
+        raise NotImplementedError
+
+    # Also adjust eltwise pointers
+    if (
+        micro_kernel_config.fused_relu == 1
+        or micro_kernel_config.vnni_cvt_output_ext_buf == 1
+        or micro_kernel_config.fused_relu_bwd == 1
+        or micro_kernel_config.fused_bcolbias == 1
+        or micro_kernel_config.fused_hcolbias == 1
+        or micro_kernel_config.fused_b8colbias == 1
+        or micro_kernel_config.fused_h8colbias == 1
+        or micro_kernel_config.fused_scolbias == 1
+        or micro_kernel_config.overwrite_C == 0
+    ):
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_relu == 1 and micro_kernel_config.overwrite_C == 1:
+        raise NotImplementedError
+
+    if micro_kernel_config.vnni_cvt_output_ext_buf == 1:
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_relu_bwd == 1:
+        raise NotImplementedError
+
+    if not micro_kernel_config.overwrite_C == 0:
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_bcolbias or micro_kernel_config.fused_hcolbias:
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_b8colbias == 1:
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_h8colbias == 1:
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_scolbias == 1:
+        raise NotImplementedError
+
+    if (
+        micro_kernel_config.fused_relu
+        or micro_kernel_config.vnni_cvt_output_ext_buf
+        or micro_kernel_config.fused_relu_bwd
+        or micro_kernel_config.fused_bcolbias
+        or micro_kernel_config.fused_hcolbias
+        or micro_kernel_config.fused_b8colbias
+        or micro_kernel_config.fused_h8colbias
+        or micro_kernel_config.fused_scolbias
+        or not micro_kernel_config.overwrite_C
+    ):
+        raise NotImplementedError
+
+    a_offset = (
+        desc.k * micro_kernel_config.datatype_size_in * desc.lda // k_scale
+        - m_blocking * micro_kernel_config.datatype_size_in * k_pack_factor // a_adjust
+    )
+    a = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_a]
+
+    # A prefetch
+    if desc.prefetch == GEMMPrefetchType.AL2:
+        raise NotImplementedError
+
+    # Adcance A pointer
+    if GEMMFlag.BATCH_REDUCE_ADDRESS in desc.flags:
+        raise NotImplementedError
+    else:
+        if is_Amxfp4_Bfp32_gemm or is_Amxfp4_Bbf16_gemm or is_Amxfp4_Bi8_gemm:
+            raise NotImplementedError
+        if is_Ai4_Bi8_gemm and GEMMFlag.USE_MxK_ZPT in desc.flags:
+            raise NotImplementedError
+
+        if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
+            raise NotImplementedError
+        else:
+            a = generated_code.insert(x86.ops.RI_SubOp(a, a_offset)).register_out
+
+    # loop handling
+
+    generated_code.insert(
+        x86.ops.SI_CmpOp(
+            generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_mloop],
+            m_done,
+        )
+    )
+
+    libxsmm_x86_instruction_jump_back_to_label(
+        generated_code, x86.ops.C_JlOp, loop_label_tracker
+    )
