@@ -16,7 +16,11 @@ from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 
 from xdsl.dialects import x86
 
-from autotuner.libxsmm_gemm.libxsmm_main import GEMMDescriptor, GEMMFlag
+from autotuner.libxsmm_gemm.libxsmm_main import (
+    GEMMDescriptor,
+    GEMMFlag,
+    GEMMPrefetchType,
+)
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
@@ -769,3 +773,221 @@ def libxsmm_generator_gemm_setup_stack_frame_allocate_scratch(
 #     libxsmm_generator_gemm_setval_stack_var( io_generated_code, i_micro_kernel_config, LIBXSMM_GEMM_STACK_VAR_MELTW_STRUCT_PTR, LIBXSMM_X86_GP_REG_RSP );
 #   }
 # }
+
+
+def libxsmm_generator_gemm_header_nloop(
+    generated_code: GeneratedCode,
+    loop_label_tracker: LoopLabelTracker,
+    gp_reg_mapping: GPRegMapping,
+    micro_kernel_config: MicroKernelConfig,
+    n_init: int,
+    n_blocking: int,
+) -> None:
+    """
+    In original, adds three lines of assembly: set counter to n_init, add label, add n_blocking to loop counter.
+    We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
+    """
+    n_arg_reg = gp_reg_mapping.gp_reg_nloop
+
+    curr_vals = generated_code.current_val_by_reg
+    generated_code.insert(n_init_op := x86.ops.DI_MovOp(n_init, destination=n_arg_reg))
+
+    existing_block = n_init_op.parent
+    assert existing_block is not None
+    parent_region = existing_block.parent
+    assert parent_region is not None
+
+    if n_init_op.next_op is not None:
+        new_block = existing_block.split_before(
+            n_init_op.next_op, arg_types=(n_arg_reg,)
+        )
+    else:
+        new_block = Block(arg_types=(n_arg_reg,))
+        parent_region.insert_block_after(new_block, existing_block)
+
+    # Jump/fallthrough to the newly created block
+    # TODO: make sure that we don't print the jump in xDSL if the destination is the
+    # next block
+    Rewriter.insert_op(
+        x86.ops.C_JmpOp((n_init_op.destination,), new_block),
+        InsertPoint.at_end(existing_block),
+    )
+
+    generated_code.builder.insertion_point = InsertPoint.at_start(new_block)
+    curr_vals.clear()
+    curr_vals |= {arg.type: arg for arg in new_block.args}
+
+    libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
+    generated_code.insert(
+        x86.ops.RI_AddOp(curr_vals[n_arg_reg], n_blocking, register_out=n_arg_reg)
+    )
+
+
+def libxsmm_generator_gemm_footer_nloop(
+    generated_code: GeneratedCode,
+    loop_label_tracker: LoopLabelTracker,
+    gp_reg_mapping: GPRegMapping,
+    micro_kernel_config: MicroKernelConfig,
+    desc: GEMMDescriptor,
+    n_blocking: int,
+    n_done: int,
+) -> None:
+    is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
+    is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
+    is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm()
+    is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
+    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
+    a_adjust = 4 if is_Ai2_Bi8_gemm else 8 if is_Ai1_Bi8_gemm else 1
+
+    if desc.datatype.c == Datatype.BF16:
+        raise NotImplementedError
+    elif desc.datatype.c == Datatype.I8:
+        raise NotImplementedError
+    else:
+        c = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_c]
+        generated_code.insert(
+            x86.ops.RI_AddOp(
+                c,
+                (n_blocking * (desc.ldc) * (micro_kernel_config.datatype_size_out))
+                - ((desc.m) * (micro_kernel_config.datatype_size_out)),
+            )
+        )
+
+    if (
+        desc.datatype.c in (Datatype.F16, Datatype.F32)
+        and desc.datatype.b == Datatype.F16
+        and desc.datatype.a == Datatype.I8
+        and (
+            GEMMFlag.USE_COL_VEC_SCF in desc.flags
+            or GEMMFlag.USE_COL_VEC_ZPT in desc.flags
+        )
+    ):
+        raise NotImplementedError
+
+    if (
+        (desc.datatype.c == Datatype.BF16 or desc.datatype.c == Datatype.F32)
+        and desc.datatype.b == Datatype.BF16
+        and desc.datatype.a == Datatype.I8
+        and (GEMMFlag.USE_COL_VEC_SCF in desc.flags)
+    ):
+        raise NotImplementedError
+
+    if (
+        micro_kernel_config.fused_relu == 1
+        or micro_kernel_config.vnni_cvt_output_ext_buf == 1
+        or micro_kernel_config.fused_relu_bwd == 1
+        or micro_kernel_config.fused_bcolbias == 1
+        or micro_kernel_config.fused_hcolbias == 1
+        or micro_kernel_config.fused_b8colbias == 1
+        or micro_kernel_config.fused_h8colbias == 1
+        or micro_kernel_config.fused_scolbias == 1
+        or micro_kernel_config.overwrite_C == 0
+    ):
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_relu == 1 and micro_kernel_config.overwrite_C == 1:
+        raise NotImplementedError
+    if micro_kernel_config.vnni_cvt_output_ext_buf == 1:
+        raise NotImplementedError
+    if micro_kernel_config.fused_relu_bwd == 1:
+        raise NotImplementedError
+
+    if micro_kernel_config.overwrite_C:
+        # In this case also advance the output ptr
+        output_ptr = libxsmm_generator_gemm_getval_stack_var(
+            generated_code,
+            micro_kernel_config,
+            GEMMStackVar.ELT_OUTPUT_PTR,
+            gp_reg_mapping.gp_reg_help_0,
+        )
+        output_ptr = generated_code.insert(
+            x86.ops.RI_AddOp(output_ptr, (n_blocking * (desc.ldc) * 2) - ((desc.m) * 2))
+        ).register_out
+        libxsmm_generator_gemm_setval_stack_var(
+            generated_code,
+            micro_kernel_config,
+            GEMMStackVar.ELT_OUTPUT_PTR,
+            output_ptr,
+        )
+
+    if micro_kernel_config.fused_bcolbias or micro_kernel_config.fused_hcolbias:
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_b8colbias:
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_h8colbias:
+        raise NotImplementedError
+
+    if micro_kernel_config.fused_scolbias:
+        raise NotImplementedError
+
+    if (
+        micro_kernel_config.fused_relu
+        or micro_kernel_config.vnni_cvt_output_ext_buf
+        or micro_kernel_config.fused_relu_bwd
+        or micro_kernel_config.fused_bcolbias
+        or micro_kernel_config.fused_hcolbias
+        or micro_kernel_config.fused_b8colbias
+        or micro_kernel_config.fused_h8colbias
+        or micro_kernel_config.fused_scolbias
+        or micro_kernel_config.overwrite_C
+    ):
+        raise NotImplementedError
+
+    if GEMMFlag.BATCH_REDUCE_ADDRESS in desc.flags:
+        raise NotImplementedError
+    else:
+        # handle trans B
+        b_offset = 0
+        # k packing factor for VNNI
+        k_pack_factor = 1
+
+        if GEMMFlag.VNNI_A in desc.flags:
+            # for VNNI we are stepping through to pack ks
+            raise NotImplementedError
+
+        if GEMMFlag.TRANS_B in desc.flags:
+            b_offset = (
+                n_blocking * micro_kernel_config.datatype_size_in2 * k_pack_factor
+            )
+        else:
+            b_offset = n_blocking * desc.ldb * micro_kernel_config.datatype_size_in2
+
+        a = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_a]
+        b = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b]
+        b = generated_code.insert(x86.ops.RI_AddOp(b, b_offset)).register_out
+
+        if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
+            raise NotImplementedError
+        else:
+            a = generated_code.insert(
+                x86.ops.RI_SubOp(
+                    a,
+                    desc.m
+                    * micro_kernel_config.datatype_size_in
+                    * k_pack_factor
+                    // a_adjust,
+                )
+            ).register_out
+
+        if is_Amxfp4_Bfp32_gemm or is_Amxfp4_Bbf16_gemm or is_Amxfp4_Bi8_gemm:
+            raise NotImplementedError
+
+        if is_Ai4_Bi8_gemm and GEMMFlag.USE_MxK_ZPT in desc.flags:
+            raise NotImplementedError
+
+        if GEMMPrefetchType.AL2 == desc.prefetch:
+            raise NotImplementedError
+
+    generated_code.insert(
+        x86.ops.SI_CmpOp(
+            generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_nloop],
+            n_done,
+        )
+    )
+
+    libxsmm_x86_instruction_jump_back_to_label(
+        generated_code, x86.ops.C_JlOp, loop_label_tracker
+    )
