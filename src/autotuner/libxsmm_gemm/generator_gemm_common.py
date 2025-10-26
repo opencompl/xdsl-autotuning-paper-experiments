@@ -334,7 +334,7 @@ def libxsmm_generator_gemm_header_kloop(
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
     generated_code.insert(
-        x86.ops.RI_AddOp(curr_vals[k_arg_reg], 4, register_out=k_arg_reg)
+        x86.ops.RI_AddOp(curr_vals[k_arg_reg], k_blocking, register_out=k_arg_reg)
     )
 
 
