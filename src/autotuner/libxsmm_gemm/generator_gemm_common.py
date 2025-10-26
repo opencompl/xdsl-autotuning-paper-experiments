@@ -1,7 +1,8 @@
 from xdsl.dialects.builtin import IntegerAttr, i64
-from xdsl.ir import Block
+from xdsl.ir import Block, SSAValue
 from xdsl.rewriter import InsertPoint, Rewriter
 from autotuner.libxsmm_gemm.generator_common import (
+    GEMMStackVar,
     GPRegMapping,
     LoopLabelTracker,
     MicroKernelConfig,
@@ -180,6 +181,113 @@ def libxsmm_generator_gemm_setup_fusion_microkernel_properties(
 
     if GEMMFlag.USE_XGEMM_EXT_ABI in desc.flags:
         raise NotImplementedError
+
+
+GEMM_STACK_VAR_OFFSETS = {
+    GEMMStackVar.NONE: 0,
+    GEMMStackVar.PFA_PTR: -8,
+    GEMMStackVar.PFB_PTR: -16,
+    GEMMStackVar.A_OFFS_BRGEMM_PTR: -24,
+    GEMMStackVar.B_OFFS_BRGEMM_PTR: -32,
+    GEMMStackVar.INT8_SCF: -40,
+    GEMMStackVar.GEMM_SCRATCH_PTR: -48,
+    GEMMStackVar.ELT_BIAS_PTR: -56,
+    GEMMStackVar.ZPT_PTR: -56,
+    GEMMStackVar.MXSCALE_PTR: -56,
+    GEMMStackVar.ELT_OUTPUT_PTR: -64,
+    GEMMStackVar.ELT_RELU_BITMASK_PTR: -72,
+    GEMMStackVar.ELT_BUF1: -72,
+    GEMMStackVar.ELT_BUF2: -80,
+    GEMMStackVar.AUX_VAR: -80,
+    GEMMStackVar.BRCOUNT: -88,
+    GEMMStackVar.TRANS_EXT_BUF_B: -72,
+    GEMMStackVar.TRANS_EXT_BUF_C: -80,
+    GEMMStackVar.ELT_BITMAP_PTR: -72,
+    GEMMStackVar.ELT_DECOMPRESS_BUF: -80,
+    GEMMStackVar.ARG_7: 56,
+    GEMMStackVar.ARG_8: 64,
+    GEMMStackVar.ARG_9: 72,
+    GEMMStackVar.ARG_10: 80,
+    GEMMStackVar.TRANSPOSE_PTR: -96,
+    GEMMStackVar.AVX2_MASK_PTR: -104,
+    GEMMStackVar.SSE_AVX2_LP_HELPER_PTR: -112,
+    GEMMStackVar.SCF_BRGEMM_PTR: -112,
+    GEMMStackVar.A_EMU_PTR: -120,
+    GEMMStackVar.B_EMU_PTR: -128,
+    GEMMStackVar.MELTW_STRUCT_PTR: -136,
+    GEMMStackVar.A_SCRATCH_PTR: -144,
+    GEMMStackVar.C_SCRATCH_PTR: -152,
+    GEMMStackVar.C_OUTPUT_PTR: -160,
+    GEMMStackVar.BIAS_SCRATCH_PTR: -168,
+    GEMMStackVar.ZPT_BRGEMM_PTR: -168,
+    GEMMStackVar.BSCALE_BRGEMM_PTR: -96,
+    GEMMStackVar.BSCALE_PTR: -152,
+    GEMMStackVar.LDA_PTR: -176,
+    GEMMStackVar.LDB_PTR: -184,
+    GEMMStackVar.LDC_PTR: -192,
+}
+"""
+The stack at exit of setup looks like this:
+
+    10th param (if applicable)                <-- RBP+40
+    9th param (if applicable)                 <-- RBP+32
+    8th param (if applicable)                 <-- RBP+24
+    7th param (if applicable)                 <-- RBP+16
+    Return address                            <-- RBP+8
+    Entry/saved RBP                           <-- RBP
+    prefetch A ptr                            <-- RBP-8
+    prefetch B ptr                            <-- RBP-16
+    Offset A array ptr                        <-- RBP-24
+    Offset B array ptr                        <-- RBP-32
+    Int8 scaling factor                       <-- RBP-40
+    GEMM_scratch ptr in stack (to be filled)  <-- RBP-48
+    Eltwise bias ptr                          <-- RBP-56
+    Eltwise output_ptr                        <-- RBP-64
+    Eltwise buf1_ptr                          <-- RBP-72
+    Eltwise buf2_ptr                          <-- RBP-80
+    Batch-reduce count                        <-- RBP-88
+    Transpose A ptr                           <-- RBP-96
+    AVX2 Mask PTR                             <-- RBP-104
+    SSE/AVX2 Low precision helper PTR         <-- RBP-112
+    FP32 A EMULATION PTR                      <-- RBP-120
+    FP32 B EMULATION PTR                      <-- RBP-128
+    MELTW STRUCT PTR                          <-- RBP-136
+    A SCRATCH PTR                             <-- RBP-144
+    C SCRATCH PTR                             <-- RBP-152
+    C OUTPUT PTR                              <-- RBP-160
+    BIAS SCRATCH PTR                          <-- RBP-168
+    Variable LDA PTR                          <-- RBP-176
+    Variable LDB PTR                          <-- RBP-184
+    Variable LDC PTR                          <-- RBP-192
+"""
+
+
+def libxsmm_generator_gemm_getval_stack_var(
+    generated_code: GeneratedCode,
+    micro_kernel_config: MicroKernelConfig,
+    stack_var: GEMMStackVar,
+    destination: x86.registers.GeneralRegisterType,
+) -> SSAValue:
+    offset = GEMM_STACK_VAR_OFFSETS.get(stack_var, 0)
+    # make sure we requested a legal stack var
+    assert offset
+    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
+    return generated_code.insert(
+        x86.ops.DM_MovOp(rbp, offset, destination=destination)
+    ).destination
+
+
+def libxsmm_generator_gemm_setval_stack_var(
+    generated_code: GeneratedCode,
+    micro_kernel_config: MicroKernelConfig,
+    stack_var: GEMMStackVar,
+    source: SSAValue,
+) -> None:
+    offset = GEMM_STACK_VAR_OFFSETS.get(stack_var, 0)
+    # make sure we requested a legal stack var
+    assert offset
+    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
+    generated_code.insert(x86.ops.MS_MovOp(rbp, source, offset))
 
 
 def libxsmm_generator_gemm_header_kloop(

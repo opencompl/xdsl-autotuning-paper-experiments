@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import NamedTuple
+from enum import IntEnum
 
 from xdsl.dialects import x86
 from xdsl.dialects.builtin import ModuleOp
@@ -358,3 +359,49 @@ def libxsmm_compute_equalized_blocking(size: int, max_block: int) -> Blocking:
             ret = 1
 
     return Blocking(N1, n1, N2, n2, ret)
+
+
+class GEMMStackVar(IntEnum):
+    """Auxiliary stack variables"""
+
+    NONE = 0
+    PFA_PTR = 1
+    PFB_PTR = 2
+    A_OFFS_BRGEMM_PTR = 3
+    B_OFFS_BRGEMM_PTR = 4
+    INT8_SCF = 5
+    GEMM_SCRATCH_PTR = 6
+    ELT_BIAS_PTR = 7
+    ELT_OUTPUT_PTR = 8
+    ARG_7 = 9
+    ARG_8 = 10
+    ARG_9 = 11
+    ARG_10 = 12
+    ELT_BUF1 = 13
+    ELT_BUF2 = 14
+    ELT_BITMAP_PTR = 15
+    ELT_DECOMPRESS_BUF = 16
+    TRANS_EXT_BUF_B = 17
+    TRANS_EXT_BUF_C = 18
+    ELT_RELU_BITMASK_PTR = 19
+    BRCOUNT = 20
+    TRANSPOSE_PTR = 21
+    AVX2_MASK_PTR = 22
+    SSE_AVX2_LP_HELPER_PTR = 23
+    A_EMU_PTR = 24
+    B_EMU_PTR = 25
+    MELTW_STRUCT_PTR = 26
+    A_SCRATCH_PTR = 27
+    C_SCRATCH_PTR = 28
+    C_OUTPUT_PTR = 29
+    BIAS_SCRATCH_PTR = 30
+    ZPT_PTR = 31
+    AUX_VAR = 32
+    MXSCALE_PTR = 33
+    SCF_BRGEMM_PTR = 34
+    ZPT_BRGEMM_PTR = 35
+    BSCALE_PTR = 36
+    BSCALE_BRGEMM_PTR = 37
+    LDA_PTR = 38
+    LDB_PTR = 39
+    LDC_PTR = 40
