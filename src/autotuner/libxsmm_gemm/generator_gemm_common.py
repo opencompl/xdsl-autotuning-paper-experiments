@@ -319,10 +319,16 @@ def libxsmm_generator_gemm_header_kloop(
     arg_types = tuple(val.type for val in generated_code.current_val_by_reg.values())
 
     if k_init_op.next_op is not None:
-        new_block = existing_block.split_before(k_init_op.next_op, arg_types=arg_types)
-    else:
+        # Existing block divided in two, new one inserted
         new_block = Block(arg_types=arg_types)
+        new_block = existing_block.split_before(k_init_op.next_op, arg_types=arg_types)
         parent_region.insert_block_after(new_block, existing_block)
+    else:
+        # Existing block kept as-is, two new ones inserted
+        new_block = Block(arg_types=arg_types)
+        block_after = Block(arg_types=arg_types)
+        parent_region.insert_block_after((new_block, block_after), existing_block)
+    loop_label_tracker.dest_blocks.append(new_block)
 
     # Jump/fallthrough to the newly created block
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
@@ -800,10 +806,18 @@ def libxsmm_generator_gemm_header_nloop(
     arg_types = tuple(val.type for val in generated_code.current_val_by_reg.values())
 
     if n_init_op.next_op is not None:
-        new_block = existing_block.split_before(n_init_op.next_op, arg_types=arg_types)
-    else:
+        # Existing block divided in two, new one inserted
         new_block = Block(arg_types=arg_types)
+        block_after = existing_block.split_before(
+            n_init_op.next_op, arg_types=arg_types
+        )
         parent_region.insert_block_after(new_block, existing_block)
+    else:
+        # Existing block kept as-is, two new ones inserted
+        new_block = Block(arg_types=arg_types)
+        block_after = Block(arg_types=arg_types)
+        parent_region.insert_block_after((new_block, block_after), existing_block)
+    loop_label_tracker.dest_blocks.append(new_block)
 
     # Jump/fallthrough to the newly created block
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
@@ -1018,10 +1032,18 @@ def libxsmm_generator_gemm_header_mloop(
     arg_types = tuple(val.type for val in generated_code.current_val_by_reg.values())
 
     if m_init_op.next_op is not None:
-        new_block = existing_block.split_before(m_init_op.next_op, arg_types=arg_types)
-    else:
+        # Existing block divided in two, new one inserted
         new_block = Block(arg_types=arg_types)
+        block_after = existing_block.split_before(
+            m_init_op.next_op, arg_types=arg_types
+        )
         parent_region.insert_block_after(new_block, existing_block)
+    else:
+        # Existing block kept as-is, two new ones inserted
+        new_block = Block(arg_types=arg_types)
+        block_after = Block(arg_types=arg_types)
+        parent_region.insert_block_after((new_block, block_after), existing_block)
+    loop_label_tracker.dest_blocks.append(new_block)
 
     # Jump/fallthrough to the newly created block
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
