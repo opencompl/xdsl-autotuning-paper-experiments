@@ -932,7 +932,7 @@ def libxsmm_generator_gemm_footer_nloop(
         or micro_kernel_config.fused_b8colbias
         or micro_kernel_config.fused_h8colbias
         or micro_kernel_config.fused_scolbias
-        or micro_kernel_config.overwrite_C
+        or not micro_kernel_config.overwrite_C
     ):
         raise NotImplementedError
 
