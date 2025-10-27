@@ -588,7 +588,6 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     m_blocking: int,
     n_blocking: int,
 ) -> None:
-    return
     # some hard coded parameters for k-blocking
     k_blocking = 0
     k_threshold = 0
