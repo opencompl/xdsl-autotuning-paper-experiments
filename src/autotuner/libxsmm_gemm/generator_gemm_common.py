@@ -888,26 +888,26 @@ def libxsmm_generator_gemm_footer_nloop(
         raise NotImplementedError
 
     if (
-        micro_kernel_config.fused_relu == 1
-        or micro_kernel_config.vnni_cvt_output_ext_buf == 1
-        or micro_kernel_config.fused_relu_bwd == 1
-        or micro_kernel_config.fused_bcolbias == 1
-        or micro_kernel_config.fused_hcolbias == 1
-        or micro_kernel_config.fused_b8colbias == 1
-        or micro_kernel_config.fused_h8colbias == 1
-        or micro_kernel_config.fused_scolbias == 1
-        or micro_kernel_config.overwrite_C == 0
+        micro_kernel_config.fused_relu
+        or micro_kernel_config.vnni_cvt_output_ext_buf
+        or micro_kernel_config.fused_relu_bwd
+        or micro_kernel_config.fused_bcolbias
+        or micro_kernel_config.fused_hcolbias
+        or micro_kernel_config.fused_b8colbias
+        or micro_kernel_config.fused_h8colbias
+        or micro_kernel_config.fused_scolbias
+        or not micro_kernel_config.overwrite_C
     ):
         raise NotImplementedError
 
-    if micro_kernel_config.fused_relu == 1 and micro_kernel_config.overwrite_C == 1:
+    if micro_kernel_config.fused_relu and micro_kernel_config.overwrite_C:
         raise NotImplementedError
-    if micro_kernel_config.vnni_cvt_output_ext_buf == 1:
+    if micro_kernel_config.vnni_cvt_output_ext_buf:
         raise NotImplementedError
-    if micro_kernel_config.fused_relu_bwd == 1:
+    if micro_kernel_config.fused_relu_bwd:
         raise NotImplementedError
 
-    if micro_kernel_config.overwrite_C:
+    if not micro_kernel_config.overwrite_C:
         # In this case also advance the output ptr
         output_ptr = libxsmm_generator_gemm_getval_stack_var(
             generated_code,
