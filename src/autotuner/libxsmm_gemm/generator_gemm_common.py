@@ -316,12 +316,12 @@ def libxsmm_generator_gemm_header_kloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
+    arg_types = tuple(val.type for val in generated_code.current_val_by_reg.values())
+
     if k_init_op.next_op is not None:
-        new_block = existing_block.split_before(
-            k_init_op.next_op, arg_types=(k_arg_reg,)
-        )
+        new_block = existing_block.split_before(k_init_op.next_op, arg_types=arg_types)
     else:
-        new_block = Block(arg_types=(k_arg_reg,))
+        new_block = Block(arg_types=arg_types)
         parent_region.insert_block_after(new_block, existing_block)
 
     # Jump/fallthrough to the newly created block
@@ -797,12 +797,12 @@ def libxsmm_generator_gemm_header_nloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
+    arg_types = tuple(val.type for val in generated_code.current_val_by_reg.values())
+
     if n_init_op.next_op is not None:
-        new_block = existing_block.split_before(
-            n_init_op.next_op, arg_types=(n_arg_reg,)
-        )
+        new_block = existing_block.split_before(n_init_op.next_op, arg_types=arg_types)
     else:
-        new_block = Block(arg_types=(n_arg_reg,))
+        new_block = Block(arg_types=arg_types)
         parent_region.insert_block_after(new_block, existing_block)
 
     # Jump/fallthrough to the newly created block
@@ -1015,12 +1015,12 @@ def libxsmm_generator_gemm_header_mloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
+    arg_types = tuple(val.type for val in generated_code.current_val_by_reg.values())
+
     if m_init_op.next_op is not None:
-        new_block = existing_block.split_before(
-            m_init_op.next_op, arg_types=(m_arg_reg,)
-        )
+        new_block = existing_block.split_before(m_init_op.next_op, arg_types=arg_types)
     else:
-        new_block = Block(arg_types=(m_arg_reg,))
+        new_block = Block(arg_types=arg_types)
         parent_region.insert_block_after(new_block, existing_block)
 
     # Jump/fallthrough to the newly created block
