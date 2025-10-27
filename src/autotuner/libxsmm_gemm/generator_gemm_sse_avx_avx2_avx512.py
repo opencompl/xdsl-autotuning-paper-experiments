@@ -30,9 +30,11 @@ from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_destroy_stack_frame,
     libxsmm_generator_gemm_footer_kloop,
     libxsmm_generator_gemm_footer_mloop,
+    libxsmm_generator_gemm_footer_nloop,
     libxsmm_generator_gemm_get_blocking_and_mask,
     libxsmm_generator_gemm_header_kloop,
     libxsmm_generator_gemm_header_mloop,
+    libxsmm_generator_gemm_header_nloop,
     libxsmm_generator_gemm_init_micro_kernel_config,
     libxsmm_generator_gemm_load_C,
     libxsmm_generator_gemm_setup_stack_frame,
@@ -158,7 +160,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
     is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
     is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm()
-    is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    _is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
     is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
     is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
 
@@ -204,8 +206,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     n_n = [0, 0]  # blocking sizes for blocks
     n_N = [0, 0]  # size of blocks
 
-    adjust_A_pf_ptrs = 0
-    adjust_B_pf_ptrs = 0
+    _adjust_A_pf_ptrs = 0
+    _adjust_B_pf_ptrs = 0
     max_n_blocking = 0
 
     is_Ai8_Bbf16_gemm = (
@@ -231,7 +233,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     # Make sure we properly adjust A,B prefetch pointers in case of batch-reduce gemm kernel
     if desc.flags & GEMMFlag.BATCH_REDUCE_ADDRESS:
         if desc.prefetch == GEMMPrefetchType.AL2:
-            adjust_A_pf_ptrs = 1
+            _adjust_A_pf_ptrs = 1
 
     # In case of F16 and IMPLICIT compute set proper compute
     if (
@@ -300,12 +302,12 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     if avnni_btrans_gemm_stack_alloc_tensors:
         lda = m
-        ldb = k
+        _ldb = k
         micro_kernel_config.avnni_btrans_gemm_stack_alloc_tensors = True
 
     if atvnni_btrans_gemm_stack_alloc_tensors:
         lda = m
-        ldb = k
+        _ldb = k
         micro_kernel_config.atvnni_btrans_gemm_stack_alloc_tensors = True
 
     # Block according to the number of available registers or given limits
@@ -440,7 +442,14 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         m_blocking = 0
 
         # open N loop
-        # libxsmm_generator_gemm_header_nloop( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, &l_micro_kernel_config, l_n_done, l_n_blocking );
+        libxsmm_generator_gemm_header_nloop(
+            generated_code,
+            loop_label_tracker,
+            gp_reg_mapping,
+            micro_kernel_config,
+            n_done,
+            n_blocking,
+        )
 
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
@@ -550,7 +559,15 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 micro_kernel_config, desc, generated_code.arch, m_blocking
             )
 
-    # libxsmm_generator_gemm_footer_nloop( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, &l_micro_kernel_config, l_xgemm_desc, l_n_blocking, l_n_done );
+        libxsmm_generator_gemm_footer_nloop(
+            generated_code,
+            loop_label_tracker,
+            gp_reg_mapping,
+            micro_kernel_config,
+            desc,
+            n_blocking,
+            n_done,
+        )
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:
@@ -571,6 +588,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     m_blocking: int,
     n_blocking: int,
 ) -> None:
+    return
     # some hard coded parameters for k-blocking
     k_blocking = 0
     k_threshold = 0
