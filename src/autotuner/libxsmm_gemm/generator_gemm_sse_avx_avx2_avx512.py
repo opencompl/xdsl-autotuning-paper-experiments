@@ -593,7 +593,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     k_blocking = 0
     k_threshold = 0
     _k_pack_factor = 1
-    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm
+    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
     is_Ai8_Bbf16_gemm = (
         desc.datatype.a == "I8"
         and not is_Amxfp4_Bbf16_gemm
