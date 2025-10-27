@@ -1447,3 +1447,224 @@ def libxsmm_generator_gemm_load_C(
                         #     i_micro_kernel_config->vector_name,
                         #     l_vec_reg_acc_start + l_m + (l_m_blocking * l_n),
                         #     l_vec_reg_acc_start + l_m + (l_m_blocking * l_n) );
+
+
+def libxsmm_generator_gemm_store_C(
+    generated_code: GeneratedCode,
+    gp_reg_mapping: GPRegMapping,
+    micro_kernel_config: MicroKernelConfig,
+    desc: GEMMDescriptor,
+    m_blocking: int,
+    n_blocking: int,
+) -> None:
+    # deriving register blocking from kernel config
+    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
+    is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
+
+    m_blocking = (
+        (m_blocking // micro_kernel_config.vector_length)
+        if m_blocking % micro_kernel_config.vector_length == 0
+        else (m_blocking // micro_kernel_config.vector_length + 1)
+    )
+    # start register of accumulator
+    vec_reg_acc_start = micro_kernel_config.vector_reg_count - n_blocking * m_blocking
+    # select store instruction */
+    if GEMMFlag.ALIGN_C_NTS_HINT in desc.flags:
+        raise NotImplementedError
+    else:
+        vstore = micro_kernel_config.c_vmove_instruction
+        assert vstore is not None
+    # register blocking counter in n- and m-direction
+    n = 0
+    m = 0
+
+    # libxsmm_micro_kernel_config l_micro_kernel_config_mod;
+    # libxsmm_micro_kernel_config *const i_micro_kernel_config_mod = (libxsmm_micro_kernel_config*)&l_micro_kernel_config_mod;
+    # memcpy(i_micro_kernel_config_mod, i_micro_kernel_config, sizeof(libxsmm_micro_kernel_config));
+
+    if (
+        (micro_kernel_config.instruction_set < Arch.LIBXSMM_X86_AVX)
+        or (
+            Arch.LIBXSMM_X86_AVX2
+            <= micro_kernel_config.instruction_set
+            < Arch.LIBXSMM_X86_AVX512_VL256_SKX
+        )
+        or (
+            micro_kernel_config.instruction_set
+            in (
+                Arch.LIBXSMM_X86_AVX512_SKX,
+                Arch.LIBXSMM_X86_AVX512_CLX,
+                Arch.LIBXSMM_X86_AVX512_VL256_CLX,
+                Arch.LIBXSMM_X86_AVX512_VL256_SKX,
+            )
+        )
+    ) and (Datatype.BF16 == desc.datatype.ab and Datatype.BF16 == desc.datatype.c):
+        raise NotImplementedError
+    elif (
+        (
+            Arch.LIBXSMM_X86_AVX512_CPX
+            <= micro_kernel_config.instruction_set
+            <= Arch.LIBXSMM_X86_ALLFEAT
+        )
+        or (
+            Arch.LIBXSMM_X86_AVX512_VL256_CPX
+            <= micro_kernel_config.instruction_set
+            < Arch.LIBXSMM_X86_AVX512_SKX
+        )
+    ) and ((Datatype.BF16 == desc.datatype.ab) and (Datatype.BF16 == desc.datatype.ab)):
+        raise NotImplementedError
+    elif (
+        (
+            Arch.LIBXSMM_X86_AVX512_VL256_SKX
+            <= micro_kernel_config.instruction_set
+            <= Arch.LIBXSMM_X86_ALLFEAT
+        )
+        and (desc.datatype.ab in (Datatype.BF8, Datatype.BF16, Datatype.F32))
+        and Datatype.BF8 == desc.datatype.c
+    ) or (
+        (
+            Arch.LIBXSMM_X86_AVX512_VL256_SKX
+            <= micro_kernel_config.instruction_set
+            <= Arch.LIBXSMM_X86_ALLFEAT
+        )
+        and (desc.datatype.ab in (Datatype.HF8, Datatype.BF16, Datatype.F32))
+        and Datatype.HF8 == desc.datatype.c
+    ):
+        raise NotImplementedError
+    elif (
+        Arch.LIBXSMM_X86_AVX2
+        <= micro_kernel_config.instruction_set
+        <= Arch.LIBXSMM_X86_ALLFEAT
+    ) and (
+        (Datatype.I8 == desc.datatype.ab)
+        and (Datatype.F32 == desc.datatype.c)
+        and (is_Amxfp4_Bi8_gemm == 0)
+    ):
+        raise NotImplementedError
+    elif (
+        micro_kernel_config.instruction_set < Arch.LIBXSMM_X86_AVX
+        and Datatype.I8 == desc.datatype.ab
+        and Datatype.F32 == desc.datatype.c
+    ):
+        raise NotImplementedError
+    else:
+        # storing C accumulator
+        _relu_bitmask_gpr = gp_reg_mapping.gp_reg_help_2
+        _scratch_gpr = gp_reg_mapping.gp_reg_help_2
+        _aux_gpr = gp_reg_mapping.gp_reg_help_1
+        _zero_vreg = 0
+        _aux_vreg = (
+            2
+            if (is_Amxfp4_Bbf16_gemm or is_Amxfp4_Bfp32_gemm or is_Amxfp4_Bi8_gemm)
+            else 1
+        )
+        _mask_gpr = gp_reg_mapping.gp_reg_help_0
+        _sse_scratch_gpr = gp_reg_mapping.gp_reg_help_0
+
+        if (
+            Arch.LIBXSMM_X86_AVX
+            <= micro_kernel_config.instruction_set
+            < Arch.LIBXSMM_X86_AVX512_VL256_SKX
+            and micro_kernel_config.use_masking_a_c
+        ):
+            # in case of AVX/AVX2 we need to load the mask into an ymm
+            raise NotImplementedError
+
+        # Check out if fusion has to be applied
+        if micro_kernel_config.fused_relu_nobitmask or micro_kernel_config.fused_relu:
+            raise NotImplementedError
+        elif micro_kernel_config.fused_sigmoid:
+            raise NotImplementedError
+
+        if (
+            Datatype.F32 == desc.datatype.c
+            and Datatype.F16 == desc.datatype.comp
+            and Arch.LIBXSMM_X86_AVX512_SPR <= generated_code.arch
+        ):
+            # In this case we have to split store C in 2 chunks of vlen/2 each
+            raise NotImplementedError
+
+        else:
+            bf16cvt_replacement = 0
+            if Datatype.BF16 == desc.datatype.c and Datatype.F32 == desc.datatype.comp:
+                raise NotImplementedError
+
+            for n in range(n_blocking):
+                for m in range(m_blocking):
+                    _reg_X = vec_reg_acc_start + m + m_blocking * n
+
+                    _mask_reg_or_val = (
+                        (
+                            2
+                            if (
+                                is_Amxfp4_Bbf16_gemm
+                                or is_Amxfp4_Bfp32_gemm
+                                or is_Amxfp4_Bi8_gemm
+                            )
+                            else 1
+                        )
+                        if (micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX)
+                        else m_blocking % micro_kernel_config.vector_length
+                    )
+
+                    _vname_store = micro_kernel_config.vector_name
+
+                    if (
+                        micro_kernel_config.fused_relu_nobitmask
+                        or micro_kernel_config.fused_relu
+                    ):
+                        raise NotImplementedError
+                    elif micro_kernel_config.fused_sigmoid:
+                        raise NotImplementedError
+
+                    if (
+                        Arch.LIBXSMM_X86_AVX
+                        <= micro_kernel_config.instruction_set
+                        < Arch.LIBXSMM_X86_AVX512_VL256_SKX
+                        and micro_kernel_config.use_masking_a_c
+                        and (m == m_blocking - 1)
+                    ):
+                        raise NotImplementedError
+
+                    if (
+                        Datatype.F32 == desc.datatype.comp
+                        and Datatype.F16 == desc.datatype.c
+                    ) or (
+                        Datatype.F16 == desc.datatype.comp
+                        and Datatype.F16 == desc.datatype.c
+                        and generated_code.arch < Arch.LIBXSMM_X86_AVX512_SPR
+                    ):
+                        raise NotImplementedError
+
+                    if (
+                        Datatype.F32 == desc.datatype.c
+                        and Datatype.F16 == desc.datatype.comp
+                    ):
+                        raise NotImplementedError
+
+                    if Datatype.BF16 == desc.datatype.c and (
+                        desc.datatype.comp in (Datatype.F32, Datatype.I32)
+                    ):
+                        raise NotImplementedError
+
+                    if (
+                        (desc.is_Amxfp4_Bbf16_gemm() or desc.is_Amxfp4_Bi8_gemm())
+                        and Datatype.BF16 == desc.datatype.c
+                        and micro_kernel_config.use_masking_a_c
+                        and (m == m_blocking - 1)
+                    ):
+                        raise NotImplementedError
+                    else:
+                        # libxsmm_x86_instruction_unified_vec_move( io_generated_code, l_vstore,
+                        #                                         i_gp_reg_mapping->gp_reg_c, LIBXSMM_X86_GP_REG_UNDEF, 0,
+                        #                                         ((l_n * i_xgemm_desc->ldc) + (l_m * (i_micro_kernel_config->vector_length))) * (i_micro_kernel_config->datatype_size_out),
+                        #                                         vname_store, reg_X, ( l_m == (l_m_blocking - 1) ) ? i_micro_kernel_config->use_masking_a_c : 0, l_mask_reg_or_val, 1);
+                        ...
+            if bf16cvt_replacement:
+                raise NotImplementedError
+
+        if micro_kernel_config.fused_relu_nobitmask or micro_kernel_config.fused_relu:
+            raise NotImplementedError
+        elif micro_kernel_config.fused_sigmoid:
+            raise NotImplementedError
