@@ -197,7 +197,7 @@ def libxsmm_x86_instruction_jump_back_to_label(
 def libxsmm_x86_instruction_register_jump_back_label(
     generated_code: GeneratedCode, loop_label_tracker: LoopLabelTracker
 ) -> None:
-    generated_code.insert(x86.ops.LabelOp(f"{loop_label_tracker.current_loop_number}"))
+    generated_code.insert(x86.ops.LabelOp(f"l{loop_label_tracker.current_loop_number}"))
 
 
 def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
