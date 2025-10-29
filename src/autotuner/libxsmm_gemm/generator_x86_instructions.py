@@ -198,6 +198,233 @@ def libxsmm_x86_instruction_register_jump_back_label(
     generated_code.insert(x86.ops.LabelOp(f"{loop_label_tracker.current_loop_number}"))
 
 
+def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
+    generated_code: GeneratedCode,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
+    vector_name: Literal["x", "y", "z"],
+    reg_number_src0: int,
+    reg_number_src1: int,
+    reg_number_dst: int,
+    mask_reg_number: int,
+    mask_cntl: int,
+    sae_cntl: int,
+    imm8: int | None,
+): ...
+
+
+# LIBXSMM_API_INTERN
+# void libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8( libxsmm_generated_code* io_generated_code,
+#                                                              const unsigned int      i_vec_instr,
+#                                                              const char              i_vector_name,
+#                                                              const unsigned int      i_reg_number_src0,
+#                                                              const unsigned int      i_reg_number_src1,
+#                                                              const unsigned int      i_reg_number_dst,
+#                                                              const unsigned int      i_mask_reg_number,
+#                                                              const unsigned int      i_mask_cntl,
+#                                                              const unsigned char     i_sae_cntl,
+#                                                              const unsigned int      i_imm8 ) {
+#   if ( (libxsmm_x86_instruction_vec_is_hybrid( i_vec_instr )  == 0) and
+#        (libxsmm_x86_instruction_vec_is_regonly( i_vec_instr ) == 0)    ) {
+#     fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: unexpected instruction number: 0x%08x\n", i_vec_instr);
+#     LIBXSMM_EXIT_ERROR(io_generated_code);
+#     return;
+#   }
+
+#   /* check that we are not masking 'y' */
+#   if ( (io_generated_code->arch < LIBXSMM_X86_AVX512_VL128_SKX) and (i_mask_reg_number != 0) ) {
+#     fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: Masking is only available for AVX512!\n");
+#     LIBXSMM_EXIT_ERROR(io_generated_code);
+#     return;
+#   }
+
+#   /* select the code generator REX/VEX/EVEX */
+#   if ( io_generated_code->code_type > 1 ) {
+#     unsigned int l_encoder; /* 2=EVEX, 1=VEX, 0=REX */
+#     unsigned int l_encoder_arch = 2;
+#     unsigned int l_encoder_instr = ((i_vec_instr >> 30) & 0x03);
+#     unsigned int l_reg_number_src0 = 0;
+#     unsigned int l_reg_number_src1 = 0;
+#     unsigned int l_reg_number_dst = 0;
+
+#     /* determine encoder */
+#     if ( io_generated_code->arch < LIBXSMM_X86_AVX ) {
+#       l_encoder_arch = 0;
+#     }
+#     else if ( io_generated_code->arch < LIBXSMM_X86_AVX512_VL128_SKX ) {
+#       l_encoder_arch = 1;
+#     }
+#     if ( (l_encoder_arch == 2) and ((l_encoder_instr == 3) || (l_encoder_instr == 0)) ) {
+#       l_encoder = 2;
+#     } else if ( (l_encoder_arch >= 1) and ((l_encoder_instr == 1) || (l_encoder_instr == 0)) ) {
+#       l_encoder = 1;
+#     } else {
+#       l_encoder = 0;
+#     }
+
+#     /* check that we have an UNDEF for 2 src operands */
+#     if ( ((i_vec_instr >> 28) & 3) == 2 ) {
+#       if ( ((l_encoder != 0) and (i_reg_number_src1 != LIBXSMM_X86_VEC_REG_UNDEF)) || ((l_encoder == 0) and ((i_reg_number_src1 != i_reg_number_dst) and (i_reg_number_src1 != LIBXSMM_X86_VEC_REG_UNDEF))) ) {
+#         fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: In case of a 2 src operand instruction (0x%08x), i_reg_number_src1 needs to be LIBXSMM_X86_VEC_REG_UNDEF!\n", i_vec_instr);
+#         LIBXSMM_EXIT_ERROR(io_generated_code);
+#         return;
+#       }
+#       l_reg_number_src1 = 0;
+#     } else if ( ((i_vec_instr >> 28) & 3) == 1 ) {
+#       if ( i_reg_number_src0 != LIBXSMM_X86_VEC_REG_UNDEF ) {
+#         fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: In case of a 1 src operand instruction (0x%08x), i_reg_number_src0 needs to be LIBXSMM_X86_VEC_REG_UNDEF!\n", i_vec_instr);
+#         LIBXSMM_EXIT_ERROR(io_generated_code);
+#         return;
+#       }
+#       l_reg_number_src0 = 0;
+#     } else {
+#       l_reg_number_src1 = i_reg_number_src1;
+#     }
+
+#     /* check if we need to flip operands */
+#     if ( ((i_vec_instr >> 24) & 0x08 ) == 0x08 ) {
+#       l_reg_number_dst = i_reg_number_src0;
+#       l_reg_number_src0 = i_reg_number_dst;
+#     } else {
+#       l_reg_number_dst = i_reg_number_dst;
+#       l_reg_number_src0 = i_reg_number_src0;
+#     }
+
+#     /* check if we have op-code extension in modrm/reg */
+#     if ( ((i_vec_instr >> 24) & 0x04 ) == 0x04 ) {
+#       if ( ((i_vec_instr >> 28) & 0x3) == 0x2 ) {
+#         l_reg_number_src1 = i_reg_number_dst;
+#         l_reg_number_dst = ((i_vec_instr >> 20) & 0x07);
+#       } else if ( ((i_vec_instr >> 28) & 0x3) == 0x1 )  {
+#         l_reg_number_src0 = i_reg_number_dst;
+#         l_reg_number_dst = ((i_vec_instr >> 20) & 0x07);
+#       } else {
+#         fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: In case of a op-code modrm/reg extended instruction (0x%08x), i_reg_number_src1 or i_reg_number_src0 needs to be LIBXSMM_X86_VEC_REG_UNDEF!\n", i_vec_instr);
+#         LIBXSMM_EXIT_ERROR(io_generated_code);
+#         return;
+#       }
+#     }
+
+#     /* encode main instruction */
+#     if ( l_encoder == 2 ) {
+#       libxsmm_x86_simd_name l_simd_name = LIBXSMM_X86_SIMD_NAME_XMM;
+
+#       /* set simd name */
+#       switch(i_vector_name) {
+#         case 'x':
+#           l_simd_name = LIBXSMM_X86_SIMD_NAME_XMM;
+#           break;
+#         case 'y':
+#           l_simd_name = LIBXSMM_X86_SIMD_NAME_YMM;
+#           break;
+#         case 'z':
+#           l_simd_name = LIBXSMM_X86_SIMD_NAME_ZMM;
+#           break;
+#         default:
+#           fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: unsupported vlen: %c\n", i_vector_name);
+#           break;
+#       }
+
+#       libxsmm_x86_instruction_evex_compute_3reg( io_generated_code, i_vec_instr, l_simd_name,
+#             l_reg_number_src0, l_reg_number_src1, l_reg_number_dst, i_mask_reg_number, i_mask_cntl, i_sae_cntl );
+#     } else if ( l_encoder == 1 ) {
+#       libxsmm_x86_simd_name l_simd_name = LIBXSMM_X86_SIMD_NAME_XMM;
+
+#       /* set simd name */
+#       switch(i_vector_name) {
+#         case 'x':
+#           l_simd_name = LIBXSMM_X86_SIMD_NAME_XMM;
+#           break;
+#         case 'y':
+#           l_simd_name = LIBXSMM_X86_SIMD_NAME_YMM;
+#           break;
+#         default:
+#           fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: unsupported vlen: %c\n", i_vector_name);
+#           break;
+#       }
+
+#       libxsmm_x86_instruction_vex_compute_3reg( io_generated_code, i_vec_instr, l_simd_name,
+#             l_reg_number_src0, l_reg_number_src1, l_reg_number_dst );
+#     } else {
+#       libxsmm_x86_instruction_rex_compute_2reg( io_generated_code, i_vec_instr,
+#             l_reg_number_src0, l_reg_number_dst );
+#     }
+
+#     /* add imm if needed */
+#     if ( ((i_vec_instr >> 16) & 0x08) == 0x08 ) {
+#       if ( i_imm8 != LIBXSMM_X86_IMM_UNDEF ) {
+#         unsigned char* code = (unsigned char *) io_generated_code->generated_code;
+#         code[io_generated_code->code_size++] = (unsigned char)i_imm8;
+#       } else {
+#         fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: imm8 required by instr, but LIBXSMM_X86_IMM_UNDEF was provided!\n");
+#         LIBXSMM_EXIT_ERROR(io_generated_code);
+#         return;
+#       }
+#     }
+#   } else {
+#     char l_new_code[512];
+#     int l_max_code_length = 511;
+#     int l_code_length = 0;
+#     char l_instr_name[16];
+#     unsigned int l_imm8 = (unsigned int)i_imm8;
+#     libxsmm_get_x86_instr_name( i_vec_instr, l_instr_name, 15 );
+
+#     /* build vXYZpd/ps/sd/ss instruction pure register use*/
+#     if ( io_generated_code->arch > LIBXSMM_X86_SSE42 ) {
+#       if ( ( ((i_vec_instr >> 16) & 0x08) == 0x08 ) and (i_imm8 != LIBXSMM_X86_IMM_UNDEF) ) {
+#         if ( io_generated_code->code_type == 0 ) {
+#           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s $%u, %%%%%cmm%u, %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, l_imm8, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
+#         } else {
+#           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s $%u, %%%cmm%u, %%%cmm%u, %%%cmm%u\n", l_instr_name, l_imm8, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
+#         }
+#       } else {
+#         if ( io_generated_code->code_type == 0 ) {
+#           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s %%%%%cmm%u, %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
+#         } else {
+#           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s %%%cmm%u, %%%cmm%u, %%%cmm%u\n", l_instr_name, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
+#         }
+#       }
+#     } else {
+#       if ( ( ((i_vec_instr >> 16) & 0x08) == 0x08 ) and (i_imm8 != LIBXSMM_X86_IMM_UNDEF) ) {
+#         if ( io_generated_code->code_type == 0 ) {
+#           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s $%u, %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, l_imm8, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_dst );
+#         } else {
+#           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s $%u, %%%cmm%u, %%%cmm%u\n", l_instr_name, l_imm8, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_dst );
+#         }
+#       } else {
+#         if ( io_generated_code->code_type == 0 ) {
+#           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_dst );
+#         } else {
+#           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s %%%cmm%u, %%%cmm%u\n", l_instr_name, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_dst );
+#         }
+#       }
+#     }
+#     libxsmm_append_code_as_string( io_generated_code, l_new_code, l_code_length );
+#   }
+# }
+
+
+def libxsmm_x86_instruction_vec_compute_3reg(
+    generated_code: GeneratedCode,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
+    vector_name: Literal["x", "y", "z"],
+    reg_number_src0: int,
+    reg_number_src1: int,
+    reg_number_dst: int,
+) -> None:
+    libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
+        generated_code,
+        vec_instr,
+        vector_name,
+        reg_number_src0,
+        reg_number_src1,
+        reg_number_dst,
+        0,
+        0,
+        0,
+        None,
+    )
+
+
 def libxsmm_x86_instruction_vex_evex_mask_mov_st(
     generated_code: GeneratedCode,
     vmove_instr: type[
