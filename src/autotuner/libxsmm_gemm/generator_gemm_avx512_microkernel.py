@@ -227,7 +227,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         # const char *const l_env_a_k_pf_dist = getenv("LIBXSMM_GEMM_K_A_PF_DIST");
         # unsigned l_a_k_pf_dist = (l_env_a_k_pf_dist == 0) ? 0 : atoi(l_env_a_k_pf_dist);
         a_k_pf_dist = 0
-        _a_vname = (
+        a_vname = (
             micro_kernel_config.vector_name
             if not (is_Ai8_Bf16_gemm or is_Abf8_Bf16_gemm)
             else (
@@ -242,7 +242,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         )
 
         # unsigned int l_a_vmove_instruction = ((l_is_Ai8_Bf16_gemm > 0 || l_is_Abf8_Bf16_gemm > 0) && (io_generated_code->arch < LIBXSMM_X86_AVX512_SKX) && (l_m != (l_m_blocking - 1)) ) ? LIBXSMM_X86_INSTR_VMOVSD : i_micro_kernel_config->a_vmove_instruction;
-        _a_vmove_instruction = micro_kernel_config.a_vmove_instruction
+        a_vmove_instruction = micro_kernel_config.a_vmove_instruction
 
         if is_Af16_Bf16_gemm:
             raise NotImplementedError
@@ -259,15 +259,27 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 if is_Ai1_Bi8_gemm:
                     raise NotImplementedError
                 else:
-                    ...
-                    # libxsmm_x86_instruction_vec_move( io_generated_code,
-                    #     i_micro_kernel_config->instruction_set,
-                    #     l_a_vmove_instruction,
-                    #     i_gp_reg_mapping->gp_reg_a,
-                    #     LIBXSMM_X86_GP_REG_UNDEF, 0,
-                    #     (i_micro_kernel_config->datatype_size_in) * (i_micro_kernel_config->vector_length) * l_m * l_k_pack_factor,
-                    #     l_a_vname,
-                    #     (l_is_Ai2_Bi8_gemm > 0) ? l_m+l_vreg_ab_offset : 1+l_m+l_vreg_ab_offset, ( l_m == (l_m_blocking - 1) ) ? i_micro_kernel_config->use_masking_a_c : 0, 1, 0 );
+                    libxsmm_x86_instruction_vec_move_ld(
+                        generated_code,
+                        micro_kernel_config.instruction_set,
+                        a_vmove_instruction,
+                        gp_reg_mapping.gp_reg_a,
+                        None,
+                        0,
+                        (micro_kernel_config.datatype_size_in)
+                        * (micro_kernel_config.vector_length)
+                        * m
+                        * k_pack_factor,
+                        a_vname,
+                        m + vreg_ab_offset
+                        if (is_Ai2_Bi8_gemm > 0)
+                        else 1 + m + vreg_ab_offset,
+                        micro_kernel_config.use_masking_a_c
+                        if (m == (m_blocking - 1))
+                        else 0,
+                        True,
+                        False,
+                    )
 
                 if (
                     (

@@ -32,21 +32,29 @@
 // CHECK-NEXT:  ^{{.*}}(%{{.*}} : !x86.reg<rdi>, %{{.*}} : !x86.reg<rsi>, %{{.*}} : !x86.reg<rdx>, %{{.*}} : !x86.reg<rbp>, %{{.*}} : !x86.reg<rsp>, %{{.*}} : !x86.reg<r10>, %{{.*}} : !x86.reg<r11>, %{{.*}} : !x86.avx512reg<zmm26>, %{{.*}} : !x86.avx512reg<zmm27>, %{{.*}} : !x86.avx512reg<zmm28>, %{{.*}} : !x86.avx512reg<zmm29>, %{{.*}} : !x86.avx512reg<zmm30>, %{{.*}} : !x86.avx512reg<zmm31>, %{{.*}} : !x86.reg<r12>):
 // CHECK-NEXT:    x86.label "35"
 // CHECK-NEXT:    %{{.*}} = x86.ri.add %{{.*}}, 4 : (!x86.reg<r12>) -> !x86.reg<r12>
+// CHECK-NEXT:    %{{.*}} = x86.dm.vmovapd %{{.*}}, 0 : (!x86.reg<rdi>) -> !x86.avx512reg<zmm1>
+// CHECK-NEXT:    %{{.*}} = x86.dm.vmovapd %{{.*}}, 64 : (!x86.reg<rdi>) -> !x86.avx512reg<zmm2>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 0 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 512 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 1024 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.ri.add %{{.*}}, 8 : (!x86.reg<rsi>) -> !x86.reg<rsi>
 // CHECK-NEXT:    %{{.*}} = x86.ri.add %{{.*}}, 128 : (!x86.reg<rdi>) -> !x86.reg<rdi>
+// CHECK-NEXT:    %{{.*}} = x86.dm.vmovapd %{{.*}}, 0 : (!x86.reg<rdi>) -> !x86.avx512reg<zmm1>
+// CHECK-NEXT:    %{{.*}} = x86.dm.vmovapd %{{.*}}, 64 : (!x86.reg<rdi>) -> !x86.avx512reg<zmm2>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 0 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 512 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 1024 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.ri.add %{{.*}}, 8 : (!x86.reg<rsi>) -> !x86.reg<rsi>
 // CHECK-NEXT:    %{{.*}} = x86.ri.add %{{.*}}, 128 : (!x86.reg<rdi>) -> !x86.reg<rdi>
+// CHECK-NEXT:    %{{.*}} = x86.dm.vmovapd %{{.*}}, 0 : (!x86.reg<rdi>) -> !x86.avx512reg<zmm1>
+// CHECK-NEXT:    %{{.*}} = x86.dm.vmovapd %{{.*}}, 64 : (!x86.reg<rdi>) -> !x86.avx512reg<zmm2>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 0 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 512 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 1024 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.ri.add %{{.*}}, 8 : (!x86.reg<rsi>) -> !x86.reg<rsi>
 // CHECK-NEXT:    %{{.*}} = x86.ri.add %{{.*}}, 128 : (!x86.reg<rdi>) -> !x86.reg<rdi>
+// CHECK-NEXT:    %{{.*}} = x86.dm.vmovapd %{{.*}}, 0 : (!x86.reg<rdi>) -> !x86.avx512reg<zmm1>
+// CHECK-NEXT:    %{{.*}} = x86.dm.vmovapd %{{.*}}, 64 : (!x86.reg<rdi>) -> !x86.avx512reg<zmm2>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 0 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 512 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
 // CHECK-NEXT:    %{{.*}} = x86.dm.vbroadcastsd %{{.*}}, 1024 : (!x86.reg<rsi>) -> !x86.avx512reg<zmm0>
