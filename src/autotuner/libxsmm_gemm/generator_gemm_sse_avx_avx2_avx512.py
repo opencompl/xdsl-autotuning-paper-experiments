@@ -1,3 +1,5 @@
+import os
+
 from xdsl.builder import Builder
 from xdsl.dialects import x86
 from xdsl.dialects.x86.registers import (
@@ -65,10 +67,17 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
 
     # Define GP register mapping
 
-    gp_reg_mapping.gp_reg_param_struct = RDI
+    if os.environ.get("SWAP_A_B") == "1":
+        gp_reg_a = RSI
+        gp_reg_b = RDI
+    else:
+        gp_reg_a = RDI
+        gp_reg_b = RSI
+
+    gp_reg_mapping.gp_reg_param_struct = gp_reg_a
 
     gp_reg_mapping.gp_reg_a = gp_reg_mapping.gp_reg_param_struct
-    gp_reg_mapping.gp_reg_b = RSI
+    gp_reg_mapping.gp_reg_b = gp_reg_b
     gp_reg_mapping.gp_reg_c = RDX
     gp_reg_mapping.gp_reg_a_prefetch = RCX
     gp_reg_mapping.gp_reg_b_prefetch = R8
