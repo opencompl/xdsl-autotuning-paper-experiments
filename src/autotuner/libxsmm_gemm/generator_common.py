@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 from enum import IntEnum
 
 from xdsl.dialects import x86
@@ -149,7 +149,7 @@ class MicroKernelConfig:
     alu_cmp_instruction: int = field(default=0)
     alu_jmp_instruction: int = field(default=0)
     alu_mov_instruction: int = field(default=0)
-    vector_name: str = field(default="")
+    vector_name: Literal["x", "y", "z"] = field(default="z")
 
     # Auxiliary variables for GEMM fusion info
     fused_eltwise: int = field(default=0)

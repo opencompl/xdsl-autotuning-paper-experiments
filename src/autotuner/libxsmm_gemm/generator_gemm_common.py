@@ -32,7 +32,7 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
         config.instruction_set = Arch.LIBXSMM_TARGET_ARCH_GENERIC
         config.vector_reg_count = 0
         config.use_masking_a_c = False
-        config.vector_name = "a"
+        # config.vector_name = "a"
         config.vector_length = 0
         config.datatype_size_in = 0
         config.datatype_size_in2 = 0
