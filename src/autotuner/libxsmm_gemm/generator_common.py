@@ -135,7 +135,7 @@ class MicroKernelConfig:
         ]
         | None
     ) = field(default=None)
-    use_masking_a_c: int = field(default=0)
+    use_masking_a_c: bool = field(default=False)
     prefetch_instruction: int = field(default=0)
     vxor_instruction: int = field(default=0)
     vmul_instruction: (

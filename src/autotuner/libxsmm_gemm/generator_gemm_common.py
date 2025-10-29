@@ -31,7 +31,7 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
     if arch <= Arch.LIBXSMM_X86_GENERIC or arch > Arch.LIBXSMM_X86_ALLFEAT:
         config.instruction_set = Arch.LIBXSMM_TARGET_ARCH_GENERIC
         config.vector_reg_count = 0
-        config.use_masking_a_c = 0
+        config.use_masking_a_c = False
         config.vector_name = "a"
         config.vector_length = 0
         config.datatype_size_in = 0
