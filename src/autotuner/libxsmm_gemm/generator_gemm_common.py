@@ -10,6 +10,7 @@ from autotuner.libxsmm_gemm.generator_common import (
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_jump_back_to_label,
     libxsmm_x86_instruction_register_jump_back_label,
+    libxsmm_x86_instruction_unified_vec_move_ld,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
@@ -1279,7 +1280,7 @@ def libxsmm_generator_gemm_load_C(
         else (m_blocking // micro_kernel_config.vector_length) + 1
     )
     # start register of accumulator
-    _vec_reg_acc_start = micro_kernel_config.vector_reg_count - n_blocking * m_blocking
+    vec_reg_acc_start = micro_kernel_config.vector_reg_count - n_blocking * m_blocking
 
     if load_scf_vector:
         raise NotImplementedError
@@ -1387,8 +1388,8 @@ def libxsmm_generator_gemm_load_C(
                 # adding to C, so let's load C
                 for n in range(n_blocking):
                     for m in range(m_blocking):
-                        _vname_load = micro_kernel_config.vector_name
-                        _mask_reg_or_val = (
+                        vname_load = micro_kernel_config.vector_name
+                        mask_reg_or_val = (
                             (
                                 2
                                 if (
@@ -1416,12 +1417,22 @@ def libxsmm_generator_gemm_load_C(
                             raise NotImplementedError
 
                         # we only mask the last m-blocked load
-                        # libxsmm_x86_instruction_unified_vec_move( io_generated_code, i_micro_kernel_config->c_vmove_instruction,
-                        #                                         i_gp_reg_mapping->gp_reg_c, LIBXSMM_X86_GP_REG_UNDEF, 0,
-                        #                                         ((l_n * i_xgemm_desc->ldc) + (l_m * (i_micro_kernel_config->vector_length))) * (i_micro_kernel_config->datatype_size_out),
-                        #                                         vname_load,
-                        #                                         l_vec_reg_acc_start + l_m + (l_m_blocking * l_n), ( l_m == (l_m_blocking - 1) ) ? i_micro_kernel_config->use_masking_a_c : 0, l_mask_reg_or_val, 0 );
-
+                        libxsmm_x86_instruction_unified_vec_move_ld(
+                            generated_code,
+                            micro_kernel_config.c_vmove_instruction,
+                            gp_reg_mapping.gp_reg_c,
+                            None,
+                            0,
+                            ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
+                            * (micro_kernel_config.datatype_size_out),
+                            vname_load,
+                            vec_reg_acc_start + m + (m_blocking * n),
+                            micro_kernel_config.use_masking_a_c
+                            if (m == (m_blocking - 1))
+                            else False,
+                            mask_reg_or_val,
+                            False,
+                        )
                         if (
                             Datatype.F16 == desc.datatype.c
                             and Datatype.F32 == desc.datatype.comp
