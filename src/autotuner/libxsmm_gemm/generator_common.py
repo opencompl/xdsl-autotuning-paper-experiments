@@ -115,12 +115,21 @@ class MicroKernelConfig:
         | None
     ) = field(default=None)
     b_shuff_instruction: int = field(default=0)
-    c_vmove_instruction: (
+    c_vmove_ld_instruction: (
         type[
             x86.ops.DM_VmovapdOp
             | x86.ops.DM_VmovapsOp
             | x86.ops.DM_VmovupsOp
             | x86.ops.DM_VmovupdOp
+        ]
+        | None
+    ) = field(default=None)
+    c_vmove_st_instruction: (
+        type[
+            x86.ops.MS_VmovapdOp
+            | x86.ops.MS_VmovupdOp
+            | x86.ops.MS_VmovapsOp
+            | x86.ops.MS_VmovupsOp
         ]
         | None
     ) = field(default=None)

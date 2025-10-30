@@ -58,19 +58,21 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
                 assert not desc.lda % config.vector_length
                 config.a_vmove_instruction = x86.ops.DM_VmovapdOp
             else:
-                config.a_vmove_instruction = x86.ops.DM_VMovupdOp
+                config.a_vmove_instruction = x86.ops.DM_VmovupdOp
 
             config.b_vmove_instruction = x86.ops.DM_VbroadcastsdOp
             if GEMMFlag.ALIGN_C in desc.flags:
                 assert not desc.ldc % config.vector_length
-                config.c_vmove_instruction = x86.ops.DM_VmovapdOp
+                config.c_vmove_ld_instruction = x86.ops.DM_VmovapdOp
+                config.c_vmove_st_instruction = x86.ops.MS_VmovapdOp
                 if not use_masking_a_c:
                     config.c_vmove_nts_instruction = x86.ops.MS_VmovntpdOp
 
                 else:
                     config.c_vmove_nts_instruction = x86.ops.MS_VmovapdOp
             else:
-                config.c_vmove_instruction = x86.ops.DM_VmovupdOp
+                config.c_vmove_ld_instruction = x86.ops.DM_VmovupdOp
+                config.c_vmove_st_instruction = x86.ops.MS_VmovupdOp
                 config.c_vmove_nts_instruction = x86.ops.MS_VmovupdOp
 
             # config.vxor_instruction = LIBXSMM_X86_INSTR_VPXORD;
@@ -93,13 +95,15 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
             config.b_vmove_instruction = x86.ops.DM_VbroadcastssOp
             if GEMMFlag.ALIGN_C in desc.flags:
                 assert not desc.ldc % config.vector_length
-                config.c_vmove_instruction = x86.ops.DM_VmovapsOp
+                config.c_vmove_ld_instruction = x86.ops.DM_VmovapsOp
+                config.c_vmove_st_instruction = x86.ops.MS_VmovapsOp
                 if not use_masking_a_c:
                     config.c_vmove_nts_instruction = x86.ops.MS_VmovapsOp
                 else:
                     config.c_vmove_nts_instruction = x86.ops.MS_VmovntpsOp
             else:
-                config.c_vmove_instruction = x86.ops.DM_VmovupsOp
+                config.c_vmove_ld_instruction = x86.ops.DM_VmovupsOp
+                config.c_vmove_st_instruction = x86.ops.MS_VmovupsOp
                 config.c_vmove_nts_instruction = x86.ops.MS_VmovupsOp
 
             # config.vxor_instruction = LIBXSMM_X86_INSTR_VPXORD;
@@ -1422,7 +1426,7 @@ def libxsmm_generator_gemm_load_C(
                         # we only mask the last m-blocked load
                         libxsmm_x86_instruction_unified_vec_move_ld(
                             generated_code,
-                            micro_kernel_config.c_vmove_instruction,
+                            micro_kernel_config.c_vmove_ld_instruction,
                             gp_reg_mapping.gp_reg_c,
                             None,
                             0,
@@ -1509,7 +1513,7 @@ def libxsmm_generator_gemm_store_C(
     if GEMMFlag.ALIGN_C_NTS_HINT in desc.flags:
         raise NotImplementedError
     else:
-        vstore = micro_kernel_config.c_vmove_instruction
+        vstore = micro_kernel_config.c_vmove_st_instruction
         assert vstore is not None
     # register blocking counter in n- and m-direction
     n = 0
