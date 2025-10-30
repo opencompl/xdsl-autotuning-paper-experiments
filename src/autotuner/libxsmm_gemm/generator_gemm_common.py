@@ -11,6 +11,7 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_jump_back_to_label,
     libxsmm_x86_instruction_register_jump_back_label,
     libxsmm_x86_instruction_unified_vec_move_ld,
+    libxsmm_x86_instruction_unified_vec_move_st,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
@@ -1632,9 +1633,9 @@ def libxsmm_generator_gemm_store_C(
 
             for n in range(n_blocking):
                 for m in range(m_blocking):
-                    _reg_X = vec_reg_acc_start + m + m_blocking * n
+                    reg_X = vec_reg_acc_start + m + m_blocking * n
 
-                    _mask_reg_or_val = (
+                    mask_reg_or_val = (
                         (
                             2
                             if (
@@ -1648,7 +1649,7 @@ def libxsmm_generator_gemm_store_C(
                         else m_blocking % micro_kernel_config.vector_length
                     )
 
-                    _vname_store = micro_kernel_config.vector_name
+                    vname_store = micro_kernel_config.vector_name
 
                     if (
                         micro_kernel_config.fused_relu_nobitmask
@@ -1696,11 +1697,22 @@ def libxsmm_generator_gemm_store_C(
                     ):
                         raise NotImplementedError
                     else:
-                        # libxsmm_x86_instruction_unified_vec_move( io_generated_code, l_vstore,
-                        #                                         i_gp_reg_mapping->gp_reg_c, LIBXSMM_X86_GP_REG_UNDEF, 0,
-                        #                                         ((l_n * i_xgemm_desc->ldc) + (l_m * (i_micro_kernel_config->vector_length))) * (i_micro_kernel_config->datatype_size_out),
-                        #                                         vname_store, reg_X, ( l_m == (l_m_blocking - 1) ) ? i_micro_kernel_config->use_masking_a_c : 0, l_mask_reg_or_val, 1);
-                        ...
+                        libxsmm_x86_instruction_unified_vec_move_st(
+                            generated_code,
+                            vstore,
+                            gp_reg_mapping.gp_reg_c,
+                            None,
+                            0,
+                            ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
+                            * (micro_kernel_config.datatype_size_out),
+                            vname_store,
+                            reg_X,
+                            micro_kernel_config.use_masking_a_c
+                            if (m == (m_blocking - 1))
+                            else False,
+                            mask_reg_or_val,
+                            True,
+                        )
             if bf16cvt_replacement:
                 raise NotImplementedError
 

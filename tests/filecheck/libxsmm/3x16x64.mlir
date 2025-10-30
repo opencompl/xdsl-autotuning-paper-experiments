@@ -85,6 +85,12 @@
 // CHECK-NEXT:    x86.c.jl %{{.*}} : !x86.rflags<rflags>, ^{{.*}}(%{{.*}} : !x86.reg<rdi>, %{{.*}} : !x86.reg<rsi>, %{{.*}} : !x86.reg<rdx>, %{{.*}} : !x86.reg<rbp>, %{{.*}} : !x86.reg<rsp>, %{{.*}} : !x86.reg<r10>, %{{.*}} : !x86.reg<r11>, %{{.*}} : !x86.avx512reg<zmm26>, %{{.*}} : !x86.avx512reg<zmm27>, %{{.*}} : !x86.avx512reg<zmm28>, %{{.*}} : !x86.avx512reg<zmm29>, %{{.*}} : !x86.avx512reg<zmm30>, %{{.*}} : !x86.avx512reg<zmm31>, %{{.*}} : !x86.reg<r12>), ^{{.*}}(%{{.*}} : !x86.reg<rdi>, %{{.*}} : !x86.reg<rsi>, %{{.*}} : !x86.reg<rdx>, %{{.*}} : !x86.reg<rbp>, %{{.*}} : !x86.reg<rsp>, %{{.*}} : !x86.reg<r10>, %{{.*}} : !x86.reg<r11>, %{{.*}} : !x86.avx512reg<zmm26>, %{{.*}} : !x86.avx512reg<zmm27>, %{{.*}} : !x86.avx512reg<zmm28>, %{{.*}} : !x86.avx512reg<zmm29>, %{{.*}} : !x86.avx512reg<zmm30>, %{{.*}} : !x86.avx512reg<zmm31>, %{{.*}} : !x86.reg<r12>)
 // CHECK-NEXT:  ^{{.*}}(%{{.*}} : !x86.reg<rdi>, %{{.*}} : !x86.reg<rsi>, %{{.*}} : !x86.reg<rdx>, %{{.*}} : !x86.reg<rbp>, %{{.*}} : !x86.reg<rsp>, %{{.*}} : !x86.reg<r10>, %{{.*}} : !x86.reg<r11>, %{{.*}} : !x86.avx512reg<zmm26>, %{{.*}} : !x86.avx512reg<zmm27>, %{{.*}} : !x86.avx512reg<zmm28>, %{{.*}} : !x86.avx512reg<zmm29>, %{{.*}} : !x86.avx512reg<zmm30>, %{{.*}} : !x86.avx512reg<zmm31>, %{{.*}} : !x86.reg<r12>):
 // CHECK-NEXT:    %{{.*}} = x86.ri.sub %{{.*}}, 512 : (!x86.reg<rsi>) -> !x86.reg<rsi>
+// CHECK-NEXT:    x86.ms.vmovapd %{{.*}}, %{{.*}}, 0 : (!x86.reg<rdx>, !x86.avx512reg<zmm26>) -> ()
+// CHECK-NEXT:    x86.ms.vmovapd %{{.*}}, %{{.*}}, 64 : (!x86.reg<rdx>, !x86.avx512reg<zmm27>) -> ()
+// CHECK-NEXT:    x86.ms.vmovapd %{{.*}}, %{{.*}}, 128 : (!x86.reg<rdx>, !x86.avx512reg<zmm28>) -> ()
+// CHECK-NEXT:    x86.ms.vmovapd %{{.*}}, %{{.*}}, 192 : (!x86.reg<rdx>, !x86.avx512reg<zmm29>) -> ()
+// CHECK-NEXT:    x86.ms.vmovapd %{{.*}}, %{{.*}}, 256 : (!x86.reg<rdx>, !x86.avx512reg<zmm30>) -> ()
+// CHECK-NEXT:    x86.ms.vmovapd %{{.*}}, %{{.*}}, 320 : (!x86.reg<rdx>, !x86.avx512reg<zmm31>) -> ()
 // CHECK-NEXT:    %{{.*}} = x86.ri.add %{{.*}}, 128 : (!x86.reg<rdx>) -> !x86.reg<rdx>
 // CHECK-NEXT:    %{{.*}} = x86.ri.sub %{{.*}}, 8064 : (!x86.reg<rdi>) -> !x86.reg<rdi>
 // CHECK-NEXT:    %{{.*}} = x86.si.cmp %{{.*}}, 16 : (!x86.reg<r10>) -> !x86.rflags<rflags>
