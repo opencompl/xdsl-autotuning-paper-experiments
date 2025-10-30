@@ -1,9 +1,6 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && cat %t | filecheck %s
 
 // CHECK:       x86_func.func public @matmul_bac(%{{.*}} : !x86.reg<rdi>, %{{.*}} : !x86.reg<rsi>, %{{.*}} : !x86.reg<rdx>) {
-// CHECK-NEXT:    %{{.*}} = x86.ds.mov %{{.*}} : (!x86.reg<rdi>) -> !x86.reg<rdi>
-// CHECK-NEXT:    %{{.*}} = x86.ds.mov %{{.*}} : (!x86.reg<rsi>) -> !x86.reg<rsi>
-// CHECK-NEXT:    %{{.*}} = x86.ds.mov %{{.*}} : (!x86.reg<rdx>) -> !x86.reg<rdx>
 // CHECK-NEXT:    %{{.*}} = x86.get_register : () -> !x86.reg<rbp>
 // CHECK-NEXT:    %{{.*}} = x86.get_register : () -> !x86.reg<rsp>
 // CHECK-NEXT:    %{{.*}} = x86.s.push %{{.*}}, %{{.*}} : (!x86.reg<rsp>, !x86.reg<rbp>) -> !x86.reg<rsp>
