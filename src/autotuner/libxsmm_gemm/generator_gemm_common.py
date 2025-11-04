@@ -341,7 +341,7 @@ def libxsmm_generator_gemm_header_kloop(
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
     # next block
     Rewriter.insert_op(
-        x86.ops.C_JmpOp(args, new_block),
+        x86.ops.FallthroughOp(args, new_block),
         InsertPoint.at_end(existing_block),
     )
 
@@ -831,7 +831,7 @@ def libxsmm_generator_gemm_header_nloop(
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
     # next block
     Rewriter.insert_op(
-        x86.ops.C_JmpOp(args, new_block),
+        x86.ops.FallthroughOp(args, new_block),
         InsertPoint.at_end(existing_block),
     )
 
@@ -1058,7 +1058,7 @@ def libxsmm_generator_gemm_header_mloop(
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
     # next block
     Rewriter.insert_op(
-        x86.ops.C_JmpOp(args, new_block),
+        x86.ops.FallthroughOp(args, new_block),
         InsertPoint.at_end(existing_block),
     )
 
