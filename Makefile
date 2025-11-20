@@ -48,8 +48,8 @@ PLOTS += plots/ttile.f64.neon.png
 PLOTS += plots/cube_8.f64.neon.png
 PLOTS += plots/cube_16.f64.neon.png
 PLOTS += plots/cube_64.f64.neon.png
-PLOTS += plots/tiny.f64.neon.png
-PLOTS += plots/heatmap.f64.neon.png
+# PLOTS += plots/tiny.f64.neon.png
+# PLOTS += plots/heatmap.f64.neon.png
 
 PLOTS += plots/ttile.f32.tower.png
 PLOTS += plots/ttile.f64.tower.png
