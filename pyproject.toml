@@ -24,6 +24,7 @@ plot-ttile = "autotuner.plot_ttile:main"
 plot-cube = "autotuner.plot_cube:main"
 plot-tiny-line = "autotuner.plot_small_matrices:main_line"
 plot-tiny-heatmap = "autotuner.plot_small_matrices:main_heatmap"
+libxsmm-gemm = "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver:main"
 
 [tool.setuptools]
 package-dir = { "autotuner" = "src/autotuner" }
