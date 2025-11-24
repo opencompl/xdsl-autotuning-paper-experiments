@@ -298,7 +298,7 @@ rule tvm_rowmaj_c:
     shell:
         """
         {{
-            TVM_NUM_THREADS=1 /opt/build_venv/bin/python kernels/matmul_rowmaj/tvm_matmul_row_major.py \
+            TVM_NUM_THREADS=1 python3.12 kernels/matmul_rowmaj/tvm_matmul_row_major.py \
                 --M {wildcards.m} --N {wildcards.n} --K {wildcards.k} \
                 --dtype {params.dtype} --symbol {TVM_FUNC_NAME} --cpu {params.target_arch}
             cat kernels/matmul_rowmaj/tvm_matmul_wrapper.c
