@@ -13,7 +13,7 @@
 
 #define TARGET_SIZE 268435456
 #define NUM_ITERATIONS (TARGET_SIZE / (M * N * K))
-#define CLOCKS_PER_USEC ((double)CLOCKS_PER_SEC / 1000000.0)
+#define CLOCKS_PER_USEC ((TIMETY)CLOCKS_PER_SEC / 1000000.0)
 
 extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
 
@@ -43,10 +43,10 @@ int main() {
     matmul(A, B, C);
   }
   
-  double elapsed = time_end(FREQ);
+  TIMETY elapsed = time_end(FREQ);
 
-  double average_cycles = (double)elapsed / (double)NUM_ITERATIONS;
-  printf("%lf\n", average_cycles);
+  TIMETY average_cycles = elapsed / NUM_ITERATIONS;
+  printf("%Lf\n", average_cycles);
 
   free(A);
   free(B);

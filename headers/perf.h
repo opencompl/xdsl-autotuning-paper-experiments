@@ -10,6 +10,8 @@
 #include <papi.h>
 #endif
 
+#define TIMETY long long
+
 #define CHECK(call)                                                            \
   do {                                                                         \
     int __ret = (call);                                                        \
@@ -51,7 +53,7 @@ int hardware_counters_available(void) {
 
 #ifdef USE_PAPI
 int EventSet = PAPI_NULL;
-double values[1];
+TIMETY values[1];
 #else
 struct timespec ts_start;
 struct timespec ts_end;
@@ -79,11 +81,11 @@ void time_start() {
 #endif
 }
 
-double time_end(double freq) {
-  double elapsed;
+TIMETY time_end(TIMETY freq) {
+  TIMETY elapsed;
 #ifdef USE_PAPI
   CHECK(PAPI_stop(EventSet, values));
-  elapsed = (double)values[0];
+  elapsed = values[0];
 #else
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
   elapsed = (ts_end.tv_nsec - ts_start.tv_nsec) * freq;
