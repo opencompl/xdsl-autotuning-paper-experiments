@@ -51,7 +51,7 @@ int hardware_counters_available(void) {
 
 #ifdef USE_PAPI
 int EventSet = PAPI_NULL;
-long long values[1];
+double values[1];
 #else
 struct timespec ts_start;
 struct timespec ts_end;
