@@ -45,7 +45,7 @@ int main() {
   
   TIMETY elapsed = time_end(FREQ);
 
-  TIMETY average_cycles = elapsed / NUM_ITERATIONS;
+  TIMETY average_cycles = elapsed / (TIMETY)NUM_ITERATIONS;
   printf("%Lf\n", average_cycles);
 
   free(A);

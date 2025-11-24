@@ -85,11 +85,21 @@ TIMETY time_end(TIMETY freq) {
   TIMETY elapsed;
 #ifdef USE_PAPI
   CHECK(PAPI_stop(EventSet, values));
+  if (elapsed <= 0.0) {
+    fprintf(stderr, "Measured cycles must not be negative.\n");
+  }
   elapsed = values[0];
 #else
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  if (ts_end.tv_nsec <= ts_start.tv_nsec) {
+    fprintf(stderr, "ts_end.tv_nsec must not be smaller than ts_start.tv_nsec.\n");
+  }
   elapsed = (ts_end.tv_nsec - ts_start.tv_nsec) * freq;
 #endif
+  if (elapsed <= 0.0) {
+    fprintf(stderr, "Elapsed time must not be negative.\n");
+    exit(1);
+  }
   return elapsed;
 }
 
