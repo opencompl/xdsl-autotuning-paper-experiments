@@ -43,10 +43,10 @@ int main() {
     matmul(A, B, C);
   }
   
-  long double elapsed = time_end(FREQ);
+  double elapsed = time_end(FREQ);
 
-  long double average_cycles = (long double)elapsed / (long double)NUM_ITERATIONS;
-  printf("%Lf\n", average_cycles);
+  double average_cycles = (double)elapsed / (double)NUM_ITERATIONS;
+  printf("%lf\n", average_cycles);
 
   free(A);
   free(B);
