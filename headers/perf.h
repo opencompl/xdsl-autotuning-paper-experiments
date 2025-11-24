@@ -79,11 +79,11 @@ void time_start() {
 #endif
 }
 
-double time_end(double freq) {
-  double elapsed;
+double time_end(long double freq) {
+  long double elapsed;
 #ifdef USE_PAPI
   CHECK(PAPI_stop(EventSet, values));
-  elapsed = (double)values[0];
+  elapsed = (long double)values[0];
 #else
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
   elapsed = (ts_end.tv_nsec - ts_start.tv_nsec) * freq;
