@@ -40,7 +40,7 @@ targets:
     arch: "znver5",
     freq: 4.33,
     peak_f32: 64,
-    libs: ["papi"],
+    libs: [],
     env: {"LIBPFM_FORCE_PMU":"amd64"}
   }
   pinocchio: {

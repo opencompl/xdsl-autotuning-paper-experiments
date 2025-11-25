@@ -10,6 +10,8 @@
 #include <papi.h>
 #endif
 
+#define TIMETY long double
+
 #define CHECK(call)                                                            \
   do {                                                                         \
     int __ret = (call);                                                        \
@@ -79,15 +81,25 @@ void time_start() {
 #endif
 }
 
-double time_end(double freq) {
-  double elapsed;
+TIMETY time_end(TIMETY freq) {
+  TIMETY elapsed;
 #ifdef USE_PAPI
   CHECK(PAPI_stop(EventSet, values));
-  elapsed = (double)values[0];
+  if (values[0] <= 0) {
+    fprintf(stderr, "Measured cycles must not be negative.\n");
+  }
+  elapsed = (TIMETY) values[0];
 #else
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  elapsed = (ts_end.tv_nsec - ts_start.tv_nsec) * freq;
+  if (ts_end.tv_nsec <= ts_start.tv_nsec) {
+    fprintf(stderr, "ts_end.tv_nsec must not be smaller than ts_start.tv_nsec.\n");
+  }
+  elapsed = (TIMETY)(ts_end.tv_nsec - ts_start.tv_nsec) * freq;
 #endif
+  if (elapsed <= 0.0) {
+    fprintf(stderr, "Elapsed time must not be negative.\n");
+    exit(1);
+  }
   return elapsed;
 }
 
