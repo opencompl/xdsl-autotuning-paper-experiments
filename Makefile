@@ -104,7 +104,7 @@ docker-run:
 	@if [ "$$(uname -s)" = "Darwin" ]; then \
 		docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner /src/launch.sh; \
 	else \
-		nice -n -15 taskset -c 2 docker run -e IN_DOCKER=1 -e USE_PAPI=1 --platform linux/amd64 --cap-add=SYS_ADMIN --cap-add=PERFMON --security-opt seccomp=unconfined --security-opt apparmor=unconfined --pid=host -v .:/src -ti xdsl-autotuner /src/launch.sh; \
+		nice -n -15 taskset -c 2 docker run -e IN_DOCKER=1 --platform linux/amd64 --cap-add=SYS_ADMIN --cap-add=PERFMON --security-opt seccomp=unconfined --security-opt apparmor=unconfined --pid=host -v .:/src -ti xdsl-autotuner /src/launch.sh; \
 	fi
 
 .PHONY: clean
