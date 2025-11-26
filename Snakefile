@@ -320,7 +320,7 @@ rule tvm_rowmaj_s:
         dtype=lambda wildcards: {"f32": "MM_DTYPE_float", "f64": "MM_DTYPE_double"}[wildcards.dtype],
     shell:
                 "{params.cc} -O3 -c {input} -DKERNEL_FUNC=matmul -DPACKED_FUNC={TVM_FUNC_NAME} -DMM_I={wildcards.m} -DMM_J={wildcards.n} -DMM_K={wildcards.k} -DMM_DTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
-        
+
 rule libxsmm_s:
     input: target_ll_file(variant='libxsmm',ext='c')
     output: target_ll_file(variant='libxsmm',ext='S')
@@ -433,7 +433,7 @@ DATASET_BASES = {
     ),
     "ttile.f64": expand(
         target_file(kernel="matmul_rowmaj",n="64",k="64",dtype="f64",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["ttile"] + ["transform_xdsl"],
+        variant=DATASET_VARIANTS["ttile"], # + ["transform_xdsl"]
         m=range(9, 63, 3),
     ),
     "cube_8.f64": expand(
