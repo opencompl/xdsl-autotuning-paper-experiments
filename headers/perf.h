@@ -94,8 +94,8 @@ TIMETY time_end(TIMETY freq) {
   elapsed = (TIMETY)values[0];
 #else
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  elapsed = ((TIMETY)(ts_end.tv_sec - ts_start.tv_sec) +
-             (TIMETY)(ts_end.tv_nsec - ts_start.tv_nsec) / 1e9) *
+  elapsed = ((TIMETY)(ts_end.tv_sec - ts_start.tv_sec) * 1e9 +
+             (TIMETY)(ts_end.tv_nsec - ts_start.tv_nsec)) *
             freq;
 #endif
   if (elapsed <= 0.0) {
