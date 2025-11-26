@@ -44,6 +44,11 @@ def target_peak_flops(wildcards):
     flops_per_cycle = T[wildcards.target]['peak_f32'] / factor
     return flops_per_cycle
 
+def target_use_papi(wildcards):
+    if 'papi' in T[wildcards.target]['libs']:
+        return '-DUSE_PAPI'
+    return ''
+
 def target_env(wildcards):
     return ' '.join([f"{k}={v}" for k,v in T[wildcards.target]['env'].items()])
 
@@ -327,7 +332,7 @@ rule tvm_rowmaj_c:
     shell:
         """
         {{
-            TVM_NUM_THREADS=1 /opt/build_venv/bin/python kernels/matmul_rowmaj/tvm_matmul_row_major.py \
+            TVM_NUM_THREADS=1 python3.12 kernels/matmul_rowmaj/tvm_matmul_row_major.py \
                 --M {wildcards.m} --N {wildcards.n} --K {wildcards.k} \
                 --dtype {params.dtype} --symbol {TVM_FUNC_NAME} --cpu {params.target_arch}
             cat kernels/matmul_rowmaj/tvm_matmul_wrapper.c
@@ -365,7 +370,7 @@ rule executable:
         target_freq=target_freq,
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
-        use_papi=lambda wildcards: "-DUSE_PAPI=1" if os.environ.get("USE_PAPI") == "1" else "",
+        use_papi=target_use_papi,
         mkl_libs=lambda wc: MKL_LIBS if wc.variant == "mkl" else "",
     shell:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} -fuse-ld=lld"
