@@ -14,6 +14,10 @@ class DescDatatype(NamedTuple):
     def ab(self) -> Datatype | None:
         return self.a if self.a == self.b else None
 
+    @property
+    def abc(self) -> Datatype | None:
+        return self.a if self.a == self.b == self.c else None
+
 
 class GEMMFlag(IntFlag):
     NONE = 0
