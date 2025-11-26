@@ -404,28 +404,28 @@ DATASET_VARIANTS = {
         "cube_8.f64": ["naive_c", "transform_mlir"],
         "cube_16.f64": ["naive_c", "transform_mlir"],
         "cube_64.f64": ["naive_c", "transform_mlir"],
-        "small_matrix.f64": [],
+        "small_matrices.f64": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
         "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
         "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "small_matrix.f64": ["llvm_intrinsics", "libxsmm","mkl"],
+        "small_matrices.f64": ["llvm_intrinsics", "libxsmm","mkl"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "cube_8.f64": ["naive_c", "llvm_intrinsics", "libxsmm","mkl","tvm"],
         "cube_16.f64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
         "cube_64.f64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
-        "small_matrix.f64": ["llvm_intrinsics", "libxsmm","mkl"],
+        "small_matrices.f64": ["llvm_intrinsics", "libxsmm","mkl"],
     },
     "ci": {
         "ttile": ["naive_c"],
         "cube_8.f64": ["naive_c", "transform_mlir"],
         "cube_16.f64": ["naive_c", "transform_mlir"],
         "cube_64.f64": ["naive_c", "transform_mlir"],
-        "small_matrix.f64": [],
+        "small_matrices.f64": [],
     },
 }[THIS_TARGET]
 
@@ -452,11 +452,11 @@ DATASET_BASES = {
         target_file(kernel="matmul_rowmaj",m="64",n="64",k="64",dtype="f64",ext=THIS_TARGET),
         variant=DATASET_VARIANTS["cube_64.f64"],
     ),
-    "small_matrix.f64": expand(
+    "small_matrices.f64": expand(
         target_file(kernel="matmul_rowmaj",k="64",dtype="f64",ext=THIS_TARGET),
-        m=range(1, 17), 
+        m=range(1, 17),
         n=range(1, 17),
-        variant=DATASET_VARIANTS["small_matrix.f64"]
+        variant=DATASET_VARIANTS["small_matrices.f64"]
     )
 }
 

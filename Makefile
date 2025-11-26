@@ -76,10 +76,10 @@ plots/cube%.png: data/cube%.jsonl src/autotuner/plot_cube.py
 plots/bars.%.png: data/bars.%.jsonl src/autotuner/plot_cube.py
 	uv run plot-cube $< --output $@
 
-plots/tiny.%.png: data/small_matrix.%.jsonl src/autotuner/plot_small_matrices.py
+plots/tiny.%.png: data/small_matrices.%.jsonl src/autotuner/plot_small_matrices.py
 	uv run plot-tiny-line $< --output $@
 
-plots/heatmap.%.png: data/small_matrix.%.jsonl src/autotuner/plot_small_matrices.py
+plots/heatmap.%.png: data/small_matrices.%.jsonl src/autotuner/plot_small_matrices.py
 	uv run plot-tiny-heatmap $< --output $@
 
 .PHONY: plots
