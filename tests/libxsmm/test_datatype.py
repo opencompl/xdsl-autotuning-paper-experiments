@@ -8,3 +8,13 @@ def test_ab():
     assert DescDatatype(F64, F64, F64, F64).ab == F64
     assert DescDatatype(F32, F32, F32, F32).ab == F32
     assert DescDatatype(F64, F32, F64, F64).ab is None
+
+
+def test_abc():
+    F64 = Datatype.F64
+    F32 = Datatype.F32
+    assert DescDatatype(F64, F64, F64, F64).abc == F64
+    assert DescDatatype(F32, F32, F32, F32).abc == F32
+    assert DescDatatype(F64, F32, F64, F64).abc is None
+    assert DescDatatype(F64, F64, F32, F64).abc is None
+    assert DescDatatype(F64, F64, F64, F32).abc == F64
