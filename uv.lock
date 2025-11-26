@@ -186,7 +186,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "snakemake", specifier = ">=8.30.0" },
-    { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=0186e47418101ea18a0bdd77eff925067e0ee1ad" },
+    { name = "xdsl", extras = ["dev"] },
 ]
 
 [[package]]
@@ -2951,11 +2951,15 @@ wheels = [
 [[package]]
 name = "xdsl"
 version = "0.53.0"
-source = { git = "https://github.com/xdslproject/xdsl.git?rev=0186e47418101ea18a0bdd77eff925067e0ee1ad#0186e47418101ea18a0bdd77eff925067e0ee1ad" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "immutabledict" },
     { name = "ordered-set" },
     { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/98/4f/03d0824e4c28b7bcdcdee08a0c428c238562e1bc5a6c2d94d6b22d67e808/xdsl-0.53.0.tar.gz", hash = "sha256:bef539b5cfb8eb528059770f9f26c5615627300673becbf660335d1968ba046d", size = 3808059, upload-time = "2025-09-27T07:50:07.87Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f5/aa/3152d91dea593f8e9003ffae53a2886f73683b68a97d3873afb7fcf7e9c3/xdsl-0.53.0-py3-none-any.whl", hash = "sha256:6d319cb319ef6a15d15eee91566f9665573327505119b5d415b5910636e2cad7", size = 4026957, upload-time = "2025-09-27T07:50:05.926Z" },
 ]
 
 [package.optional-dependencies]
