@@ -1,10 +1,10 @@
 #ifndef PERF
 #define PERF
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 #ifdef USE_PAPI
 #include <papi.h>
@@ -42,10 +42,10 @@ int hardware_counters_available(void) {
       }
       fclose(f);
     } else {
-      fprintf(stderr,"/proc/sys/kernel/perf_event_paranoid not available.\n");
+      fprintf(stderr, "/proc/sys/kernel/perf_event_paranoid not available.\n");
     }
   } else {
-    fprintf(stderr,"%s\n", PAPI_strerror(av));
+    fprintf(stderr, "%s\n", PAPI_strerror(av));
   }
   return res;
 }
@@ -62,7 +62,10 @@ struct timespec ts_end;
 void time_init() {
 #ifdef USE_PAPI
   int ret = PAPI_library_init(PAPI_VER_CURRENT);
-  if (ret != PAPI_VER_CURRENT) { fprintf(stderr, "papi init failed\n"); exit(1); }
+  if (ret != PAPI_VER_CURRENT) {
+    fprintf(stderr, "papi init failed\n");
+    exit(1);
+  }
   CHECK(PAPI_create_eventset(&EventSet));
 
   int hw_counters = hardware_counters_available();
@@ -88,13 +91,12 @@ TIMETY time_end(TIMETY freq) {
   if (values[0] <= 0) {
     fprintf(stderr, "Measured cycles must not be negative.\n");
   }
-  elapsed = (TIMETY) values[0];
+  elapsed = (TIMETY)values[0];
 #else
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  if (ts_end.tv_nsec <= ts_start.tv_nsec) {
-    fprintf(stderr, "ts_end.tv_nsec must not be smaller than ts_start.tv_nsec.\n");
-  }
-  elapsed = (TIMETY)(ts_end.tv_nsec - ts_start.tv_nsec) * freq;
+  elapsed = ((TIMETY)(ts_end.tv_sec - ts_start.tv_sec) * 1e9 +
+             (TIMETY)(ts_end.tv_nsec - ts_start.tv_nsec)) *
+            freq;
 #endif
   if (elapsed <= 0.0) {
     fprintf(stderr, "Elapsed time must not be negative.\n");
