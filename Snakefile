@@ -462,7 +462,7 @@ DATASET_BASES = {
     ),
     "ttile.f64": expand(
         target_file(kernel="matmul_rowmaj",n="64",k="64",dtype="f64",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["ttile"] + ["transform_xdsl"],
+        variant=DATASET_VARIANTS["ttile"], # + ["transform_xdsl"]
         m=range(9, 63, 3),
     ),
     "cube_8.f64": expand(
