@@ -142,10 +142,18 @@ def main(heatmap: bool):
         plot_heatmap_throughput_over_peak(df=heatmap_df, output_path=args.output)
         return
 
+    targets = set(df["target"])
+    dtypes = set(df["dtype"])
+    assert len(targets) == len(dtypes) == 1
+    (target,) = targets
+    (dtype,) = dtypes
+
     for m, group in df.groupby("M"):
         assert isinstance(m, int)
         if args.output is not None:
-            tiny_path = args.output.parent / "small_matrices" / f"plot_{m}xNx64.png"
+            tiny_path = (
+                args.output.parent / "small_matrices" / f"{target}.{dtype}.{m}xNx64.png"
+            )
             os.makedirs(tiny_path.parent, exist_ok=True)
         else:
             tiny_path = None
