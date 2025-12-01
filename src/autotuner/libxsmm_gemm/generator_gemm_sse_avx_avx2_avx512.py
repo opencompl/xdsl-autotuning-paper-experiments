@@ -798,68 +798,71 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
     config: MicroKernelConfig, desc: GEMMDescriptor, arch: Arch, current_m_blocking: int
 ):
-    use_masking_a_c = 0
+    use_masking_a_c = False
     m_blocking = current_m_blocking
     is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
     is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
     is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
 
     if (arch <= Arch.LIBXSMM_X86_SSE42) and (Datatype.F32 == desc.datatype.ab):
-        # if ( io_micro_kernel_config->fused_relu == 1 ) {
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 8, 4, &l_m_blocking, &l_use_masking_a_c );
-        # } else {
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 12, 4, &l_m_blocking, &l_use_masking_a_c );
-        # }
-        raise NotImplementedError
+        if config.fused_relu:
+            m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+                desc.m, 8, 4, m_blocking
+            )
+        else:
+            m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+                desc.m, 12, 4, m_blocking
+            )
     elif (arch <= Arch.LIBXSMM_X86_SSE42) and (Datatype.F64 == desc.datatype.ab):
-        # if ( io_micro_kernel_config->fused_relu == 1 ) {
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 4, 2, &l_m_blocking, &l_use_masking_a_c );
-        # } else {
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 6, 2, &l_m_blocking, &l_use_masking_a_c );
-        # }
-        raise NotImplementedError
+        if config.fused_relu:
+            m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+                desc.m, 4, 2, m_blocking
+            )
+        else:
+            m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+                desc.m, 6, 2, m_blocking
+            )
     elif (arch <= Arch.LIBXSMM_X86_SSE42) and (Datatype.I8 == desc.datatype.ab):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 8, 4, &l_m_blocking, &l_use_masking_a_c );
-        raise NotImplementedError
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 8, 4, m_blocking
+        )
     elif (arch <= Arch.LIBXSMM_X86_SSE42) and (Datatype.I16 == desc.datatype.ab):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 8, 4, &l_m_blocking, &l_use_masking_a_c );
-        raise NotImplementedError
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 8, 4, m_blocking
+        )
     elif (arch <= Arch.LIBXSMM_X86_SSE42) and (Datatype.BF16 == desc.datatype.ab):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 8, 4, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (arch == Arch.LIBXSMM_X86_AVX) and (Datatype.F32 == desc.datatype.ab):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 24, 8, &l_m_blocking, &l_use_masking_a_c );
-        raise NotImplementedError
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 24, 8, m_blocking
+        )
     elif (arch == Arch.LIBXSMM_X86_AVX) and (Datatype.F64 == desc.datatype.ab):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 12, 4, &l_m_blocking, &l_use_masking_a_c );
-        raise NotImplementedError
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 12, 4, m_blocking
+        )
     elif (arch >= Arch.LIBXSMM_X86_AVX2) and (
         is_Amxfp4_Bfp32_gemm > 0 or is_Amxfp4_Bbf16_gemm > 0 or is_Amxfp4_Bi8_gemm > 0
     ):
-        # if (i_xgemm_desc->n == 1) {
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 32, 8, &l_m_blocking, &l_use_masking_a_c );
-        # } else {
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 8, 8, &l_m_blocking, &l_use_masking_a_c );
-        # }
         raise NotImplementedError
     elif (arch == Arch.LIBXSMM_X86_AVX2_SRF) and (
         desc.datatype.c in (Datatype.F32, Datatype.BF16, Datatype.I32)
     ):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, (libxsmm_cpuid_x86_srf_gemm_set_n_max_blocking() <= 3) ? 32 : ( (libxsmm_cpuid_x86_srf_gemm_set_n_max_blocking() <= 5) ? 16 : 8), 8, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (
         (arch >= Arch.LIBXSMM_X86_AVX2) and (arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX)
     ) and (desc.datatype.c in (Datatype.F32, Datatype.BF16, Datatype.I32)):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 32, 8, &l_m_blocking, &l_use_masking_a_c );
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 32, 8, m_blocking
+        )
         raise NotImplementedError
     elif (arch == Arch.LIBXSMM_X86_AVX2_SRF) and (Datatype.F64 == desc.datatype.ab):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, (libxsmm_cpuid_x86_srf_gemm_set_n_max_blocking() <= 3) ? 16 : ( (libxsmm_cpuid_x86_srf_gemm_set_n_max_blocking() <= 5) ? 8 : 4), 4, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (
         (arch >= Arch.LIBXSMM_X86_AVX2) and (arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX)
     ) and (Datatype.F64 == desc.datatype.ab):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 16, 4, &l_m_blocking, &l_use_masking_a_c );
-        raise NotImplementedError
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 16, 4, m_blocking
+        )
     elif (
         (
             (arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX)
@@ -868,7 +871,6 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
         and (Datatype.BF16 == desc.datatype.ab)
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
     ):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 8, 8, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (
         ((arch >= Arch.LIBXSMM_X86_AVX512_SKX) and (arch <= Arch.LIBXSMM_X86_ALLFEAT))
@@ -876,19 +878,16 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.DECOMPRESS_A_VIA_BITMASK) == 0)
     ):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 16, 16, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (arch == Arch.LIBXSMM_X86_AVX512_VL256_SKX) and (
         desc.datatype.ab in (Datatype.I8, Datatype.I16)
     ):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 8, 8, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (
         (arch >= Arch.LIBXSMM_X86_AVX512_SKX)
         and (arch <= Arch.LIBXSMM_X86_AVX512_SKX)
         and (desc.datatype.ab in (Datatype.I8, Datatype.I16))
     ):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 16, 16, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (
         (desc.datatype.c in (Datatype.F16, Datatype.F32))
@@ -898,27 +897,6 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
         and (desc.datatype.b == Datatype.F16)
         and desc.datatype.a in (Datatype.I8, Datatype.BF8)
     ):
-        # if (LIBXSMM_DATATYPE_F16  == LIBXSMM_GEMM_GETENUM_COMP_PREC( i_xgemm_desc->datatype )) {
-        # if ( ( i_arch <= LIBXSMM_X86_ALLFEAT ) && ( i_arch >= LIBXSMM_X86_AVX512_SPR ) ) {
-        #     libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 128, 32, &l_m_blocking, &l_use_masking_a_c );
-        # } else if ( ( i_arch <= LIBXSMM_X86_ALLFEAT ) && ( i_arch >= LIBXSMM_X86_AVX512_SKX ) ) {
-        #     libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 64, 16, &l_m_blocking, &l_use_masking_a_c );
-        # } else if ( ( i_arch <= LIBXSMM_X86_ALLFEAT ) && ( i_arch >= LIBXSMM_X86_AVX512_VL256_SKX ) ) {
-        #     libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 32, 8, &l_m_blocking, &l_use_masking_a_c );
-        # } else {
-        #     /* Do nothing  */
-        # }
-        # } else {
-        # if ( ( i_arch <= LIBXSMM_X86_ALLFEAT ) && ( i_arch >= LIBXSMM_X86_AVX512_SPR ) ) {
-        #     libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 64, 16, &l_m_blocking, &l_use_masking_a_c );
-        # } else if ( ( i_arch <= LIBXSMM_X86_ALLFEAT ) && ( i_arch >= LIBXSMM_X86_AVX512_SKX ) ) {
-        #     libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 64, 16, &l_m_blocking, &l_use_masking_a_c );
-        # } else if ( ( i_arch <= LIBXSMM_X86_ALLFEAT ) && ( i_arch >= LIBXSMM_X86_AVX512_VL256_SKX ) ) {
-        #     libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 32, 8, &l_m_blocking, &l_use_masking_a_c );
-        # } else {
-        #     /* Do nothing  */
-        # }
-        # }
         raise NotImplementedError
     elif (
         (arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX)
@@ -932,27 +910,20 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
         or (desc.datatype.c == Datatype.HF8 and (desc.flags & GEMMFlag.VNNI_A) == 0)
     ):
         # /* Remark switching ti OUT datatype check here to cover BF16 in, Fp32/Int32 out kernel with the same logic */
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 64, 8, &l_m_blocking, &l_use_masking_a_c );
         raise NotImplementedError
     elif (
         (arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX)
         and (arch < Arch.LIBXSMM_X86_AVX512_SKX)
         and (Datatype.F64 == desc.datatype.ab)
     ):
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 32, 4, &l_m_blocking, &l_use_masking_a_c );
-        raise NotImplementedError
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 32, 4, m_blocking
+        )
     elif (
         (desc.datatype.c in (Datatype.BF16, Datatype.F32))
         and (desc.datatype.b == Datatype.BF16)
         and (desc.datatype.a == Datatype.I8)
     ):
-        # if ( ( i_arch <= LIBXSMM_X86_ALLFEAT ) && ( i_arch >= LIBXSMM_X86_AVX512_SKX ) ) {
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 64, 16, &l_m_blocking, &l_use_masking_a_c );
-        # } else if ( ( i_arch <= LIBXSMM_X86_ALLFEAT ) && ( i_arch >= LIBXSMM_X86_AVX512_VL256_SKX ) ) {
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 32, 8, &l_m_blocking, &l_use_masking_a_c );
-        # } else {
-        # /* Do nothing  */
-        # }
         raise NotImplementedError
     elif (arch <= Arch.LIBXSMM_X86_ALLFEAT) and (
         desc.datatype.c == Datatype.F32
@@ -969,7 +940,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
         or (desc.datatype.c == Datatype.HF8 and (desc.flags & GEMMFlag.VNNI_A) == 0)
     ):
         # /* Remark switching ti OUT datatype check here to cover BF16 in, Fp32/Int32 out kernel with the same logic */
-        # libxsmm_generator_gemm_get_blocking_and_mask( i_xgemm_desc->m, 64, 16, &l_m_blocking, &l_use_masking_a_c );
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 64, 16, m_blocking
+        )
         raise NotImplementedError
     elif (arch <= Arch.LIBXSMM_X86_ALLFEAT) and (Datatype.F64 == desc.datatype.ab):
         m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
