@@ -586,7 +586,7 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
     if lda % vector_length:
         flags &= ~GEMMFlag.ALIGN_A
 
-    if ldb % vector_length:
+    if ldc % vector_length:
         flags &= ~GEMMFlag.ALIGN_C
 
     desc_mod = GEMMDescriptor(m, n, k, lda, ldb, ldc, datatype, flags, prefetch)
