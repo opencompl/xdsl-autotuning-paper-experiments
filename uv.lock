@@ -220,7 +220,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "snakemake", specifier = ">=8.30.0" },
-    { name = "xdsl", extras = ["dev"] },
+    { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=b7945e060a7f93322ef6fb3289cca7321ac3a6dd" },
 ]
 
 [[package]]
@@ -3348,16 +3348,12 @@ wheels = [
 
 [[package]]
 name = "xdsl"
-version = "0.55.2"
-source = { registry = "https://pypi.org/simple" }
+version = "0.55.4.dev4+gb7945e060"
+source = { git = "https://github.com/xdslproject/xdsl.git?rev=b7945e060a7f93322ef6fb3289cca7321ac3a6dd#b7945e060a7f93322ef6fb3289cca7321ac3a6dd" }
 dependencies = [
     { name = "immutabledict" },
     { name = "ordered-set" },
     { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/43/c5/922e1f283f79d8e14bc1900f8bd06f8ce7f453fd4d886f95140f94b84f30/xdsl-0.55.2.tar.gz", hash = "sha256:a73e487d5f76c15a67debc42c595a3e211aefacd90a7a71163f505cd40176175", size = 3890276, upload-time = "2025-11-21T15:56:14.576Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/03/5a/e72b7e849619591d17f64a32d838ff6273a02b0b50e092a50aecddc734b9/xdsl-0.55.2-py3-none-any.whl", hash = "sha256:57071664c92cd8802a8f7cf0c5444d723037e68889cc4dd23ab1abea4e7719a5", size = 4114949, upload-time = "2025-11-21T15:56:12.047Z" },
 ]
 
 [package.optional-dependencies]

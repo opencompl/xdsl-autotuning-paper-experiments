@@ -1,6 +1,6 @@
 from typing import Literal, cast
 from xdsl.dialects import x86
-from xdsl.dialects.x86.registers import X86VectorRegisterType
+from xdsl.dialects.x86.registers import GeneralRegisterType, X86VectorRegisterType
 from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping, LoopLabelTracker
@@ -54,10 +54,10 @@ def libxsmm_x86_instruction_unified_vec_move_st(
         if use_masking:
             if issubclass(i_vmove_instr, x86.ops.DM_VmovapsOp | x86.ops.DM_VmovapsOp):
                 ...
-            #         libxsmm_generator_maskedstore_32bit_sse( io_generated_code, LIBXSMM_X86_GP_REG_RCX, 1, i_vec_reg_number_0, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_mask_reg_number );
+            #         libxsmm_generator_maskedstore_32bit_sse( generated_code, LIBXSMM_X86_GP_REG_RCX, 1, i_vec_reg_number_0, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_mask_reg_number );
             elif issubclass(i_vmove_instr, x86.ops.DM_VmovapdOp | x86.ops.DM_VmovapdOp):
                 ...
-            #         libxsmm_generator_maskedstore_64bit_sse( io_generated_code, i_vec_reg_number_0, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_mask_reg_number );
+            #         libxsmm_generator_maskedstore_64bit_sse( generated_code, i_vec_reg_number_0, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_mask_reg_number );
             else:
                 assert False, f"Unsupported move op: {i_vmove_instr}"
         else:
@@ -121,10 +121,10 @@ def libxsmm_x86_instruction_unified_vec_move_ld(
         if use_masking:
             raise NotImplementedError
             if issubclass(i_vmove_instr, x86.ops.DM_VmovapsOp | x86.ops.DM_VmovapsOp):
-                #         libxsmm_generator_maskedload_32bit_sse( io_generated_code, LIBXSMM_X86_GP_REG_RCX, 1, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_vec_reg_number_0, i_mask_reg_number );
+                #         libxsmm_generator_maskedload_32bit_sse( generated_code, LIBXSMM_X86_GP_REG_RCX, 1, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_vec_reg_number_0, i_mask_reg_number );
                 ...
             elif issubclass(i_vmove_instr, x86.ops.DM_VmovapdOp | x86.ops.DM_VmovapdOp):
-                #         libxsmm_generator_maskedload_64bit_sse( io_generated_code, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_vec_reg_number_0, i_mask_reg_number );
+                #         libxsmm_generator_maskedload_64bit_sse( generated_code, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_vec_reg_number_0, i_mask_reg_number );
                 ...
             else:
                 assert False, f"Unsupported move op: {i_vmove_instr}"
@@ -217,7 +217,7 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     # if ( (libxsmm_x86_instruction_vec_is_hybrid( i_vec_instr )  == 0) and
     #     (libxsmm_x86_instruction_vec_is_regonly( i_vec_instr ) == 0)    ) {
     #     fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: unexpected instruction number: 0x%08x\n", i_vec_instr);
-    #     LIBXSMM_EXIT_ERROR(io_generated_code);
+    #     LIBXSMM_EXIT_ERROR(generated_code);
     #     return;
     # }
 
@@ -603,4 +603,74 @@ def libxsmm_x86_instruction_vec_move_ld(
     # build vmovpd/ps/sd/ss instruction, load use
     generated_code.insert(
         vmove_instr(memory=base, memory_offset=displacement, destination=dest)
+    )
+
+
+def libxsmm_x86_instruction_alu_imm_i64(
+    generated_code: GeneratedCode,
+    alu_instr: type[x86.ops.DI_MovOp],
+    gp_reg_number: GeneralRegisterType,
+    immediate: int,
+):
+    #   switch ( alu_instr ) {
+    #     case LIBXSMM_X86_INSTR_MOVQ:
+    #     case LIBXSMM_X86_INSTR_MOVB_R_IMM8:
+    #     case LIBXSMM_X86_INSTR_MOVW_R_IMM16:
+    #     case LIBXSMM_X86_INSTR_MOVD_R_IMM32:
+    #     case LIBXSMM_X86_INSTR_MOVQ_R_IMM64:
+    #       break;
+    #     default:
+    #       fprintf(stderr, "libxsmm_x86_instruction_alu_imm_i64: Unknown instruction type: 0x%08x\n", alu_instr);
+    #       LIBXSMM_EXIT_ERROR(generated_code);
+    #       return;
+    #   }
+
+    generated_code.insert(alu_instr(immediate, destination=gp_reg_number))
+
+
+def libxsmm_x86_instruction_mask_move_ld(
+    generated_code: GeneratedCode,
+    mask_instr: type[x86.ops.KS_KMovBOp]
+    | type[x86.ops.KS_KMovWOp]
+    | type[x86.ops.KS_KMovWOp]
+    | type[x86.ops.KS_KMovQOp],
+    gp_reg_number: x86.registers.GeneralRegisterType,
+    mask_reg_number: int,
+):
+    # char l_new_code[512];
+    # int l_max_code_length = 511;
+    # int l_code_length = 0;
+    # char l_gp_reg_name[4];
+    # char l_instr_name[16];
+    # char l_prefix = '\0';
+
+    # libxsmm_get_x86_gp_reg_name( gp_reg_number, l_gp_reg_name, 3 );
+    # libxsmm_get_x86_instr_name( i_mask_instr, l_instr_name, 15 );
+
+    generated_code.insert(
+        mask_instr(
+            generated_code.current_val_by_reg[gp_reg_number],
+            destination=x86.registers.AVX512MaskRegisterType.from_index(
+                mask_reg_number
+            ),
+        )
+    )
+
+
+def libxsmm_x86_instruction_mask_move_st(
+    generated_code: GeneratedCode,
+    mask_instr: type[x86.ops.DK_KMovBOp]
+    | type[x86.ops.DK_KMovWOp]
+    | type[x86.ops.DK_KMovWOp]
+    | type[x86.ops.DK_KMovQOp],
+    gp_reg_number: x86.registers.GeneralRegisterType,
+    mask_reg_number: int,
+):
+    generated_code.insert(
+        mask_instr(
+            generated_code.current_val_by_reg[
+                x86.registers.AVX512MaskRegisterType.from_index(mask_reg_number)
+            ],
+            destination=gp_reg_number,
+        )
     )
