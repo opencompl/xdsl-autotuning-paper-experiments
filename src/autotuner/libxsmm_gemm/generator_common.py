@@ -71,10 +71,14 @@ class LoopLabelTracker:
     list.
     """
 
+    counter = 41
+
     @property
     def current_loop_number(self) -> int:
-        # No idea why libxsmm does this
-        return len(self.dest_blocks) + 32
+        # Instead of libxsmm's numbered labels and jumps forward/backwards, just allocate new labels
+        # return len(self.dest_blocks) + 32
+        self.counter += 1
+        return self.counter
 
 
 @dataclass
