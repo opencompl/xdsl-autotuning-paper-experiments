@@ -48,18 +48,24 @@ PLOTS += plots/ttile.f64.neon.png
 PLOTS += plots/cube_8.f64.neon.png
 PLOTS += plots/cube_16.f64.neon.png
 PLOTS += plots/cube_64.f64.neon.png
+# PLOTS += plots/tiny.f64.neon.png
+# PLOTS += plots/heatmap.f64.neon.png
 
 PLOTS += plots/ttile.f32.tower.png
 PLOTS += plots/ttile.f64.tower.png
 PLOTS += plots/cube_8.f64.tower.png
 PLOTS += plots/cube_16.f64.tower.png
 PLOTS += plots/cube_64.f64.tower.png
+PLOTS += plots/tiny.f64.tower.png
+PLOTS += plots/heatmap.f64.tower.png
 
 PLOTS += plots/ttile.f32.pinocchio.png
 PLOTS += plots/ttile.f64.pinocchio.png
 PLOTS += plots/cube_8.f64.pinocchio.png
 PLOTS += plots/cube_16.f64.pinocchio.png
 PLOTS += plots/cube_64.f64.pinocchio.png
+PLOTS += plots/tiny.f64.pinocchio.png
+PLOTS += plots/heatmap.f64.pinocchio.png
 
 plots/ttile.%.png: data/ttile.%.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile $< --output $@
@@ -69,6 +75,12 @@ plots/cube%.png: data/cube%.jsonl src/autotuner/plot_cube.py
 
 plots/bars.%.png: data/bars.%.jsonl src/autotuner/plot_cube.py
 	uv run plot-cube $< --output $@
+
+plots/tiny.%.png: data/small_matrices.%.jsonl src/autotuner/plot_small_matrices.py
+	uv run plot-tiny-line $< --output $@
+
+plots/heatmap.%.png: data/small_matrices.%.jsonl src/autotuner/plot_small_matrices.py
+	uv run plot-tiny-heatmap $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)
