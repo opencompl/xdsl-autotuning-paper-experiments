@@ -436,7 +436,7 @@ DATASET_VARIANTS = {
         "small_matrices.f64": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm"],
         "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
         "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
         "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
