@@ -1115,7 +1115,6 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
         m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
             desc.m, 64, 16, m_blocking
         )
-        raise NotImplementedError
     elif (arch <= Arch.LIBXSMM_X86_ALLFEAT) and (Datatype.F64 == desc.datatype.ab):
         m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
             desc.m, 32, 8, m_blocking
