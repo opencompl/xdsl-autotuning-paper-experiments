@@ -1,5 +1,5 @@
-{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":1953.991592,"variant":"naive_c","target":"pinocchio","dtype":"f64"}
-{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":484.134628,"variant":"llvm_intrinsics","target":"pinocchio","dtype":"f64"}
-{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":329.252914,"variant":"libxsmm","target":"pinocchio","dtype":"f64"}
-{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":926.874252,"variant":"mkl","target":"pinocchio","dtype":"f64"}
-{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":327.193817,"variant":"tvm","target":"pinocchio","dtype":"f64"}
+{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":1837.250626,"variant":"naive_c","target":"pinocchio","dtype":"f64"}
+{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":429.207016,"variant":"llvm_intrinsics","target":"pinocchio","dtype":"f64"}
+{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":329.740143,"variant":"libxsmm","target":"pinocchio","dtype":"f64"}
+{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":926.653229,"variant":"mkl","target":"pinocchio","dtype":"f64"}
+{"M":16,"N":16,"K":16,"peak":32.0,"flops":8192,"time":325.978577,"variant":"tvm","target":"pinocchio","dtype":"f64"}
