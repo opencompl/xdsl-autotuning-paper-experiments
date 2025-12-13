@@ -15,6 +15,14 @@ def plot_axis_throughput(
 ):
     # Get peak performance if available
 
+    # Filter out invalid time values (negative or zero)
+    valid_data = df[df["time"] > 0].copy()
+    assert isinstance(valid_data, pd.DataFrame)
+    df = valid_data
+
+    # Calculate FLOPs per time (throughput)
+    df["throughput"] = df["flops"] / df["time"]
+
     peak = None
     if "peak" in df.columns:
         peaks = df["peak"].dropna().unique()
@@ -23,7 +31,6 @@ def plot_axis_throughput(
             if peak == 0.0:
                 # Peak is not set
                 peak = None
-    print(peak)
 
     # Peak perf horizontal line at 100%
     if peak is not None:
@@ -44,7 +51,7 @@ def plot_axis_throughput(
         assert isinstance(group, pd.DataFrame)
         group = group.sort_values(x_row)
         ax.plot(
-            group["M"],
+            group[x_row],
             group[y_col],
             label=variant,
             color=color,
@@ -54,11 +61,11 @@ def plot_axis_throughput(
         )
 
     if peak is not None:
-        ax.set_ylabel("Throughput (FLOPs per Time)")
-        ax.set_ylim(bottom=1e-2)  # Avoid log(0); adjust as needed for your data
-    else:
         ax.set_ylabel("% of Peak Performance")
         ax.set_ylim(0, 110.0)
+    else:
+        ax.set_ylabel("Throughput (FLOPs per Time)")
+        ax.set_ylim(bottom=1e-2)  # Avoid log(0); adjust as needed for your data
 
     ax.set_xlabel(x_row)
     ax.grid(True, alpha=0.3)
@@ -69,13 +76,6 @@ def plot_axis_throughput(
 
 def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     """Plot FLOPs per time for each kernel variant."""
-
-    # Filter out invalid time values (negative or zero)
-    valid_data = df[df["time"] > 0].copy()
-    assert isinstance(valid_data, pd.DataFrame)
-
-    # Calculate FLOPs per time (throughput)
-    valid_data["throughput"] = valid_data["flops"] / valid_data["time"]
 
     ns = set(df.N)
     ks = set(df.K)
@@ -88,9 +88,9 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    plot_axis_throughput(valid_data, ax, x_row="M")
+    plot_axis_throughput(df, ax, x_row="M")
 
-    ax.set_title(f"Performance of small matrix multiplication kernels, for N = K = {n}")
+    ax.set_title(f"N = K = {n}, {dtype}")
     ax.legend(title="Variant")
     plt.tight_layout()
 

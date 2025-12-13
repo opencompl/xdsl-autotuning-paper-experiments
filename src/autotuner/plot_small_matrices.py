@@ -7,49 +7,19 @@ import matplotlib.pyplot as plt
 
 from pathlib import Path
 
+from autotuner.plot_ttile import plot_axis_throughput
+
 
 def plot_flops_per_time(
     df: pd.DataFrame, title: str, xlabel: str, output_path: Path | None = None
 ):
     """Plot FLOPs per time for each kernel variant."""
 
-    # Filter out invalid time values (negative or zero)
-    valid_data = df[df["time"] > 0].copy()
-
-    # Calculate FLOPs per time (throughput)
-    valid_data["throughput"] = valid_data["flops"] / valid_data["time"]
-
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    # Assign a color and marker for each variant
-    import itertools
-
-    colors = itertools.cycle(["b", "g", "r", "c", "m", "y", "k"])
-    markers = itertools.cycle(["o", "s", "D", "^", "v", ">", "<", "p", "*", "h", "x"])
-
-    for (variant, group), color, marker in zip(
-        valid_data.groupby("variant"), colors, markers
-    ):
-        assert isinstance(group, pd.DataFrame)
-        group = group.sort_values("N")
-        ax.plot(
-            group["N"],
-            group["throughput"],
-            label=variant,
-            color=color,
-            marker=marker,
-            linewidth=2,
-            markersize=6,
-        )
+    plot_axis_throughput(df, ax, x_row=xlabel)
 
     ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel("Throughput (FLOPs per Time)")
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(0, valid_data["N"].max() + 2)
-    ax.set_ylim(bottom=1e-2)  # Avoid log(0); adjust as needed for your data
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
     ax.legend(title="Variant")
     plt.tight_layout()
 
@@ -159,12 +129,15 @@ def main(heatmap: bool):
             tiny_path = None
         plot_flops_per_time(
             group,
-            title=f"Performance of small matrix multiplication kernels, for M = {m}, K = 64 and 1 ≤ N ≤ 16",
+            title=f"M = {m}, K = 64 and 1 ≤ N ≤ 16",
             xlabel="N",
             output_path=tiny_path,
         )
 
-    square_matrices = df[df["M"] == df["N"]]
+    square_matrices = df[df["M"] == df["N"]].copy()
+    assert isinstance(square_matrices, pd.DataFrame)
+    square_matrices = square_matrices.rename(columns={"M": "M,N"})
+    del square_matrices["N"]
     assert isinstance(square_matrices, pd.DataFrame)
     plot_flops_per_time(
         square_matrices,
