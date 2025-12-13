@@ -23,7 +23,27 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     (k,) = ks
     (dtype,) = dtypes
 
+    # Get peak performance if available
+
+    peak = None
+    if "peak" in df.columns:
+        peaks = df["peak"].dropna().unique()
+        if len(peaks) > 0:
+            peak = float(peaks[0])
+            if peak == 0.0:
+                # Peak is not set
+                peak = None
+
     fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Peak perf horizontal line at 100%
+    if peak is not None:
+        # Convert throughput to percentage of peak
+        valid_data["throughput_percent"] = (valid_data["throughput"] / peak) * 100
+        ax.axhline(100, linestyle="--", linewidth=1, label="Peak perf (100%)")
+        y_col = "throughput_percent"
+    else:
+        y_col = "throughput"
 
     # Assign a color and marker for each variant
     import itertools
@@ -38,7 +58,7 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
         group = group.sort_values("M")
         ax.plot(
             group["M"],
-            group["throughput"],
+            group[y_col],
             label=variant,
             color=color,
             marker=marker,
@@ -47,11 +67,15 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
         )
 
     ax.set_xlabel("M")
-    ax.set_ylabel("Throughput (FLOPs per Time)")
+    if peak is not None:
+        ax.set_ylabel("% of Peak Performance")
+        ax.set_ylim(0, 110.0)
+    else:
+        ax.set_ylabel("Throughput (FLOPs per Time)")
+        ax.set_ylim(bottom=1e-2)  # Avoid log(0); adjust as needed for your data
     ax.set_title(f"Performance of small matrix multiplication kernels, for N = K = {n}")
     ax.grid(True, alpha=0.3)
     ax.set_xlim(0, valid_data["M"].max() + 2)
-    ax.set_ylim(bottom=1e-2)  # Avoid log(0); adjust as needed for your data
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.legend(title="Variant")
