@@ -153,7 +153,7 @@ def plot_combined(output_file: Path | None):
         targets.append(target)
         titles.append(f"{prefix}N = K = {n}, {dtype}, {TARGET_NAME[target]}")
 
-    fig, axs = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
+    fig, axs = plt.subplots(2, 2, figsize=(7, 6), sharex=True, sharey=True)
     axs = axs.flatten()
 
     # For legend
