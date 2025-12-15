@@ -67,8 +67,13 @@ PLOTS += plots/cube_64.f64.pinocchio.png
 PLOTS += plots/tiny.f64.pinocchio.png
 PLOTS += plots/heatmap.f64.pinocchio.png
 
+PLOTS += plots/ttile.pdf
+
 plots/ttile.%.png: data/ttile.%.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile $< --output $@
+
+plots/ttile.pdf: data/ttile.f32.tower.jsonl data/ttile.f64.tower.jsonl data/ttile.f32.pinocchio.jsonl data/ttile.f64.pinocchio.jsonl src/autotuner/plot_ttile.py
+	uv run plot-ttile --output $@
 
 plots/cube%.png: data/cube%.jsonl src/autotuner/plot_cube.py
 	uv run plot-cube $< --output $@
