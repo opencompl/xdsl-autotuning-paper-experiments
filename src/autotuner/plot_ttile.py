@@ -165,8 +165,12 @@ def plot_combined(output_file: Path | None):
             ax,
             x_row="M",
             show_xlabel=bool(idx // 2),
-            show_ylabel=not idx % 2,
+            show_ylabel=False,  # We'll add a custom label above the axis
         )
+        # Add horizontal Y-axis label above the axis for top-left plot only
+        if idx == 0:
+            ax.set_ylabel("% of Peak", rotation=0, ha="left", va="bottom")
+            ax.yaxis.set_label_coords(-0.12, 1.02)
         # Place label below the chart
         ax.text(
             0.5,
