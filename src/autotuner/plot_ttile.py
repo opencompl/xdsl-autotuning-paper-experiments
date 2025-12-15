@@ -153,7 +153,8 @@ def plot_combined(output_file: Path | None):
         targets.append(target)
         titles.append(f"{prefix}N = K = {n}, {dtype}, {TARGET_NAME[target]}")
 
-    fig, axs = plt.subplots(2, 2, figsize=(7, 6), sharex=True, sharey=True)
+    fig, axs = plt.subplots(2, 2, figsize=(7, 7), sharex=True, sharey=True)
+    plt.subplots_adjust(hspace=0.35)
     axs = axs.flatten()
 
     # For legend
@@ -166,7 +167,16 @@ def plot_combined(output_file: Path | None):
             show_xlabel=bool(idx // 2),
             show_ylabel=not idx % 2,
         )
-        ax.set_title(title)
+        # Place label below the chart
+        ax.text(
+            0.5,
+            -0.18,
+            title,
+            transform=ax.transAxes,
+            ha="center",
+            va="top",
+            fontsize=10,
+        )
         # Only gather legend once
         if handles_labels is None:
             handles_labels = ax.get_legend_handles_labels()
