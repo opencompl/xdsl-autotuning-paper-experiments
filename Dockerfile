@@ -9,14 +9,13 @@ RUN apt-get update && apt-get install -y \
     git make gcc g++ wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for Python
-RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
-    /root/.local/bin/uv python install 3.12
+COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
+RUN uv python install 3.12
 
 # Build libxsmm
 RUN git clone --depth 1 https://github.com/libxsmm/libxsmm.git /opt/libxsmm && \
     cd /opt/libxsmm && \
-    make STATIC=0 PYTHON='/root/.local/bin/uv run --python 3.12' && \
+    make STATIC=0 PYTHON='/bin/uv run --python 3.12' && \
     rm -rf /opt/libxsmm/.git /opt/libxsmm/tests /opt/libxsmm/samples
 
 # Main image - minimal Ubuntu base with extracted LLVM tools
@@ -64,36 +63,36 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/*
 
-# Set environment variables
 ENV INSIDE_DOCKER=1
 
-# Install uv and Python in a single layer with cache cleanup
-RUN wget -qO- https://astral.sh/uv/install.sh | sh && \
-    /root/.local/bin/uv python install 3.12 && \
-    /root/.local/bin/uv cache clean
+COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
+RUN uv python install 3.12 && uv cache clean
+
+# Single project venv for build-time sync and entrypoint runtime sync.
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv venv /opt/venv -p 3.12 \
+    && uv sync --locked --no-install-project
 
 # Copy libxsmm from builder stage
 COPY --from=libxsmm-builder /opt/libxsmm /opt/libxsmm
 RUN ln -sf /opt/libxsmm/bin/libxsmm_gemm_generator /usr/bin/libxsmm_gemm_generator
 
-# Install Python dependencies globally (not in a venv)
-RUN /root/.local/bin/uv pip install --python python3.12 --system --break-system-packages \
-    plotly setuptools git+https://gitlab.inria.fr/tbastian/staticdeps.git
-
-# Install TVM globally
-RUN /root/.local/bin/uv pip install --python python3.12 --system --break-system-packages \
-    --index-url https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple tvm==0.19.0.2025010903
-
-# Install uiCA and its dependencies globally
+# Install uiCA (not in pyproject.toml); uses setuptools from the venv.
 RUN git clone --depth 1 https://gitlab.inria.fr/CORSE/uica-staticdeps.git /opt/uica-staticdeps && \
     cd /opt/uica-staticdeps && \
-    /root/.local/bin/uv run --python python3.12 --with setuptools ./setup.sh && \
+    uv run --python 3.12 --with setuptools ./setup.sh && \
     rm -rf /opt/uica-staticdeps/.git && \
-    /root/.local/bin/uv cache clean
+    uv cache clean
 
-RUN /root/.local/bin/uv pip install --python python3.12 --system --break-system-packages \
-        "jinja2>=3.1.6" \
-        "matplotlib>=3.10.3" \
-        "pandas>=2.3.1" \
-        "snakemake>=8.30.0" \
-        "xdsl[dev]"
+WORKDIR /src
+
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash"]

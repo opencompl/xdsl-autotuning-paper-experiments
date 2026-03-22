@@ -4,7 +4,10 @@ on:
     tags: [ "v*" ]
     paths:
       - Dockerfile
-      - .github/workflows/toolchain.yml
+      - docker/entrypoint.sh
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/publish-docker.yml
   workflow_dispatch:
 
 jobs:

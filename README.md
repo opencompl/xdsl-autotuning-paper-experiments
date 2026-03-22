@@ -73,17 +73,17 @@ Run `make docker-build`.
 We have a CI script that publishes a new version of Docker automatically when a commit
 in `main` is tagged with a tag like `v1.2.3`.
 So far we've used 0ver (just incrementing the minor version, `v0.1.0`, `v0.2.0`, etc.).
+After publishing a new image, bump the `container:` image tag in
+[`.github/workflows/ci-docker.yml`](.github/workflows/ci-docker.yml) so the Docker CI job uses it.
 
 ### Virtual Environments
 
-The aim is for this project to run both natively on the host platform and in the Docker.
-For this to work smoothly, the virtual environments must be distinct.
-By default, the native virtual environment is called `.venv`, and the docker virtual environment is called `venv_docker`.
-UV finds the right one to use via the [`UV_PROJECT_ENVIRONMENT`](https://docs.astral.sh/uv/reference/environment/#uv_project_environment) variable set in the [[launch.sh]] script that is executed when running `docker-run`.
+The aim is for this project to run both natively on the host and in Docker.
 
-The Docker virtual environment is partially created during the Docker image build phase.
-When building the docker image, we install some packages globally, these are imported into the `venv_docker` by `launch.sh`, by using the `--system-site-packages` flag, if `venv_docker` is not found.
-When updating the docker image, the venv might break, in which case the easiest fix is to just delete `venv_docker` outside of the docker container and run `make docker-run` again, then run `uv sync` in `/src`.
+- **Host:** use `uv sync` (or `make` targets that rely on `uv run`) as usual; the project lives in a local `.venv` (default for uv).
+- **Docker:** the image defines a single environment at `/opt/venv` via `UV_PROJECT_ENVIRONMENT` and `PATH`. The image is built with `pyproject.toml` and `uv.lock` (`uv sync --locked --no-install-project`). The [`docker/entrypoint.sh`](docker/entrypoint.sh) runs `uv sync --directory /src --locked --inexact` when the container starts so the mounted repository is installed in editable form and stays in sync with the lockfile. The `--inexact` flag keeps extra packages installed only in the image (for example uiCA) from being removed.
+
+When you change the image or dependencies, rebuild the image (`make docker-build`) or pull a published CI image; you do not need a separate `venv_docker` directory on the host.
 
 ## Configuring Machines
 
