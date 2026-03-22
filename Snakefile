@@ -33,6 +33,9 @@ def target_freq(wildcards):
 def target_arch(wildcards):
     return T[wildcards.target]['arch']
 
+def target_linker_flag(wildcards):
+    return T[wildcards.target]['linker_flag']
+
 def target_peak_flops(wildcards):
     match wildcards.dtype:
         case 'f32':
@@ -343,8 +346,9 @@ rule executable:
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
         use_papi=target_use_papi,
         mkl_libs=lambda wc: MKL_LIBS if wc.variant == "mkl" else "",
+        linker_flag=target_linker_flag,
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} -fuse-ld=lld"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.linker_flag}"
 
 rule validation:
     input:  target_ll_file(ext='test.o')
