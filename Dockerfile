@@ -28,7 +28,7 @@ LABEL org.opencontainers.image.licenses=MIT
 # Copy essential LLVM tools from the original base image
 COPY --from=llvm-extractor /usr/local/bin/llvm-mca /usr/local/bin/
 COPY --from=llvm-extractor /usr/local/bin/mlir-translate /usr/local/bin/
-COPY --from=llvm-extractor /usr/local/bin/mlir-opt /usr/local/bin/
+COPY --from=llvm-extractor /usr/local/bin/mlir-opt-20 /usr/local/bin/
 COPY --from=llvm-extractor /usr/local/bin/clang-20 /usr/local/bin/
 COPY --from=llvm-extractor /usr/local/bin/lld /usr/local/bin/
 RUN ln -s clang-20 /usr/local/bin/clang && \
