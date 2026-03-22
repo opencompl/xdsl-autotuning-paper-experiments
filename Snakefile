@@ -136,7 +136,7 @@ rule execute_transform:
     input: target_file(ext='transform.mlir')
     output: target_file(ext='transformed.mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --transform-interpreter \
             --mlir-print-op-generic \
         | xdsl-opt \
@@ -148,7 +148,7 @@ rule vector_to_arith:
     input: target_file(variant='transform_mlir',ext='transformed.mlir')
     output: target_file(variant='transform_mlir',ext='arith.mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --canonicalize \
             --lower-affine \
             --convert-vector-to-scf \
@@ -178,7 +178,7 @@ rule memref_mlir:
     input: target_file(variant='tensor',ext='mlir')
     output: target_file(variant='memref',ext='mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --one-shot-bufferize='bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map' \
             -o {output}"""
 
@@ -186,7 +186,7 @@ rule naive_mlir:
     input: target_file(variant='memref',ext='mlir')
     output: target_file(variant='naive_mlir',ext='arith.mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --convert-linalg-to-loops \
             --convert-scf-to-cf \
             --buffer-results-to-out-params \
@@ -198,7 +198,7 @@ rule arith_to_llvm:
     input: target_file(ext='arith.mlir')
     output: target_file(ext='llvm.mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
             --finalize-memref-to-llvm \
             --canonicalize --cse --sccp \
