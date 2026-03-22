@@ -99,6 +99,26 @@ On the tower:
     - Disable CPU Core Performance boost
     - Set Ai overclock TUner to Manual
 
+```sh
+# 1. Switch amd-pstate from EPP to passive mode (hands control to cpufreq)
+echo passive | sudo tee /sys/devices/system/cpu/amd_pstate/status
+
+# 2. Set performance governor on all cores
+sudo cpupower frequency-set -g performance
+
+# 3. Disable boost (prevents unsustainable frequency spikes)
+echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
+
+# 4. Pin all cores to base clock (4.3 GHz = sustained, below thermal throttle)
+sudo cpupower frequency-set -f 4300000
+
+# 5. Stop thermald if running (it will fight the above settings)
+sudo systemctl stop thermald
+
+# 6. Verify — all cores should show ~4300 MHz
+cat /proc/cpuinfo | grep "cpu MHz"
+```
+
 ### Integrate within the measurement harness
 
 Every new hardware target requires an entry in the default.yaml file.
