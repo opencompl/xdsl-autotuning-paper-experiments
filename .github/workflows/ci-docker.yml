@@ -18,6 +18,9 @@ jobs:
     container: ghcr.io/opencompl/xdsl-autotuning-ci:0.18.0
     env:
       UV_LINK_MODE: copy
+      # Job containers often replace PATH; uv lives in /bin, git in /usr/bin (xdsl is a
+      # git dependency), and the project venv is on PATH for make tests.
+      PATH: /opt/venv/bin:/bin:/usr/local/bin:/usr/bin:/sbin:/bin
 
     steps:
       - uses: actions/checkout@v4
@@ -25,10 +28,13 @@ jobs:
       # GitHub Actions overrides the image ENTRYPOINT, so we must sync here (same as
       # docker/entrypoint.sh) before running tests.
       - name: Sync project into image venv
-        run: uv sync --directory ${{ github.workspace }} --locked --inexact
+        working-directory: ${{ github.workspace }}
+        run: uv sync --locked --inexact
 
       - name: Run tests target
+        working-directory: ${{ github.workspace }}
         run: make tests
 
       - name: Prune uv cache
+        working-directory: ${{ github.workspace }}
         run: uv cache prune --ci
