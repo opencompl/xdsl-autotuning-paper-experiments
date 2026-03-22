@@ -33,6 +33,9 @@ def target_freq(wildcards):
 def target_arch(wildcards):
     return T[wildcards.target]['arch']
 
+def target_linker_flag(wildcards):
+    return T[wildcards.target]['linker_flag']
+
 def target_peak_flops(wildcards):
     match wildcards.dtype:
         case 'f32':
@@ -136,7 +139,7 @@ rule execute_transform:
     input: target_file(ext='transform.mlir')
     output: target_file(ext='transformed.mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --transform-interpreter \
             --mlir-print-op-generic \
         | xdsl-opt \
@@ -148,7 +151,7 @@ rule vector_to_arith:
     input: target_file(variant='transform_mlir',ext='transformed.mlir')
     output: target_file(variant='transform_mlir',ext='arith.mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --canonicalize \
             --lower-affine \
             --convert-vector-to-scf \
@@ -178,7 +181,7 @@ rule memref_mlir:
     input: target_file(variant='tensor',ext='mlir')
     output: target_file(variant='memref',ext='mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --one-shot-bufferize='bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map' \
             -o {output}"""
 
@@ -186,7 +189,7 @@ rule naive_mlir:
     input: target_file(variant='memref',ext='mlir')
     output: target_file(variant='naive_mlir',ext='arith.mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --convert-linalg-to-loops \
             --convert-scf-to-cf \
             --buffer-results-to-out-params \
@@ -198,7 +201,7 @@ rule arith_to_llvm:
     input: target_file(ext='arith.mlir')
     output: target_file(ext='llvm.mlir')
     shell:
-        """mlir-opt {input} \
+        """mlir-opt-20 {input} \
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
             --finalize-memref-to-llvm \
             --canonicalize --cse --sccp \
@@ -372,8 +375,9 @@ rule executable:
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
         use_papi=target_use_papi,
         mkl_libs=lambda wc: MKL_LIBS if wc.variant == "mkl" else "",
+        linker_flag=target_linker_flag,
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} -fuse-ld=lld"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.linker_flag}"
 
 rule validation:
     input:  target_ll_file(ext='test.o')

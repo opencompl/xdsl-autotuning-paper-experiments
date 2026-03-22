@@ -25,6 +25,7 @@ targets:
     freq: 1.0,
     peak_f32: 0,
     libs: [],
+    linker_flag: "",
     env: {}
   }
   ci: {
@@ -33,6 +34,7 @@ targets:
     freq: 1.0,
     peak_f32: 0,
     libs: [],
+    linker_flag: "-fuse-ld=lld",
     env: {}
   }
   tower: {
@@ -41,6 +43,7 @@ targets:
     freq: 4.3,
     peak_f32: 64,
     libs: [],
+    linker_flag: "-fuse-ld=lld",
     env: {"LIBPFM_FORCE_PMU":"amd64"}
   }
   pinocchio: {
@@ -49,6 +52,7 @@ targets:
     freq: 2.1,
     peak_f32: 64,
     libs: ["papi"],
+    linker_flag: "-fuse-ld=lld",
     env: {}
   }
 
