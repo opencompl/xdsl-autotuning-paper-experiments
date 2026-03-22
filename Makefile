@@ -27,13 +27,13 @@ tests: pytest filecheck snakemake
 
 .PHONY: dataset_code
 dataset_code:
-	uv run snakemake --cores all dataset_code $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake --quiet --cores all dataset_code $(if $(TARGET),--config target=$(TARGET),)
 
 # --cores 1 to avoid contention issues when measuring performance
 # re-run time measurement every time
 .PHONY: dataset
 dataset: dataset_code
-	uv run snakemake --cores 1 dataset --forcerun time $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake --quiet --cores 1 dataset --forcerun time $(if $(TARGET),--config target=$(TARGET),)
 
 
 # Prevent Make from deleting this intermediate file
