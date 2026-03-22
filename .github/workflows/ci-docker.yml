@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     # Pinned toolchain image (rebuild/push via publish-docker workflow on version tags).
     # Bump this when the Dockerfile changes and a new image is published.
-    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.18.0
+    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.19.0
     env:
       UV_LINK_MODE: copy
       # Job containers often replace PATH; uv lives in /bin, git in /usr/bin (xdsl is a
