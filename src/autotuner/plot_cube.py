@@ -24,6 +24,10 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
 
     # Calculate throughput (FLOPs per time)
     valid_data["throughput"] = valid_data["flops"] / valid_data["time"]
+    throughput_max = valid_data["throughput"].max()
+    assert isinstance(throughput_max, (int, float)), (
+        f"throughput_max has unexpected type: {type(throughput_max)}"
+    )
 
     # Sort by throughput descending for better visualization
     # valid_data = valid_data.sort_values("throughput", ascending=False)
@@ -37,7 +41,7 @@ def plot_cube_bar_chart(df: pd.DataFrame, output_file: Path | None = None):
         peaks = df["peak"].dropna().unique()
         peak = float(peaks[0])
         ax.axhline(peak, linestyle="--", linewidth=1, label="Peak perf (100%)")
-        ymax = float(valid_data["throughput"].max()) if len(valid_data) else 0.0
+        ymax = float(throughput_max) if len(valid_data) else 0.0
         ymax = max(ymax, peak)
         ax.set_ylim(0, ymax * 1.1 if ymax > 0 else 1)
 
