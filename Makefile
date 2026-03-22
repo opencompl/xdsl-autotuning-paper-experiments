@@ -27,13 +27,13 @@ tests: pytest filecheck snakemake
 
 .PHONY: dataset_code
 dataset_code:
-	uv run snakemake --cores all dataset_code $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake --quiet --cores all dataset_code $(if $(TARGET),--config target=$(TARGET),)
 
 # --cores 1 to avoid contention issues when measuring performance
 # re-run time measurement every time
 .PHONY: dataset
 dataset: dataset_code
-	uv run snakemake --cores 1 dataset --forcerun time $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake --quiet --cores 1 dataset --forcerun time $(if $(TARGET),--config target=$(TARGET),)
 
 
 # Prevent Make from deleting this intermediate file
@@ -119,9 +119,9 @@ docker-pull:
 .PHONY: docker-run
 docker-run:
 	@if [ "$$(uname -s)" = "Darwin" ]; then \
-		docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner /src/launch.sh; \
+		docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner; \
 	else \
-		nice -n -15 taskset -c 2 docker run -e IN_DOCKER=1 --platform linux/amd64 --cap-add=SYS_ADMIN --cap-add=PERFMON --security-opt seccomp=unconfined --security-opt apparmor=unconfined --pid=host -v .:/src -ti xdsl-autotuner /src/launch.sh; \
+		nice -n -15 taskset -c 2 docker run -e IN_DOCKER=1 --platform linux/amd64 --cap-add=SYS_ADMIN --cap-add=PERFMON --security-opt seccomp=unconfined --security-opt apparmor=unconfined --pid=host -v .:/src -ti xdsl-autotuner; \
 	fi
 
 .PHONY: clean

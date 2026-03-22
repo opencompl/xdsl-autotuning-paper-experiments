@@ -1,4 +1,4 @@
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions
 
 name: CI - Docker Tests
 
@@ -13,26 +13,28 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.17.0
+    # Pinned toolchain image (rebuild/push via publish-docker workflow on version tags).
+    # Bump this when the Dockerfile changes and a new image is published.
+    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.18.0
     env:
-      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/venv_docker
       UV_LINK_MODE: copy
+      # Job containers often replace PATH; uv lives in /bin, git in /usr/bin (xdsl is a
+      # git dependency), and the project venv is on PATH for make tests.
+      PATH: /opt/venv/bin:/bin:/usr/local/bin:/usr/bin:/sbin:/bin
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup virtual environment
-      run: |
-        # Add bin containing uv to PATH
-        PATH=/root/.local/bin:$PATH
-        uv venv $UV_PROJECT_ENVIRONMENT --system-site-packages --python 3.12
+      # GitHub Actions overrides the image ENTRYPOINT, so we must sync here (same as
+      # docker/entrypoint.sh) before running tests.
+      - name: Sync project into image venv
+        working-directory: ${{ github.workspace }}
+        run: uv sync --locked --inexact
 
-    - name: Run tests target
-      run: |
-        PATH=/root/.local/bin:$PATH
-        make tests
+      - name: Run tests target
+        working-directory: ${{ github.workspace }}
+        run: make tests
 
-    - name: Prune uv cache
-      run: |
-        PATH=/root/.local/bin:$PATH
-        uv cache prune --ci
+      - name: Prune uv cache
+        working-directory: ${{ github.workspace }}
+        run: uv cache prune --ci
