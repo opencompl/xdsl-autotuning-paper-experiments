@@ -71,7 +71,7 @@ class LoopLabelTracker:
     list.
     """
 
-    counter = 41
+    counter = 32
 
     @property
     def current_loop_number(self) -> int:
