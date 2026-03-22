@@ -38,7 +38,7 @@ targets:
   tower: {
     triple: "x86_64-pc-linux-gnu",
     arch: "znver5",
-    freq: 4.33,
+    freq: 4.35,
     peak_f32: 64,
     libs: [],
     env: {"LIBPFM_FORCE_PMU":"amd64"}
