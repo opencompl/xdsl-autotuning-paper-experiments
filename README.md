@@ -58,7 +58,7 @@ will not be executed.
 
 ### Computing Data
 
-Generate the data for the host platform by running `make dataset`. JSONL outputs are written under `data/<TARGET>/` (with `TARGET` from `.env` or `default.yaml`); build artifacts go under `build/<TARGET>/`.
+Generate the data for the host platform by running `make dataset`. JSONL outputs are written under `data/<TARGET>/` (with `TARGET` from `.env` or `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example `f32.ttile.jsonl`). Build artifacts go under `build/<TARGET>/`.
 
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 

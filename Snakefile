@@ -114,7 +114,8 @@ wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
     variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm",
-    target="neon|ci|tower|pinocchio"
+    target="neon|ci|tower|pinocchio",
+    executable="time|test"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -408,36 +409,36 @@ THIS_TARGET = config["target"]
 DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
-        "cube_8.f64": ["naive_c", "transform_mlir"],
-        "cube_16.f64": ["naive_c", "transform_mlir"],
-        "cube_64.f64": ["naive_c", "transform_mlir"],
-        "small_matrices.f64": [],
+        "f64.cube_8": ["naive_c", "transform_mlir"],
+        "f64.cube_16": ["naive_c", "transform_mlir"],
+        "f64.cube_64": ["naive_c", "transform_mlir"],
+        "f64.small_matrices": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
-        "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "small_matrices.f64": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
+        "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
+        "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
-        "cube_8.f64": ["naive_c", "llvm_intrinsics", "libxsmm","mkl","tvm"],
-        "cube_16.f64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
-        "cube_64.f64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
-        "small_matrices.f64": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.cube_8": ["naive_c", "llvm_intrinsics", "libxsmm","mkl","tvm"],
+        "f64.cube_16": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
+        "f64.cube_64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
+        "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
     },
     "ci": {
         "ttile": ["naive_c"],
-        "cube_8.f64": ["naive_c", "transform_mlir"],
-        "cube_16.f64": ["naive_c", "transform_mlir"],
-        "cube_64.f64": ["naive_c", "transform_mlir"],
-        "small_matrices.f64": [],
+        "f64.cube_8": ["naive_c", "transform_mlir"],
+        "f64.cube_16": ["naive_c", "transform_mlir"],
+        "f64.cube_64": ["naive_c", "transform_mlir"],
+        "f64.small_matrices": [],
     },
 }[THIS_TARGET]
 
 DATASET_BASES = {
-    "ttile.f32": expand(
+    "f32.ttile": expand(
         target_file(
             kernel="matmul_rowmaj",
             n="128",
@@ -449,7 +450,7 @@ DATASET_BASES = {
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
     ),
-    "ttile.f64": expand(
+    "f64.ttile": expand(
         target_file(
             kernel="matmul_rowmaj",
             n="64",
@@ -461,7 +462,7 @@ DATASET_BASES = {
         variant=DATASET_VARIANTS["ttile"], # + ["transform_xdsl"]
         m=range(9, 63, 3),
     ),
-    "cube_8.f64": expand(
+    "f64.cube_8": expand(
         target_file(
             kernel="matmul_rowmaj",
             m="8",
@@ -471,9 +472,9 @@ DATASET_BASES = {
             ext="json",
             target=THIS_TARGET,
         ),
-        variant=DATASET_VARIANTS["cube_8.f64"],
+        variant=DATASET_VARIANTS["f64.cube_8"],
     ),
-    "cube_16.f64": expand(
+    "f64.cube_16": expand(
         target_file(
             kernel="matmul_rowmaj",
             m="16",
@@ -483,9 +484,9 @@ DATASET_BASES = {
             ext="json",
             target=THIS_TARGET,
         ),
-        variant=DATASET_VARIANTS["cube_16.f64"],
+        variant=DATASET_VARIANTS["f64.cube_16"],
     ),
-    "cube_64.f64": expand(
+    "f64.cube_64": expand(
         target_file(
             kernel="matmul_rowmaj",
             m="64",
@@ -495,9 +496,9 @@ DATASET_BASES = {
             ext="json",
             target=THIS_TARGET,
         ),
-        variant=DATASET_VARIANTS["cube_64.f64"],
+        variant=DATASET_VARIANTS["f64.cube_64"],
     ),
-    "small_matrices.f64": expand(
+    "f64.small_matrices": expand(
         target_file(
             kernel="matmul_rowmaj",
             k="64",
@@ -507,20 +508,15 @@ DATASET_BASES = {
         ),
         m=range(1, 17),
         n=range(1, 17),
-        variant=DATASET_VARIANTS["small_matrices.f64"]
+        variant=DATASET_VARIANTS["f64.small_matrices"]
     )
 }
 
 BARS_INPUTS = expand(
     "{base}/" + target_variant(dtype="f64", ext="json"),
     base=target_base(kernel="matmul_rowmaj", target=THIS_TARGET),
-    variant=DATASET_VARIANTS["cube_8.f64"]
+    variant=DATASET_VARIANTS["f64.cube_8"]
 )
-
-rule bars_data:
-    input: BARS_INPUTS
-    output: f"data/{THIS_TARGET}/bars.{{m}}x{{n}}x{{k}}.f64.jsonl"
-    shell: "cat {input} > {output}"
 
 for dataset, samples in DATASET_BASES.items():
     rule:

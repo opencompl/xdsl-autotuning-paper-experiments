@@ -1,4 +1,4 @@
-# uv run plot-tiny-line data/tower/small_matrices.f64.jsonl --output plots/tower/tiny.f64.png
+# uv run plot-tiny-line data/tower/f64.small_matrices.jsonl --output plots/tower/f64.tiny.png
 
 import os
 import numpy as np
