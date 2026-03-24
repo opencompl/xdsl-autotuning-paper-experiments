@@ -1,4 +1,4 @@
-# uv run src/plot_ttile.py data/ttile.neon.jsonl
+# uv run plot-tiny-line data/tower/small_matrices.f64.jsonl --output plots/tower/tiny.f64.png
 
 import os
 import numpy as np
@@ -115,15 +115,12 @@ def main(heatmap: bool):
     targets = set(df["target"])
     dtypes = set(df["dtype"])
     assert len(targets) == len(dtypes) == 1
-    (target,) = targets
     (dtype,) = dtypes
 
     for m, group in df.groupby("M"):
         assert isinstance(m, int)
         if args.output is not None:
-            tiny_path = (
-                args.output.parent / "small_matrices" / f"{target}.{dtype}.{m}xNx64.png"
-            )
+            tiny_path = args.output.parent / "small_matrices" / f"{dtype}.{m}xNx64.png"
             os.makedirs(tiny_path.parent, exist_ok=True)
         else:
             tiny_path = None
