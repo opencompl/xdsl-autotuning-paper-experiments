@@ -1,6 +1,7 @@
 # uv run src/plot_ttile.py data/ttile.neon.jsonl
 
 import os
+from matplotlib.axes import Subplot
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -30,57 +31,91 @@ def plot_flops_per_time(
         plt.show()
 
 
-def plot_heatmap_throughput_over_peak(
-    df: pd.DataFrame, output_path: Path | None = None
-):
-    """Plot a heatmap of throughput over peak perf for small matrices."""
+def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
+    if valid_data.empty:
+        ax.set_title(title + " (no data)")
+        ax.axis("off")
+        return
 
-    peaks = df["peak"].dropna().unique()
+    peak_series = pd.Series(valid_data["peak"], dtype="float64")
+    peaks = peak_series.dropna().unique()
     peak = float(peaks[0])
 
-    # Filter out invalid time values (negative or zero)
-    valid_data = df[df["time"] > 0].copy()
-
-    # Calculate FLOPs per time (throughput)
     valid_data["throughput"] = valid_data["flops"] / valid_data["time"]
 
     valid_data["perf"] = (valid_data["throughput"] / peak) * 100
 
     heatmap_data = valid_data.pivot(index="M", columns="N", values="perf")
 
-    fig, ax = plt.subplots(figsize=(10, 8))
     im = ax.imshow(heatmap_data, cmap="YlOrRd", aspect="auto", vmin=0, vmax=100)
 
-    # Add colorbar
-    cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label("% of Peak Performance", rotation=270, labelpad=20)
-
-    # Set ticks and labels
     ax.set_xticks(np.arange(len(heatmap_data.columns)))
     ax.set_yticks(np.arange(len(heatmap_data.index)))
     ax.set_xticklabels(heatmap_data.columns)
     ax.set_yticklabels(heatmap_data.index)
 
-    # Add text annotations
-    for i in range(len(heatmap_data.index)):
-        for j in range(len(heatmap_data.columns)):
-            ax.text(
-                j,
-                i,
-                f"{heatmap_data.iloc[i, j]:.1f}",
-                ha="center",
-                va="center",
-                color="black",
-            )
+    # Text currently too small to fit in plot, can add back later when we re-format
+    # for i in range(len(heatmap_data.index)):
+    #     for j in range(len(heatmap_data.columns)):
+    #         val = heatmap_data.iloc[i, j]
+    #         if pd.notna(val):
+    #             ax.text(
+    #                 j,
+    #                 i,
+    #                 f"{val:.1f}",
+    #                 ha="center",
+    #                 va="center",
+    #                 color="black",
+    #             )
 
     ax.set_xlabel("N")
     ax.set_ylabel("M")
+    ax.set_title(title)
 
-    plt.tight_layout()
+    return im
 
-    ax.set_title(
-        "Performance of small square matrix multiplication kernels, for 1 ≤ M ≤ 16, 1 ≤ N ≤ 16, K = 64"
+
+def plot_heatmap_throughput_over_peak(
+    df: pd.DataFrame, output_path: Path | None = None
+):
+    """Plot heatmaps of throughput over peak perf for small matrices, one subplot per variant."""
+
+    variants = sorted(df["variant"].unique())
+    if not variants:
+        raise ValueError("No variants in dataframe")
+
+    n = len(variants)
+    ncols = min(3, n)
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(5 * ncols, 4 * nrows), squeeze=False
     )
+    ims = []
+
+    for idx, variant in enumerate(variants):
+        ax = axes.flat[idx]
+        valid_data = df[(df["variant"] == variant) & (df["time"] > 0)].copy()
+        assert isinstance(valid_data, pd.DataFrame)
+
+        ims.append(plot_axis_heatmap(valid_data, ax, variant))
+
+    for j in range(len(variants), len(axes.flat)):
+        axes.flat[j].axis("off")
+
+    fig.suptitle(
+        "Performance of small square matrix multiplication kernels, for 1 ≤ M ≤ 16, 1 ≤ N ≤ 16, K = 64",
+        y=1.02,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
+
+    if ims:
+        cbar = fig.colorbar(
+            ims[0],
+            ax=axes.ravel().tolist(),
+            fraction=0.035,
+            pad=0.04,
+        )
+        cbar.set_label("% of Peak Performance", rotation=270, labelpad=20)
 
     if output_path:
         os.makedirs(output_path.parent, exist_ok=True)
@@ -107,9 +142,7 @@ def main(heatmap: bool):
     df = pd.read_json(args.input, lines=True)
 
     if heatmap:
-        heatmap_df = df[df["variant"] == "libxsmm"]
-        assert isinstance(heatmap_df, pd.DataFrame)
-        plot_heatmap_throughput_over_peak(df=heatmap_df, output_path=args.output)
+        plot_heatmap_throughput_over_peak(df=df, output_path=args.output)
         return
 
     targets = set(df["target"])
