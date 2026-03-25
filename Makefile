@@ -48,7 +48,8 @@ PLOTS += plots/ttile.f64.neon.png
 PLOTS += plots/cube_8.f64.neon.png
 PLOTS += plots/cube_16.f64.neon.png
 PLOTS += plots/cube_64.f64.neon.png
-# PLOTS += plots/tiny.f64.neon.png
+# PLOTS += plots/ttile_squares.f64.neon.png
+# PLOTS += plots/ttile_combined.f64.neon.png
 # PLOTS += plots/heatmap.f64.neon.png
 
 PLOTS += plots/ttile.f32.tower.png
@@ -56,7 +57,8 @@ PLOTS += plots/ttile.f64.tower.png
 PLOTS += plots/cube_8.f64.tower.png
 PLOTS += plots/cube_16.f64.tower.png
 PLOTS += plots/cube_64.f64.tower.png
-PLOTS += plots/tiny.f64.tower.png
+PLOTS += plots/ttile_squares.f64.tower.png
+PLOTS += plots/ttile_combined.f64.tower.png
 PLOTS += plots/heatmap.f64.tower.png
 
 PLOTS += plots/ttile.f32.pinocchio.png
@@ -64,7 +66,8 @@ PLOTS += plots/ttile.f64.pinocchio.png
 PLOTS += plots/cube_8.f64.pinocchio.png
 PLOTS += plots/cube_16.f64.pinocchio.png
 PLOTS += plots/cube_64.f64.pinocchio.png
-PLOTS += plots/tiny.f64.pinocchio.png
+PLOTS += plots/ttile_squares.f64.pinocchio.png
+PLOTS += plots/ttile_combined.f64.pinocchio.png
 PLOTS += plots/heatmap.f64.pinocchio.png
 
 PLOTS += plots/ttile.pdf
@@ -75,17 +78,20 @@ plots/ttile.%.png: data/ttile.%.jsonl src/autotuner/plot_ttile.py
 plots/ttile.pdf: data/ttile.f32.tower.jsonl data/ttile.f64.tower.jsonl data/ttile.f32.pinocchio.jsonl data/ttile.f64.pinocchio.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile --output $@
 
+plots/ttile_squares.%.png: data/small_matrices.%.jsonl src/autotuner/plot_ttile_squares.py
+	uv run plot-ttile-squares $< --output $@
+
+plots/ttile_combined.%.png: data/small_matrices.%.jsonl src/autotuner/plot_ttile_combined.py
+	uv run plot-ttile-combined $< --output $@
+
 plots/cube%.png: data/cube%.jsonl src/autotuner/plot_cube.py
 	uv run plot-cube $< --output $@
 
 plots/bars.%.png: data/bars.%.jsonl src/autotuner/plot_cube.py
 	uv run plot-cube $< --output $@
 
-plots/tiny.%.png: data/small_matrices.%.jsonl src/autotuner/plot_small_matrices.py
-	uv run plot-tiny-line $< --output $@
-
-plots/heatmap.%.png: data/small_matrices.%.jsonl src/autotuner/plot_small_matrices.py
-	uv run plot-tiny-heatmap $< --output $@
+plots/heatmap.%.png: data/small_matrices.%.jsonl src/autotuner/plot_heatmap.py
+	uv run plot-heatmap $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)

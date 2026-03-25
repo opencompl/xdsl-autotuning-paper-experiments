@@ -1,4 +1,4 @@
-# uv run src/plot_ttile.py data/ttile.neon.jsonl
+# uv run src/plot_heatmap.py data/small_matrices.f64.neon.jsonl
 
 import os
 from matplotlib.axes import Subplot
@@ -7,28 +7,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from pathlib import Path
-
-from autotuner.plot_ttile import plot_axis_throughput
-
-
-def plot_flops_per_time(
-    df: pd.DataFrame, title: str, xlabel: str, output_path: Path | None = None
-):
-    """Plot FLOPs per time for each kernel variant."""
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    plot_axis_throughput(df, ax, x_row=xlabel)
-
-    ax.set_title(title)
-    ax.legend(title="Variant")
-    plt.tight_layout()
-
-    if output_path:
-        os.makedirs(output_path.parent, exist_ok=True)
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
 
 
 def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
@@ -124,7 +102,7 @@ def plot_heatmap_throughput_over_peak(
         plt.show()
 
 
-def main(heatmap: bool):
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -141,48 +119,4 @@ def main(heatmap: bool):
 
     df = pd.read_json(args.input, lines=True)
 
-    if heatmap:
-        plot_heatmap_throughput_over_peak(df=df, output_path=args.output)
-        return
-
-    targets = set(df["target"])
-    dtypes = set(df["dtype"])
-    assert len(targets) == len(dtypes) == 1
-    (target,) = targets
-    (dtype,) = dtypes
-
-    for m, group in df.groupby("M"):
-        assert isinstance(m, int)
-        if args.output is not None:
-            tiny_path = (
-                args.output.parent / "small_matrices" / f"{target}.{dtype}.{m}xNx64.png"
-            )
-            os.makedirs(tiny_path.parent, exist_ok=True)
-        else:
-            tiny_path = None
-        plot_flops_per_time(
-            group,
-            title=f"M = {m}, K = 64 and 1 ≤ N ≤ 16",
-            xlabel="N",
-            output_path=tiny_path,
-        )
-
-    square_matrices = df[df["M"] == df["N"]].copy()
-    assert isinstance(square_matrices, pd.DataFrame)
-    square_matrices = square_matrices.rename(columns={"M": "M,N"})
-    del square_matrices["N"]
-    assert isinstance(square_matrices, pd.DataFrame)
-    plot_flops_per_time(
-        square_matrices,
-        title="Performance of small square matrix multiplication kernels, for M = N, K = 64 and 1 ≤ M,N ≤ 16",
-        xlabel="M,N",
-        output_path=args.output,
-    )
-
-
-def main_heatmap():
-    main(heatmap=True)
-
-
-def main_line():
-    main(heatmap=False)
+    plot_heatmap_throughput_over_peak(df=df, output_path=args.output)
