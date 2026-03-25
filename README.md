@@ -58,13 +58,13 @@ will not be executed.
 
 ### Computing Data
 
-Generate the data for the host platform by running `make dataset`.
+Generate the data for the host platform by running `make dataset`. JSONL outputs are written under `data/<TARGET>/` (with `TARGET` from `.env` or `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example `f32.ttile.jsonl`). Build artifacts go under `build/<TARGET>/`.
 
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting
 
-Plot data using `make plots`, this command will fail if all the data necessary to generate the plots is not present, instead of running the data generation.
+Plot data using `make plots`, this command will fail if all the data necessary to generate the plots is not present, instead of running the data generation. PNGs are written under `plots/<machine>/` for each platform that has JSONL inputs in the repo (for example `neon`, `tower`, `pinocchio`); plotting does not depend on your current `TARGET`.
 
 ## Building The Docker Container
 

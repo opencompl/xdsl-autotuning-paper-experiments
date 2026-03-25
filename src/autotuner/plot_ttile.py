@@ -1,4 +1,4 @@
-# uv run src/plot_ttile.py data/ttile.neon.jsonl
+# uv run plot-ttile data/neon/f32.ttile.jsonl
 
 from collections.abc import Collection, Iterable
 from matplotlib.artist import Artist
@@ -122,10 +122,10 @@ def plot_combined(output_file: Path | None):
     """
     # Hardcode input files
     input_files = [
-        ("data/ttile.f32.tower.jsonl", "(a) "),
-        ("data/ttile.f64.tower.jsonl", "(b) "),
-        ("data/ttile.f32.pinocchio.jsonl", "(c) "),
-        ("data/ttile.f64.pinocchio.jsonl", "(d) "),
+        ("data/tower/f32.ttile.jsonl", "(a) "),
+        ("data/tower/f64.ttile.jsonl", "(b) "),
+        ("data/pinocchio/f32.ttile.jsonl", "(c) "),
+        ("data/pinocchio/f64.ttile.jsonl", "(d) "),
     ]
 
     dfs = []

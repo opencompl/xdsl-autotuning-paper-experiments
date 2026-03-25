@@ -65,12 +65,13 @@ def target_libs_opts(wildcards):
 # Path management
 
 def target_base(
+        target = "{target}",
         kernel = "{kernel}",
         m = "{m}",
         n = "{n}",
         k = "{k}"
 ):
-    return f"build/{kernel}/{m}x{n}x{k}"
+    return f"build/{target}/{kernel}/{m}x{n}x{k}"
 
 def target_variant(
         ext,
@@ -81,6 +82,7 @@ def target_variant(
 
 def target_file(
     ext,
+    target = "{target}",
     kernel = "{kernel}",
     m = "{m}",
     n = "{n}",
@@ -88,8 +90,8 @@ def target_file(
     variant = "{variant}",
     dtype = "{dtype}",
 ):
-    base = target_base(kernel=kernel,m=m,n=n,k=k)
-    var = target_variant(variant=variant,dtype=dtype,ext=ext)
+    base = target_base(target=target, kernel=kernel, m=m, n=n, k=k)
+    var = target_variant(variant=variant, dtype=dtype, ext=ext)
     return f"{base}/{var}"
 
 def target_ll_file(
@@ -102,8 +104,8 @@ def target_ll_file(
     dtype = "{dtype}",
     target = "{target}"
 ):
-    base = target_base(kernel=kernel,m=m,n=n,k=k)
-    var = target_variant(variant=variant,dtype=dtype,ext=f"{target}.{ext}")
+    base = target_base(target=target, kernel=kernel, m=m, n=n, k=k)
+    var = target_variant(variant=variant, dtype=dtype, ext=ext)
     return f"{base}/{var}"
 
 # Rules
@@ -112,6 +114,7 @@ wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
+    target="neon|ci|tower|pinocchio",
     variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
@@ -368,13 +371,13 @@ rule time:
 
 rule flops:
     input: "kernels/{kernel}/flops.sh"
-    output: "build/{kernel}/{m}x{n}x{k}/flops.txt"
+    output: "build/{target}/{kernel}/{m}x{n}x{k}/flops.txt"
     shell: "./{input} {wildcards.m} {wildcards.n} {wildcards.k} > {output}"
 
 rule json:
     input:
         time_txt=target_ll_file(ext="time.txt"),
-        flops_txt="build/{kernel}/{m}x{n}x{k}/flops.txt"
+        flops_txt="build/{target}/{kernel}/{m}x{n}x{k}/flops.txt"
     output:
         json=target_ll_file(ext="json")
     params:
@@ -406,91 +409,138 @@ THIS_TARGET = config["target"]
 DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
-        "cube_8.f64": ["naive_c", "transform_mlir"],
-        "cube_16.f64": ["naive_c", "transform_mlir"],
-        "cube_64.f64": ["naive_c", "transform_mlir"],
-        "small_matrices.f64": [],
+        "f64.cube_8": ["naive_c", "transform_mlir"],
+        "f64.cube_16": ["naive_c", "transform_mlir"],
+        "f64.cube_64": ["naive_c", "transform_mlir"],
+        "f64.small_matrices": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
-        "cube_8.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
-        "cube_16.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "cube_64.f64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "small_matrices.f64": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
+        "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
+        "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
-        "cube_8.f64": ["naive_c", "llvm_intrinsics", "libxsmm","mkl","tvm"],
-        "cube_16.f64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
-        "cube_64.f64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
-        "small_matrices.f64": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.cube_8": ["naive_c", "llvm_intrinsics", "libxsmm","mkl","tvm"],
+        "f64.cube_16": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
+        "f64.cube_64": ["naive_c", "llvm_intrinsics", "libxsmm", "mkl","tvm"],
+        "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
     },
     "ci": {
         "ttile": ["naive_c"],
-        "cube_8.f64": ["naive_c", "transform_mlir"],
-        "cube_16.f64": ["naive_c", "transform_mlir"],
-        "cube_64.f64": ["naive_c", "transform_mlir"],
-        "small_matrices.f64": [],
+        "f64.cube_8": ["naive_c", "transform_mlir"],
+        "f64.cube_16": ["naive_c", "transform_mlir"],
+        "f64.cube_64": ["naive_c", "transform_mlir"],
+        "f64.small_matrices": [],
     },
 }[THIS_TARGET]
 
+# Values are missing the extension
+# The extension is added in the dataset rules below
 DATASET_BASES = {
-    "ttile.f32": expand(
-        target_file(kernel="matmul_rowmaj",n="128",k="128",dtype="f32",ext=THIS_TARGET),
+    "f32.ttile": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            n="128",
+            k="128",
+            dtype="f32",
+            ext="",
+            target=THIS_TARGET,
+        ),
         variant=DATASET_VARIANTS["ttile"],
         m=range(8, 50, 2),
     ),
-    "ttile.f64": expand(
-        target_file(kernel="matmul_rowmaj",n="64",k="64",dtype="f64",ext=THIS_TARGET),
+    "f64.ttile": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            n="64",
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
         variant=DATASET_VARIANTS["ttile"], # + ["transform_xdsl"]
         m=range(9, 63, 3),
     ),
-    "cube_8.f64": expand(
-        target_file(kernel="matmul_rowmaj",m="8",n="8",k="8",dtype="f64",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["cube_8.f64"],
+    "f64.cube_8": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            m="8",
+            n="8",
+            k="8",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        variant=DATASET_VARIANTS["f64.cube_8"],
     ),
-    "cube_16.f64": expand(
-        target_file(kernel="matmul_rowmaj",m="16",n="16",k="16",dtype="f64",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["cube_16.f64"],
+    "f64.cube_16": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            m="16",
+            n="16",
+            k="16",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        variant=DATASET_VARIANTS["f64.cube_16"],
     ),
-    "cube_64.f64": expand(
-        target_file(kernel="matmul_rowmaj",m="64",n="64",k="64",dtype="f64",ext=THIS_TARGET),
-        variant=DATASET_VARIANTS["cube_64.f64"],
+    "f64.cube_64": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            m="64",
+            n="64",
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        variant=DATASET_VARIANTS["f64.cube_64"],
     ),
-    "small_matrices.f64": expand(
-        target_file(kernel="matmul_rowmaj",k="64",dtype="f64",ext=THIS_TARGET),
+    "f64.small_matrices": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
         m=range(1, 17),
         n=range(1, 17),
-        variant=DATASET_VARIANTS["small_matrices.f64"]
+        variant=DATASET_VARIANTS["f64.small_matrices"]
     )
 }
 
 BARS_INPUTS = expand(
-    "{base}/" + target_variant(dtype="f64",ext="json"),
-    base=target_base(kernel="matmul_rowmaj"),
-    variant=DATASET_VARIANTS["cube_8.f64"]
+    "{base}/" + target_variant(dtype="f64", ext="json"),
+    base=target_base(kernel="matmul_rowmaj", target=THIS_TARGET),
+    variant=DATASET_VARIANTS["f64.cube_8"]
 )
 
-rule bars_data:
-    input: BARS_INPUTS
-    output: "data/bars.{m}x{n}x{k}.f64." + THIS_TARGET + ".jsonl"
-    shell: "cat {input} > {output}"
-
+# If a dataset has no samples skip it here and in the dataset rule below
 for dataset, samples in DATASET_BASES.items():
-    rule:
-        input: [base + ".json" for base in samples]
-        output: f"data/{dataset}.{THIS_TARGET}.jsonl"
-        shell: "cat {input} > {output}"
+    if samples:
+        rule:
+            input: [base + "json" for base in samples]
+            output: f"data/{THIS_TARGET}/{dataset}.jsonl"
+            shell: "cat {input} > {output}"
 
 rule dataset_code:
-    input: [p + ".time.o" for p in flatten(DATASET_BASES.values())]
+    input: [p + "time.o" for p in flatten(DATASET_BASES.values())]
 
 rule dataset:
     input:
         expand(
-            "data/{dataset_base}.{target}.jsonl",
+            "data/{target}/{dataset}.jsonl",
             target=THIS_TARGET,
-            dataset_base=DATASET_BASES,
+            dataset=tuple(
+                dataset
+                for dataset, samples in DATASET_BASES.items()
+                if samples
+            ),
         )
 
 ########################################################################################
@@ -518,84 +568,87 @@ VARIANT_CI = [
     "vector_intrinsic",
 ]
 
-_TESTSET_CI = expand(
-    "build/{k.kernel}/{k.m}x{k.n}x{k.k}/{variant}.{dtype}",
-    k=KERNELS_CI,
-    variant=VARIANT_CI,
-    dtype=["f32", "f64"],
-)
+# Kernel matrix sizes shared by CI test lists (path prefix is build/<target>/… per machine).
+def testset_ci(target: str, ext: str):
+    return expand(
+        "build/" + target + "/{k.kernel}/{k.m}x{k.n}x{k.k}/{variant}.{dtype}." + ext,
+        k=KERNELS_CI,
+        variant=VARIANT_CI,
+        dtype=["f32", "f64"],
+    )
 
 TESTSET_MAC = [
     # Validate CI test set neon executables
-    *(f"{base}.neon.test.log" for base in _TESTSET_CI),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="transform_mlir",dtype="f32",ext="neon.test.log"
+    *testset_ci(target="neon", ext="test.log"),
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="transform_mlir", dtype="f32", target="neon", ext="test.log"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="transform_mlir",dtype="f32",ext="neon.time.txt"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="transform_mlir", dtype="f32", target="neon", ext="time.txt"
     ),
     # Generate CI test set x86 assembly
-    *(f"{base}.ci.S" for base in _TESTSET_CI),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="transform_mlir",dtype="f32",ext="ci.S"
+    *testset_ci(target="ci", ext="S"),
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="transform_mlir", dtype="f32", target="ci", ext="S"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="vector_intrinsic",dtype="f32",ext="ci.S"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="vector_intrinsic", dtype="f32", target="ci", ext="S"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="3",n="16",k="5",
-        variant="transform_xdsl",dtype="f64",ext="tower.S"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="3", n="16", k="5",
+        variant="transform_xdsl", dtype="f64", target="tower", ext="S"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="6",n="32",k="5",
-        variant="transform_xdsl",dtype="f64",ext="tower.S"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="6", n="32", k="5",
+        variant="transform_xdsl", dtype="f64", target="tower", ext="S"
     ),
 ]
 
 TESTSET_CI = [
     # Generate CI test set neon assembly
-    *(f"{base}.neon.S" for base in _TESTSET_CI),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="transform_mlir",dtype="f32",ext="neon.S"
+    *testset_ci(target="neon", ext="S"),
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="transform_mlir", dtype="f32", target="neon", ext="S"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="vector_intrinsic",dtype="f32",ext="neon.S"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="vector_intrinsic", dtype="f32", target="neon", ext="S"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="3",n="16",k="5",
-        variant="transform_xdsl",dtype="f64",ext="tower.S"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="3", n="16", k="5",
+        variant="transform_xdsl", dtype="f64", target="tower", ext="S"
     ),
     # Validate CI test set x86 executables
-    *(f"{base}.ci.test.log" for base in _TESTSET_CI),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="transform_mlir",dtype="f32",ext="ci.test.log"
+    *testset_ci(target="ci", ext="test.log"),
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="transform_mlir", dtype="f32", target="ci", ext="test.log"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="transform_mlir",dtype="f32",ext="ci.time.txt"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="transform_mlir", dtype="f32", target="ci", ext="time.txt"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="8",n="8",k="8",
-        variant="vector_intrinsic",dtype="f32",ext="ci.time.txt"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        variant="vector_intrinsic", dtype="f32", target="ci", ext="time.txt"
     ),
-    target_file(
-        kernel="matmul_rowmaj",m="5",n="6",k="7",
-        variant="transform_mlir",dtype="f32",ext="ci.time.txt"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="5", n="6", k="7",
+        variant="transform_mlir", dtype="f32", target="ci", ext="time.txt"
     ),
 ]
 
 # For targets that can execute AVX instructions
 TESTSET_AVX = expand(
-    target_file(
-        kernel="matmul_rowmaj",m="3",n="16",k="5",dtype="f64",
-        ext=f"{THIS_TARGET}.test.log"
+    target_ll_file(
+        kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f64",
+        target=THIS_TARGET,
+        ext="test.log",
     ),
     variant=[
         "transform_xdsl",
