@@ -437,6 +437,8 @@ DATASET_VARIANTS = {
     },
 }[THIS_TARGET]
 
+# Values are missing the extension
+# The extension is added in the dataset rules below
 DATASET_BASES = {
     "f32.ttile": expand(
         target_file(
@@ -444,7 +446,7 @@ DATASET_BASES = {
             n="128",
             k="128",
             dtype="f32",
-            ext="json",
+            ext="",
             target=THIS_TARGET,
         ),
         variant=DATASET_VARIANTS["ttile"],
@@ -456,7 +458,7 @@ DATASET_BASES = {
             n="64",
             k="64",
             dtype="f64",
-            ext="json",
+            ext="",
             target=THIS_TARGET,
         ),
         variant=DATASET_VARIANTS["ttile"], # + ["transform_xdsl"]
@@ -469,7 +471,7 @@ DATASET_BASES = {
             n="8",
             k="8",
             dtype="f64",
-            ext="json",
+            ext="",
             target=THIS_TARGET,
         ),
         variant=DATASET_VARIANTS["f64.cube_8"],
@@ -481,7 +483,7 @@ DATASET_BASES = {
             n="16",
             k="16",
             dtype="f64",
-            ext="json",
+            ext="",
             target=THIS_TARGET,
         ),
         variant=DATASET_VARIANTS["f64.cube_16"],
@@ -493,7 +495,7 @@ DATASET_BASES = {
             n="64",
             k="64",
             dtype="f64",
-            ext="json",
+            ext="",
             target=THIS_TARGET,
         ),
         variant=DATASET_VARIANTS["f64.cube_64"],
@@ -503,7 +505,7 @@ DATASET_BASES = {
             kernel="matmul_rowmaj",
             k="64",
             dtype="f64",
-            ext="json",
+            ext="",
             target=THIS_TARGET,
         ),
         m=range(1, 17),
@@ -520,12 +522,12 @@ BARS_INPUTS = expand(
 
 for dataset, samples in DATASET_BASES.items():
     rule:
-        input: [base + ".json" for base in samples]
+        input: [base + "json" for base in samples]
         output: f"data/{THIS_TARGET}/{dataset}.jsonl"
         shell: "cat {input} > {output}"
 
 rule dataset_code:
-    input: [p + ".time.o" for p in flatten(DATASET_BASES.values())]
+    input: [p + "time.o" for p in flatten(DATASET_BASES.values())]
 
 rule dataset:
     input:
