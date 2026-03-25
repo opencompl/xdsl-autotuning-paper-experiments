@@ -1,4 +1,4 @@
-# uv run plot-cube data/cube.neon.jsonl
+# uv run plot-cube data/neon/f64.cube_8.jsonl
 
 import pandas as pd
 import matplotlib.pyplot as plt
