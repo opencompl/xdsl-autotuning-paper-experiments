@@ -1,0 +1,5 @@
+{"M":64,"N":64,"K":64,"peak":32.0,"flops":524288,"time":738099.959961,"variant":"naive_c","target":"pinocchio","dtype":"f64"}
+{"M":64,"N":64,"K":64,"peak":32.0,"flops":524288,"time":99439.687500,"variant":"llvm_intrinsics","target":"pinocchio","dtype":"f64"}
+{"M":64,"N":64,"K":64,"peak":32.0,"flops":524288,"time":17876.387695,"variant":"libxsmm","target":"pinocchio","dtype":"f64"}
+{"M":64,"N":64,"K":64,"peak":32.0,"flops":524288,"time":18677.163086,"variant":"mkl","target":"pinocchio","dtype":"f64"}
+{"M":64,"N":64,"K":64,"peak":32.0,"flops":524288,"time":17478.661133,"variant":"tvm","target":"pinocchio","dtype":"f64"}
