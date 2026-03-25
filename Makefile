@@ -37,9 +37,9 @@ dataset: dataset_code
 
 
 # Prevent Make from deleting this intermediate file
-.PRECIOUS: data/$(TARGET)/f64.bars.%.jsonl
-data/$(TARGET)/f64.bars.%.jsonl:
-	uv run snakemake --cores 1 $@ $(if $(TARGET),--config target=$(TARGET),)
+.PRECIOUS: data/$(TARGET)/f64.bars.jsonl
+data/$(TARGET)/f64.bars.jsonl:
+	uv run snakemake --cores 1 $@ --config target=$(TARGET)
 
 PLOTS =
 
