@@ -113,9 +113,9 @@ def target_ll_file(
 wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm",
+    executable="time|test",
     target="neon|ci|tower|pinocchio",
-    executable="time|test"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
