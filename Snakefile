@@ -520,11 +520,13 @@ BARS_INPUTS = expand(
     variant=DATASET_VARIANTS["f64.cube_8"]
 )
 
+# If a dataset has no samples skip it here and in the dataset rule below
 for dataset, samples in DATASET_BASES.items():
-    rule:
-        input: [base + "json" for base in samples]
-        output: f"data/{THIS_TARGET}/{dataset}.jsonl"
-        shell: "cat {input} > {output}"
+    if samples:
+        rule:
+            input: [base + "json" for base in samples]
+            output: f"data/{THIS_TARGET}/{dataset}.jsonl"
+            shell: "cat {input} > {output}"
 
 rule dataset_code:
     input: [p + "time.o" for p in flatten(DATASET_BASES.values())]
@@ -534,7 +536,11 @@ rule dataset:
         expand(
             "data/{target}/{dataset}.jsonl",
             target=THIS_TARGET,
-            dataset=DATASET_BASES,
+            dataset=tuple(
+                dataset
+                for dataset, samples in DATASET_BASES.items()
+                if samples
+            ),
         )
 
 ########################################################################################
