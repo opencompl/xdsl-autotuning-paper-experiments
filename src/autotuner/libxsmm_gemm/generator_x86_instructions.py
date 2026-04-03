@@ -1,6 +1,10 @@
 from typing import Literal, cast
 from xdsl.dialects import x86
-from xdsl.dialects.x86.registers import GeneralRegisterType, X86VectorRegisterType
+from xdsl.dialects.x86.registers import (
+    AVX512MaskRegisterType,
+    GeneralRegisterType,
+    X86VectorRegisterType,
+)
 from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping, LoopLabelTracker
@@ -541,10 +545,44 @@ def libxsmm_x86_instruction_vec_move_st(
     source = generated_code.current_val_by_reg[source_reg]
     base = generated_code.current_val_by_reg[gp_reg_base]
 
-    # TODO: handle masking
-    generated_code.insert(
-        vmove_instr(memory=base, source=source, memory_offset=displacement)
-    )
+    if mask_reg_number:
+        # Use the masking version of the operation
+        assert isinstance(source_reg, x86.registers.AVX512RegisterType), source
+        assert issubclass(
+            vmove_instr,
+            x86.ops.MS_VmovapdOp
+            | x86.ops.MS_VmovapsOp
+            | x86.ops.MS_VmovupsOp
+            | x86.ops.MS_VmovupdOp,
+        )
+
+        mask_reg = AVX512MaskRegisterType.from_index(mask_reg_number)
+        mask = generated_code.current_val_by_reg[mask_reg]
+        match vmove_instr:
+            case x86.ops.MS_VmovapdOp:
+                masked_vmove_instr = x86.ops.MSK_VmovapdOp
+            case x86.ops.MS_VmovapsOp:
+                masked_vmove_instr = x86.ops.MSK_VmovapsOp
+            case x86.ops.MS_VmovupsOp:
+                masked_vmove_instr = x86.ops.MSK_VmovupsOp
+            case x86.ops.MS_VmovupdOp:
+                masked_vmove_instr = x86.ops.MSK_VmovupdOp
+            case _:
+                assert False
+
+        # build vmovpd/ps/sd/ss instruction, load use
+        generated_code.insert(
+            masked_vmove_instr(
+                memory=base,
+                memory_offset=displacement,
+                source=source,
+                mask_reg=mask,
+            )
+        )
+    else:
+        generated_code.insert(
+            vmove_instr(memory=base, source=source, memory_offset=displacement)
+        )
 
 
 def libxsmm_x86_instruction_vec_move_ld(
@@ -584,11 +622,10 @@ def libxsmm_x86_instruction_vec_move_ld(
         "libxsmm_instruction_vec_move: zero-masked store cannot operate on memory destination!"
     )
 
-    # TODO: handle masking
     if not use_zero_masking or not mask_reg_number:
-        _zero_flag = None
+        zero_flag = None
     else:
-        _zero_flag = True
+        zero_flag = True
 
     match vector_name:
         case "x":
@@ -600,10 +637,46 @@ def libxsmm_x86_instruction_vec_move_ld(
     dest = dest_type.from_index(vec_reg_number_0)
     base = generated_code.current_val_by_reg[gp_reg_base]
 
-    # build vmovpd/ps/sd/ss instruction, load use
-    generated_code.insert(
-        vmove_instr(memory=base, memory_offset=displacement, destination=dest)
-    )
+    if mask_reg_number:
+        # Use the masking version of the operation
+        assert isinstance(dest, x86.registers.AVX512RegisterType)
+        assert issubclass(
+            vmove_instr,
+            x86.ops.DM_VmovapdOp
+            | x86.ops.DM_VmovapsOp
+            | x86.ops.DM_VmovupsOp
+            | x86.ops.DM_VmovupdOp,
+        )
+
+        mask_reg = AVX512MaskRegisterType.from_index(mask_reg_number)
+        mask = generated_code.current_val_by_reg[mask_reg]
+        match vmove_instr:
+            case x86.ops.DM_VmovapdOp:
+                masked_vmove_instr = x86.ops.DMK_VmovapdOp
+            case x86.ops.DM_VmovapsOp:
+                masked_vmove_instr = x86.ops.DMK_VmovapsOp
+            case x86.ops.DM_VmovupsOp:
+                masked_vmove_instr = x86.ops.DMK_VmovupsOp
+            case x86.ops.DM_VmovupdOp:
+                masked_vmove_instr = x86.ops.DMK_VmovupdOp
+            case _:
+                assert False
+
+        # build vmovpd/ps/sd/ss instruction, load use
+        generated_code.insert(
+            masked_vmove_instr(
+                memory=base,
+                memory_offset=displacement,
+                destination=dest,
+                mask_reg=mask,
+                z=zero_flag or False,
+            )
+        )
+    else:
+        # build vmovpd/ps/sd/ss instruction, load use
+        generated_code.insert(
+            vmove_instr(memory=base, memory_offset=displacement, destination=dest)
+        )
 
 
 def libxsmm_x86_instruction_alu_imm_i64(
