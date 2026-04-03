@@ -448,7 +448,7 @@ DATASET_VARIANTS = {
         "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
         "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
         "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.small_matrices": ["libxsmm_xdsl"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
