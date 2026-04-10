@@ -91,13 +91,37 @@ When you change the image or dependencies, rebuild the image (`make docker-build
 
 It's important for the cores to have predictable frequencies for a given target.
 
-On the tower:
+On the tower (ASUS BIOS, AMD Ryzen 9 9950X):
 
 - reboot computer and press del to go into BIOS
-- Advanced Settings
-  - Ai Tweaker
-    - Disable CPU Core Performance boost
-    - Set Ai overclock TUner to Manual
+- Ai Tweaker
+  - CPU Core Performance Boost → Disabled — prevents turbo frequencies that vary
+    with thermal/power conditions
+  - Ai Overclock Tuner → Manual — gives explicit control over clock settings
+    instead of letting the board auto-adjust
+  - Precision Boost Overdrive (PBO) → Disabled — prevents opportunistic boosting
+    beyond stock limits based on thermal/power headroom
+  - ASUS Performance Enhancement / MultiCore Enhancement → Disabled — prevents
+    ASUS firmware from overriding AMD's default power limits
+- Advanced → AMD CBS
+  - Global C-state Control → Disabled — prevents cores from entering low-power
+    sleep states, which cause variable wake-up latency
+  - CPU Common Options
+    - Power Supply Idle Control → Typical Current Idle — prevents the package
+      from entering deep idle states that cause latency spikes on wake
+  - DF Common Options
+    - DF (Data Fabric) C-states → Disabled — prevents the Infinity Fabric
+      (interconnect between CCDs) from entering idle states, which adds
+      latency to cross-CCD memory accesses
+  <!-- - CPPC → Disabled — disables AMD's per-core performance hinting to
+    firmware, removing a source of asymmetric core behavior -->
+  <!-- - CPPC Preferred Cores → Disabled — prevents the firmware from ranking
+    cores by silicon quality and steering work to "preferred" cores -->
+  <!-- - SMT → consider disabling if only benchmarking on physical cores —
+    SMT causes shared execution resources (L1, ALUs) to contend -->
+<!-- - Advanced → AMD CBS → NBIO
+  - IOMMU → Disabled — removes DMA remapping overhead (only needed for
+    virtualization/passthrough) -->
 
 ```sh
 # 1. Switch amd-pstate from EPP to passive mode (hands control to cpufreq)
