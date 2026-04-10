@@ -123,6 +123,24 @@ On the tower (ASUS BIOS, AMD Ryzen 9 9950X):
   - IOMMU → Disabled — removes DMA remapping overhead (only needed for
     virtualization/passthrough) -->
 
+#### Kernel boot parameters
+
+Add to `GRUB_CMDLINE_LINUX_DEFAULT` in `/etc/default/grub`, then run
+`sudo update-grub` and reboot:
+
+```
+isolcpus=2-15 nohz_full=2-15 rcu_nocbs=2-15
+```
+
+- `isolcpus=2-15` — removes cores 2-15 from the general scheduler so only
+  explicitly pinned tasks run there (leaves cores 0-1 for the OS)
+- `nohz_full=2-15` — disables the periodic timer tick on isolated cores,
+  eliminating a source of regular interrupts
+- `rcu_nocbs=2-15` — offloads RCU callbacks away from isolated cores,
+  preventing kernel bookkeeping from interrupting benchmarks
+
+#### Runtime setup (run before benchmarking)
+
 ```sh
 # 1. Switch amd-pstate from EPP to passive mode (hands control to cpufreq)
 echo passive | sudo tee /sys/devices/system/cpu/amd_pstate/status
@@ -139,7 +157,24 @@ sudo cpupower frequency-set -f 4300000
 # 5. Stop thermald if running (it will fight the above settings)
 sudo systemctl stop thermald
 
-# 6. Verify — all cores should show ~4300 MHz
+# 6. Disable NMI watchdog (generates periodic interrupts on every core)
+echo 0 | sudo tee /proc/sys/kernel/nmi_watchdog
+
+# 7. Disable Transparent Huge Pages (THP compaction causes latency spikes)
+echo never | sudo tee /sys/kernel/mm/transparent_hugepage/enabled
+
+# 8. Disable ASLR (address randomization causes layout-dependent variance)
+echo 0 | sudo tee /proc/sys/kernel/randomize_va_space
+
+# 9. Move IRQs away from benchmark cores (pin all IRQs to cores 0-1)
+for irq_dir in /proc/irq/*/; do
+    echo 3 | sudo tee "$irq_dir/smp_affinity" 2>/dev/null || true
+done
+
+# 10. Stop unnecessary services that cause background activity
+sudo systemctl stop unattended-upgrades snapd cron atd 2>/dev/null || true
+
+# 11. Verify — all cores should show ~4300 MHz
 cat /proc/cpuinfo | grep "cpu MHz"
 ```
 
