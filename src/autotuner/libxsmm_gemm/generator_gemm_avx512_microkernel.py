@@ -360,7 +360,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 micro_kernel_config.instruction_set,
                 b_vmove_instruction,
                 gp_reg_mapping.gp_reg_b,
-                x86.registers.UNALLOCATED_GENERAL,
+                x86.registers.UNALLOCATED_REG64,
                 0,
                 b_offset,
                 b_vname,

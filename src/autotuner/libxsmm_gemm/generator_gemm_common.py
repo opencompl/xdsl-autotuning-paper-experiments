@@ -1,4 +1,5 @@
-from xdsl.dialects.builtin import IntegerAttr, i64
+from xdsl.dialects.builtin import IntegerAttr
+from xdsl.dialects.x86.ops import si32
 from xdsl.ir import Block, SSAValue
 from xdsl.rewriter import InsertPoint, Rewriter
 from autotuner.libxsmm_gemm.generator_common import (
@@ -507,7 +508,7 @@ def libxsmm_generator_gemm_setup_stack_frame(
 
     # Now align RSP to 64 byte boundary
     temp = generated_code.insert(
-        x86.ops.DI_MovOp(IntegerAttr(0xFFFFFFFFFFFFFFC0, i64), destination=temp_reg)
+        x86.ops.DI_MovOp(IntegerAttr(-64, si32), destination=temp_reg)
     ).destination
     rsp = generated_code.insert(x86.ops.RS_AndOp(rsp, temp))
 

@@ -15,7 +15,7 @@ from xdsl.dialects.x86.registers import (
     RDI,
     RDX,
     RSI,
-    UNALLOCATED_GENERAL,
+    UNALLOCATED_REG64,
 )
 from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.rewriter import InsertPoint
@@ -106,7 +106,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         gp_reg_mapping.gp_reg_a_prefetch = R8
         gp_reg_mapping.gp_reg_b_prefetch = R9
     else:
-        gp_reg_mapping.gp_reg_scf = UNALLOCATED_GENERAL  # GP_REG_UNDEF
+        gp_reg_mapping.gp_reg_scf = UNALLOCATED_REG64  # GP_REG_UNDEF
         gp_reg_mapping.gp_reg_a_prefetch = RCX
         gp_reg_mapping.gp_reg_b_prefetch = R8
 

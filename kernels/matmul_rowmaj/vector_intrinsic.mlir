@@ -11,7 +11,7 @@ func.func @matmul(
     %B = vector.load %arg1[%c0, %c0] : memref<{{wildcards.k}}x{{wildcards.n}}x{{wildcards.dtype}}>, vector<{{wildcards.k|int * wildcards.n|int}}x{{wildcards.dtype}}>
     %C_in = vector.load %arg2[%c0, %c0] : memref<{{wildcards.m}}x{{wildcards.n}}x{{wildcards.dtype}}>, vector<{{wildcards.m|int * wildcards.n|int}}x{{wildcards.dtype}}>
 
-    %C_acc = vector.matrix_multiply %B, %A {
+    %C_acc = llvm.intr.matrix.multiply %B, %A {
         lhs_rows = {{wildcards.n}}: i32,
         lhs_columns = {{wildcards.k}}: i32,
         rhs_columns = {{wildcards.m}}: i32
