@@ -13,15 +13,26 @@
           pkgs = import nixpkgs {
             inherit system;
           };
+          llvmToolchain = with pkgs; buildEnv {
+            name = "llvm-toolchain";
+            paths = [
+              uv
+              llvmPackages_20.mlir
+              llvmPackages_20.clang
+              llvmPackages_20.lld
+              llvmPackages_20.llvm
+              llvmPackages_20.tblgen
+            ];
+          };
         in
           {
+            packages.default = llvmToolchain;
+
             devShells.default = with pkgs; mkShell {
               LD_LIBRARY_PATH = lib.makeLibraryPath [ stdenv.cc.cc.lib zlib ];
               buildInputs = [
-                uv
+                llvmToolchain
                 nodejs_22
-                llvmPackages_20.mlir
-                llvmPackages_20.tblgen
               ];
             };
           }

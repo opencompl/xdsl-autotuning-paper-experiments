@@ -1,5 +1,13 @@
-# Extract LLVM tools from the original base image
-FROM ghcr.io/xdslproject/llvm:20.1.1 AS llvm-extractor
+# Build LLVM toolchain + uv from Nix flake
+FROM nixos/nix:latest AS nix-builder
+COPY flake.nix flake.lock /tmp/build/
+WORKDIR /tmp/build
+RUN nix \
+    --extra-experimental-features "nix-command flakes" \
+    --option filter-syscalls false \
+    build
+RUN mkdir /tmp/nix-store-closure \
+    && cp -R $(nix-store -qR result/) /tmp/nix-store-closure
 
 # Multi-stage build for libxsmm
 FROM ubuntu:22.04 AS libxsmm-builder
@@ -25,20 +33,10 @@ LABEL org.opencontainers.image.source=https://github.com/opencompl/xdsl-autotuni
 LABEL org.opencontainers.image.description="LLVM Docker image for xdsl autotuner experiments"
 LABEL org.opencontainers.image.licenses=MIT
 
-# Copy essential LLVM tools from the original base image
-COPY --from=llvm-extractor /usr/local/bin/llvm-mca /usr/local/bin/
-COPY --from=llvm-extractor /usr/local/bin/mlir-translate /usr/local/bin/
-COPY --from=llvm-extractor /usr/local/bin/mlir-opt /usr/local/bin/mlir-opt-20
-COPY --from=llvm-extractor /usr/local/bin/clang-20 /usr/local/bin/
-COPY --from=llvm-extractor /usr/local/bin/lld /usr/local/bin/
-RUN ln -s clang-20 /usr/local/bin/clang && \
-    ln -s lld /usr/local/bin/ld.lld && \
-    ln -s lld /usr/local/bin/wasm-ld && \
-    ln -s lld /usr/local/bin/lld-link
-
-# Copy LLVM include directories
-COPY --from=llvm-extractor /usr/local/lib/clang/20/include/ /usr/local/lib/clang/20/include/
-COPY --from=llvm-extractor /usr/local/include/ /usr/local/include/
+# Copy Nix store closure and toolchain (LLVM tools + uv)
+COPY --from=nix-builder /tmp/nix-store-closure /nix/store
+COPY --from=nix-builder /tmp/build/result /opt/toolchain
+ENV PATH="/opt/toolchain/bin:$PATH"
 
 # Install basic dependencies first (including ca-certificates for Intel repo)
 RUN apt-get update && apt-get install -y \
@@ -54,7 +52,7 @@ RUN wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PR
 
 # Install dependencies and clean up aggressively in a single layer
 RUN apt-get update && apt-get install -y \
-    libz3-dev libedit-dev libzstd-dev git make gpg libxml2 binutils \
+    git make gpg libxml2 binutils \
     papi-tools libpapi-dev \
     build-essential gcc libc6-dev \
     pkg-config intel-oneapi-mkl-2021.4.0 intel-oneapi-mkl-devel-2021.4.0 libomp-dev \
@@ -65,7 +63,6 @@ RUN apt-get update && apt-get install -y \
 
 ENV INSIDE_DOCKER=1
 
-COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
 RUN uv python install 3.12 && uv cache clean
 
 # Single project venv for build-time sync and entrypoint runtime sync.

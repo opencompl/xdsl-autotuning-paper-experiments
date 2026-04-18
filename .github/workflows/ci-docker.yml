@@ -20,14 +20,10 @@ jobs:
       UV_LINK_MODE: copy
       # Job containers often replace PATH; uv lives in /bin, git in /usr/bin (xdsl is a
       # git dependency), and the project venv is on PATH for make tests.
-      PATH: /opt/venv/bin:/bin:/usr/local/bin:/usr/bin:/sbin:/bin
+      PATH: /opt/venv/bin:/opt/toolchain/bin:/bin:/usr/local/bin:/usr/bin:/sbin:/bin
 
     steps:
       - uses: actions/checkout@v4
-
-      # TODO: remove once the Docker image ships mlir-opt on PATH directly
-      - name: Symlink mlir-opt-20 to mlir-opt
-        run: ln -sf /usr/local/bin/mlir-opt-20 /usr/local/bin/mlir-opt
 
       # GitHub Actions overrides the image ENTRYPOINT, so we must sync here (same as
       # docker/entrypoint.sh) before running tests.
