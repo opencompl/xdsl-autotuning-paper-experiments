@@ -1,4 +1,5 @@
 cc: clang
+cc_asm: clang-unwrapped
 target: ci
 
 xdsl-opt-backend-passes:
@@ -20,7 +21,7 @@ xdsl-opt-backend-passes:
 
 targets:
   neon: {
-    triple: "arm64-apple-darwin24.3.0",
+    triple: "arm64-apple-darwin",
     arch: "armv8.5-a",
     freq: 1.0,
     peak_f32: 0,
@@ -38,7 +39,7 @@ targets:
     env: {}
   }
   tower: {
-    triple: "x86_64-pc-linux-gnu",
+    triple: "x86_64-unknown-linux-gnu",
     arch: "znver5",
     freq: 4.3,
     peak_f32: 64,
@@ -47,7 +48,7 @@ targets:
     env: {"LIBPFM_FORCE_PMU":"amd64"}
   }
   pinocchio: {
-    triple: "x86_64-pc-linux-gnu",
+    triple: "x86_64-unknown-linux-gnu",
     arch: "cascadelake",
     freq: 2.1,
     peak_f32: 64,
