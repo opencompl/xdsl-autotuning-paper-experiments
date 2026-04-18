@@ -32,6 +32,7 @@
             ] ++ (if stdenv.hostPlatform.isLinux then [
               mkl
               libxsmm
+              papi
             ] else [
             ]);
           };
@@ -40,7 +41,8 @@
             packages.default = llvmToolchain;
 
             devShells.default = with pkgs; mkShellNoCC {
-              LD_LIBRARY_PATH = lib.makeLibraryPath [ stdenv.cc.cc.lib zlib llvmToolchain ];
+              LD_LIBRARY_PATH = lib.makeLibraryPath ([ stdenv.cc.cc.lib zlib llvmToolchain ]
+                ++ lib.optionals stdenv.hostPlatform.isLinux [ papi ]);
               nativeBuildInputs = [ pkg-config ];
               buildInputs = [
                 llvmToolchain
