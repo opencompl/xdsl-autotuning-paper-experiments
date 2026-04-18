@@ -1,4 +1,4 @@
-// RUN: clang-20 -DCROWS=4 -DCCOLS=4 -DINNER=4 -DDTYPE=float -o %t \
+// RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4 -DDTYPE=float -o %t \
 // RUN: kernels/matmul_colmaj/test.c %s || %t | filecheck %s
 
 void matmul_colmaj(DTYPE *A, DTYPE *B, DTYPE *C) {

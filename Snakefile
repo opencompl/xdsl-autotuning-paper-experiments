@@ -1,19 +1,19 @@
 configfile: "default.yaml"
 
 import os
+import shutil
 
 ########################################################################################
 # Build
 ########################################################################################
 
-# MKL paths (assuming intel-oneapi-mkl-2021.4.0)
+# MKL paths (discovered via pkg-config when available)
 
 TVM_FUNC_NAME = "tvm_matmul"
 
-if os.environ.get("IN_DOCKER") == "1":
-    MKL_PKG_CONFIG = "/opt/intel/oneapi/mkl/2021.4.0/lib/pkgconfig/mkl-static-ilp64-iomp.pc"
-    MKL_CFLAGS = shell("pkg-config --cflags {MKL_PKG_CONFIG}", read=True).strip()
-    MKL_LIBS   = shell("pkg-config --libs {MKL_PKG_CONFIG}", read=True).strip()
+if shutil.which("pkg-config") and os.system("pkg-config --exists mkl-dynamic-ilp64-seq") == 0:
+    MKL_CFLAGS = shell("pkg-config --cflags mkl-dynamic-ilp64-seq", read=True).strip()
+    MKL_LIBS   = shell("pkg-config --libs mkl-dynamic-ilp64-seq", read=True).strip()
 else:
     MKL_CFLAGS = ""
     MKL_LIBS = ""

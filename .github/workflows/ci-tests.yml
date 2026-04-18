@@ -13,27 +13,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # https://github.com/xdslproject/llvm-docker/pkgs/container/llvm
-    container: ghcr.io/xdslproject/llvm:20.1.7
 
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
+    - uses: actions/checkout@v6
+    - name: Install Nix
+      uses: cachix/install-nix-action@v31
       with:
-        enable-cache: true
-        cache-dependency-glob: "uv.lock"
-
-    - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
-
-    - name: Install the project
-      run: uv sync
-
-    - name: Run tests target
-      run: |
-        make tests
-
+        github_access_token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Cache uv packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/uv
+        key: uv-nix-${{ hashFiles('uv.lock') }}
+        restore-keys: uv-nix-
+    - name: Run tests
+      run: nix develop --command make tests
     - name: Prune uv cache
-      run: uv cache prune --ci
+      run: nix develop --command uv cache prune --ci
