@@ -9,23 +9,6 @@ RUN nix \
 RUN mkdir /tmp/nix-store-closure \
     && cp -R $(nix-store -qR result/) /tmp/nix-store-closure
 
-# Multi-stage build for libxsmm
-FROM ubuntu:22.04 AS libxsmm-builder
-
-# Install minimal build dependencies for libxsmm
-RUN apt-get update && apt-get install -y \
-    git make gcc g++ wget \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
-RUN uv python install 3.12
-
-# Build libxsmm
-RUN git clone --depth 1 https://github.com/libxsmm/libxsmm.git /opt/libxsmm && \
-    cd /opt/libxsmm && \
-    make STATIC=0 PYTHON='/bin/uv run --python 3.12' && \
-    rm -rf /opt/libxsmm/.git /opt/libxsmm/tests /opt/libxsmm/samples
-
 # Main image
 FROM ubuntu:22.04
 
@@ -45,7 +28,7 @@ RUN apt-get update && apt-get install -y \
     git make gpg libxml2 binutils \
     papi-tools libpapi-dev \
     build-essential gcc libc6-dev \
-    pkg-config graphviz wget \
+    graphviz wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/*
 
@@ -62,10 +45,6 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv venv /opt/venv -p 3.12 \
     && uv sync --locked --no-install-project
-
-# Copy libxsmm from builder stage
-COPY --from=libxsmm-builder /opt/libxsmm /opt/libxsmm
-RUN ln -sf /opt/libxsmm/bin/libxsmm_gemm_generator /usr/bin/libxsmm_gemm_generator
 
 # Install uiCA (not in pyproject.toml); uses setuptools from the venv.
 RUN git clone --depth 1 https://gitlab.inria.fr/CORSE/uica-staticdeps.git /opt/uica-staticdeps && \
