@@ -18,7 +18,9 @@
             paths = [
               uv
               llvmPackages_20.mlir
+              llvmPackages_20.clang
               llvmPackages_20.lld
+              llvmPackages_20.llvm.out
             ];
           };
         in
