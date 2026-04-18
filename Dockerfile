@@ -1,5 +1,5 @@
 # Build LLVM toolchain + uv from Nix flake
-FROM nixos/nix:latest AS nix-builder
+FROM docker.io/nixos/nix:latest AS nix-builder
 COPY flake.nix flake.lock /tmp/build/
 WORKDIR /tmp/build
 RUN nix \
