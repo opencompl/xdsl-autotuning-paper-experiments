@@ -21,12 +21,13 @@ COPY --from=nix-builder /tmp/nix-store-closure /nix/store
 COPY --from=nix-builder /tmp/build/result /opt/toolchain
 ENV PATH="/opt/toolchain/bin:$PATH"
 ENV LD_LIBRARY_PATH="/opt/toolchain/lib"
+ENV LIBRARY_PATH="/opt/toolchain/lib"
+ENV C_INCLUDE_PATH="/opt/toolchain/include"
 ENV PKG_CONFIG_PATH="/opt/toolchain/lib/pkgconfig"
 
 # Install remaining system dependencies
 RUN apt-get update && apt-get install -y \
     git make gpg libxml2 binutils \
-    papi-tools libpapi-dev \
     build-essential gcc libc6-dev \
     graphviz wget \
     && apt-get clean \
