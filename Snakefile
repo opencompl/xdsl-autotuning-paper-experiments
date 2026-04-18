@@ -11,9 +11,9 @@ import shutil
 
 TVM_FUNC_NAME = "tvm_matmul"
 
-if shutil.which("pkg-config") and os.system("pkg-config --exists mkl-dynamic-ilp64-iomp") == 0:
-    MKL_CFLAGS = shell("pkg-config --cflags mkl-dynamic-ilp64-iomp", read=True).strip()
-    MKL_LIBS   = shell("pkg-config --libs mkl-dynamic-ilp64-iomp", read=True).strip()
+if shutil.which("pkg-config") and os.system("pkg-config --exists mkl-dynamic-ilp64-seq") == 0:
+    MKL_CFLAGS = shell("pkg-config --cflags mkl-dynamic-ilp64-seq", read=True).strip()
+    MKL_LIBS   = shell("pkg-config --libs mkl-dynamic-ilp64-seq", read=True).strip()
 else:
     MKL_CFLAGS = ""
     MKL_LIBS = ""
