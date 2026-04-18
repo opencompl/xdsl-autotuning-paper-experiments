@@ -20,6 +20,8 @@ else:
 
 # Target-specific parameters
 
+CC_ASM = config.get("cc_asm", config["cc"])
+
 T = config["targets"]
 if os.environ.get("USE_PAPI") == "1":
     T['ci']['libs'].append('papi')
@@ -232,9 +234,9 @@ rule asm_ll:
     params:
         target_triple=target_triple,
         target_arch=target_arch,
-        cc=config["cc"],
+        cc=CC_ASM,
     shell:
-        "{params.cc} -O3 -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
+        "{params.cc} -O3 -S -fenable-matrix -Wno-override-module -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
 
 rule asm_c:
     input: "kernels/{kernel}/naive_c.c"
@@ -242,7 +244,7 @@ rule asm_c:
     params:
         target_triple=target_triple,
         target_arch=target_arch,
-        cc=config["cc"],
+        cc=CC_ASM,
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
         "{params.cc} -O3 -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
@@ -297,7 +299,7 @@ rule llvm_intrinsics_rowmaj_s:
     params:
         target_triple=target_triple,
         target_arch=target_arch,
-        cc=config["cc"],
+        cc=CC_ASM,
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
         "{params.cc} -O3 -c kernels/matmul_rowmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.target_arch} -mtune={params.target_arch} -o {output} -ffp-contract=fast -ffast-math -mprefer-vector-width=512"
