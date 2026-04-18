@@ -37,6 +37,7 @@ LABEL org.opencontainers.image.licenses=MIT
 COPY --from=nix-builder /tmp/nix-store-closure /nix/store
 COPY --from=nix-builder /tmp/build/result /opt/toolchain
 ENV PATH="/opt/toolchain/bin:$PATH"
+ENV LD_LIBRARY_PATH="/opt/toolchain/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # Install basic dependencies first (including ca-certificates for Intel repo)
 RUN apt-get update && apt-get install -y \
