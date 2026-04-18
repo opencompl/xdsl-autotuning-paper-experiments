@@ -26,7 +26,6 @@ ENV PKG_CONFIG_PATH="/opt/toolchain/lib/pkgconfig"
 # Install remaining system dependencies
 RUN apt-get update && apt-get install -y \
     git make gpg libxml2 binutils \
-    papi-tools libpapi-dev \
     build-essential gcc libc6-dev \
     graphviz wget \
     && apt-get clean \

@@ -32,6 +32,7 @@
             ] ++ (if stdenv.hostPlatform.isLinux then [
               mkl
               libxsmm
+              papi
             ] else [
             ]);
           };
