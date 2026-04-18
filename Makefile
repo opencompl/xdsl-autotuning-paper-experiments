@@ -116,7 +116,7 @@ precommit:
 # build docker image
 .PHONY: docker-build
 docker-build:
-	docker build -t xdsl-autotuner . --platform linux/amd64
+	docker build -t xdsl-autotuner . --platform linux/amd64 --no-cache
 
 # pull and tag the CI image locally
 .PHONY: docker-pull
