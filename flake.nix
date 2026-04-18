@@ -28,7 +28,7 @@
           {
             packages.default = llvmToolchain;
 
-            devShells.default = with pkgs; mkShell {
+            devShells.default = with pkgs; mkShellNoCC {
               LD_LIBRARY_PATH = lib.makeLibraryPath [ stdenv.cc.cc.lib zlib ];
               buildInputs = [
                 llvmToolchain
