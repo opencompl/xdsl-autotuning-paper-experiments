@@ -27,6 +27,7 @@
               llvmPackages_20.openmp
             ] ++ (if stdenv.hostPlatform.isLinux then [
               mkl
+              libxsmm
             ] else [
             ]);
           };
