@@ -5,6 +5,8 @@ on:
     paths:
       - Dockerfile
       - docker/entrypoint.sh
+      - flake.nix
+      - flake.lock
       - pyproject.toml
       - uv.lock
       - .github/workflows/publish-docker.yml
