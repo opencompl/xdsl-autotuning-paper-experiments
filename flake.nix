@@ -16,6 +16,7 @@
           };
           llvmToolchain = with pkgs; buildEnv {
             name = "llvm-toolchain";
+            ignoreCollisions = true;
             paths = [
               uv
               pkg-config
@@ -23,10 +24,10 @@
               llvmPackages_20.clang
               llvmPackages_20.lld
               llvmPackages_20.llvm.out
+              llvmPackages_20.openmp
             ] ++ (if stdenv.hostPlatform.isLinux then [
               mkl
             ] else [
-              llvmPackages_20.openmp
             ]);
           };
         in
