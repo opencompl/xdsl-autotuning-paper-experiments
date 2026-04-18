@@ -14,12 +14,16 @@
             inherit system;
             config.allowUnfree = true;
           };
+          clangUnwrapped = pkgs.writeShellScriptBin "clang-unwrapped" ''
+            exec ${pkgs.llvmPackages_20.clang-unwrapped}/bin/clang "$@"
+          '';
           llvmToolchain = with pkgs; buildEnv {
             name = "llvm-toolchain";
             ignoreCollisions = true;
             paths = [
               uv
               pkg-config
+              clangUnwrapped
               llvmPackages_20.mlir
               llvmPackages_20.clang
               llvmPackages_20.lld
