@@ -38,27 +38,14 @@ COPY --from=nix-builder /tmp/nix-store-closure /nix/store
 COPY --from=nix-builder /tmp/build/result /opt/toolchain
 ENV PATH="/opt/toolchain/bin:$PATH"
 ENV LD_LIBRARY_PATH="/opt/toolchain/lib"
+ENV PKG_CONFIG_PATH="/opt/toolchain/lib/pkgconfig"
 
-# Install basic dependencies first (including ca-certificates for Intel repo)
-RUN apt-get update && apt-get install -y \
-    ca-certificates wget gpg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Pointer to Intel repos
-RUN wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
-  | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null \
-  && echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
-  | tee /etc/apt/sources.list.d/oneapi.list \
-  && apt update
-
-# Install dependencies and clean up aggressively in a single layer
+# Install remaining system dependencies
 RUN apt-get update && apt-get install -y \
     git make gpg libxml2 binutils \
     papi-tools libpapi-dev \
     build-essential gcc libc6-dev \
-    pkg-config intel-oneapi-mkl-2021.4.0 intel-oneapi-mkl-devel-2021.4.0 libomp-dev \
-    graphviz \
-    wget \
+    pkg-config graphviz wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/*
 

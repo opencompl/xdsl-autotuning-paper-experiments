@@ -12,6 +12,7 @@
         let
           pkgs = import nixpkgs {
             inherit system;
+            config.allowUnfree = true;
           };
           llvmToolchain = with pkgs; buildEnv {
             name = "llvm-toolchain";
@@ -22,6 +23,8 @@
               llvmPackages_20.lld
               llvmPackages_20.llvm.out
               llvmPackages_20.openmp
+            ] ++ lib.optionals stdenv.hostPlatform.isLinux [
+              mkl
             ];
           };
         in
