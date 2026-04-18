@@ -1,4 +1,4 @@
-# RUN: clang-20 -DCROWS=4 -DCCOLS=4 -DINNER=4 -DDTYPE=float -o %t kernels/matmul_colmaj/test.c %s && %t | filecheck %s
+# RUN: clang -DCROWS=4 -DCCOLS=4 -DINNER=4 -DDTYPE=float -o %t kernels/matmul_colmaj/test.c %s && %t | filecheck %s
 
 .global _matmul_colmaj
 
