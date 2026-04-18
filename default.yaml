@@ -41,9 +41,9 @@ targets:
   tower: {
     triple: "x86_64-unknown-linux-gnu",
     arch: "znver5",
-    freq: 4.35,
+    freq: 4.3,
     peak_f32: 64,
-    libs: [],
+    libs: ["papi"],
     linker_flag: "-fuse-ld=lld",
     env: {"LIBPFM_FORCE_PMU":"amd64"}
   }
