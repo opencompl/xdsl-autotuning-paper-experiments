@@ -43,6 +43,7 @@
             devShells.default = with pkgs; mkShellNoCC {
               LD_LIBRARY_PATH = lib.makeLibraryPath ([ stdenv.cc.cc.lib zlib llvmToolchain ]
                 ++ lib.optionals stdenv.hostPlatform.isLinux [ papi ]);
+              LIBRARY_PATH = lib.makeLibraryPath [ llvmToolchain ];
               nativeBuildInputs = [ pkg-config ];
               buildInputs = [
                 llvmToolchain
