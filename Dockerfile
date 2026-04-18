@@ -26,14 +26,14 @@ RUN git clone --depth 1 https://github.com/libxsmm/libxsmm.git /opt/libxsmm && \
     make STATIC=0 PYTHON='/bin/uv run --python 3.12' && \
     rm -rf /opt/libxsmm/.git /opt/libxsmm/tests /opt/libxsmm/samples
 
-# Main image - minimal Ubuntu base with extracted LLVM tools
+# Main image
 FROM ubuntu:22.04
 
 LABEL org.opencontainers.image.source=https://github.com/opencompl/xdsl-autotuning-paper-experiments
 LABEL org.opencontainers.image.description="LLVM Docker image for xdsl autotuner experiments"
 LABEL org.opencontainers.image.licenses=MIT
 
-# Copy Nix store closure and toolchain (LLVM tools + uv)
+# Copy Nix store closure and toolchain (LLVM tools + uv + MKL)
 COPY --from=nix-builder /tmp/nix-store-closure /nix/store
 COPY --from=nix-builder /tmp/build/result /opt/toolchain
 ENV PATH="/opt/toolchain/bin:$PATH"
