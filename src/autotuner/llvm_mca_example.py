@@ -2,7 +2,7 @@ from typing import cast
 from xdsl.dialects.x86.registers import X86VectorRegisterType
 from xdsl.ir import Block, BlockArgument, Region
 from xdsl.dialects import x86_func, x86
-from analyzers import LLVM_MCA
+from autotuner.analyzers import LLVM_MCA
 
 
 def build_basic_block():
