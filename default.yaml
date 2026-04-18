@@ -1,4 +1,5 @@
 cc: clang
+cc_asm: clang-unwrapped
 target: ci
 
 xdsl-opt-backend-passes:
@@ -20,7 +21,7 @@ xdsl-opt-backend-passes:
 
 targets:
   neon: {
-    triple: "arm64-apple-darwin24.3.0",
+    triple: "arm64-apple-darwin",
     arch: "armv8.5-a",
     freq: 1.0,
     peak_f32: 0,
