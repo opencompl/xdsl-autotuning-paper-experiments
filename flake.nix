@@ -22,10 +22,11 @@
               llvmPackages_20.clang
               llvmPackages_20.lld
               llvmPackages_20.llvm.out
-              llvmPackages_20.openmp
-            ] ++ lib.optionals stdenv.hostPlatform.isLinux [
+            ] ++ (if stdenv.hostPlatform.isLinux then [
               mkl
-            ];
+            ] else [
+              llvmPackages_20.openmp
+            ]);
           };
         in
           {
