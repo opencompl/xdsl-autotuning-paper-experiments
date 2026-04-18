@@ -1,5 +1,5 @@
 {
-  description = "xDSL xdsmm experiments";
+  description = "xDSL small matrix experiments";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
