@@ -18,6 +18,7 @@
             name = "llvm-toolchain";
             paths = [
               uv
+              pkg-config
               llvmPackages_20.mlir
               llvmPackages_20.clang
               llvmPackages_20.lld
@@ -34,6 +35,7 @@
 
             devShells.default = with pkgs; mkShellNoCC {
               LD_LIBRARY_PATH = lib.makeLibraryPath [ stdenv.cc.cc.lib zlib ];
+              nativeBuildInputs = [ pkg-config ];
               buildInputs = [
                 llvmToolchain
                 nodejs_22
