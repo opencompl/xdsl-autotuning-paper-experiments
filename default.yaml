@@ -1,4 +1,4 @@
-cc: clang-20
+cc: clang
 target: ci
 
 xdsl-opt-backend-passes:

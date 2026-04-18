@@ -1,4 +1,4 @@
-// RUN: clang-20 -DDTYPE=float -o %t %s && %t | filecheck %s
+// RUN: clang -DDTYPE=float -o %t %s && %t | filecheck %s
 
 #include <stdio.h>
 
