@@ -25,6 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # TODO: remove once the Docker image ships mlir-opt on PATH directly
+      - name: Symlink mlir-opt-20 to mlir-opt
+        run: ln -sf /usr/local/bin/mlir-opt-20 /usr/local/bin/mlir-opt
+
       # GitHub Actions overrides the image ENTRYPOINT, so we must sync here (same as
       # docker/entrypoint.sh) before running tests.
       - name: Sync project into image venv
