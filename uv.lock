@@ -240,7 +240,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "snakemake", specifier = ">=8.30.0" },
     { name = "tvm", specifier = "==0.19.0.2025010903", index = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple" },
-    { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=d0a29dd23070c69156c5e1c47cec3e132204e27a" },
+    { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=5ef95a7932e18786c043a6e1237c84ac42716ab2" },
 ]
 
 [[package]]
@@ -3816,8 +3816,8 @@ wheels = [
 
 [[package]]
 name = "xdsl"
-version = "0.63.1.dev28+gd0a29dd23"
-source = { git = "https://github.com/xdslproject/xdsl.git?rev=d0a29dd23070c69156c5e1c47cec3e132204e27a#d0a29dd23070c69156c5e1c47cec3e132204e27a" }
+version = "0.63.1.dev35+g5ef95a793"
+source = { git = "https://github.com/xdslproject/xdsl.git?rev=5ef95a7932e18786c043a6e1237c84ac42716ab2#5ef95a7932e18786c043a6e1237c84ac42716ab2" }
 dependencies = [
     { name = "immutabledict" },
     { name = "ordered-set" },
