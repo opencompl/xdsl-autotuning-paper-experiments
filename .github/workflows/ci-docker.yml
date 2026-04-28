@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     # Pinned toolchain image (rebuild/push via publish-docker workflow on version tags).
     # Bump this when the Dockerfile changes and a new image is published.
-    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.25.0
+    container: ghcr.io/opencompl/xdsl-autotuning-ci:0.26.0
     env:
       UV_LINK_MODE: copy
       PATH: /opt/toolchain/bin:/opt/venv/bin:/bin:/usr/local/bin:/usr/bin:/sbin:/bin
