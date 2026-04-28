@@ -22,7 +22,7 @@ url = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple"
 explicit = true
 
 [tool.uv.sources]
-xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "79bcf5f7f8c7ac11bdb44d0c34fe874c953eaa5a" }
+xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "5ef95a7932e18786c043a6e1237c84ac42716ab2" }
 tvm = { index = "corse" }
 
 [project.scripts]
