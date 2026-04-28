@@ -47,12 +47,13 @@ COPY pyproject.toml uv.lock ./
 RUN uv venv /opt/venv -p 3.12 \
     && uv sync --locked --no-install-project
 
+# Currently disabled as unused in our experiments, can re-enable later.
 # Install uiCA (not in pyproject.toml); uses setuptools from the venv.
-RUN git clone --depth 1 https://gitlab.inria.fr/CORSE/uica-staticdeps.git /opt/uica-staticdeps && \
-    cd /opt/uica-staticdeps && \
-    uv run --python 3.12 --with setuptools ./setup.sh && \
-    rm -rf /opt/uica-staticdeps/.git && \
-    uv cache clean
+# RUN git clone --depth 1 https://gitlab.inria.fr/CORSE/uica-staticdeps.git /opt/uica-staticdeps && \
+#     cd /opt/uica-staticdeps && \
+#     uv run --python 3.12 --with setuptools ./setup.sh && \
+#     rm -rf /opt/uica-staticdeps/.git && \
+#     uv cache clean
 
 WORKDIR /src
 
