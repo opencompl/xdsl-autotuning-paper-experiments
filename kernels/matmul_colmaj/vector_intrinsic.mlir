@@ -8,7 +8,7 @@ func.func @matmul_colmaj(
     %B = vector.load %arg1[%c0, %c0] : memref<{{wildcards.n}}x{{wildcards.k}}x{{wildcards.dtype}}>, vector<{{wildcards.k|int * wildcards.n|int}}x{{wildcards.dtype}}>
     %C_in = vector.load %arg2[%c0, %c0] : memref<{{wildcards.n}}x{{wildcards.m}}x{{wildcards.dtype}}>, vector<{{wildcards.m|int * wildcards.n|int}}x{{wildcards.dtype}}>
 
-    %C_acc = vector.matrix_multiply %A, %B {
+    %C_acc = llvm.intr.matrix.multiply %A, %B {
         lhs_rows = {{wildcards.m}}: i32,
         lhs_columns = {{wildcards.k}}: i32,
         rhs_columns = {{wildcards.n}}: i32

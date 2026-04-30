@@ -117,7 +117,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     target="neon|ci|tower|pinocchio",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -284,6 +284,35 @@ rule libxsmm_rowmaj_c:
         echo 'void matmul({params.c_dtype} *A, {params.c_dtype} *B, {params.c_dtype} *C) {{matmul_bac(B, A, C);}}' >> {output}
         """
 
+
+rule xdsl_libxsmm_rowmaj_mlir:
+    output: target_ll_file(kernel='matmul_rowmaj',variant='xdsl_libxsmm',ext='libxsmm.mlir')
+    params:
+        target_xsmm=target_xsmm,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+        c_dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        SWAP_A_B=1 libxsmm-gemm dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.target_xsmm} \
+            nopf \
+            {params.dtype}
+        """
+
+rule xdsl_libxsmm_s:
+    input: target_ll_file(variant='xdsl_libxsmm',ext='libxsmm.mlir')
+    output: target_ll_file(variant='xdsl_libxsmm',ext='S')
+    shell:
+        """
+        xdsl-opt {input} -p x86-prologue-epilogue-insertion -t x86-asm -o {output}
+        """
+
 rule mkl_rowmaj_s:
     output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -417,11 +446,11 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm"],
         "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
         "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
         "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "f64.small_matrices": ["libxsmm",],
+        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
@@ -656,6 +685,7 @@ TESTSET_AVX = expand(
         "transform_xdsl",
         "llvm_intrinsics",
         "libxsmm",
+        "xdsl_libxsmm",
         "mkl",
     ]
 )
