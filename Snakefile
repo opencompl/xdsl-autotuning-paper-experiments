@@ -685,6 +685,7 @@ TESTSET_AVX = expand(
         "transform_xdsl",
         "llvm_intrinsics",
         "libxsmm",
+        "xdsl_libxsmm",
         "mkl",
     ]
 )
