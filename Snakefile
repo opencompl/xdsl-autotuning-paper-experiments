@@ -521,11 +521,11 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm"],
-        "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
-        "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "lighthouse"],
+        "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl", "lighthouse"],
+        "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl", "lighthouse"],
+        "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl", "lighthouse"],
+        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "lighthouse"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
