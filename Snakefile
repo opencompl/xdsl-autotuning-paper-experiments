@@ -740,7 +740,7 @@ TESTSET_CI = [
 ]
 
 # For targets that can execute AVX instructions
-TESTSET_AVX = expand(
+TESTSET_AVX_F64 = expand(
     target_ll_file(
         kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f64",
         target=THIS_TARGET,
@@ -753,6 +753,8 @@ TESTSET_AVX = expand(
         "xdsl_libxsmm",
         "mkl",
     ],
+)
+TESTSET_AVX_F32 = expand(
     target_ll_file(
         kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f32",
         target=THIS_TARGET,
@@ -767,6 +769,7 @@ TESTSET_AVX = expand(
         "lighthouse",
     ]
 )
+TESTSET_AVX = TESTSET_AVX_F64 + TESTSET_AVX_F32
 
 TESTSET = {
     "neon": TESTSET_MAC,
