@@ -728,6 +728,15 @@ TESTSET_CI = [
         kernel="matmul_rowmaj", m="5", n="6", k="7",
         variant="transform_mlir", dtype="f32", target="ci", ext="time.txt"
     ),
+    # Lighthouse cross-compiles to tower; generate assembly on generic x86.
+    target_ll_file(
+        kernel="matmul_rowmaj", m="3", n="16", k="5",
+        variant="lighthouse", dtype="f64", target="tower", ext="S"
+    ),
+    target_ll_file(
+        kernel="matmul_rowmaj", m="6", n="32", k="5",
+        variant="lighthouse", dtype="f64", target="tower", ext="S"
+    ),
 ]
 
 # For targets that can execute AVX instructions
@@ -743,6 +752,7 @@ TESTSET_AVX = expand(
         "libxsmm",
         "xdsl_libxsmm",
         "mkl",
+        "lighthouse"
     ]
 )
 
