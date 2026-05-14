@@ -752,6 +752,18 @@ TESTSET_AVX = expand(
         "libxsmm",
         "xdsl_libxsmm",
         "mkl",
+    ]
+    target_ll_file(
+        kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f32",
+        target=THIS_TARGET,
+        ext="test.log",
+    ),
+    variant=[
+        "transform_xdsl",
+        "llvm_intrinsics",
+        "libxsmm",
+        "xdsl_libxsmm",
+        "mkl",
         "lighthouse"
     ]
 )
