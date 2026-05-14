@@ -161,7 +161,8 @@ rule lighthouse_mlir:
         """uv run python {input.script} \
             --input {input.payload} \
             --pipeline {input.pipeline} \
-            --output {output}"""
+            --output {output} \
+            --func lh_matmul_inner"""
 
 rule lighthouse_ll:
     input: target_file(variant='lighthouse',ext='mlir')
@@ -431,6 +432,33 @@ rule executable:
         linker_flag=target_linker_flag,
     shell:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.linker_flag}"
+
+# Lighthouse-specific executable: the emitted `lh_matmul_inner` symbol uses the
+# MLIR memref calling convention, so we link the assembly together with a thin
+# C shim that exposes `void matmul(A, B, C)` and forwards through
+# `_mlir_ciface_lh_matmul_inner`. The `ruleorder` directive below picks this
+# rule over the generic `executable` whenever `variant=lighthouse`.
+ruleorder: lighthouse_executable > executable
+
+rule lighthouse_executable:
+    wildcard_constraints:
+        variant = "lighthouse"
+    input:
+        asm=target_ll_file(ext='S'),
+        shim="kernels/{kernel}/lighthouse_shim.c",
+        harness="kernels/{kernel}/{executable}.c",
+    output: target_ll_file(ext='{executable}.o')
+    params:
+        target_triple=target_triple,
+        target_arch=target_arch,
+        target_libs_opts=target_libs_opts,
+        target_freq=target_freq,
+        cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+        use_papi=target_use_papi,
+        linker_flag=target_linker_flag,
+    shell:
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} {input.harness} {input.shim} {input.asm} {params.target_libs_opts} {params.linker_flag}"
 
 rule validation:
     input:  target_ll_file(ext='test.o')

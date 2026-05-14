@@ -40,8 +40,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--func",
-        default="matmul",
-        help="Name of the function to mark as C-callable (default: matmul).",
+        default="lh_matmul_inner",
+        help="Name of the function to mark as C-callable (default: lh_matmul_inner).",
     )
     args = parser.parse_args()
 
