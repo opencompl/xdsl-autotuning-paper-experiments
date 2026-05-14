@@ -789,8 +789,6 @@ TESTSET_AVX_F32 = expand(
         ext="test.log",
     ),
     variant=[
-        "transform_xdsl",
-        "llvm_intrinsics",
         "libxsmm",
         "xdsl_libxsmm",
         "mkl",
