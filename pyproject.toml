@@ -3,9 +3,10 @@ name = "autotuner"
 version = "0.1.0"
 description = "Benchmarks repository for xDSL autotuning paper."
 readme = "README.md"
-requires-python = ">=3.11.2"
+requires-python = ">=3.11.2,<3.13"
 dependencies = [
     "jinja2>=3.1.6",
+    "lighthouse",
     "matplotlib>=3.10.3",
     "pandas>=2.3.1",
     "snakemake>=8.30.0",
@@ -21,9 +22,17 @@ name = "corse"
 url = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple"
 explicit = true
 
+[[tool.uv.index]]
+name = "eudsl"
+url = "https://llvm.github.io/eudsl"
+explicit = true
+format = "flat"
+
 [tool.uv.sources]
 xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "5ef95a7932e18786c043a6e1237c84ac42716ab2" }
 tvm = { index = "corse" }
+lighthouse = { git = "https://github.com/llvm/lighthouse.git", rev = "455d61cf60b2b553d545783bcb5258d4cf50fe03" }
+mlir-python-bindings = { index = "eudsl" }
 
 [project.scripts]
 hello = "autotuner.main:main"
