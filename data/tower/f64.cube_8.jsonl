@@ -1,5 +1,6 @@
-{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":550.358738,"variant":"naive_c","target":"tower","dtype":"f64"}
-{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":47.708420,"variant":"transform_mlir","target":"tower","dtype":"f64"}
-{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":46.083984,"variant":"llvm_intrinsics","target":"tower","dtype":"f64"}
-{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":48.978390,"variant":"libxsmm","target":"tower","dtype":"f64"}
-{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":468.915096,"variant":"mkl","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":550.222485,"variant":"naive_c","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":47.697683,"variant":"transform_mlir","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":46.515322,"variant":"llvm_intrinsics","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":48.919016,"variant":"libxsmm","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":468.895533,"variant":"mkl","target":"tower","dtype":"f64"}
+{"M":8,"N":8,"K":8,"peak":32.0,"flops":1024,"time":29775.820864,"variant":"lighthouse","target":"tower","dtype":"f64"}
