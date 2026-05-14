@@ -1,0 +1,12 @@
+# Vendored from lighthouse/pipeline/descriptors/llvm_lowering.yaml
+# at llvm/lighthouse@6601c79a734d969a5a3ea6e91591eb8f200e4d58.
+Pipeline:
+ - pass: "fold-memref-alias-ops"
+ - pass: "expand-strided-metadata"
+ - pass: "canonicalize"
+ - pass: "convert-vector-to-scf"
+ - pass: "lower-affine"
+ - pass: "convert-scf-to-cf"
+ - pass: "convert-vector-to-llvm"
+ - pass: "convert-to-llvm"
+ - pass: "reconcile-unrealized-casts"

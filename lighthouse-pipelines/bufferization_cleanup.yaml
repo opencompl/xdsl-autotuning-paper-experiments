@@ -1,0 +1,7 @@
+# Vendored from lighthouse/pipeline/descriptors/bufferization_cleanup.yaml
+# at llvm/lighthouse@6601c79a734d969a5a3ea6e91591eb8f200e4d58.
+Pipeline:
+ - pass: buffer-deallocation-pipeline
+ - pass: convert-bufferization-to-memref
+ - pass: cse
+ - pass: canonicalize

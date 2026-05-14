@@ -1,0 +1,20 @@
+// Lighthouse-friendly variant of `kernels/matmul_rowmaj/mlir.mlir`.
+//
+// The shared template's `func.func @matmul` discards the matmul result with a
+// bare `return`. That works for the existing flow because the early
+// one-shot-bufferize step turns `outs(%C)` into an in-place write before any
+// DCE runs. The Lighthouse pipeline interleaves transform-dialect scheduling
+// with bufferization, so the tensor result must be live; otherwise the early
+// canonicalization passes eliminate the matmul entirely and we end up with an
+// empty `@matmul`. Returning `%res` keeps it alive without changing the
+// observable ABI: bufferization's `drop-equivalent-buffer-results` folds the
+// returned tensor back into the destination memref.
+func.func public @matmul(
+    %arg0: tensor<{{wildcards.m}}x{{wildcards.k}}x{{wildcards.dtype}}> {llvm.noalias},
+    %arg1: tensor<{{wildcards.k}}x{{wildcards.n}}x{{wildcards.dtype}}> {llvm.noalias},
+    %arg2: tensor<{{wildcards.m}}x{{wildcards.n}}x{{wildcards.dtype}}> {llvm.noalias}
+) -> tensor<{{wildcards.m}}x{{wildcards.n}}x{{wildcards.dtype}}> {
+    %res = linalg.matmul ins(%arg0, %arg1 : tensor<{{wildcards.m}}x{{wildcards.k}}x{{wildcards.dtype}}>, tensor<{{wildcards.k}}x{{wildcards.n}}x{{wildcards.dtype}}>) outs(%arg2 : tensor<{{wildcards.m}}x{{wildcards.n}}x{{wildcards.dtype}}>) -> tensor<{{wildcards.m}}x{{wildcards.n}}x{{wildcards.dtype}}>
+
+    return %res : tensor<{{wildcards.m}}x{{wildcards.n}}x{{wildcards.dtype}}>
+}
