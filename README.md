@@ -56,6 +56,21 @@ can be executed on that machine.
 For example, when executing `make tests` on macOS, x86 assembly will be created, but it
 will not be executed.
 
+#### Lighthouse pipeline
+
+The `lighthouse` variant uses the [llvm/lighthouse](https://github.com/llvm/lighthouse)
+Python pipeline driver to lower a tensor-form `linalg.matmul` payload to LLVM-dialect MLIR
+before `mlir-translate` and `clang` finish the descent to assembly. The pipeline YAMLs
+live in [`lighthouse-pipelines/`](lighthouse-pipelines/); they are vendored from
+`llvm/lighthouse@6601c79a734d969a5a3ea6e91591eb8f200e4d58` (with the explicit
+register-tiling parameters relaxed for the current toolchain) so the build graph does
+not depend on network fetches. The driver wrapper is
+[`scripts/lighthouse_compile.py`](scripts/lighthouse_compile.py).
+
+On macOS, `make tests` cross-compiles two Lighthouse `.S` artifacts for the `tower`
+target (`3x16x5` and `6x32x5`, `f64`). It does not link or execute them — that happens
+in the tower-side `make tests` run.
+
 ### Computing Data
 
 Generate the data for the host platform by running `make dataset`. JSONL outputs are written under `data/<TARGET>/` (with `TARGET` from `.env` or `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example `f32.ttile.jsonl`). Build artifacts go under `build/<TARGET>/`.

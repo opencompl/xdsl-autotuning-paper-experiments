@@ -133,6 +133,52 @@ rule templated_vector_intrinsic:
     template_engine:
         "jinja2"
 
+# Lighthouse path: needs a payload that returns the matmul result so the
+# linalg.matmul stays live through the transform-dialect scheduling that
+# precedes bufferization in `lighthouse-pipelines/cpu_matmul.compat.yaml`.
+LIGHTHOUSE_PIPELINE_YAML = "lighthouse-pipelines/cpu_matmul.compat.yaml"
+LIGHTHOUSE_PIPELINE_INCLUDES = [
+    "lighthouse-pipelines/bufferization.yaml",
+    "lighthouse-pipelines/bufferization_cleanup.yaml",
+    "lighthouse-pipelines/llvm_lowering.yaml",
+    "lighthouse-pipelines/cleanup.yaml",
+]
+
+rule templated_lighthouse_tensor:
+    input: "kernels/{kernel}/lighthouse.mlir"
+    output: target_file(variant='lighthouse_tensor',ext='mlir')
+    template_engine:
+        "jinja2"
+
+rule lighthouse_mlir:
+    input:
+        payload=target_file(variant='lighthouse_tensor',ext='mlir'),
+        pipeline=LIGHTHOUSE_PIPELINE_YAML,
+        includes=LIGHTHOUSE_PIPELINE_INCLUDES,
+        script="scripts/lighthouse_compile.py",
+    output: target_file(variant='lighthouse',ext='mlir')
+    shell:
+        """uv run python {input.script} \
+            --input {input.payload} \
+            --pipeline {input.pipeline} \
+            --output {output}"""
+
+rule lighthouse_ll:
+    input: target_file(variant='lighthouse',ext='mlir')
+    output: target_file(variant='lighthouse',ext='ll')
+    shell:
+        "mlir-translate --mlir-to-llvmir {input} -o {output}"
+
+rule lighthouse_s:
+    input: target_file(variant='lighthouse',ext='ll')
+    output: target_ll_file(variant='lighthouse',ext='S')
+    params:
+        target_triple=target_triple,
+        target_arch=target_arch,
+        cc=CC_ASM,
+    shell:
+        "{params.cc} -O3 -S -Wno-override-module -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
+
 rule merge_transform:
     input:
         matmul=target_file(variant='memref',ext='mlir'),
@@ -637,6 +683,15 @@ TESTSET_MAC = [
     target_ll_file(
         kernel="matmul_rowmaj", m="6", n="32", k="5",
         variant="transform_xdsl", dtype="f64", target="tower", ext="S"
+    ),
+    # Lighthouse cross-compiles to tower; assembly only on macOS hosts.
+    target_ll_file(
+        kernel="matmul_rowmaj", m="3", n="16", k="5",
+        variant="lighthouse", dtype="f64", target="tower", ext="S"
+    ),
+    target_ll_file(
+        kernel="matmul_rowmaj", m="6", n="32", k="5",
+        variant="lighthouse", dtype="f64", target="tower", ext="S"
     ),
 ]
 
