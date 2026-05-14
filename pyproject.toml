@@ -31,7 +31,7 @@ format = "flat"
 [tool.uv.sources]
 xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "5ef95a7932e18786c043a6e1237c84ac42716ab2" }
 tvm = { index = "corse" }
-lighthouse = { git = "https://github.com/llvm/lighthouse.git", rev = "455d61cf60b2b553d545783bcb5258d4cf50fe03" }
+lighthouse = { git = "https://github.com/llvm/lighthouse.git", rev = "6601c79a734d969a5a3ea6e91591eb8f200e4d58" }
 mlir-python-bindings = { index = "eudsl" }
 
 [project.scripts]
@@ -48,9 +48,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
-dev = [
-    "pre-commit>=4.6.0",
-]
+dev = ["pre-commit>=4.6.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/autotuner"]

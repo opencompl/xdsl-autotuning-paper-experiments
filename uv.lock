@@ -185,7 +185,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "lighthouse", git = "https://github.com/llvm/lighthouse.git?rev=455d61cf60b2b553d545783bcb5258d4cf50fe03" },
+    { name = "lighthouse", git = "https://github.com/llvm/lighthouse.git?rev=6601c79a734d969a5a3ea6e91591eb8f200e4d58" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "snakemake", specifier = ">=8.30.0" },
@@ -1004,7 +1004,7 @@ wheels = [
 [[package]]
 name = "lighthouse"
 version = "0.1.0a1"
-source = { git = "https://github.com/llvm/lighthouse.git?rev=455d61cf60b2b553d545783bcb5258d4cf50fe03#455d61cf60b2b553d545783bcb5258d4cf50fe03" }
+source = { git = "https://github.com/llvm/lighthouse.git?rev=6601c79a734d969a5a3ea6e91591eb8f200e4d58#6601c79a734d969a5a3ea6e91591eb8f200e4d58" }
 dependencies = [
     { name = "mlir-python-bindings" },
     { name = "pyyaml" },
