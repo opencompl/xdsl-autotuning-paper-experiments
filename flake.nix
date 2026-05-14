@@ -15,7 +15,7 @@
             config.allowUnfree = true;
           };
           clangUnwrapped = pkgs.writeShellScriptBin "clang-unwrapped" ''
-            exec ${pkgs.llvmPackages_20.clang-unwrapped}/bin/clang "$@"
+            exec ${pkgs.llvmPackages_22.clang-unwrapped}/bin/clang "$@"
           '';
           llvmToolchain = with pkgs; buildEnv {
             name = "llvm-toolchain";
@@ -24,11 +24,11 @@
               uv
               pkg-config
               clangUnwrapped
-              llvmPackages_20.mlir
-              llvmPackages_20.clang
-              llvmPackages_20.lld
-              llvmPackages_20.llvm.out
-              llvmPackages_20.openmp
+              llvmPackages_22.mlir
+              llvmPackages_22.clang
+              llvmPackages_22.lld
+              llvmPackages_22.llvm.out
+              llvmPackages_22.openmp
             ] ++ (if stdenv.hostPlatform.isLinux then [
               mkl
               libxsmm
