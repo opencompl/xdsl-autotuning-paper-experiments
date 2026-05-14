@@ -751,7 +751,7 @@ TESTSET_AVX = expand(
         "llvm_intrinsics",
         "libxsmm",
         "xdsl_libxsmm",
-        "mkl",
+        "mkl"
     ]
     target_ll_file(
         kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f32",
