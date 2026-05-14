@@ -214,6 +214,7 @@ rule arith_to_llvm:
             --convert-vector-to-llvm=enable-x86vector \
             --convert-index-to-llvm \
             --convert-arith-to-llvm \
+            --convert-ub-to-llvm \
             --convert-cf-to-llvm \
             --canonicalize --cse --sccp \
             -o {output}"""
