@@ -23,7 +23,12 @@ def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
 
     valid_data["perf"] = (valid_data["throughput"] / peak) * 100
 
-    heatmap_data = valid_data.pivot(index="M", columns="N", values="perf")
+    # Determine columns dynamically: use 'N' if it varies, otherwise look for 'K'
+    col_dim = "N"
+    if "N" in valid_data.columns and valid_data["N"].nunique() <= 1 and "K" in valid_data.columns:
+        col_dim = "K"
+
+    heatmap_data = valid_data.pivot(index="M", columns=col_dim, values="perf")
 
     im = ax.imshow(heatmap_data, cmap="YlOrRd", aspect="auto", vmin=0, vmax=100)
 

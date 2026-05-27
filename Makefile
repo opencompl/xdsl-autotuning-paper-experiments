@@ -60,6 +60,9 @@ PLOTS += plots/tower/f64.cube_64.png
 PLOTS += plots/tower/f64.ttile_squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
+PLOTS += plots/tower/f64.sec7_1a_mxn.png
+PLOTS += plots/tower/f64.sec7_1b_mxk.png
+PLOTS += plots/tower/f64.sec7_1c_continuous.png
 
 PLOTS += plots/pinocchio/f32.ttile.png
 PLOTS += plots/pinocchio/f64.ttile.png
@@ -99,6 +102,15 @@ plots/%.bars.png: data/%.bars.jsonl src/autotuner/plot_cube.py
 
 plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 	uv run plot-heatmap $< --output $@
+
+plots/%.sec7_1a_mxn.png: data/%.sec7_1a_mxn.jsonl
+	uv run plot-ttile-squares $< --output $@
+
+plots/%.sec7_1b_mxk.png: data/%.sec7_1b_mxk.jsonl
+	uv run plot-heatmap $< --output $@
+
+plots/%.sec7_1c_continuous.png: data/%.sec7_1c_continuous.jsonl
+	uv run plot-ttile-combined $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)

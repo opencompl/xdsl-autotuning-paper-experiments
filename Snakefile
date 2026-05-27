@@ -700,3 +700,45 @@ TESTSET = {
 
 rule tests:
     input: TESTSET
+
+# ------------------------------------------------------------------------------
+# Evaluation Sweeps for Section 7.1
+# ------------------------------------------------------------------------------
+
+SEC7_1_VARIANTS = ["libxsmm", "xdsl_libxsmm"]
+
+DATASET_BASES.update({
+    "f64.sec7_1a_mxn": expand(
+        target_file(kernel="matmul_rowmaj", k="16", dtype="f64", ext="", target=THIS_TARGET),
+        variant=SEC7_1_VARIANTS,
+        m=[4, 8, 12, 16, 24, 32, 48, 64],
+        n=[4, 8, 12, 16, 24, 32, 48, 64],
+    ),
+    "f64.sec7_1b_mxk": expand(
+        target_file(kernel="matmul_rowmaj", n="16", dtype="f64", ext="", target=THIS_TARGET),
+        variant=SEC7_1_VARIANTS,
+        m=[4, 8, 12, 16, 24, 32, 48, 64],
+        k=[4, 8, 12, 16, 24, 32, 48, 64],
+    ),
+    "f64.sec7_1c_continuous": expand(
+        target_file(kernel="matmul_rowmaj", m="16", k="16", dtype="f64", ext="", target=THIS_TARGET),
+        variant=SEC7_1_VARIANTS,
+        n=range(4, 33),
+    )
+})
+
+rule run_sec7_1_data:
+    input:
+        a = [b + "json" for b in DATASET_BASES["f64.sec7_1a_mxn"]],
+        b = [b + "json" for b in DATASET_BASES["f64.sec7_1b_mxk"]],
+        c = [b + "json" for b in DATASET_BASES["f64.sec7_1c_continuous"]]
+    output:
+        "data/tower/f64.sec7_1a_mxn.jsonl",
+        "data/tower/f64.sec7_1b_mxk.jsonl",
+        "data/tower/f64.sec7_1c_continuous.jsonl"
+    shell:
+        """
+        cat {input.a} > data/tower/f64.sec7_1a_mxn.jsonl
+        cat {input.b} > data/tower/f64.sec7_1b_mxk.jsonl
+        cat {input.c} > data/tower/f64.sec7_1c_continuous.jsonl
+        """
