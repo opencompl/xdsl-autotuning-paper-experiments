@@ -19,6 +19,7 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
         fig, ax = plt.subplots(figsize=(8, 6))
         plot_axis_throughput(df, ax, x_row="N", show_xlabel=True, show_ylabel=True)
         ax.set_title(f"{df['dtype'].iloc[0]}, {TARGET_NAME.get(df['target'].iloc[0], df['target'].iloc[0])} — M = {df['M'].iloc[0]}, K = {df['K'].iloc[0]} (continuous sweep over N)")
+        ax.legend(title="Variant / ref.", loc="lower center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=8)
         plt.tight_layout()
         if output_path: plt.savefig(output_path, dpi=300, bbox_inches="tight")
         return
