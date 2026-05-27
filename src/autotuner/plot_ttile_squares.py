@@ -51,9 +51,14 @@ def main():
     square_matrices = square_matrices.rename(columns={"M": "M,N"})
     del square_matrices["N"]
     assert isinstance(square_matrices, pd.DataFrame)
+
+    # Extract actual parameters dynamically from your data frame
+    k_val = square_matrices['K'].iloc[0] if 'K' in square_matrices.columns else 16
+    max_mn = square_matrices['M'].max() if 'M' in square_matrices.columns else 64
+
     plot_flops_per_time(
         square_matrices,
-        title="Performance of small square matrix multiplication kernels, for M = N, K = 64 and 1 ≤ M,N ≤ 16",
+        title=f"Performance of square matrix multiplication kernels, for M = N, K = {k_val} and 1 ≤ M,N ≤ {max_mn}",
         xlabel="M,N",
         output_path=args.output,
     )
