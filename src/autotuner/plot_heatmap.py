@@ -30,26 +30,25 @@ def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
 
     heatmap_data = valid_data.pivot(index="M", columns=col_dim, values="perf")
 
-    im = ax.imshow(heatmap_data, cmap="YlOrRd", aspect="auto", vmin=0, vmax=100)
+    im = ax.imshow(heatmap_data, cmap="YlOrRd", aspect="auto", vmin=50, vmax=100)
 
     ax.set_xticks(np.arange(len(heatmap_data.columns)))
     ax.set_yticks(np.arange(len(heatmap_data.index)))
     ax.set_xticklabels(heatmap_data.columns)
     ax.set_yticklabels(heatmap_data.index)
 
-    # Text currently too small to fit in plot, can add back later when we re-format
-    # for i in range(len(heatmap_data.index)):
-    #     for j in range(len(heatmap_data.columns)):
-    #         val = heatmap_data.iloc[i, j]
-    #         if pd.notna(val):
-    #             ax.text(
-    #                 j,
-    #                 i,
-    #                 f"{val:.1f}",
-    #                 ha="center",
-    #                 va="center",
-    #                 color="black",
-    #             )
+    for i in range(len(heatmap_data.index)):
+         for j in range(len(heatmap_data.columns)):
+             val = heatmap_data.iloc[i, j]
+             if pd.notna(val):
+                 ax.text(
+                     j,
+                     i,
+                     f"{val:.1f}",
+                     ha="center",
+                     va="center",
+                     color="black",
+                 )
 
     ax.set_xlabel("K" if col_dim == "K" else "N")
     ax.set_ylabel("M")
