@@ -37,18 +37,23 @@ def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
     ax.set_xticklabels(heatmap_data.columns)
     ax.set_yticklabels(heatmap_data.index)
 
+    # Add high-contrast text color inside cells
     for i in range(len(heatmap_data.index)):
-         for j in range(len(heatmap_data.columns)):
-             val = heatmap_data.iloc[i, j]
-             if pd.notna(val):
-                 ax.text(
-                     j,
-                     i,
-                     f"{val:.1f}",
-                     ha="center",
-                     va="center",
-                     color="black",
-                 )
+        for j in range(len(heatmap_data.columns)):
+            val = heatmap_data.iloc[i, j]
+            if pd.notna(val):
+                text_color = "white" if val >= 75.0 else "black"
+                
+                ax.text(
+                    j,
+                    i,
+                    f"{val:.0f}%",
+                    ha="center",
+                    va="center",
+                    color=text_color,
+                    fontsize=7,
+                    fontweight="bold"
+                )
 
     ax.set_xlabel("K" if col_dim == "K" else "N")
     ax.set_ylabel("M")
