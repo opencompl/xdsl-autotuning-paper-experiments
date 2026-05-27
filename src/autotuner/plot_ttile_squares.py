@@ -21,7 +21,7 @@ def plot_flops_per_time(
     k_val = df['K'].iloc[0] if 'K' in df.columns else 16
     
     # Generate an upscaled, clear header 
-    ax.set_title(f"Performance of Square {dtype_str} Kernels (M = N, K = {k_val})", fontsize=14, fontweight="bold", pad=12)
+    ax.set_title(f"Performance of Square {dtype_str} Kernels (M = N, K = {k_val})", fontsize=14, pad=12)
     
     # Upscale labels and ticks for pristine PDF scaling
     ax.set_xlabel("Matrix Dimensions (M, N)", fontsize=12, labelpad=8)

@@ -23,7 +23,6 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
         ax.set_title(
             f"Performance of {dtype_str} Kernels\nM = {df['M'].iloc[0]}, K = {df['K'].iloc[0]} (continuous sweep)", 
             fontsize=14, 
-            fontweight="bold", 
             pad=12
         )
         
