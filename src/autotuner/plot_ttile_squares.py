@@ -13,13 +13,23 @@ def plot_flops_per_time(
     df: pd.DataFrame, title: str, xlabel: str, output_path: Path | None = None
 ):
     """Plot FLOPs per time for each kernel variant."""
-
     fig, ax = plt.subplots(figsize=(8, 6))
-
     plot_axis_throughput(df, ax, x_row=xlabel)
 
-    ax.set_title(title)
-    ax.legend(title="Variant")
+    # Extract the true dataset format directly
+    dtype_str = str(df['dtype'].iloc[0]).upper() if 'dtype' in df.columns else "F64"
+    k_val = df['K'].iloc[0] if 'K' in df.columns else 16
+    
+    # Generate an upscaled, clear header 
+    ax.set_title(f"Performance of Square {dtype_str} Kernels (M = N, K = {k_val})", fontsize=14, fontweight="bold", pad=12)
+    
+    # Upscale labels and ticks for pristine PDF scaling
+    ax.set_xlabel("Matrix Dimensions (M, N)", fontsize=12, labelpad=8)
+    ax.set_ylabel("Performance", fontsize=12, labelpad=8)
+    ax.tick_params(axis='both', which='major', labelsize=10)
+    
+    # Clean, larger legend bounding frame
+    ax.legend(title="Variant", fontsize=11, title_fontsize=11, loc="best")
     plt.tight_layout()
 
     if output_path:
@@ -45,6 +55,11 @@ def main():
     args = parser.parse_args()
 
     df = pd.read_json(args.input, lines=True)
+
+    df = pd.read_json(args.input, lines=True)
+
+    if df["M"].nunique() == 1 and df["N"].nunique() > 1:
+        return plot_flops_per_time(df, f"Performance of matrix multiplication kernels, for M = {df['M'].iloc[0]}, K = {df['K'].iloc[0]}", "N", args.output)
 
     square_matrices = df[df["M"] == df["N"]].copy()
     assert isinstance(square_matrices, pd.DataFrame)

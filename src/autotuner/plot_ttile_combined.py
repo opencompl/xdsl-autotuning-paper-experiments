@@ -14,12 +14,29 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
     if df.empty:
         return
 
-    # non-breaking intercept for continuous sweeps
     if df["M"].nunique() == 1 and df["N"].nunique() > 1:
         fig, ax = plt.subplots(figsize=(8, 6))
         plot_axis_throughput(df, ax, x_row="N", show_xlabel=True, show_ylabel=True)
-        ax.set_title(f"{df['dtype'].iloc[0]}, {TARGET_NAME.get(df['target'].iloc[0], df['target'].iloc[0])} — M = {df['M'].iloc[0]}, K = {df['K'].iloc[0]} (continuous sweep over N)")
-        ax.legend(title="Variant")
+        
+        # Explicitly tracking dtype and scaling title to 14pt
+        dtype_str = str(df['dtype'].iloc[0]).upper()
+        ax.set_title(
+            f"Performance of {dtype_str} Kernels\nM = {df['M'].iloc[0]}, K = {df['K'].iloc[0]} (continuous sweep)", 
+            fontsize=14, 
+            fontweight="bold", 
+            pad=12
+        )
+        
+        # Upscaling axis title labels to 12pt
+        ax.set_xlabel("Dimension N", fontsize=12, labelpad=8)
+        ax.set_ylabel("GFLOPS or % Peak Performance", fontsize=12, labelpad=8)
+        
+        # Upscaling coordinate number markings (ticks) to 10pt
+        ax.tick_params(axis='both', which='major', labelsize=10)
+        
+        # Scaling the internal legend box to 11pt
+        ax.legend(title="Variant", fontsize=11, title_fontsize=11, loc="best")
+        
         plt.tight_layout()
         if output_path: plt.savefig(output_path, dpi=300, bbox_inches="tight")
         return
