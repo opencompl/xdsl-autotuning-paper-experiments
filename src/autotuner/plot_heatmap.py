@@ -47,7 +47,7 @@ def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
                 ax.text(
                     j,
                     i,
-                    f"{val:.0f}%",
+                    f"{val:.1f}",
                     ha="center",
                     va="center",
                     color=text_color,
