@@ -104,13 +104,16 @@ plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 	uv run plot-heatmap $< --output $@
 
 plots/%.sec7_1a_mxn.jpg: data/%.sec7_1a_mxn.jsonl
-	uv run plot-ttile-squares $< --output $@
+	uv run plot-ttile-squares $< --output plots/$*.sec7_1a_mxn.jpg
+	uv run plot-ttile-squares $< --output plots/$*.sec7_1a_mxn.pdf
 
 plots/%.sec7_1b_mxk.jpg: data/%.sec7_1b_mxk.jsonl
-	uv run plot-heatmap $< --output $@
+	uv run plot-heatmap $< --output plots/$*.sec7_1b_heatmap.jpg
+	uv run plot-heatmap $< --output plots/$*.sec7_1b_heatmap.pdf
 
 plots/%.sec7_1c_continuous.jpg: data/%.sec7_1c_continuous.jsonl
-	uv run plot-ttile-combined $< --output $@
+	uv run plot-ttile-combined $< --output plots/$*.sec7_1c_continuous.jpg
+	uv run plot-ttile-combined $< --output plots/$*.sec7_1c_continuous.pdf
 
 .PHONY: plots
 plots: $(PLOTS)

@@ -14,9 +14,12 @@ for p_str in files:
     ops = 2 * mrg["M"] * mrg.get("N", 16) * mrg.get("K", 16)
     mrg["g_b"], mrg["g_a"] = ops / (mrg["time_b"] * 1e9), ops / (mrg["time_a"] * 1e9)
     mrg["diff"] = (abs(mrg["g_b"] - mrg["g_a"]) / mrg["g_b"]) * 100
-    mrg["w"] = mrg.apply(lambda r: "xDSL" if r["g_a"] > r["g_b"] else "Base", axis=1)
+    mrg["w"] = mrg.apply(lambda r: "xdsl_libxsmm" if r["g_a"] > r["g_b"] else "libxsmm", axis=1)
+    
+    max_row = mrg.loc[mrg["diff"].idxmax()]
     
     out_list = mrg.sort_values("diff", ascending=False).head(3)
-    out_str = " | ".join([f"({int(r['M'])},{int(r.get('N',16))},{int(r.get('K',16))}): {r['diff']:.1f}% ({r['w']})" for _, r in out_list.iterrows()])
+    # Explicitly label 'Winner:' for each outlier shape
+    out_str = " | ".join([f"({int(r['M'])},{int(r.get('N',16))},{int(r.get('K',16))}): {r['diff']:.1f}% (Winner: {r['w']})" for _, r in out_list.iterrows()])
     
-    print(f"{path.name:<28} -> Max: {mrg['diff'].max():.2f}% | Avg: {mrg['diff'].mean():.2f}% | Outliers -> {out_str}")
+    print(f"{path.name:<28} -> Max Diff: {mrg['diff'].max():.2f}% (Winner: {max_row['w']}) | Avg Diff: {mrg['diff'].mean():.2f}% | Outliers -> {out_str}")
