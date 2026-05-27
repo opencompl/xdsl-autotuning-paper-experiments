@@ -14,6 +14,15 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
     if df.empty:
         return
 
+    # non-breaking intercept for continuous sweeps
+    if df["M"].nunique() == 1 and df["N"].nunique() > 1:
+        fig, ax = plt.subplots(figsize=(8, 6))
+        plot_axis_throughput(df, ax, x_row="N", show_xlabel=True, show_ylabel=True)
+        ax.set_title(f"{df['dtype'].iloc[0]}, {TARGET_NAME.get(df['target'].iloc[0], df['target'].iloc[0])} — M = {df['M'].iloc[0]}, K = {df['K'].iloc[0]} (continuous sweep over N)")
+        plt.tight_layout()
+        if output_path: plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        return
+
     targets = set(df["target"])
     dtypes = set(df["dtype"])
     assert len(targets) == len(dtypes) == 1
