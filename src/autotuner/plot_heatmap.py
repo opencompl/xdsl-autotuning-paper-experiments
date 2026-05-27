@@ -51,7 +51,7 @@ def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
     #                 color="black",
     #             )
 
-    ax.set_xlabel("N")
+    ax.set_xlabel("K" if col_dim == "K" else "N")
     ax.set_ylabel("M")
     ax.set_title(title)
 
@@ -85,10 +85,13 @@ def plot_heatmap_throughput_over_peak(
     for j in range(len(variants), len(axes.flat)):
         axes.flat[j].axis("off")
 
-    fig.suptitle(
-        "Performance of small square matrix multiplication kernels, for 1 ≤ M ≤ 16, 1 ≤ N ≤ 16, K = 64",
-        y=1.02,
-    )
+    if "N" in df.columns and df["N"].nunique() == 1 and df["N"].iloc[0] == 16:
+        config_title = "Performance of matrix multiplication kernels, for 4 ≤ M ≤ 64, N = 16, 4 ≤ K ≤ 64"
+    else:
+        config_title = "Performance of small square matrix multiplication kernels, for 1 ≤ M ≤ 16, 1 ≤ N ≤ 16, K = 64"
+
+    fig.suptitle(config_title, y=1.02)
+
     fig.tight_layout(rect=(0, 0, 1, 0.96))
 
     if ims:
