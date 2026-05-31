@@ -19,6 +19,14 @@ from xdsl.dialects.x86.registers import (
 )
 from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.rewriter import InsertPoint
+from autotuner.compxsmm_gemm.generator_gemm_common import (
+    compxsmm_generator_gemm_header_mloop,
+    compxsmm_generator_gemm_footer_kloop,
+    compxsmm_generator_gemm_footer_mloop,
+    compxsmm_generator_gemm_footer_nloop,
+    compxsmm_generator_gemm_header_kloop,
+    compxsmm_generator_gemm_header_nloop,
+)
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK,
     GPRegMapping,
@@ -34,12 +42,6 @@ from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_destroy_stack_frame,
-    libxsmm_generator_gemm_footer_kloop,
-    libxsmm_generator_gemm_footer_mloop,
-    libxsmm_generator_gemm_footer_nloop,
-    libxsmm_generator_gemm_header_kloop,
-    libxsmm_generator_gemm_header_mloop,
-    libxsmm_generator_gemm_header_nloop,
     libxsmm_generator_gemm_init_micro_kernel_config,
     libxsmm_generator_gemm_load_C,
     libxsmm_generator_gemm_setup_stack_frame,
@@ -456,7 +458,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         m_blocking = 0
 
         # open N loop
-        libxsmm_generator_gemm_header_nloop(
+        compxsmm_generator_gemm_header_nloop(
             generated_code,
             loop_label_tracker,
             gp_reg_mapping,
@@ -677,7 +679,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                libxsmm_generator_gemm_header_mloop(
+                compxsmm_generator_gemm_header_mloop(
                     generated_code,
                     loop_label_tracker,
                     gp_reg_mapping,
@@ -726,7 +728,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     m_blocking,
                     n_blocking,
                 )
-                libxsmm_generator_gemm_footer_mloop(
+                compxsmm_generator_gemm_footer_mloop(
                     generated_code,
                     loop_label_tracker,
                     gp_reg_mapping,
@@ -741,7 +743,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 micro_kernel_config, desc, generated_code.arch, m_blocking
             )
 
-        libxsmm_generator_gemm_footer_nloop(
+        compxsmm_generator_gemm_footer_nloop(
             generated_code,
             loop_label_tracker,
             gp_reg_mapping,
@@ -862,7 +864,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
     if not desc.k % k_blocking and k_threshold < desc.k:
         # 1. we are larger the k_threshold and a multiple of a predefined blocking parameter
-        libxsmm_generator_gemm_header_kloop(
+        compxsmm_generator_gemm_header_kloop(
             generated_code,
             label_tracker,
             gp_reg_mapping,
@@ -879,7 +881,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             n_blocking,
             k_blocking,
         )
-        libxsmm_generator_gemm_footer_kloop(
+        compxsmm_generator_gemm_footer_kloop(
             generated_code,
             label_tracker,
             gp_reg_mapping,
@@ -909,7 +911,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
             # We can block as k is large enough
             if l_max_blocked_k > 0:
-                libxsmm_generator_gemm_header_kloop(
+                compxsmm_generator_gemm_header_kloop(
                     generated_code,
                     label_tracker,
                     gp_reg_mapping,
@@ -928,7 +930,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     k_blocking,
                 )
 
-                libxsmm_generator_gemm_footer_kloop(
+                compxsmm_generator_gemm_footer_kloop(
                     generated_code,
                     label_tracker,
                     gp_reg_mapping,
