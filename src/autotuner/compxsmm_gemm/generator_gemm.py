@@ -5,10 +5,10 @@ from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.ir import Block, Region
 from xdsl.printer import Printer
 
-from autotuner.libxsmm_gemm.generator_common import libxsmm_mmfunction_signature
-from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
-    libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper,
+from autotuner.compxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
+    compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper,
 )
+from autotuner.libxsmm_gemm.generator_common import libxsmm_mmfunction_signature
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
@@ -632,7 +632,7 @@ def compxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescri
             raise NotImplementedError
             # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
         else:
-            libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
+            compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
                 func_op, arch, desc_mod
             )
     elif arch in (Arch.LIBXSMM_AARCH64_V81, Arch.LIBXSMM_AARCH64_V82):
