@@ -326,29 +326,24 @@ def libxsmm_generator_gemm_header_kloop(
     args = tuple(generated_code.current_val_by_reg.values())
     arg_types = tuple(arg.type for arg in args)
 
-    if k_init_op.next_op is not None:
-        # Existing block divided in two, new one inserted
-        new_block = Block(arg_types=arg_types)
-        new_block = existing_block.split_before(k_init_op.next_op, arg_types=arg_types)
-        parent_region.insert_block_after(new_block, existing_block)
-    else:
-        # Existing block kept as-is, two new ones inserted
-        new_block = Block(arg_types=arg_types)
-        block_after = Block(arg_types=arg_types)
-        parent_region.insert_block_after((new_block, block_after), existing_block)
-    loop_label_tracker.dest_blocks.append(new_block)
+    assert k_init_op.next_op is None
+
+    # Insert new block
+    body_block = Block(arg_types=arg_types)
+    parent_region.insert_block_after(body_block, existing_block)
+    loop_label_tracker.dest_blocks.append(body_block)
 
     # Jump/fallthrough to the newly created block
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
     # next block
     Rewriter.insert_op(
-        x86.ops.FallthroughOp(args, new_block),
+        x86.ops.FallthroughOp(args, body_block),
         InsertPoint.at_end(existing_block),
     )
 
-    generated_code.builder.insertion_point = InsertPoint.at_start(new_block)
+    generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
     curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in new_block.args}
+    curr_vals |= {arg.type: arg for arg in body_block.args}
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
     generated_code.insert(
@@ -814,31 +809,24 @@ def libxsmm_generator_gemm_header_nloop(
     args = tuple(generated_code.current_val_by_reg.values())
     arg_types = tuple(arg.type for arg in args)
 
-    if n_init_op.next_op is not None:
-        # Existing block divided in two, new one inserted
-        new_block = Block(arg_types=arg_types)
-        block_after = existing_block.split_before(
-            n_init_op.next_op, arg_types=arg_types
-        )
-        parent_region.insert_block_after(new_block, existing_block)
-    else:
-        # Existing block kept as-is, two new ones inserted
-        new_block = Block(arg_types=arg_types)
-        block_after = Block(arg_types=arg_types)
-        parent_region.insert_block_after((new_block, block_after), existing_block)
-    loop_label_tracker.dest_blocks.append(new_block)
+    assert n_init_op.next_op is None
+
+    # Insert new block
+    body_block = Block(arg_types=arg_types)
+    parent_region.insert_block_after(body_block, existing_block)
+    loop_label_tracker.dest_blocks.append(body_block)
 
     # Jump/fallthrough to the newly created block
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
     # next block
     Rewriter.insert_op(
-        x86.ops.FallthroughOp(args, new_block),
+        x86.ops.FallthroughOp(args, body_block),
         InsertPoint.at_end(existing_block),
     )
 
-    generated_code.builder.insertion_point = InsertPoint.at_start(new_block)
+    generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
     curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in new_block.args}
+    curr_vals |= {arg.type: arg for arg in body_block.args}
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
     generated_code.insert(
@@ -1041,31 +1029,24 @@ def libxsmm_generator_gemm_header_mloop(
     args = tuple(generated_code.current_val_by_reg.values())
     arg_types = tuple(arg.type for arg in args)
 
-    if m_init_op.next_op is not None:
-        # Existing block divided in two, new one inserted
-        new_block = Block(arg_types=arg_types)
-        block_after = existing_block.split_before(
-            m_init_op.next_op, arg_types=arg_types
-        )
-        parent_region.insert_block_after(new_block, existing_block)
-    else:
-        # Existing block kept as-is, two new ones inserted
-        new_block = Block(arg_types=arg_types)
-        block_after = Block(arg_types=arg_types)
-        parent_region.insert_block_after((new_block, block_after), existing_block)
-    loop_label_tracker.dest_blocks.append(new_block)
+    assert m_init_op.next_op is None
+
+    # Insert new block
+    body_block = Block(arg_types=arg_types)
+    parent_region.insert_block_after((body_block), existing_block)
+    loop_label_tracker.dest_blocks.append(body_block)
 
     # Jump/fallthrough to the newly created block
     # TODO: make sure that we don't print the jump in xDSL if the destination is the
     # next block
     Rewriter.insert_op(
-        x86.ops.FallthroughOp(args, new_block),
+        x86.ops.FallthroughOp(args, body_block),
         InsertPoint.at_end(existing_block),
     )
 
-    generated_code.builder.insertion_point = InsertPoint.at_start(new_block)
+    generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
     curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in new_block.args}
+    curr_vals |= {arg.type: arg for arg in body_block.args}
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
     generated_code.insert(
