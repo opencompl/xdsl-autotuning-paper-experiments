@@ -14,7 +14,7 @@ from xdsl.dialects.x86.registers import (
     RDX,
 )
 from xdsl.ir import Block, Region
-from xdsl.dialects.x86_func import FuncOp, RetOp
+from xdsl.dialects.x86_func import FuncOp
 from xdsl.rewriter import InsertPoint, Rewriter
 
 LIBXSMM_X86_AVX512_MASK = 1  # this specifies k1
@@ -25,7 +25,7 @@ def libxsmm_mmfunction_signature(module: ModuleOp, routine_name: str) -> FuncOp:
 
     func = FuncOp(
         routine_name,
-        Region(Block((RetOp(),), arg_types=operand_types)),
+        Region(Block(arg_types=operand_types)),
         (operand_types, ()),
         "public",
     )
