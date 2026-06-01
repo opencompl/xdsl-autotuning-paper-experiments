@@ -17,7 +17,7 @@ from xdsl.dialects.x86.registers import (
     RSI,
     UNALLOCATED_REG64,
 )
-from xdsl.dialects.x86_func import FuncOp, RetOp
+from xdsl.dialects.x86_func import FuncOp
 from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK,
