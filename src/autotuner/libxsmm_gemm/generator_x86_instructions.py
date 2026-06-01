@@ -5,7 +5,7 @@ from xdsl.dialects.x86.registers import (
     GeneralRegisterType,
     X86VectorRegisterType,
 )
-from xdsl.ir import SSAValue
+from xdsl.ir import Block, SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping, LoopLabelTracker
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
@@ -183,8 +183,13 @@ def libxsmm_x86_instruction_jump_back_to_label(
     curr_args = tuple(curr_vals[arg.type] for arg in dest_block.args)
 
     curr_block = generated_code.current_block
+    curr_region = curr_block.parent
+    assert curr_region is not None
     fallthrough_block = curr_block.next_block
-    assert fallthrough_block is not None
+    assert fallthrough_block is None
+
+    fallthrough_block = Block(arg_types=dest_block.arg_types)
+    curr_region.insert_block_after(fallthrough_block, curr_block)
 
     assert (cmp_op := curr_block.last_op) is not None
     assert len(cmp_op.results) == 1
@@ -194,7 +199,7 @@ def libxsmm_x86_instruction_jump_back_to_label(
     )
 
     # set insert point to fallthrough block and update current values
-    generated_code.builder.insertion_point = InsertPoint.at_start(fallthrough_block)
+    generated_code.builder.insertion_point = InsertPoint.at_end(fallthrough_block)
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in fallthrough_block.args}
 
