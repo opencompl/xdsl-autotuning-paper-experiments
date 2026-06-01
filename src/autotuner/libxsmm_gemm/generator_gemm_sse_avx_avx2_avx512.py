@@ -132,9 +132,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     gp_reg_mapping.gp_reg_help_1 = R15
     gp_reg_mapping.gp_reg_help_2 = RBX
 
-    ret_op = func_op.body.block.last_op
-    assert isinstance(ret_op, RetOp)
-    builder = Builder(InsertPoint.before(ret_op))
+    builder = Builder(InsertPoint.at_end(func_op.body.block))
+
     generated_code = GeneratedCode(
         func_op, builder, arch, {arg.type: arg for arg in func_op.body.block.args}
     )
