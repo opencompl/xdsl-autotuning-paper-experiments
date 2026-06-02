@@ -460,11 +460,11 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         # open N loop
         compxsmm_generator_gemm_header_nloop(
             generated_code,
-            loop_label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
-            n_done,
-            n_blocking,
+            n_init=n_done,
+            n_blocking=n_blocking,
+            n_done=n_done + n_N[n_count],
         )
 
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
@@ -751,12 +751,10 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
         compxsmm_generator_gemm_footer_nloop(
             generated_code,
-            loop_label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
             desc,
-            n_blocking,
-            n_done,
+            n_blocking=n_blocking,
         )
 
     # In this case we vnni-format C from scratch

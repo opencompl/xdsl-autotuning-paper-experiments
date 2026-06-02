@@ -1,21 +1,16 @@
 from xdsl.dialects.x86.ops import si32
 from xdsl.ir import Block, Region, SSAValue
 from xdsl.parser import IntegerAttr
-from xdsl.rewriter import InsertPoint, Rewriter
+from xdsl.rewriter import InsertPoint
 from xdsl.dialects import x86_scf
 from autotuner.libxsmm_gemm.generator_common import (
     GEMMStackVar,
     GPRegMapping,
-    LoopLabelTracker,
     MicroKernelConfig,
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_getval_stack_var,
     libxsmm_generator_gemm_setval_stack_var,
-)
-from autotuner.libxsmm_gemm.generator_x86_instructions import (
-    libxsmm_x86_instruction_jump_back_to_label,
-    libxsmm_x86_instruction_register_jump_back_label,
 )
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 
@@ -131,12 +126,13 @@ def compxsmm_generator_gemm_footer_kloop(
 
 def compxsmm_generator_gemm_header_nloop(
     generated_code: GeneratedCode,
-    loop_label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
+    *,
     n_init: int,
     n_blocking: int,
-) -> None:
+    n_done: int,
+) -> x86_scf.ForOp:
     """
     In original, adds three lines of assembly: set counter to n_init, add label, add n_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
@@ -151,42 +147,38 @@ def compxsmm_generator_gemm_header_nloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    args = tuple(generated_code.current_val_by_reg.values())
-    arg_types = tuple(arg.type for arg in args)
-
-    assert n_init_op.next_op is None, n_init_op.next_op
-
-    # Insert new block
-    body_block = Block(arg_types=arg_types)
-    parent_region.insert_block_after(body_block, existing_block)
-    loop_label_tracker.dest_blocks.append(body_block)
-
-    # Jump/fallthrough to the newly created block
-    # TODO: make sure that we don't print the jump in xDSL if the destination is the
-    # next block
-    Rewriter.insert_op(
-        x86.ops.FallthroughOp(args, body_block),
-        InsertPoint.at_end(existing_block),
+    # n is passed as lb, so no need to include in iter_args
+    args = tuple(
+        val
+        for val in generated_code.current_val_by_reg.values()
+        if val.type != n_arg_reg
     )
+
+    nloop_op = generated_code.builder.insert(
+        x86_scf.ForOp(
+            n_init_op.destination,
+            IntegerAttr(n_done, si32),
+            IntegerAttr(n_blocking, si32),
+            args,
+        )
+    )
+
+    body_block = nloop_op.body.block
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in body_block.args}
 
-    libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
-    generated_code.insert(
-        x86.ops.RI_AddOp(curr_vals[n_arg_reg], n_blocking, register_out=n_arg_reg)
-    )
+    return nloop_op
 
 
 def compxsmm_generator_gemm_footer_nloop(
     generated_code: GeneratedCode,
-    loop_label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
     desc: GEMMDescriptor,
+    *,
     n_blocking: int,
-    n_done: int,
 ) -> None:
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
     is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
@@ -337,16 +329,24 @@ def compxsmm_generator_gemm_footer_nloop(
         if GEMMPrefetchType.AL2 == desc.prefetch:
             raise NotImplementedError
 
-    generated_code.insert(
-        x86.ops.SI_CmpOp(
-            generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_nloop],
-            n_done,
-        )
+    # Insert yield op for resulting registers
+    body_block = generated_code.builder.insertion_point.block
+    yielded_arg_types = body_block.arg_types[1:]
+    yielded_args = tuple(
+        generated_code.current_val_by_reg[val_type] for val_type in yielded_arg_types
     )
 
-    libxsmm_x86_instruction_jump_back_to_label(
-        generated_code, x86.ops.C_JlOp, loop_label_tracker
-    )
+    generated_code.insert(x86_scf.YieldOp(*yielded_args))
+
+    # Set up builder to build after loop
+    nloop_op = body_block.parent_op()
+    assert isinstance(nloop_op, x86_scf.ForOp), nloop_op
+
+    curr_vals = generated_code.current_val_by_reg
+    curr_vals.clear()
+    curr_vals |= {arg.type: arg for arg in nloop_op.results}
+
+    generated_code.builder.insertion_point = InsertPoint.after(nloop_op)
 
 
 def compxsmm_generator_gemm_header_mloop(
@@ -363,6 +363,7 @@ def compxsmm_generator_gemm_header_mloop(
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
     """
     m_arg_reg = gp_reg_mapping.gp_reg_mloop
+    n_arg_reg = gp_reg_mapping.gp_reg_nloop
 
     curr_vals = generated_code.current_val_by_reg
     generated_code.insert(m_init_op := x86.ops.DI_MovOp(m_init, destination=m_arg_reg))
@@ -373,10 +374,11 @@ def compxsmm_generator_gemm_header_mloop(
     assert parent_region is not None
 
     # m is passed as lb, so no need to include in iter_args
+    # n loop is currently accidentally included in the args even though it's not used in the loop, exclude it for now
     args = tuple(
         val
         for val in generated_code.current_val_by_reg.values()
-        if val.type != m_arg_reg
+        if val.type not in (m_arg_reg, n_arg_reg)
     )
 
     mloop_op = generated_code.builder.insert(
@@ -544,11 +546,10 @@ def compxsmm_generator_gemm_footer_mloop(
         else:
             a = generated_code.insert(x86.ops.RI_SubOp(a, a_offset)).register_out
 
-        # Insert yield op for resulting registers
-        body_block = generated_code.builder.insertion_point.block
-        yielded_arg_types = body_block.arg_types[1:]
-        yielded_args = tuple(
-            generated_code.current_val_by_reg[val_type]
-            for val_type in yielded_arg_types
-        )
-        generated_code.insert(x86_scf.YieldOp(*yielded_args))
+    # Insert yield op for resulting registers
+    body_block = generated_code.builder.insertion_point.block
+    yielded_arg_types = body_block.arg_types[1:]
+    yielded_args = tuple(
+        generated_code.current_val_by_reg[val_type] for val_type in yielded_arg_types
+    )
+    generated_code.insert(x86_scf.YieldOp(*yielded_args))

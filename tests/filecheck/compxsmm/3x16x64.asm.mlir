@@ -12,7 +12,7 @@
 // CHECK-NEXT:      mov r10, -64
 // CHECK-NEXT:      and rsp, r10
 // CHECK-NEXT:      mov r11, 0
-// CHECK-NEXT:  l33:
+// CHECK-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-NEXT:      add r11, 3
 // CHECK-NEXT:      mov r10, 0
 // CHECK-NEXT:  [[SCF_M_BODY:^\S+]]:
@@ -95,7 +95,7 @@
 // CHECK-NEXT:      add rsi, 1536
 // CHECK-NEXT:      sub rdi, 128
 // CHECK-NEXT:      cmp r11, 3
-// CHECK-NEXT:      jl l33
+// CHECK-NEXT:      jl [[SCF_N_BODY]]
 // CHECK-NEXT:      mov rsp, rbp
 // CHECK-NEXT:      pop rbp
 // CHECK-NEXT:      pop r12
