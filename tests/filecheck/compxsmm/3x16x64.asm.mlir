@@ -15,7 +15,7 @@
 // CHECK-NEXT:  l33:
 // CHECK-NEXT:      add r11, 3
 // CHECK-NEXT:      mov r10, 0
-// CHECK-NEXT:  l34:
+// CHECK-NEXT:  [[SCF_M_BODY:^\S+]]:
 // CHECK-NEXT:      add r10, 16
 // CHECK-NEXT:      vmovapd zmm26, [rdx]
 // CHECK-NEXT:      vmovapd zmm27, [rdx+64]
@@ -90,7 +90,7 @@
 // CHECK-NEXT:      add rdx, 128
 // CHECK-NEXT:      sub rdi, 8064
 // CHECK-NEXT:      cmp r10, 16
-// CHECK-NEXT:      jl l34
+// CHECK-NEXT:      jl [[SCF_M_BODY]]
 // CHECK-NEXT:      add rdx, 256
 // CHECK-NEXT:      add rsi, 1536
 // CHECK-NEXT:      sub rdi, 128

@@ -679,13 +679,13 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                compxsmm_generator_gemm_header_mloop(
+                mloop_op = compxsmm_generator_gemm_header_mloop(
                     generated_code,
-                    loop_label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
-                    m_done_old,
-                    m_blocking,
+                    m_init=m_done_old,
+                    m_blocking=m_blocking,
+                    m_done=m_done,
                 )
                 libxsmm_generator_gemm_load_C(
                     generated_code,
@@ -728,15 +728,21 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     m_blocking,
                     n_blocking,
                 )
+
                 compxsmm_generator_gemm_footer_mloop(
                     generated_code,
-                    loop_label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
                     desc,
-                    m_blocking,
-                    m_done,
+                    m_blocking=m_blocking,
                 )
+
+                # Set up builder to build after loop
+                curr_vals = generated_code.current_val_by_reg
+                curr_vals.clear()
+                curr_vals |= {arg.type: arg for arg in mloop_op.results}
+
+                generated_code.builder.insertion_point = InsertPoint.after(mloop_op)
 
             # switch to next smaller m_blocking
             m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
