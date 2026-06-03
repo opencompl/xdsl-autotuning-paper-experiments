@@ -502,7 +502,8 @@ def libxsmm_generator_gemm_setup_stack_frame(
             raise NotImplementedError
 
     # Now align RSP to 64 byte boundary
-    temp = generated_code.insert(
+    # Use builder directly to avoid inserting temp_reg into current_registers
+    temp = generated_code.builder.insert(
         x86.ops.DI_MovOp(IntegerAttr(-64, si32), destination=temp_reg)
     ).destination
     rsp = generated_code.insert(x86.ops.RS_AndOp(rsp, temp))
