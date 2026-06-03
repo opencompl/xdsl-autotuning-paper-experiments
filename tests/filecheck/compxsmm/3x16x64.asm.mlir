@@ -1,4 +1,4 @@
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && cat %t | xdsl-opt -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
+// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && cat %t | xdsl-opt -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
 
 // CHECK:       .intel_syntax noprefix
 // CHECK-NEXT:  .text
