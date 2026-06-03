@@ -1,4 +1,4 @@
-// RUN: libxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
+// RUN: libxsmm-gemm dense %t matmul_bac 16 3 25 16 25 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
 
 // CHECK:       .intel_syntax noprefix
 // CHECK-NEXT:  .text
@@ -31,10 +31,10 @@
 // CHECK-NEXT:      vbroadcastsd zmm0, [rsi]
 // CHECK-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+512]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+200]
 // CHECK-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+400]
 // CHECK-NEXT:      add rsi, 8
 // CHECK-NEXT:      add rdi, 128
 // CHECK-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
@@ -44,10 +44,10 @@
 // CHECK-NEXT:      vbroadcastsd zmm0, [rsi]
 // CHECK-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+512]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+200]
 // CHECK-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+400]
 // CHECK-NEXT:      add rsi, 8
 // CHECK-NEXT:      add rdi, 128
 // CHECK-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
@@ -57,10 +57,10 @@
 // CHECK-NEXT:      vbroadcastsd zmm0, [rsi]
 // CHECK-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+512]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+200]
 // CHECK-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+400]
 // CHECK-NEXT:      add rsi, 8
 // CHECK-NEXT:      add rdi, 128
 // CHECK-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
@@ -70,17 +70,30 @@
 // CHECK-NEXT:      vbroadcastsd zmm0, [rsi]
 // CHECK-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+512]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+200]
 // CHECK-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+400]
 // CHECK-NEXT:      add rsi, 8
 // CHECK-NEXT:      add rdi, 128
 // CHECK-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-NEXT:      cmp r12, 64
+// CHECK-NEXT:      cmp r12, 24
 // CHECK-NEXT:      jl l35
-// CHECK-NEXT:      sub rsi, 512
+// CHECK-NEXT:      vmovapd zmm1, [rdi]
+// CHECK-NEXT:      vmovapd zmm2, [rdi+64]
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi]
+// CHECK-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
+// CHECK-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+200]
+// CHECK-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
+// CHECK-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
+// CHECK-NEXT:      vbroadcastsd zmm0, [rsi+400]
+// CHECK-NEXT:      add rsi, 8
+// CHECK-NEXT:      add rdi, 128
+// CHECK-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
+// CHECK-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
+// CHECK-NEXT:      sub rsi, 200
 // CHECK-NEXT:      vmovapd [rdx], zmm26
 // CHECK-NEXT:      vmovapd [rdx+64], zmm27
 // CHECK-NEXT:      vmovapd [rdx+128], zmm28
@@ -88,11 +101,11 @@
 // CHECK-NEXT:      vmovapd [rdx+256], zmm30
 // CHECK-NEXT:      vmovapd [rdx+320], zmm31
 // CHECK-NEXT:      add rdx, 128
-// CHECK-NEXT:      sub rdi, 8064
+// CHECK-NEXT:      sub rdi, 3072
 // CHECK-NEXT:      cmp r10, 16
 // CHECK-NEXT:      jl l34
 // CHECK-NEXT:      add rdx, 256
-// CHECK-NEXT:      add rsi, 1536
+// CHECK-NEXT:      add rsi, 600
 // CHECK-NEXT:      sub rdi, 128
 // CHECK-NEXT:      cmp r11, 3
 // CHECK-NEXT:      jl l33
