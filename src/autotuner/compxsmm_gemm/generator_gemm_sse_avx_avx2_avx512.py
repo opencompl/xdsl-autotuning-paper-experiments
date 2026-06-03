@@ -34,28 +34,28 @@ from autotuner.libxsmm_gemm.generator_common import (
     MicroKernelConfig,
     libxsmm_compute_equalized_blocking,
 )
-from autotuner.libxsmm_gemm.generator_common_x86 import (
-    libxsmm_generator_initialize_avx512_mask,
+from autotuner.compxsmm_gemm.generator_common_x86 import (
+    compxsmm_generator_initialize_avx512_mask,
 )
-from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
-    libxsmm_generator_gemm_avx512_kloop_kernel,
+from autotuner.compxsmm_gemm.generator_gemm_avx512_microkernel import (
+    compxsmm_generator_gemm_avx512_kloop_kernel,
 )
-from autotuner.libxsmm_gemm.generator_gemm_common import (
-    libxsmm_generator_gemm_destroy_stack_frame,
-    libxsmm_generator_gemm_init_micro_kernel_config,
-    libxsmm_generator_gemm_load_C,
-    libxsmm_generator_gemm_setup_stack_frame,
-    libxsmm_generator_gemm_store_C,
+from autotuner.compxsmm_gemm.generator_gemm_common import (
+    compxsmm_generator_gemm_destroy_stack_frame,
+    compxsmm_generator_gemm_init_micro_kernel_config,
+    compxsmm_generator_gemm_load_C,
+    compxsmm_generator_gemm_setup_stack_frame,
+    compxsmm_generator_gemm_store_C,
 )
 from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
     libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking,
     libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking,
 )
-from autotuner.libxsmm_gemm.generator_x86_instructions import (
-    libxsmm_x86_instruction_open_stream_gemm,
+from autotuner.compxsmm_gemm.generator_x86_instructions import (
+    compxsmm_x86_instruction_open_stream_gemm,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
+from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import (
     DescDatatype,
     GEMMDescriptor,
@@ -142,7 +142,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         func_op, builder, arch, {arg.type: arg for arg in func_op.body.block.args}
     )
 
-    libxsmm_x86_instruction_open_stream_gemm(
+    compxsmm_x86_instruction_open_stream_gemm(
         generated_code, gp_reg_mapping, False, desc.prefetch
     )
     compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
@@ -287,7 +287,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         flags &= ~GEMMFlag.TRANS_B
 
     # Define the micro kernel code gen properties
-    libxsmm_generator_gemm_init_micro_kernel_config(
+    compxsmm_generator_gemm_init_micro_kernel_config(
         micro_kernel_config, generated_code.arch, desc, False
     )
 
@@ -389,7 +389,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         raise NotImplementedError
 
     # Setting up the stack frame
-    libxsmm_generator_gemm_setup_stack_frame(
+    compxsmm_generator_gemm_setup_stack_frame(
         generated_code, desc, gp_reg_mapping, micro_kernel_config
     )
 
@@ -593,7 +593,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                             Datatype.F16 == desc.datatype.comp
                             and (generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SPR)
                         )
-                        libxsmm_generator_initialize_avx512_mask(
+                        compxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
                             LIBXSMM_X86_AVX512_MASK,
@@ -607,7 +607,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                                 if is_compute_f16_gemm
                                 else corrected_vlen
                             )
-                            libxsmm_generator_initialize_avx512_mask(
+                            compxsmm_generator_initialize_avx512_mask(
                                 generated_code,
                                 gp_reg_mapping.gp_reg_help_1,
                                 2,
@@ -616,7 +616,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                                 else c_vlen_adjusted - (m_blocking % c_vlen_adjusted),
                                 Datatype.I32,
                             )
-                            libxsmm_generator_initialize_avx512_mask(
+                            compxsmm_generator_initialize_avx512_mask(
                                 generated_code,
                                 gp_reg_mapping.gp_reg_help_1,
                                 3,
@@ -656,7 +656,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                                     else mask_count + 48
                                 )
 
-                        libxsmm_generator_initialize_avx512_mask(
+                        compxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
                             2,
@@ -664,7 +664,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                             desc.datatype.c,
                         )
                     else:
-                        libxsmm_generator_initialize_avx512_mask(
+                        compxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
                             LIBXSMM_X86_AVX512_MASK,
@@ -687,7 +687,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     m_blocking=m_blocking,
                     m_done=m_done,
                 )
-                libxsmm_generator_gemm_load_C(
+                compxsmm_generator_gemm_load_C(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
@@ -720,7 +720,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                libxsmm_generator_gemm_store_C(
+                compxsmm_generator_gemm_store_C(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
@@ -762,7 +762,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         raise NotImplementedError
 
     # destroy stack frame
-    libxsmm_generator_gemm_destroy_stack_frame(
+    compxsmm_generator_gemm_destroy_stack_frame(
         generated_code, desc, gp_reg_mapping, micro_kernel_config
     )
 
@@ -852,7 +852,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX
         and generated_code.arch <= Arch.LIBXSMM_X86_ALLFEAT
     ):
-        generator_kloop_kernel = libxsmm_generator_gemm_avx512_kloop_kernel
+        generator_kloop_kernel = compxsmm_generator_gemm_avx512_kloop_kernel
     else:
         assert False, (
             f"Unsupported architecture {generated_code.arch} for micro-kernel generation"
