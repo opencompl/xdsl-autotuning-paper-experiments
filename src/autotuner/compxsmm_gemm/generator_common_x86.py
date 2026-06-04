@@ -1,5 +1,6 @@
 from xdsl.dialects import x86
 from xdsl.dialects.x86.registers import GeneralRegisterType
+from xdsl.ir import SSAValue
 from autotuner.compxsmm_gemm.generator_x86_instructions import (
     compxsmm_x86_instruction_mask_move_ld,
 )
@@ -14,7 +15,7 @@ def compxsmm_generator_initialize_avx512_mask(
     mask_reg: x86.registers.AVX512MaskRegisterType,
     mask_count: int,
     datatype: Datatype,
-):
+) -> SSAValue[x86.registers.AVX512MaskRegisterType]:
     mask = 0
 
     if (generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SKX) and (
@@ -75,7 +76,7 @@ def compxsmm_generator_initialize_avx512_mask(
 
     # loading the mask register
     if datatype == Datatype.F64 or datatype == Datatype.I64:
-        compxsmm_x86_instruction_mask_move_ld(
+        return compxsmm_x86_instruction_mask_move_ld(
             generated_code,
             x86.ops.KS_KMovBOp
             if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SKX
@@ -84,7 +85,7 @@ def compxsmm_generator_initialize_avx512_mask(
             mask_reg,
         )
     elif datatype == Datatype.F32 or datatype == Datatype.I32:
-        compxsmm_x86_instruction_mask_move_ld(
+        return compxsmm_x86_instruction_mask_move_ld(
             generated_code,
             x86.ops.KS_KMovWOp,
             mask_tmp_val,
