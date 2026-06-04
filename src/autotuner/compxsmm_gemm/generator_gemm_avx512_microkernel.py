@@ -439,11 +439,29 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 elif use_f16_replacement_fma:
                     raise NotImplementedError
                 else:
+                    match micro_kernel_config.vector_name:
+                        case "x":
+                            source_type = x86.registers.SSERegisterType
+                        case "y":
+                            source_type = x86.registers.AVX2RegisterType
+                        case "z":
+                            source_type = x86.registers.AVX512RegisterType
+                    reg_src0 = source_type.from_index(
+                        1 + m + vreg_ab_offset + k * m_blocking
+                    )
+                    reg_src1 = source_type.from_index(vreg_ab_offset)
+                    reg_dst = source_type.from_index(
+                        vec_reg_acc_start + m + (m_blocking * n)
+                    )
+                    src0 = generated_code.get_val(reg_src0)
+                    src1 = generated_code.get_val(reg_src1)
+                    dst = generated_code.get_val(reg_dst)
+
                     compxsmm_x86_instruction_vec_compute_3reg(
                         generated_code,
                         micro_kernel_config.vmul_instruction,
                         micro_kernel_config.vector_name,
-                        1 + m + vreg_ab_offset + k * m_blocking,
-                        vreg_ab_offset,
-                        vec_reg_acc_start + m + (m_blocking * n),
+                        src0,
+                        src1,
+                        dst,
                     )

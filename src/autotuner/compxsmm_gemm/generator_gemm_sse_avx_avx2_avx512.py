@@ -886,6 +886,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             k_blocking,
         )
 
+        body_block = generated_code.builder.insertion_point.block
+        yielded_arg_types = body_block.arg_types[1:]
+        a_val, b_val, c_val, rsp_val, rbp_val, *acc_vals = tuple(
+            generated_code.current_val_by_reg[val_type]
+            for val_type in yielded_arg_types
+        )
         compxsmm_generator_gemm_footer_kloop(
             generated_code,
             gp_reg_mapping,
@@ -894,6 +900,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             m_blocking,
             desc.k,
             True,
+            a_val,
+            b_val,
+            c_val,
+            rsp_val,
+            rbp_val,
+            acc_vals,
         )
     else:
         b_offset = 0
@@ -923,6 +935,14 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     k_blocking=k_blocking,
                     max_blocked_k=l_max_blocked_k,
                 )
+                (
+                    a_result_val,
+                    b_result_val,
+                    c_result_val,
+                    rsp_result_val,
+                    rbp_result_val,
+                    *acc_result_vals,
+                ) = kloop_vals
 
                 generator_kloop_kernel(
                     generated_code,
@@ -934,6 +954,19 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     k_blocking,
                 )
 
+                body_block = generated_code.builder.insertion_point.block
+                yielded_arg_types = body_block.arg_types[1:]
+                (
+                    a_block_val,
+                    b_block_val,
+                    c_block_val,
+                    rsp_block_val,
+                    rbp_block_val,
+                    *acc_block_vals,
+                ) = tuple(
+                    generated_code.current_val_by_reg[val_type]
+                    for val_type in yielded_arg_types
+                )
                 compxsmm_generator_gemm_footer_kloop(
                     generated_code,
                     gp_reg_mapping,
@@ -942,6 +975,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     m_blocking,
                     l_max_blocked_k,
                     False,
+                    a_block_val,
+                    b_block_val,
+                    c_block_val,
+                    rsp_block_val,
+                    rbp_block_val,
+                    acc_block_vals,
                 )
 
             # Now handle the remainder

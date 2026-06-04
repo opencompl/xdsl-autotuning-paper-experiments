@@ -1,3 +1,4 @@
+from typing import Sequence
 from xdsl.dialects.builtin import IntegerAttr
 from xdsl.dialects.x86.ops import si32
 from xdsl.ir import SSAValue
@@ -358,13 +359,16 @@ def compxsmm_generator_gemm_footer_kloop(
     m_blocking: int,
     max_blocked_k: int,
     k_loop_complete: bool,
+    a_val: SSAValue,
+    b_val: SSAValue,
+    c_val: SSAValue,
+    rsp_val: SSAValue,
+    rbp_val: SSAValue,
+    acc_vals: Sequence[SSAValue],
 ) -> None:
-    body_block = generated_code.builder.insertion_point.block
-    yielded_arg_types = body_block.arg_types[1:]
-    yielded_args = tuple(
-        generated_code.current_val_by_reg[val_type] for val_type in yielded_arg_types
+    generated_code.insert(
+        yield_op := x86_scf.YieldOp(a_val, b_val, c_val, rsp_val, rbp_val, *acc_vals)
     )
-    generated_code.insert(yield_op := x86_scf.YieldOp(*yielded_args))
 
     # Set up builder to build at end of block containing for loop
     kloop_op = yield_op.parent_op()

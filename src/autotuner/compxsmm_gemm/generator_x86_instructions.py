@@ -1,4 +1,4 @@
-from typing import Literal, cast
+from typing import Literal
 from xdsl.dialects import x86
 from xdsl.dialects.x86.registers import (
     AVX512MaskRegisterType,
@@ -214,9 +214,9 @@ def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     generated_code: GeneratedCode,
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
     vector_name: Literal["x", "y", "z"],
-    reg_number_src0: int,
-    reg_number_src1: int,
-    reg_number_dst: int,
+    src0_val: SSAValue[X86VectorRegisterType],
+    src1_val: SSAValue[X86VectorRegisterType],
+    dst_val: SSAValue[X86VectorRegisterType],
     mask_reg_number: int,
     mask_cntl: int,
     sae_cntl: int,
@@ -237,29 +237,13 @@ def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: Masking is only available for AVX512!"
     )
 
-    match vector_name:
-        case "x":
-            source_type = x86.registers.SSERegisterType
-        case "y":
-            source_type = x86.registers.AVX2RegisterType
-        case "z":
-            source_type = x86.registers.AVX512RegisterType
-    reg_src0 = source_type.from_index(reg_number_src0)
-    reg_src1 = source_type.from_index(reg_number_src1)
-    reg_dst = source_type.from_index(reg_number_dst)
-    src0 = generated_code.current_val_by_reg[reg_src0]
-    src1 = generated_code.current_val_by_reg[reg_src1]
-    dst = generated_code.current_val_by_reg[reg_dst]
-    assert dst.type == reg_dst
-    dst = cast(SSAValue[X86VectorRegisterType], dst)
-
     # build vXYZpd/ps/sd/ss instruction pure register use
     if generated_code.arch > Arch.LIBXSMM_X86_SSE42:
         # if ( ( ((i_vec_instr >> 16) & 0x08) == 0x08 ) and (i_imm8 != LIBXSMM_X86_IMM_UNDEF) ) {
         if imm8 is not None:
             raise NotImplementedError
         else:
-            generated_code.insert(vec_instr(dst, src0, src1))
+            generated_code.insert(vec_instr(dst_val, src0_val, src1_val))
     else:
         raise NotImplementedError
 
@@ -268,17 +252,17 @@ def compxsmm_x86_instruction_vec_compute_3reg(
     generated_code: GeneratedCode,
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
     vector_name: Literal["x", "y", "z"],
-    reg_number_src0: int,
-    reg_number_src1: int,
-    reg_number_dst: int,
+    src0_val: SSAValue[X86VectorRegisterType],
+    src1_val: SSAValue[X86VectorRegisterType],
+    dst_val: SSAValue[X86VectorRegisterType],
 ) -> None:
     compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         generated_code,
         vec_instr,
         vector_name,
-        reg_number_src0,
-        reg_number_src1,
-        reg_number_dst,
+        src0_val,
+        src1_val,
+        dst_val,
         0,
         0,
         0,

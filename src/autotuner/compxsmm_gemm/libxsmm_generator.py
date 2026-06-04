@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+from typing import cast
 
 from xdsl.builder import Builder
-from xdsl.dialects.x86_func import FuncOp
+from xdsl.dialects import x86, x86_func
 from xdsl.ir import Attribute, OperationInvT, SSAValue
 
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
@@ -9,11 +10,14 @@ from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 
 @dataclass
 class GeneratedCode:
-    func_op: FuncOp
+    func_op: x86_func.FuncOp
     builder: Builder
     arch: Arch
 
     current_val_by_reg: dict[Attribute, SSAValue]
+
+    def get_val(self, reg: x86.ops.R1InvT) -> SSAValue[x86.ops.R1InvT]:
+        return cast(SSAValue[x86.ops.R1InvT], self.current_val_by_reg[reg])
 
     @property
     def current_block(self):
