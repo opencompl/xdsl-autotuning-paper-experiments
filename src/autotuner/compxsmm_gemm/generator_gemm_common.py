@@ -1733,7 +1733,6 @@ def compxsmm_generator_gemm_store_C(
                             0,
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
                             * (micro_kernel_config.datatype_size_out),
-                            vname_store,
                             c_vec_val,
                             micro_kernel_config.use_masking_a_c
                             if (m == (m_blocking - 1))

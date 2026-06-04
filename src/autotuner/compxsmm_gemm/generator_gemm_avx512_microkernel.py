@@ -485,7 +485,6 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     compxsmm_x86_instruction_vec_compute_3reg(
                         generated_code,
                         micro_kernel_config.vmul_instruction,
-                        micro_kernel_config.vector_name,
                         src0,
                         src1,
                         dst,

@@ -46,7 +46,6 @@ def compxsmm_x86_instruction_unified_vec_move_st(
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
     source_val: SSAValue[
         x86.registers.SSERegisterType
         | x86.registers.AVX2RegisterType
@@ -76,7 +75,6 @@ def compxsmm_x86_instruction_unified_vec_move_st(
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
                 source_val,
                 None,
                 False,
@@ -96,7 +94,6 @@ def compxsmm_x86_instruction_unified_vec_move_st(
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
                 source_val,
                 use_masking,
                 mask_val,
@@ -174,7 +171,6 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
 def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     generated_code: GeneratedCode,
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
-    vector_name: Literal["x", "y", "z"],
     src0_val: SSAValue[X86VectorRegisterType],
     src1_val: SSAValue[X86VectorRegisterType],
     dst_val: SSAValue[X86VectorRegisterType],
@@ -213,7 +209,6 @@ def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
 def compxsmm_x86_instruction_vec_compute_3reg(
     generated_code: GeneratedCode,
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
-    vector_name: Literal["x", "y", "z"],
     src0_val: SSAValue[X86VectorRegisterType],
     src1_val: SSAValue[X86VectorRegisterType],
     dst_val: SSAValue[X86VectorRegisterType],
@@ -221,7 +216,6 @@ def compxsmm_x86_instruction_vec_compute_3reg(
     compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         generated_code,
         vec_instr,
-        vector_name,
         src0_val,
         src1_val,
         dst_val,
@@ -247,7 +241,6 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
     source_val: SSAValue[
         x86.registers.SSERegisterType
         | x86.registers.AVX2RegisterType
@@ -267,7 +260,6 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
                 source_val,
                 mask_val,
                 not is_store,
@@ -282,7 +274,6 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
                 source_val,
                 None,
                 not is_store,
@@ -297,7 +288,6 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
                 source_val,
                 mask_val,
                 is_store,
@@ -311,7 +301,6 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
                 source_val,
                 None,
                 True,
@@ -418,7 +407,6 @@ def compxsmm_x86_instruction_vec_mask_move_st(
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
     source_val: SSAValue[
         x86.registers.SSERegisterType
         | x86.registers.AVX2RegisterType
@@ -475,7 +463,6 @@ def compxsmm_x86_instruction_vec_move_st(
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
     source_val: SSAValue[
         x86.registers.SSERegisterType
         | x86.registers.AVX2RegisterType
