@@ -241,6 +241,13 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 )
             )
         )
+        match a_vname:
+            case "x":
+                a_vec_type = x86.registers.SSERegisterType
+            case "y":
+                a_vec_type = x86.registers.AVX2RegisterType
+            case "z":
+                a_vec_type = x86.registers.AVX512RegisterType
 
         # unsigned int l_a_vmove_instruction = ((l_is_Ai8_Bf16_gemm > 0 || l_is_Abf8_Bf16_gemm > 0) && (io_generated_code->arch < LIBXSMM_X86_AVX512_SKX) && (l_m != (l_m_blocking - 1)) ) ? LIBXSMM_X86_INSTR_VMOVSD : i_micro_kernel_config->a_vmove_instruction;
         a_vmove_instruction = micro_kernel_config.a_vmove_instruction
@@ -260,11 +267,19 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 if is_Ai1_Bi8_gemm:
                     raise NotImplementedError
                 else:
+                    use_masking = micro_kernel_config.use_masking_a_c and (
+                        m == (m_blocking - 1)
+                    )
                     mask_val = (
                         generated_code.get_val(AVX512MaskRegisterType.from_index(1))
-                        if micro_kernel_config.use_masking_a_c
-                        and (m == (m_blocking - 1))
+                        if use_masking
                         else None
+                    )
+
+                    a_vec_reg = a_vec_type.from_index(
+                        m + vreg_ab_offset
+                        if (is_Ai2_Bi8_gemm > 0)
+                        else 1 + m + vreg_ab_offset
                     )
                     compxsmm_x86_instruction_vec_move_ld(
                         generated_code,
@@ -277,10 +292,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                         * (micro_kernel_config.vector_length)
                         * m
                         * k_pack_factor,
-                        a_vname,
-                        m + vreg_ab_offset
-                        if (is_Ai2_Bi8_gemm > 0)
-                        else 1 + m + vreg_ab_offset,
+                        a_vec_reg,
                         mask_val,
                         True,
                         False,
@@ -360,6 +372,15 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 )
                 else b_vname
             )
+            match b_vname:
+                case "x":
+                    dest_type = x86.registers.SSERegisterType
+                case "y":
+                    dest_type = x86.registers.AVX2RegisterType
+                case "z":
+                    dest_type = x86.registers.AVX512RegisterType
+            b_vec_reg = dest_type.from_index(vreg_ab_offset)
+
             compxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 micro_kernel_config.instruction_set,
@@ -368,8 +389,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 x86.registers.UNALLOCATED_REG64,
                 0,
                 b_offset,
-                b_vname,
-                vreg_ab_offset,
+                b_vec_reg,
                 None,
                 True,
                 False,

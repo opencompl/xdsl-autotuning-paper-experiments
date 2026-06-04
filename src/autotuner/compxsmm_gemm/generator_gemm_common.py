@@ -1388,6 +1388,16 @@ def compxsmm_generator_gemm_load_C(
                 for n in range(n_blocking):
                     for m in range(m_blocking):
                         vname_load = micro_kernel_config.vector_name
+                        match vname_load:
+                            case "x":
+                                dest_type = x86.registers.SSERegisterType
+                            case "y":
+                                dest_type = x86.registers.AVX2RegisterType
+                            case "z":
+                                dest_type = x86.registers.AVX512RegisterType
+                        c_vec_reg = dest_type.from_index(
+                            vec_reg_acc_start + m + (m_blocking * n)
+                        )
                         use_masking = (
                             micro_kernel_config.use_masking_a_c
                             if (m == (m_blocking - 1))
@@ -1424,6 +1434,7 @@ def compxsmm_generator_gemm_load_C(
                             raise NotImplementedError
 
                         # we only mask the last m-blocked load
+
                         compxsmm_x86_instruction_unified_vec_move_ld(
                             generated_code,
                             micro_kernel_config.c_vmove_ld_instruction,
@@ -1432,8 +1443,7 @@ def compxsmm_generator_gemm_load_C(
                             0,
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
                             * (micro_kernel_config.datatype_size_out),
-                            vname_load,
-                            vec_reg_acc_start + m + (m_blocking * n),
+                            c_vec_reg,
                             use_masking,
                             mask_val,
                             False,
@@ -1658,6 +1668,16 @@ def compxsmm_generator_gemm_store_C(
                         _mask_const = m_blocking % micro_kernel_config.vector_length
 
                     vname_store = micro_kernel_config.vector_name
+                    match vname_store:
+                        case "x":
+                            dest_type = x86.registers.SSERegisterType
+                        case "y":
+                            dest_type = x86.registers.AVX2RegisterType
+                        case "z":
+                            dest_type = x86.registers.AVX512RegisterType
+
+                    c_vec_reg = dest_type.from_index(reg_X)
+                    c_vec_val = generated_code.get_val(c_vec_reg)
 
                     if (
                         micro_kernel_config.fused_relu_nobitmask
@@ -1714,7 +1734,7 @@ def compxsmm_generator_gemm_store_C(
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
                             * (micro_kernel_config.datatype_size_out),
                             vname_store,
-                            reg_X,
+                            c_vec_val,
                             micro_kernel_config.use_masking_a_c
                             if (m == (m_blocking - 1))
                             else False,
