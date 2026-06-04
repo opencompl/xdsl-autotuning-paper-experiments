@@ -263,7 +263,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                         generated_code,
                         micro_kernel_config.instruction_set,
                         a_vmove_instruction,
-                        gp_reg_mapping.gp_reg_a,
+                        generated_code.get_val(gp_reg_mapping.gp_reg_a),
                         None,
                         0,
                         (micro_kernel_config.datatype_size_in)
@@ -359,7 +359,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 generated_code,
                 micro_kernel_config.instruction_set,
                 b_vmove_instruction,
-                gp_reg_mapping.gp_reg_b,
+                generated_code.get_val(gp_reg_mapping.gp_reg_b),
                 x86.registers.UNALLOCATED_REG64,
                 0,
                 b_offset,

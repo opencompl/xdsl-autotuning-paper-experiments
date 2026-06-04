@@ -1418,7 +1418,7 @@ def compxsmm_generator_gemm_load_C(
                         compxsmm_x86_instruction_unified_vec_move_ld(
                             generated_code,
                             micro_kernel_config.c_vmove_ld_instruction,
-                            gp_reg_mapping.gp_reg_c,
+                            generated_code.get_val(gp_reg_mapping.gp_reg_c),
                             None,
                             0,
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
@@ -1690,7 +1690,7 @@ def compxsmm_generator_gemm_store_C(
                         compxsmm_x86_instruction_unified_vec_move_st(
                             generated_code,
                             vstore,
-                            gp_reg_mapping.gp_reg_c,
+                            generated_code.get_val(gp_reg_mapping.gp_reg_c),
                             None,
                             0,
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))

@@ -42,7 +42,7 @@ def compxsmm_x86_instruction_unified_vec_move_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
@@ -68,7 +68,7 @@ def compxsmm_x86_instruction_unified_vec_move_st(
                 generated_code,
                 generated_code.arch,
                 i_vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -88,7 +88,7 @@ def compxsmm_x86_instruction_unified_vec_move_st(
             compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 generated_code,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -109,7 +109,7 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
         | x86.ops.DM_VmovupdOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
@@ -136,7 +136,7 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 i_vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -156,7 +156,7 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
             compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 generated_code,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -239,7 +239,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
@@ -255,7 +255,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -270,7 +270,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -285,7 +285,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
             compxsmm_x86_instruction_vec_mask_move_st(
                 generated_code,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -299,7 +299,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -324,7 +324,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
         | x86.ops.DM_VbroadcastssOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
@@ -340,7 +340,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -355,7 +355,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -370,7 +370,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
             compxsmm_x86_instruction_vec_mask_move_ld(
                 generated_code,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -384,7 +384,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
@@ -409,7 +409,7 @@ def compxsmm_x86_instruction_vec_mask_move_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
@@ -432,7 +432,7 @@ def compxsmm_x86_instruction_vec_mask_move_ld(
         | x86.ops.DM_VbroadcastssOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
@@ -456,7 +456,7 @@ def compxsmm_x86_instruction_vec_move_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
@@ -490,7 +490,6 @@ def compxsmm_x86_instruction_vec_move_st(
             source_type = x86.registers.AVX512RegisterType
     source_reg = source_type.from_index(vec_reg_number_0)
     source = generated_code.current_val_by_reg[source_reg]
-    base = generated_code.current_val_by_reg[gp_reg_base]
 
     if mask_reg_number:
         # Use the masking version of the operation
@@ -520,7 +519,7 @@ def compxsmm_x86_instruction_vec_move_st(
         # build vmovpd/ps/sd/ss instruction, load use
         generated_code.insert(
             masked_vmove_instr(
-                memory=base,
+                memory=base_val,
                 memory_offset=displacement,
                 source=source,
                 mask_reg=mask,
@@ -528,7 +527,7 @@ def compxsmm_x86_instruction_vec_move_st(
         )
     else:
         generated_code.insert(
-            vmove_instr(memory=base, source=source, memory_offset=displacement)
+            vmove_instr(memory=base_val, source=source, memory_offset=displacement)
         )
 
 
@@ -544,7 +543,7 @@ def compxsmm_x86_instruction_vec_move_ld(
         | x86.ops.DM_VbroadcastssOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
@@ -582,7 +581,6 @@ def compxsmm_x86_instruction_vec_move_ld(
         case "z":
             dest_type = x86.registers.AVX512RegisterType
     dest = dest_type.from_index(vec_reg_number_0)
-    base = generated_code.current_val_by_reg[gp_reg_base]
 
     if mask_reg_number:
         # Use the masking version of the operation
@@ -612,7 +610,7 @@ def compxsmm_x86_instruction_vec_move_ld(
         # build vmovpd/ps/sd/ss instruction, load use
         generated_code.insert(
             masked_vmove_instr(
-                memory=base,
+                memory=base_val,
                 memory_offset=displacement,
                 destination=dest,
                 mask_reg=mask,
@@ -622,7 +620,7 @@ def compxsmm_x86_instruction_vec_move_ld(
     else:
         # build vmovpd/ps/sd/ss instruction, load use
         generated_code.insert(
-            vmove_instr(memory=base, memory_offset=displacement, destination=dest)
+            vmove_instr(memory=base_val, memory_offset=displacement, destination=dest)
         )
 
 
