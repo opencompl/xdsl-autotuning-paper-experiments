@@ -1,7 +1,7 @@
 from typing import Sequence
 from xdsl.dialects.builtin import IntegerAttr
 from xdsl.dialects.x86.ops import si32
-from xdsl.dialects.x86.registers import AVX512MaskRegisterType
+from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
 from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from xdsl.dialects import x86_scf, x86
@@ -276,13 +276,13 @@ def compxsmm_generator_gemm_getval_stack_var(
     micro_kernel_config: MicroKernelConfig,
     stack_var: GEMMStackVar,
     destination: x86.registers.GeneralRegisterType,
-) -> SSAValue:
+    rbp_val: SSAValue[x86.registers.GeneralRegisterType],
+) -> SSAValue[GeneralRegisterType]:
     offset = GEMM_STACK_VAR_OFFSETS.get(stack_var, 0)
     # make sure we requested a legal stack var
     assert offset
-    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
     return generated_code.insert(
-        x86.ops.DM_MovOp(rbp, offset, destination=destination)
+        x86.ops.DM_MovOp(rbp_val, offset, destination=destination)
     ).destination
 
 
@@ -291,12 +291,12 @@ def compxsmm_generator_gemm_setval_stack_var(
     micro_kernel_config: MicroKernelConfig,
     stack_var: GEMMStackVar,
     source: SSAValue,
+    rbp_val: SSAValue[GeneralRegisterType],
 ) -> None:
     offset = GEMM_STACK_VAR_OFFSETS.get(stack_var, 0)
     # make sure we requested a legal stack var
     assert offset
-    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
-    generated_code.insert(x86.ops.MS_MovOp(rbp, source, offset))
+    generated_code.insert(x86.ops.MS_MovOp(rbp_val, source, offset))
 
 
 def compxsmm_generator_gemm_kloop(
@@ -424,7 +424,12 @@ def compxsmm_generator_gemm_setup_stack_frame(
     desc: GEMMDescriptor,
     gp_reg_mapping: GPRegMapping,
     config: MicroKernelConfig,
-):
+) -> tuple[SSAValue[GeneralRegisterType], SSAValue[GeneralRegisterType]]:
+    """
+    Sets up stack frame with reserved offsets.
+
+    Returns RBP and RSP.
+    """
     temp_reg = x86.registers.R10
     l_is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
     l_is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
@@ -434,13 +439,17 @@ def compxsmm_generator_gemm_setup_stack_frame(
     l_is_Abf8_Bf16_gemm = desc.is_Abf8_Bf16_gemm()
     l_is_Ahf8_Bbf16_gemm = desc.is_Ahf8_Bbf16_gemm()
 
-    rbp = generated_code.insert(x86.ops.GetRegisterOp(x86.registers.RBP)).result
-    rsp = generated_code.insert(x86.ops.GetRegisterOp(x86.registers.RSP)).result
-    rsp = generated_code.insert(x86.ops.S_PushOp(rsp, rbp)).rsp_out
-    rbp = generated_code.insert(
-        x86.ops.DS_MovOp(rsp, destination=x86.registers.RBP)
+    rbp_val: SSAValue[GeneralRegisterType] = generated_code.insert(
+        x86.ops.GetRegisterOp(x86.registers.RBP)
+    ).result
+    rsp_val: SSAValue[GeneralRegisterType] = generated_code.insert(
+        x86.ops.GetRegisterOp(x86.registers.RSP)
+    ).result
+    rsp_val = generated_code.insert(x86.ops.S_PushOp(rsp_val, rbp_val)).rsp_out
+    rbp_val = generated_code.insert(
+        x86.ops.DS_MovOp(rsp_val, destination=x86.registers.RBP)
     ).destination
-    rsp = generated_code.insert(x86.ops.RI_SubOp(rsp, 192)).register_out
+    rsp_val = generated_code.insert(x86.ops.RI_SubOp(rsp_val, 192)).register_out
 
     # The stack now looks like this:
     #      10th param (if applicable)                <-- RBP+80
@@ -515,7 +524,7 @@ def compxsmm_generator_gemm_setup_stack_frame(
     temp = generated_code.builder.insert(
         x86.ops.DI_MovOp(IntegerAttr(-64, si32), destination=temp_reg)
     ).destination
-    rsp = generated_code.insert(x86.ops.RS_AndOp(rsp, temp))
+    rsp_val = generated_code.insert(x86.ops.RS_AndOp(rsp_val, temp)).register_out
 
     # Now allocate in stack required GEMM scratch if necessary
 
@@ -562,18 +571,23 @@ def compxsmm_generator_gemm_setup_stack_frame(
     #      SSE/AVX2 low precision helper, 64b aligned <-- (RBP-112) contains this address
     #      GEMM scratch, 64b aligned             <-- (RBP-48) contains this address
 
+    return (rbp_val, rsp_val)
+
 
 def compxsmm_generator_gemm_destroy_stack_frame(
     generated_code: GeneratedCode,
     desc: GEMMDescriptor,
     gp_reg_mapping: GPRegMapping,
     config: MicroKernelConfig,
-) -> None:
-    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
+    rbp_val: SSAValue[GeneralRegisterType],
+) -> SSAValue[GeneralRegisterType]:
     rsp = generated_code.insert(
-        x86.ops.DS_MovOp(rbp, destination=x86.registers.RSP)
+        x86.ops.DS_MovOp(rbp_val, destination=x86.registers.RSP)
     ).destination
-    rbp = generated_code.insert(x86.ops.D_PopOp(rsp, destination=x86.registers.RBP))
+    rbp_val = generated_code.insert(
+        x86.ops.D_PopOp(rsp, destination=x86.registers.RBP)
+    ).destination
+    return rbp_val
 
 
 def compxsmm_generator_gemm_setup_stack_frame_allocate_scratch(
@@ -913,11 +927,14 @@ def compxsmm_generator_gemm_footer_nloop(
 
     if not micro_kernel_config.overwrite_C:
         # In this case also advance the output ptr
+
+        rbp_val = generated_code.get_val(x86.registers.RBP)
         output_ptr = compxsmm_generator_gemm_getval_stack_var(
             generated_code,
             micro_kernel_config,
             GEMMStackVar.ELT_OUTPUT_PTR,
             gp_reg_mapping.gp_reg_help_0,
+            rbp_val,
         )
         output_ptr = generated_code.insert(
             x86.ops.RI_AddOp(output_ptr, (n_blocking * (desc.ldc) * 2) - ((desc.m) * 2))
@@ -927,6 +944,7 @@ def compxsmm_generator_gemm_footer_nloop(
             micro_kernel_config,
             GEMMStackVar.ELT_OUTPUT_PTR,
             output_ptr,
+            rbp_val,
         )
 
     if micro_kernel_config.fused_bcolbias or micro_kernel_config.fused_hcolbias:

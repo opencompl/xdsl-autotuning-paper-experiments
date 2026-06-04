@@ -1,4 +1,5 @@
 import os
+from typing import cast
 
 from xdsl.builder import Builder
 from xdsl.dialects import x86
@@ -16,8 +17,10 @@ from xdsl.dialects.x86.registers import (
     RDX,
     RSI,
     UNALLOCATED_REG64,
+    GeneralRegisterType,
 )
 from xdsl.dialects.x86_func import FuncOp
+from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_header_mloop,
@@ -389,7 +392,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         raise NotImplementedError
 
     # Setting up the stack frame
-    compxsmm_generator_gemm_setup_stack_frame(
+    rbp_val, rsp = compxsmm_generator_gemm_setup_stack_frame(
         generated_code, desc, gp_reg_mapping, micro_kernel_config
     )
 
@@ -458,7 +461,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         m_blocking = 0
 
         # open N loop
-        compxsmm_generator_gemm_header_nloop(
+        nloop = compxsmm_generator_gemm_header_nloop(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
@@ -756,6 +759,9 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             desc,
             n_blocking=n_blocking,
         )
+        a_val, b_val, c_val, rbp_val, rsp_val = nloop.results
+        assert rbp_val.type == x86.registers.RBP, rbp_val.type
+        rbp_val = cast(SSAValue[GeneralRegisterType], rbp_val)
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:
@@ -763,7 +769,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     # destroy stack frame
     compxsmm_generator_gemm_destroy_stack_frame(
-        generated_code, desc, gp_reg_mapping, micro_kernel_config
+        generated_code, desc, gp_reg_mapping, micro_kernel_config, rbp_val
     )
 
 
