@@ -28,7 +28,7 @@ from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_kloop,
 )
 from autotuner.libxsmm_gemm.generator_common import (
-    LIBXSMM_X86_AVX512_MASK,
+    LIBXSMM_X86_AVX512_MASK_REG,
     GPRegMapping,
     LoopLabelTracker,
     MicroKernelConfig,
@@ -596,7 +596,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                         compxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
-                            LIBXSMM_X86_AVX512_MASK,
+                            x86.registers.AVX512MaskRegisterType.from_index(2),
                             mask_count,
                             Datatype.F16 if is_compute_f16_gemm else Datatype.I32,
                         )
@@ -610,7 +610,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                             compxsmm_generator_initialize_avx512_mask(
                                 generated_code,
                                 gp_reg_mapping.gp_reg_help_1,
-                                2,
+                                x86.registers.AVX512MaskRegisterType.from_index(2),
                                 0
                                 if m_blocking % corrected_vlen >= c_vlen_adjusted
                                 else c_vlen_adjusted - (m_blocking % c_vlen_adjusted),
@@ -619,7 +619,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                             compxsmm_generator_initialize_avx512_mask(
                                 generated_code,
                                 gp_reg_mapping.gp_reg_help_1,
-                                3,
+                                x86.registers.AVX512MaskRegisterType.from_index(3),
                                 c_vlen_adjusted - (m_blocking % c_vlen_adjusted)
                                 if m_blocking % corrected_vlen >= c_vlen_adjusted
                                 else c_vlen_adjusted,
@@ -659,7 +659,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                         compxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
-                            2,
+                            x86.registers.AVX512MaskRegisterType.from_index(2),
                             mask_count,
                             desc.datatype.c,
                         )
@@ -667,7 +667,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                         compxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
-                            LIBXSMM_X86_AVX512_MASK,
+                            LIBXSMM_X86_AVX512_MASK_REG,
                             mask_count,
                             desc.datatype.c,
                         )

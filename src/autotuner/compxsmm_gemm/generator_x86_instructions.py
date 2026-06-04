@@ -675,7 +675,7 @@ def compxsmm_x86_instruction_mask_move_ld(
     | type[x86.ops.KS_KMovWOp]
     | type[x86.ops.KS_KMovQOp],
     mask_tmp_val: SSAValue[GeneralRegisterType],
-    mask_reg_number: int,
+    mask_reg: x86.registers.AVX512MaskRegisterType,
 ):
     # char l_new_code[512];
     # int l_max_code_length = 511;
@@ -690,9 +690,7 @@ def compxsmm_x86_instruction_mask_move_ld(
     generated_code.insert(
         mask_instr(
             mask_tmp_val,
-            destination=x86.registers.AVX512MaskRegisterType.from_index(
-                mask_reg_number
-            ),
+            destination=mask_reg,
         )
     )
 
@@ -703,14 +701,12 @@ def compxsmm_x86_instruction_mask_move_st(
     | type[x86.ops.DK_KMovWOp]
     | type[x86.ops.DK_KMovWOp]
     | type[x86.ops.DK_KMovQOp],
-    gp_reg_number: x86.registers.GeneralRegisterType,
-    mask_reg_number: int,
+    gp_reg: x86.registers.GeneralRegisterType,
+    mask_val: SSAValue[x86.registers.AVX512MaskRegisterType],
 ):
     generated_code.insert(
         mask_instr(
-            generated_code.current_val_by_reg[
-                x86.registers.AVX512MaskRegisterType.from_index(mask_reg_number)
-            ],
-            destination=gp_reg_number,
+            mask_val,
+            destination=gp_reg,
         )
     )

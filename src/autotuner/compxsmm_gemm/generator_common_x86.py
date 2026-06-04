@@ -11,7 +11,7 @@ from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 def compxsmm_generator_initialize_avx512_mask(
     generated_code: GeneratedCode,
     gp_reg_tmp: GeneralRegisterType,
-    mask_reg: int,
+    mask_reg: x86.registers.AVX512MaskRegisterType,
     mask_count: int,
     datatype: Datatype,
 ):
