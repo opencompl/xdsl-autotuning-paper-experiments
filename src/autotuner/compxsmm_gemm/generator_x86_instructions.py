@@ -5,9 +5,8 @@ from xdsl.dialects.x86.registers import (
     GeneralRegisterType,
     X86VectorRegisterType,
 )
-from xdsl.ir import Block, SSAValue
-from xdsl.rewriter import InsertPoint
-from autotuner.libxsmm_gemm.generator_common import GPRegMapping, LoopLabelTracker
+from xdsl.ir import SSAValue
+from autotuner.libxsmm_gemm.generator_common import GPRegMapping
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
@@ -167,47 +166,6 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
                 mask_reg_number,
                 is_store,
             )
-
-
-def compxsmm_x86_instruction_jump_back_to_label(
-    generated_code: GeneratedCode,
-    jmp_instr: type[x86.ops.ConditionalJumpOperation],
-    loop_label_tracker: LoopLabelTracker,
-):
-    """
-    In contrast to libxsmm, also inserts the comparison instruction
-    """
-    dest_block = loop_label_tracker.dest_blocks.pop()
-    curr_vals = generated_code.current_val_by_reg
-
-    curr_args = tuple(curr_vals[arg.type] for arg in dest_block.args)
-
-    curr_block = generated_code.current_block
-    curr_region = curr_block.parent
-    assert curr_region is not None
-    fallthrough_block = curr_block.next_block
-    assert fallthrough_block is None
-
-    fallthrough_block = Block(arg_types=dest_block.arg_types)
-    curr_region.insert_block_after(fallthrough_block, curr_block)
-
-    assert (cmp_op := curr_block.last_op) is not None
-    assert len(cmp_op.results) == 1
-
-    generated_code.insert(
-        jmp_instr(cmp_op, curr_args, curr_args, dest_block, fallthrough_block)
-    )
-
-    # set insert point to fallthrough block and update current values
-    generated_code.builder.insertion_point = InsertPoint.at_end(fallthrough_block)
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in fallthrough_block.args}
-
-
-def compxsmm_x86_instruction_register_jump_back_label(
-    generated_code: GeneratedCode, loop_label_tracker: LoopLabelTracker
-) -> None:
-    generated_code.insert(x86.ops.LabelOp(f"l{loop_label_tracker.current_loop_number}"))
 
 
 def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
