@@ -1,4 +1,5 @@
 from xdsl.dialects import x86
+from xdsl.dialects.x86.registers import AVX512MaskRegisterType
 
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping, MicroKernelConfig
 from autotuner.compxsmm_gemm.generator_x86_instructions import (
@@ -274,9 +275,10 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                         m + vreg_ab_offset
                         if (is_Ai2_Bi8_gemm > 0)
                         else 1 + m + vreg_ab_offset,
-                        micro_kernel_config.use_masking_a_c
-                        if (m == (m_blocking - 1))
-                        else 0,
+                        AVX512MaskRegisterType.from_index(1)
+                        if micro_kernel_config.use_masking_a_c
+                        and (m == (m_blocking - 1))
+                        else None,
                         True,
                         False,
                     )
@@ -365,7 +367,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 b_offset,
                 b_vname,
                 vreg_ab_offset,
-                0,
+                None,
                 True,
                 False,
             )

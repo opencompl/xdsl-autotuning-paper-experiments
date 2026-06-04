@@ -1,6 +1,7 @@
 from typing import Sequence
 from xdsl.dialects.builtin import IntegerAttr
 from xdsl.dialects.x86.ops import si32
+from xdsl.dialects.x86.registers import AVX512MaskRegisterType
 from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from xdsl.dialects import x86_scf, x86
@@ -1387,8 +1388,8 @@ def compxsmm_generator_gemm_load_C(
                 for n in range(n_blocking):
                     for m in range(m_blocking):
                         vname_load = micro_kernel_config.vector_name
-                        mask_reg_or_val = (
-                            (
+                        if micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX:
+                            mask_reg = AVX512MaskRegisterType.from_index(
                                 2
                                 if (
                                     is_Amxfp4_Bbf16_gemm
@@ -1397,12 +1398,10 @@ def compxsmm_generator_gemm_load_C(
                                 )
                                 else 1
                             )
-                            if (
-                                micro_kernel_config.instruction_set
-                                >= Arch.LIBXSMM_X86_AVX
-                            )
-                            else m_blocking % micro_kernel_config.vector_length
-                        )
+                            _mask_val = None
+                        else:
+                            mask_reg = None
+                            _mask_val = m_blocking % micro_kernel_config.vector_length
 
                         if (
                             Datatype.F32 == desc.datatype.comp
@@ -1428,7 +1427,7 @@ def compxsmm_generator_gemm_load_C(
                             micro_kernel_config.use_masking_a_c
                             if (m == (m_blocking - 1))
                             else False,
-                            mask_reg_or_val,
+                            mask_reg,
                             False,
                         )
                         if (
@@ -1625,8 +1624,8 @@ def compxsmm_generator_gemm_store_C(
                 for m in range(m_blocking):
                     reg_X = vec_reg_acc_start + m + m_blocking * n
 
-                    mask_reg_or_val = (
-                        (
+                    if micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX:
+                        mask_reg = AVX512MaskRegisterType.from_index(
                             2
                             if (
                                 is_Amxfp4_Bbf16_gemm
@@ -1635,9 +1634,10 @@ def compxsmm_generator_gemm_store_C(
                             )
                             else 1
                         )
-                        if (micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX)
-                        else m_blocking % micro_kernel_config.vector_length
-                    )
+                        _mask_val = None
+                    else:
+                        mask_reg = None
+                        _mask_val = m_blocking % micro_kernel_config.vector_length
 
                     vname_store = micro_kernel_config.vector_name
 
@@ -1700,7 +1700,7 @@ def compxsmm_generator_gemm_store_C(
                             micro_kernel_config.use_masking_a_c
                             if (m == (m_blocking - 1))
                             else False,
-                            mask_reg_or_val,
+                            mask_reg,
                             True,
                         )
             if bf16cvt_replacement:
