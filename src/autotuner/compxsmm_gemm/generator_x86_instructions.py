@@ -49,7 +49,7 @@ def compxsmm_x86_instruction_unified_vec_move_st(
     vector_name: Literal["x", "y", "z"],
     vec_reg_number_0: int,
     use_masking: bool,
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[True],
 ) -> None:
     assert i_vmove_instr is not None
@@ -95,7 +95,7 @@ def compxsmm_x86_instruction_unified_vec_move_st(
                 vector_name,
                 vec_reg_number_0,
                 use_masking,
-                mask_reg,
+                mask_val,
                 is_store,
             )
 
@@ -116,7 +116,7 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
     vector_name: Literal["x", "y", "z"],
     vec_reg_number_0: int,
     use_masking: bool,
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[False],
 ) -> None:
     assert i_vmove_instr is not None
@@ -163,7 +163,7 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
                 vector_name,
                 vec_reg_number_0,
                 use_masking,
-                mask_reg,
+                mask_val,
                 is_store,
             )
 
@@ -175,7 +175,7 @@ def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     src0_val: SSAValue[X86VectorRegisterType],
     src1_val: SSAValue[X86VectorRegisterType],
     dst_val: SSAValue[X86VectorRegisterType],
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     mask_cntl: int,
     sae_cntl: int,
     imm8: int | None,
@@ -191,7 +191,7 @@ def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     # check that we are not masking 'y'
     assert not (
         generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX
-        and (mask_reg is not None)
+        and (mask_val is not None)
     ), (
         "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: Masking is only available for AVX512!"
     )
@@ -247,7 +247,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
     vector_name: Literal["x", "y", "z"],
     vec_reg_number_0: int,
     use_masking: bool,
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[True],
 ):
     if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL128_SKX:
@@ -262,7 +262,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 displacement,
                 vector_name,
                 vec_reg_number_0,
-                mask_reg,
+                mask_val,
                 not is_store,
                 is_store,
             )
@@ -292,7 +292,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
                 displacement,
                 vector_name,
                 vec_reg_number_0,
-                mask_reg,
+                mask_val,
                 is_store,
             )
         else:
@@ -332,7 +332,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
     vector_name: Literal["x", "y", "z"],
     vec_reg_number_0: int,
     use_masking: bool,
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[False],
 ):
     if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL128_SKX:
@@ -347,7 +347,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 displacement,
                 vector_name,
                 vec_reg_number_0,
-                mask_reg,
+                mask_val,
                 not is_store,
                 is_store,
             )
@@ -377,7 +377,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 displacement,
                 vector_name,
                 vec_reg_number_0,
-                mask_reg,
+                mask_val,
                 is_store,
             )
         else:
@@ -416,7 +416,7 @@ def compxsmm_x86_instruction_vec_mask_move_st(
     displacement: int,
     vector_name: Literal["x", "y", "z"],
     vec_reg_number_0: int,
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: bool,
 ):
     raise NotImplementedError
@@ -439,7 +439,7 @@ def compxsmm_x86_instruction_vec_mask_move_ld(
     displacement: int,
     vector_name: Literal["x", "y", "z"],
     vec_reg_number_0: int,
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: bool,
 ):
     raise NotImplementedError
@@ -463,7 +463,7 @@ def compxsmm_x86_instruction_vec_move_st(
     displacement: int,
     vector_name: Literal["x", "y", "z"],
     vec_reg_number_0: int,
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     use_zero_masking: bool,
     is_store: Literal[True],
 ):
@@ -474,11 +474,11 @@ def compxsmm_x86_instruction_vec_move_st(
 
     # check that we are not masking 'y'
     assert not (
-        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_reg is not None
+        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_val is not None
     )
 
     # check zero masking
-    assert not (use_zero_masking and (mask_reg is not None) and is_store), (
+    assert not (use_zero_masking and (mask_val is not None) and is_store), (
         "libxsmm_instruction_vec_move: zero-masked store cannot operate on memory destination!"
     )
 
@@ -492,7 +492,7 @@ def compxsmm_x86_instruction_vec_move_st(
     source_reg = source_type.from_index(vec_reg_number_0)
     source = generated_code.current_val_by_reg[source_reg]
 
-    if mask_reg is not None:
+    if mask_val is not None:
         # Use the masking version of the operation
         assert isinstance(source_reg, x86.registers.AVX512RegisterType), source
         assert issubclass(
@@ -503,7 +503,6 @@ def compxsmm_x86_instruction_vec_move_st(
             | x86.ops.MS_VmovupdOp,
         )
 
-        mask = generated_code.current_val_by_reg[mask_reg]
         match vmove_instr:
             case x86.ops.MS_VmovapdOp:
                 masked_vmove_instr = x86.ops.MSK_VmovapdOp
@@ -522,7 +521,7 @@ def compxsmm_x86_instruction_vec_move_st(
                 memory=base_val,
                 memory_offset=displacement,
                 source=source,
-                mask_reg=mask,
+                mask_reg=mask_val,
             )
         )
     else:
@@ -549,7 +548,7 @@ def compxsmm_x86_instruction_vec_move_ld(
     displacement: int,
     vector_name: Literal["x", "y", "z"],
     vec_reg_number_0: int,
-    mask_reg: AVX512MaskRegisterType | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     use_zero_masking: bool,
     is_store: Literal[False],
 ):
@@ -560,15 +559,15 @@ def compxsmm_x86_instruction_vec_move_ld(
 
     # check that we are not masking 'y'
     assert not (
-        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_reg is not None
+        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_val is not None
     )
 
     # check zero masking
-    assert not (use_zero_masking and (mask_reg is not None) and is_store), (
+    assert not (use_zero_masking and (mask_val is not None) and is_store), (
         "libxsmm_instruction_vec_move: zero-masked store cannot operate on memory destination!"
     )
 
-    if not use_zero_masking or mask_reg is None:
+    if not use_zero_masking or mask_val is None:
         zero_flag = None
     else:
         zero_flag = True
@@ -582,7 +581,7 @@ def compxsmm_x86_instruction_vec_move_ld(
             dest_type = x86.registers.AVX512RegisterType
     dest = dest_type.from_index(vec_reg_number_0)
 
-    if mask_reg is not None:
+    if mask_val is not None:
         # Use the masking version of the operation
         assert isinstance(dest, x86.registers.AVX512RegisterType)
         assert issubclass(
@@ -593,7 +592,6 @@ def compxsmm_x86_instruction_vec_move_ld(
             | x86.ops.DM_VmovupdOp,
         )
 
-        mask = generated_code.current_val_by_reg[mask_reg]
         match vmove_instr:
             case x86.ops.DM_VmovapdOp:
                 masked_vmove_instr = x86.ops.DMK_VmovapdOp
@@ -612,7 +610,7 @@ def compxsmm_x86_instruction_vec_move_ld(
                 memory=base_val,
                 memory_offset=displacement,
                 destination=dest,
-                mask_reg=mask,
+                mask_reg=mask_val,
                 z=zero_flag or False,
             )
         )

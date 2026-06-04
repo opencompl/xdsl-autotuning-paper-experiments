@@ -260,6 +260,12 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 if is_Ai1_Bi8_gemm:
                     raise NotImplementedError
                 else:
+                    mask_val = (
+                        generated_code.get_val(AVX512MaskRegisterType.from_index(1))
+                        if micro_kernel_config.use_masking_a_c
+                        and (m == (m_blocking - 1))
+                        else None
+                    )
                     compxsmm_x86_instruction_vec_move_ld(
                         generated_code,
                         micro_kernel_config.instruction_set,
@@ -275,10 +281,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                         m + vreg_ab_offset
                         if (is_Ai2_Bi8_gemm > 0)
                         else 1 + m + vreg_ab_offset,
-                        AVX512MaskRegisterType.from_index(1)
-                        if micro_kernel_config.use_masking_a_c
-                        and (m == (m_blocking - 1))
-                        else None,
+                        mask_val,
                         True,
                         False,
                     )

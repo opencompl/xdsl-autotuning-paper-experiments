@@ -1388,7 +1388,15 @@ def compxsmm_generator_gemm_load_C(
                 for n in range(n_blocking):
                     for m in range(m_blocking):
                         vname_load = micro_kernel_config.vector_name
-                        if micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX:
+                        use_masking = (
+                            micro_kernel_config.use_masking_a_c
+                            if (m == (m_blocking - 1))
+                            else False
+                        )
+                        if (
+                            micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX
+                            and use_masking
+                        ):
                             mask_reg = AVX512MaskRegisterType.from_index(
                                 2
                                 if (
@@ -1398,10 +1406,12 @@ def compxsmm_generator_gemm_load_C(
                                 )
                                 else 1
                             )
-                            _mask_val = None
+                            mask_val = generated_code.get_val(mask_reg)
+                            _mask_const = None
                         else:
                             mask_reg = None
-                            _mask_val = m_blocking % micro_kernel_config.vector_length
+                            mask_val = None
+                            _mask_const = m_blocking % micro_kernel_config.vector_length
 
                         if (
                             Datatype.F32 == desc.datatype.comp
@@ -1424,10 +1434,8 @@ def compxsmm_generator_gemm_load_C(
                             * (micro_kernel_config.datatype_size_out),
                             vname_load,
                             vec_reg_acc_start + m + (m_blocking * n),
-                            micro_kernel_config.use_masking_a_c
-                            if (m == (m_blocking - 1))
-                            else False,
-                            mask_reg,
+                            use_masking,
+                            mask_val,
                             False,
                         )
                         if (
@@ -1624,7 +1632,15 @@ def compxsmm_generator_gemm_store_C(
                 for m in range(m_blocking):
                     reg_X = vec_reg_acc_start + m + m_blocking * n
 
-                    if micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX:
+                    use_masking = (
+                        micro_kernel_config.use_masking_a_c
+                        if (m == (m_blocking - 1))
+                        else False
+                    )
+                    if (
+                        micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX
+                        and use_masking
+                    ):
                         mask_reg = AVX512MaskRegisterType.from_index(
                             2
                             if (
@@ -1634,10 +1650,12 @@ def compxsmm_generator_gemm_store_C(
                             )
                             else 1
                         )
-                        _mask_val = None
+                        mask_val = generated_code.get_val(mask_reg)
+                        _mask_const = None
                     else:
                         mask_reg = None
-                        _mask_val = m_blocking % micro_kernel_config.vector_length
+                        mask_val = None
+                        _mask_const = m_blocking % micro_kernel_config.vector_length
 
                     vname_store = micro_kernel_config.vector_name
 
@@ -1700,7 +1718,7 @@ def compxsmm_generator_gemm_store_C(
                             micro_kernel_config.use_masking_a_c
                             if (m == (m_blocking - 1))
                             else False,
-                            mask_reg,
+                            mask_val,
                             True,
                         )
             if bf16cvt_replacement:
