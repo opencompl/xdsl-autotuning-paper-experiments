@@ -13,10 +13,10 @@
 // CHECK-NEXT:      mov r10, -64
 // CHECK-NEXT:      and rsp, r10
 // CHECK-NEXT:      mov r11, 0
-// CHECK-NEXT:  l33:
+// CHECK-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-NEXT:      add r11, 3
 // CHECK-NEXT:      mov r10, 0
-// CHECK-NEXT:  l34:
+// CHECK-NEXT:  [[SCF_M_BODY:^\S+]]:
 // CHECK-NEXT:      add r10, 16
 // CHECK-NEXT:      vmovapd zmm26, [rdx]
 // CHECK-NEXT:      vmovapd zmm27, [rdx+64]
@@ -98,12 +98,12 @@
 // CHECK-NEXT:      add rdx, 128
 // CHECK-NEXT:      sub rdi, 512
 // CHECK-NEXT:      cmp r10, 16
-// CHECK-NEXT:      jl l34
+// CHECK-NEXT:      jl [[SCF_M_BODY]]
 // CHECK-NEXT:      add rdx, 256
 // CHECK-NEXT:      add rsi, 120
 // CHECK-NEXT:      sub rdi, 128
 // CHECK-NEXT:      cmp r11, 3
-// CHECK-NEXT:      jl l33
+// CHECK-NEXT:      jl [[SCF_N_BODY]]
 // CHECK-NEXT:      mov rsp, rbp
 // CHECK-NEXT:      pop rbp
 // CHECK-NEXT:      pop rbp

@@ -1,4 +1,4 @@
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && cat %t | xdsl-opt -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
+// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && cat %t | xdsl-opt -p x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
 
 // CHECK:       .intel_syntax noprefix
 // CHECK-NEXT:  .text
@@ -24,7 +24,7 @@
 // CHECK-NEXT:      vmovapd zmm30, [rdx+256]
 // CHECK-NEXT:      vmovapd zmm31, [rdx+320]
 // CHECK-NEXT:      mov r12, 0
-// CHECK-NEXT:  l35:
+// CHECK-NEXT:  [[SCF_K_BODY:^\S+]]:
 // CHECK-NEXT:      add r12, 4
 // CHECK-NEXT:      vmovapd zmm1, [rdi]
 // CHECK-NEXT:      vmovapd zmm2, [rdi+64]
@@ -79,7 +79,7 @@
 // CHECK-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
 // CHECK-NEXT:      cmp r12, 64
-// CHECK-NEXT:      jl l35
+// CHECK-NEXT:      jl [[SCF_K_BODY]]
 // CHECK-NEXT:      sub rsi, 512
 // CHECK-NEXT:      vmovapd [rdx], zmm26
 // CHECK-NEXT:      vmovapd [rdx+64], zmm27

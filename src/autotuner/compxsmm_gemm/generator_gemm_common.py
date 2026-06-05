@@ -1,5 +1,8 @@
-from xdsl.ir import Block
+from xdsl.dialects.x86.ops import si32
+from xdsl.ir import Block, Region, SSAValue
+from xdsl.parser import IntegerAttr
 from xdsl.rewriter import InsertPoint, Rewriter
+from xdsl.dialects import x86_scf
 from autotuner.libxsmm_gemm.generator_common import (
     GEMMStackVar,
     GPRegMapping,
@@ -26,14 +29,15 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def compxsmm_generator_gemm_header_kloop(
+def compxsmm_generator_gemm_kloop(
     generated_code: GeneratedCode,
-    loop_label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
+    *,
     m_blocking: int,
     k_blocking: int,
-) -> None:
+    max_blocked_k: int,
+) -> tuple[x86_scf.ForOp, tuple[SSAValue, ...]]:
     """
     In original, adds three lines of assembly: set counter to 0, add label, add k_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
@@ -48,37 +52,41 @@ def compxsmm_generator_gemm_header_kloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    args = tuple(generated_code.current_val_by_reg.values())
+    # k is passed as lb, so no need to include in iter_args
+    # m loop is currently accidentally included in the args even though it's not used in the loop, exclude it for now
+    args = tuple(
+        val
+        for val in generated_code.current_val_by_reg.values()
+        if val.type not in (k_arg_reg,)
+    )
     arg_types = tuple(arg.type for arg in args)
 
-    assert k_init_op.next_op is None
-
-    # Insert new block
-    body_block = Block(arg_types=arg_types)
-    parent_region.insert_block_after(body_block, existing_block)
-    loop_label_tracker.dest_blocks.append(body_block)
-
-    # Jump/fallthrough to the newly created block
-    # TODO: make sure that we don't print the jump in xDSL if the destination is the
-    # next block
-    Rewriter.insert_op(
-        x86.ops.FallthroughOp(args, body_block),
-        InsertPoint.at_end(existing_block),
+    assert k_init_op.next_op is None, (
+        "Not sure how this can happen, adding assert to catch later (this assert adding when refactoring to x86_scf generation)"
     )
 
+    body_block = Block(arg_types=(k_arg_reg, *arg_types))
+
+    kloop_op = generated_code.builder.insert(
+        x86_scf.ForOp(
+            k_init_op.destination,
+            IntegerAttr(max_blocked_k, si32),
+            IntegerAttr(k_blocking, si32),
+            args,
+            Region(body_block),
+        )
+    )
+
+    # Set up builder to build inside of loop
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in body_block.args}
 
-    libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
-    generated_code.insert(
-        x86.ops.RI_AddOp(curr_vals[k_arg_reg], k_blocking, register_out=k_arg_reg)
-    )
+    return kloop_op, body_block.args
 
 
 def compxsmm_generator_gemm_footer_kloop(
     generated_code: GeneratedCode,
-    loop_label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
     gemm_desc: GEMMDescriptor,
@@ -86,16 +94,22 @@ def compxsmm_generator_gemm_footer_kloop(
     max_blocked_k: int,
     k_loop_complete: bool,
 ) -> None:
-    generated_code.insert(
-        x86.ops.SI_CmpOp(
-            generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_kloop],
-            max_blocked_k,
-        )
+    body_block = generated_code.builder.insertion_point.block
+    yielded_arg_types = body_block.arg_types[1:]
+    yielded_args = tuple(
+        generated_code.current_val_by_reg[val_type] for val_type in yielded_arg_types
     )
+    generated_code.insert(yield_op := x86_scf.YieldOp(*yielded_args))
 
-    libxsmm_x86_instruction_jump_back_to_label(
-        generated_code, x86.ops.C_JlOp, loop_label_tracker
-    )
+    # Set up builder to build at end of block containing for loop
+    kloop_op = yield_op.parent_op()
+    assert isinstance(kloop_op, x86_scf.ForOp)
+    assert kloop_op.parent is not None
+    generated_code.builder.insertion_point = InsertPoint.at_end(kloop_op.parent)
+    curr_vals = generated_code.current_val_by_reg
+    curr_vals.clear()
+    curr_vals |= {arg.type: arg for arg in kloop_op.results}
+
     if k_loop_complete:
         b_offset = 0
         if GEMMFlag.TRANS_B in gemm_desc.flags:

@@ -17,15 +17,15 @@ from xdsl.dialects.x86.registers import (
     RSI,
     UNALLOCATED_REG64,
 )
-from xdsl.dialects.x86_func import FuncOp, RetOp
+from xdsl.dialects.x86_func import FuncOp
 from xdsl.rewriter import InsertPoint
 from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_header_mloop,
     compxsmm_generator_gemm_footer_kloop,
     compxsmm_generator_gemm_footer_mloop,
     compxsmm_generator_gemm_footer_nloop,
-    compxsmm_generator_gemm_header_kloop,
     compxsmm_generator_gemm_header_nloop,
+    compxsmm_generator_gemm_kloop,
 )
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK,
@@ -864,13 +864,13 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
     if not desc.k % k_blocking and k_threshold < desc.k:
         # 1. we are larger the k_threshold and a multiple of a predefined blocking parameter
-        compxsmm_generator_gemm_header_kloop(
+        kloop_op, kloop_vals = compxsmm_generator_gemm_kloop(
             generated_code,
-            label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
-            m_blocking,
-            k_blocking,
+            m_blocking=m_blocking,
+            k_blocking=k_blocking,
+            max_blocked_k=desc.k,
         )
         generator_kloop_kernel(
             generated_code,
@@ -881,9 +881,9 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             n_blocking,
             k_blocking,
         )
+
         compxsmm_generator_gemm_footer_kloop(
             generated_code,
-            label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
             desc,
@@ -911,13 +911,13 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
             # We can block as k is large enough
             if l_max_blocked_k > 0:
-                compxsmm_generator_gemm_header_kloop(
+                kloop_op, kloop_vals = compxsmm_generator_gemm_kloop(
                     generated_code,
-                    label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
-                    m_blocking,
-                    k_blocking,
+                    m_blocking=m_blocking,
+                    k_blocking=k_blocking,
+                    max_blocked_k=l_max_blocked_k,
                 )
 
                 generator_kloop_kernel(
@@ -932,7 +932,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
                 compxsmm_generator_gemm_footer_kloop(
                     generated_code,
-                    label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
                     desc,
