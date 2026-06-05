@@ -898,6 +898,7 @@ def compxsmm_generator_gemm_footer_nloop(
     desc: GEMMDescriptor,
     *,
     n_blocking: int,
+    vals: NLoopVals,
 ) -> NLoopVals:
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
     is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
@@ -907,19 +908,20 @@ def compxsmm_generator_gemm_footer_nloop(
     is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
     a_adjust = 4 if is_Ai2_Bi8_gemm else 8 if is_Ai1_Bi8_gemm else 1
 
+    a_val, b_val, c_val, rbp_val, rsp_val = vals.vals
+
     if desc.datatype.c == Datatype.BF16:
         raise NotImplementedError
     elif desc.datatype.c == Datatype.I8:
         raise NotImplementedError
     else:
-        c = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_c]
-        generated_code.insert(
+        c_val = generated_code.insert(
             x86.ops.RI_AddOp(
-                c,
+                c_val,
                 (n_blocking * (desc.ldc) * (micro_kernel_config.datatype_size_out))
                 - ((desc.m) * (micro_kernel_config.datatype_size_out)),
             )
-        )
+        ).register_out
 
     if (
         desc.datatype.c in (Datatype.F16, Datatype.F32)
@@ -962,14 +964,12 @@ def compxsmm_generator_gemm_footer_nloop(
 
     if not micro_kernel_config.overwrite_C:
         # In this case also advance the output ptr
-
-        rbp_val = generated_code.get_val(x86.registers.RBP)
         output_ptr = compxsmm_generator_gemm_getval_stack_var(
             generated_code,
             micro_kernel_config,
             GEMMStackVar.ELT_OUTPUT_PTR,
             gp_reg_mapping.gp_reg_help_0,
-            rbp_val,
+            vals.rbp,
         )
         output_ptr = generated_code.insert(
             x86.ops.RI_AddOp(output_ptr, (n_blocking * (desc.ldc) * 2) - ((desc.m) * 2))
@@ -979,7 +979,7 @@ def compxsmm_generator_gemm_footer_nloop(
             micro_kernel_config,
             GEMMStackVar.ELT_OUTPUT_PTR,
             output_ptr,
-            rbp_val,
+            vals.rbp,
         )
 
     if micro_kernel_config.fused_bcolbias or micro_kernel_config.fused_hcolbias:
@@ -1026,16 +1026,14 @@ def compxsmm_generator_gemm_footer_nloop(
         else:
             b_offset = n_blocking * desc.ldb * micro_kernel_config.datatype_size_in2
 
-        a = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_a]
-        b = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b]
-        b = generated_code.insert(x86.ops.RI_AddOp(b, b_offset)).register_out
+        b_val = generated_code.insert(x86.ops.RI_AddOp(b_val, b_offset)).register_out
 
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
         else:
-            a = generated_code.insert(
+            a_val = generated_code.insert(
                 x86.ops.RI_SubOp(
-                    a,
+                    a_val,
                     desc.m
                     * micro_kernel_config.datatype_size_in
                     * k_pack_factor
@@ -1143,6 +1141,7 @@ def compxsmm_generator_gemm_footer_mloop(
     desc: GEMMDescriptor,
     *,
     m_blocking: int,
+    vals: MLoopVals,
 ) -> MLoopVals:
     # k packing factor for VNNI
     k_pack_factor = 1
@@ -1176,14 +1175,20 @@ def compxsmm_generator_gemm_footer_mloop(
     )
     a_adjust = 4 if is_Ai2_Bi8_gemm else 8 if is_Ai1_Bi8_gemm else 1
 
+    a_val = vals.a
+    b_val = vals.b
+    c_val = vals.c
+    rbp_val = vals.rbp
+    rsp_val = vals.rsp
+    mask_k1 = vals.mask_k1
+
     # for VNNI we are stepping through to pack ks
     if GEMMFlag.VNNI_A in desc.flags:
         raise NotImplementedError
 
     # Advance C pointer
-    c = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_c]
-    c = generated_code.insert(
-        x86.ops.RI_AddOp(c, m_blocking * micro_kernel_config.datatype_size_out)
+    c_val = generated_code.insert(
+        x86.ops.RI_AddOp(c_val, m_blocking * micro_kernel_config.datatype_size_out)
     ).register_out
 
     if (
@@ -1263,7 +1268,6 @@ def compxsmm_generator_gemm_footer_mloop(
         desc.k * micro_kernel_config.datatype_size_in * desc.lda // k_scale
         - m_blocking * micro_kernel_config.datatype_size_in * k_pack_factor // a_adjust
     )
-    a = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_a]
 
     # A prefetch
     if desc.prefetch == GEMMPrefetchType.AL2:
@@ -1281,7 +1285,9 @@ def compxsmm_generator_gemm_footer_mloop(
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
         else:
-            a = generated_code.insert(x86.ops.RI_SubOp(a, a_offset)).register_out
+            a_val = generated_code.insert(
+                x86.ops.RI_SubOp(a_val, a_offset)
+            ).register_out
 
     # Insert yield op for resulting registers
     body_block = generated_code.builder.insertion_point.block
