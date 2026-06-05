@@ -1,5 +1,5 @@
 from xdsl.dialects.x86.ops import si32
-from xdsl.ir import Block, Region, SSAValue
+from xdsl.ir import SSAValue
 from xdsl.parser import IntegerAttr
 from xdsl.rewriter import InsertPoint
 from xdsl.dialects import x86_scf
@@ -55,13 +55,10 @@ def compxsmm_generator_gemm_kloop(
         for val in generated_code.current_val_by_reg.values()
         if val.type not in (k_arg_reg, m_arg_reg)
     )
-    arg_types = tuple(arg.type for arg in args)
 
     assert k_init_op.next_op is None, (
         "Not sure how this can happen, adding assert to catch later (this assert adding when refactoring to x86_scf generation)"
     )
-
-    body_block = Block(arg_types=(k_arg_reg, *arg_types))
 
     kloop_op = generated_code.builder.insert(
         x86_scf.ForOp(
@@ -69,16 +66,15 @@ def compxsmm_generator_gemm_kloop(
             IntegerAttr(max_blocked_k, si32),
             IntegerAttr(k_blocking, si32),
             args,
-            Region(body_block),
         )
     )
 
     # Set up builder to build inside of loop
-    generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
+    generated_code.builder.insertion_point = InsertPoint.at_start(kloop_op.body.block)
     curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in body_block.args}
+    curr_vals |= {arg.type: arg for arg in kloop_op.body.block.args}
 
-    return kloop_op, body_block.args
+    return kloop_op, kloop_op.body.block.args
 
 
 def compxsmm_generator_gemm_footer_kloop(
