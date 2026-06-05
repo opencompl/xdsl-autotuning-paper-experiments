@@ -1052,12 +1052,7 @@ def compxsmm_generator_gemm_footer_nloop(
 
     # Insert yield op for resulting registers
     body_block = generated_code.builder.insertion_point.block
-    yielded_arg_types = body_block.arg_types[1:]
-    yielded_args = tuple(
-        generated_code.current_val_by_reg[val_type] for val_type in yielded_arg_types
-    )
-
-    generated_code.insert(x86_scf.YieldOp(*yielded_args))
+    generated_code.insert(x86_scf.YieldOp(a_val, b_val, c_val, rbp_val, rsp_val))
 
     # Set up builder to build after loop
     nloop_op = body_block.parent_op()
@@ -1290,13 +1285,12 @@ def compxsmm_generator_gemm_footer_mloop(
             ).register_out
 
     # Insert yield op for resulting registers
-    body_block = generated_code.builder.insertion_point.block
-    yielded_arg_types = body_block.arg_types[1:]
-    yielded_args = tuple(
-        generated_code.current_val_by_reg[val_type] for val_type in yielded_arg_types
+    generated_code.insert(
+        x86_scf.YieldOp(*MLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1).vals)
     )
-    generated_code.insert(x86_scf.YieldOp(*yielded_args))
+
     # Set up builder to build after loop
+    body_block = generated_code.builder.insertion_point.block
     mloop_op = body_block.parent_op()
     assert isinstance(mloop_op, x86_scf.ForOp), mloop_op
 
