@@ -1,13 +1,11 @@
 from xdsl.dialects import x86
-from xdsl.dialects.x86.registers import AVX512MaskRegisterType
-
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping, MicroKernelConfig
 from autotuner.compxsmm_gemm.generator_x86_instructions import (
     compxsmm_x86_instruction_vec_compute_3reg,
     compxsmm_x86_instruction_vec_move_ld,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode
+from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode, KLoopVals
 from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMDescriptor,
     GEMMFlag,
@@ -24,7 +22,8 @@ def compxsmm_generator_gemm_avx512_kloop_kernel(
     m_blocking: int,
     n_blocking: int,
     k_blocking: int,
-) -> None:
+    vals: KLoopVals,
+) -> KLoopVals:
     k = 0
     _k_pack_factor = 1
     m_vector = (
@@ -125,14 +124,17 @@ def compxsmm_generator_gemm_avx512_kloop_kernel(
             generator_microkernel = compxsmm_generator_gemm_avx512_microkernel_nofsdbcst
 
         for k in range(k_blocking):
-            generator_microkernel(
+            vals = generator_microkernel(
                 generated_code,
                 gp_reg_mapping,
                 micro_kernel_config,
                 gemm_desc,
                 m_blocking,
                 n_blocking,
+                vals,
             )
+
+    return vals
 
 
 def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
@@ -142,7 +144,8 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
     desc: GEMMDescriptor,
     m_blocking: int,
     n_blocking: int,
-) -> None:
+    vals: KLoopVals,
+) -> KLoopVals:
     # deriving register blocking from kernel config
     m_blocking = (
         m_blocking // micro_kernel_config.vector_length
@@ -194,6 +197,14 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
     ) and (desc.datatype.c == Datatype.F32)
     _mask_load_i1 = 1
     _vname_cvt = micro_kernel_config.vector_name
+
+    a_val = vals.a
+    b_val = vals.b
+    c_val = vals.c
+    rbp_val = vals.rbp
+    rsp_val = vals.rsp
+    mask_k1 = vals.mask_k1
+    acc_vals = vals.acc_vectors
 
     if is_Ai8_Bf16_gemm:
         raise NotImplementedError
@@ -270,11 +281,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     use_masking = micro_kernel_config.use_masking_a_c and (
                         m == (m_blocking - 1)
                     )
-                    mask_val = (
-                        generated_code.get_val(AVX512MaskRegisterType.from_index(1))
-                        if use_masking
-                        else None
-                    )
+                    mask_val = mask_k1 if use_masking else None
 
                     a_vec_reg = a_vec_type.from_index(
                         m + vreg_ab_offset
@@ -285,7 +292,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                         generated_code,
                         micro_kernel_config.instruction_set,
                         a_vmove_instruction,
-                        generated_code.get_val(gp_reg_mapping.gp_reg_a),
+                        a_val,
                         None,
                         0,
                         (micro_kernel_config.datatype_size_in)
@@ -385,7 +392,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 generated_code,
                 micro_kernel_config.instruction_set,
                 b_vmove_instruction,
-                generated_code.get_val(gp_reg_mapping.gp_reg_b),
+                b_val,
                 x86.registers.UNALLOCATED_REG64,
                 0,
                 b_offset,
@@ -425,9 +432,8 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     )
 
                 if k == (k_iters - 1):
-                    b = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b]
-                    b = generated_code.insert(
-                        x86.ops.RI_AddOp(b, b_offset)
+                    b_val = generated_code.insert(
+                        x86.ops.RI_AddOp(b_val, b_offset)
                     ).register_out
 
             for m in range(m_blocking):
@@ -443,10 +449,9 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
                         raise NotImplementedError
                     else:
-                        a = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_a]
-                        a = generated_code.insert(
+                        a_val = generated_code.insert(
                             x86.ops.RI_AddOp(
-                                a,
+                                a_val,
                                 desc.lda
                                 * micro_kernel_config.datatype_size_in
                                 * k_pack_advance
@@ -489,3 +494,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                         src1,
                         dst,
                     )
+
+    acc_vals = tuple(generated_code.get_val(acc_val.type) for acc_val in acc_vals)
+
+    return KLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1, acc_vals)

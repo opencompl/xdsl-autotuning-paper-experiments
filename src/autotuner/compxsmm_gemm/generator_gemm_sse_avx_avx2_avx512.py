@@ -1,5 +1,4 @@
 import os
-from typing import cast
 
 from xdsl.builder import Builder
 from xdsl.dialects import x86
@@ -17,10 +16,8 @@ from xdsl.dialects.x86.registers import (
     RDX,
     RSI,
     UNALLOCATED_REG64,
-    GeneralRegisterType,
 )
 from xdsl.dialects.x86_func import FuncOp
-from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_header_mloop,
@@ -58,7 +55,11 @@ from autotuner.compxsmm_gemm.generator_x86_instructions import (
     compxsmm_x86_instruction_open_stream_gemm,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode
+from autotuner.compxsmm_gemm.libxsmm_generator import (
+    GeneratedCode,
+    KLoopVals,
+    MLoopVals,
+)
 from autotuner.libxsmm_gemm.libxsmm_main import (
     DescDatatype,
     GEMMDescriptor,
@@ -461,7 +462,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         m_blocking = 0
 
         # open N loop
-        nloop = compxsmm_generator_gemm_header_nloop(
+        nloop_op, nloop_block_vals = compxsmm_generator_gemm_header_nloop(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
@@ -469,6 +470,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             n_blocking=n_blocking,
             n_done=n_done + n_N[n_count],
         )
+
+        a_val = nloop_block_vals.a
+        b_val = nloop_block_vals.b
+        c_val = nloop_block_vals.c
+        rbp_val = nloop_block_vals.rbp
+        rsp_val = nloop_block_vals.rsp
 
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
@@ -498,6 +505,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             ) // 8  # @TODO: FOR SSE ONLY and relumask
 
             if (m_done != m_done_old) and (m_done > 0):
+                mask_k1_val = None
                 # when on AVX512, load mask, if needed
                 if (
                     micro_kernel_config.use_masking_a_c
@@ -667,7 +675,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                             desc.datatype.c,
                         )
                     else:
-                        compxsmm_generator_initialize_avx512_mask(
+                        mask_k1_val = compxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
                             LIBXSMM_X86_AVX512_MASK_REG,
@@ -682,10 +690,18 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                mloop_op = compxsmm_generator_gemm_header_mloop(
+                mloop_op, mloop_block_vals = compxsmm_generator_gemm_header_mloop(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
+                    args=MLoopVals(
+                        a_val,
+                        b_val,
+                        c_val,
+                        rbp_val,
+                        rsp_val,
+                        mask_k1_val,
+                    ),
                     m_init=m_done_old,
                     m_blocking=m_blocking,
                     m_done=m_done,
@@ -697,6 +713,8 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     desc,
                     m_blocking,
                     n_blocking,
+                    c_val=mloop_block_vals.c,
+                    mask_k1=mloop_block_vals.mask_k1,
                 )
 
                 if (
@@ -714,6 +732,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     desc,
                     m_blocking,
                     n_blocking,
+                    mloop_block_vals=mloop_block_vals,
                 )
 
                 if (
@@ -730,9 +749,15 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     desc,
                     m_blocking,
                     n_blocking,
+                    c_val=generated_code.get_val(gp_reg_mapping.gp_reg_c),
+                    mask_k1=(
+                        generated_code.get_val(LIBXSMM_X86_AVX512_MASK_REG)
+                        if mloop_block_vals.mask_k1 is not None
+                        else None
+                    ),
                 )
 
-                compxsmm_generator_gemm_footer_mloop(
+                mloop_vals = compxsmm_generator_gemm_footer_mloop(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
@@ -740,28 +765,26 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     m_blocking=m_blocking,
                 )
 
-                # Set up builder to build after loop
-                curr_vals = generated_code.current_val_by_reg
-                curr_vals.clear()
-                curr_vals |= {arg.type: arg for arg in mloop_op.results}
-
-                generated_code.builder.insertion_point = InsertPoint.after(mloop_op)
+                a_val = mloop_vals.a
+                b_val = mloop_vals.b
+                c_val = mloop_vals.c
+                rbp_val = mloop_vals.rbp
+                rsp_val = mloop_vals.rsp
+                mask_k1_val = mloop_vals.mask_k1
 
             # switch to next smaller m_blocking
             m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
                 micro_kernel_config, desc, generated_code.arch, m_blocking
             )
 
-        compxsmm_generator_gemm_footer_nloop(
+        nloop_result_vals = compxsmm_generator_gemm_footer_nloop(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
             desc,
             n_blocking=n_blocking,
         )
-        a_val, b_val, c_val, rbp_val, rsp_val = nloop.results
-        assert rbp_val.type == x86.registers.RBP, rbp_val.type
-        rbp_val = cast(SSAValue[GeneralRegisterType], rbp_val)
+        rbp_val = nloop_result_vals.rbp
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:
@@ -781,6 +804,8 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     desc: GEMMDescriptor,
     m_blocking: int,
     n_blocking: int,
+    *,
+    mloop_block_vals: MLoopVals,
 ) -> None:
     # some hard coded parameters for k-blocking
     k_blocking = 0
@@ -871,18 +896,50 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         raise NotImplementedError
 
     # Apply multiple k_blocking strategies
+    m_blocking_vec = (
+        m_blocking // micro_kernel_config.vector_length
+        if (m_blocking % micro_kernel_config.vector_length == 0)
+        else (m_blocking // micro_kernel_config.vector_length) + 1
+    )
+    vec_reg_acc_start = (
+        micro_kernel_config.vector_reg_count - n_blocking * m_blocking_vec
+    )
+    match micro_kernel_config.vector_name:
+        case "x":
+            dest_type = x86.registers.SSERegisterType
+        case "y":
+            dest_type = x86.registers.AVX2RegisterType
+        case "z":
+            dest_type = x86.registers.AVX512RegisterType
+    acc_vals = tuple(
+        generated_code.get_val(
+            dest_type.from_index(vec_reg_acc_start + m + (m_blocking_vec * n))
+        )
+        for n in range(n_blocking)
+        for m in range(m_blocking_vec)
+    )
+    kloop_vals = KLoopVals(
+        mloop_block_vals.a,
+        mloop_block_vals.b,
+        mloop_block_vals.c,
+        mloop_block_vals.rbp,
+        mloop_block_vals.rsp,
+        mloop_block_vals.mask_k1,
+        acc_vals,
+    )
 
     if not desc.k % k_blocking and k_threshold < desc.k:
         # 1. we are larger the k_threshold and a multiple of a predefined blocking parameter
-        kloop_op, kloop_vals = compxsmm_generator_gemm_kloop(
+        kloop_op, kloop_block_vals = compxsmm_generator_gemm_kloop(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
+            vals=kloop_vals,
             m_blocking=m_blocking,
             k_blocking=k_blocking,
             max_blocked_k=desc.k,
         )
-        generator_kloop_kernel(
+        kloop_yielded_vals = generator_kloop_kernel(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
@@ -890,6 +947,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             m_blocking,
             n_blocking,
             k_blocking,
+            kloop_block_vals,
         )
 
         body_block = generated_code.builder.insertion_point.block
@@ -898,7 +956,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             generated_code.current_val_by_reg[val_type]
             for val_type in yielded_arg_types
         )
-        compxsmm_generator_gemm_footer_kloop(
+        kloop_vals = compxsmm_generator_gemm_footer_kloop(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
@@ -906,18 +964,13 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             m_blocking,
             desc.k,
             True,
-            a_val,
-            b_val,
-            c_val,
-            rsp_val,
-            rbp_val,
-            acc_vals,
+            kloop_yielded_vals,
         )
     else:
         b_offset = 0
         # 2. we want to fully unroll below the threshold
         if desc.k <= k_threshold:
-            generator_kloop_kernel(
+            kloop_vals = generator_kloop_kernel(
                 generated_code,
                 gp_reg_mapping,
                 micro_kernel_config,
@@ -925,6 +978,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 m_blocking,
                 n_blocking,
                 desc.k,
+                kloop_vals,
             )
         # 3. we are larger than the threshold but not a multiple of the blocking factor -> largest possible blocking + remainder handling
         else:
@@ -933,24 +987,17 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
             # We can block as k is large enough
             if l_max_blocked_k > 0:
-                kloop_op, kloop_vals = compxsmm_generator_gemm_kloop(
+                kloop_op, kloop_block_vals = compxsmm_generator_gemm_kloop(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
+                    vals=kloop_vals,
                     m_blocking=m_blocking,
                     k_blocking=k_blocking,
                     max_blocked_k=l_max_blocked_k,
                 )
-                (
-                    a_result_val,
-                    b_result_val,
-                    c_result_val,
-                    rsp_result_val,
-                    rbp_result_val,
-                    *acc_result_vals,
-                ) = kloop_vals
 
-                generator_kloop_kernel(
+                kloop_yielded_vals = generator_kloop_kernel(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
@@ -958,22 +1005,10 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     m_blocking,
                     n_blocking,
                     k_blocking,
+                    kloop_block_vals,
                 )
 
-                body_block = generated_code.builder.insertion_point.block
-                yielded_arg_types = body_block.arg_types[1:]
-                (
-                    a_block_val,
-                    b_block_val,
-                    c_block_val,
-                    rsp_block_val,
-                    rbp_block_val,
-                    *acc_block_vals,
-                ) = tuple(
-                    generated_code.current_val_by_reg[val_type]
-                    for val_type in yielded_arg_types
-                )
-                compxsmm_generator_gemm_footer_kloop(
+                kloop_vals = compxsmm_generator_gemm_footer_kloop(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
@@ -981,16 +1016,11 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     m_blocking,
                     l_max_blocked_k,
                     False,
-                    a_block_val,
-                    b_block_val,
-                    c_block_val,
-                    rsp_block_val,
-                    rbp_block_val,
-                    acc_block_vals,
+                    kloop_yielded_vals,
                 )
 
             # Now handle the remainder
-            generator_kloop_kernel(
+            kloop_vals = generator_kloop_kernel(
                 generated_code,
                 gp_reg_mapping,
                 micro_kernel_config,
@@ -998,6 +1028,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 m_blocking,
                 n_blocking,
                 desc.k - l_max_blocked_k,
+                kloop_vals,
             )
 
             # Reset B pointer

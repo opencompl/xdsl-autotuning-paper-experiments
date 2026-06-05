@@ -1,4 +1,3 @@
-from typing import Sequence
 from xdsl.dialects.builtin import IntegerAttr
 from xdsl.dialects.x86.ops import si32
 from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
@@ -15,7 +14,13 @@ from autotuner.compxsmm_gemm.generator_x86_instructions import (
     compxsmm_x86_instruction_unified_vec_move_st,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode
+from autotuner.compxsmm_gemm.libxsmm_generator import (
+    GeneratedCode,
+    KLoopVals,
+    MLoopVals,
+    NLoopVals,
+    VectorRegT,
+)
 
 from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMDescriptor,
@@ -304,16 +309,16 @@ def compxsmm_generator_gemm_kloop(
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
     *,
+    vals: KLoopVals,
     m_blocking: int,
     k_blocking: int,
     max_blocked_k: int,
-) -> tuple[x86_scf.ForOp, tuple[SSAValue, ...]]:
+) -> tuple[x86_scf.ForOp, KLoopVals]:
     """
     In original, adds three lines of assembly: set counter to 0, add label, add k_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
     """
     k_arg_reg = gp_reg_mapping.gp_reg_kloop
-    m_arg_reg = gp_reg_mapping.gp_reg_mloop
 
     curr_vals = generated_code.current_val_by_reg
     generated_code.insert(k_init_op := x86.ops.DI_MovOp(0, destination=k_arg_reg))
@@ -323,13 +328,7 @@ def compxsmm_generator_gemm_kloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    # k is passed as lb, so no need to include in iter_args
-    # m loop is currently accidentally included in the args even though it's not used in the loop, exclude it for now
-    args = tuple(
-        val
-        for val in generated_code.current_val_by_reg.values()
-        if val.type not in (k_arg_reg, m_arg_reg)
-    )
+    args = vals.vals
 
     assert k_init_op.next_op is None, (
         "Not sure how this can happen, adding assert to catch later (this assert adding when refactoring to x86_scf generation)"
@@ -344,12 +343,35 @@ def compxsmm_generator_gemm_kloop(
         )
     )
 
+    if vals.mask_k1 is None:
+        _k_val, a_val, b_val, c_val, rbp_val, rsp_val, *acc_vals = (
+            kloop_op.body.block.args
+        )
+        mask_k1 = None
+    else:
+        _k_val, a_val, b_val, c_val, rbp_val, rsp_val, mask_k1, *acc_vals = (
+            kloop_op.body.block.args
+        )
+        mask_k1 = SSAValue.get(mask_k1, type=AVX512MaskRegisterType)
+
+    a_val = SSAValue.get(a_val, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_val, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_val, type=GeneralRegisterType)
+    rbp_val = SSAValue.get(rbp_val, type=GeneralRegisterType)
+    assert rbp_val.type == x86.registers.RBP
+    rsp_val = SSAValue.get(rsp_val, type=GeneralRegisterType)
+    assert rsp_val.type == x86.registers.RSP
+    acc_vals = tuple(SSAValue.get(v, type=VectorRegT) for v in acc_vals)
+    kloop_block_vals = KLoopVals(
+        a_val, b_val, c_val, rbp_val, rsp_val, mask_k1, acc_vals
+    )
+
     # Set up builder to build inside of loop
     generated_code.builder.insertion_point = InsertPoint.at_start(kloop_op.body.block)
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in kloop_op.body.block.args}
 
-    return kloop_op, kloop_op.body.block.args
+    return kloop_op, kloop_block_vals
 
 
 def compxsmm_generator_gemm_footer_kloop(
@@ -360,16 +382,9 @@ def compxsmm_generator_gemm_footer_kloop(
     m_blocking: int,
     max_blocked_k: int,
     k_loop_complete: bool,
-    a_val: SSAValue,
-    b_val: SSAValue,
-    c_val: SSAValue,
-    rsp_val: SSAValue,
-    rbp_val: SSAValue,
-    acc_vals: Sequence[SSAValue],
-) -> None:
-    generated_code.insert(
-        yield_op := x86_scf.YieldOp(a_val, b_val, c_val, rsp_val, rbp_val, *acc_vals)
-    )
+    vals: KLoopVals,
+) -> KLoopVals:
+    generated_code.insert(yield_op := x86_scf.YieldOp(*vals.vals))
 
     # Set up builder to build at end of block containing for loop
     kloop_op = yield_op.parent_op()
@@ -380,6 +395,21 @@ def compxsmm_generator_gemm_footer_kloop(
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in kloop_op.results}
 
+    if vals.mask_k1 is None:
+        a_val, b_val, c_val, rbp_val, rsp_val, *acc_vals = kloop_op.results
+        mask_k1 = None
+    else:
+        a_val, b_val, c_val, rbp_val, rsp_val, mask_k1, *acc_vals = kloop_op.results
+        mask_k1 = SSAValue.get(mask_k1, type=AVX512MaskRegisterType)
+    a_val = SSAValue.get(a_val, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_val, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_val, type=GeneralRegisterType)
+    rbp_val = SSAValue.get(rbp_val, type=GeneralRegisterType)
+    assert rbp_val.type == x86.registers.RBP
+    rsp_val = SSAValue.get(rsp_val, type=GeneralRegisterType)
+    assert rsp_val.type == x86.registers.RSP
+    acc_vals = tuple(SSAValue.get(v, type=VectorRegT) for v in acc_vals)
+
     if k_loop_complete:
         b_offset = 0
         if GEMMFlag.TRANS_B in gemm_desc.flags:
@@ -389,13 +419,15 @@ def compxsmm_generator_gemm_footer_kloop(
         else:
             b_offset = gemm_desc.ldb * micro_kernel_config.datatype_size_in2
 
-        generated_code.insert(
+        b_val = generated_code.insert(
             x86.ops.RI_SubOp(
-                generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b],
+                b_val,
                 b_offset,
-                register_out=gp_reg_mapping.gp_reg_b,
+                register_out=b_val.type,
             )
-        )
+        ).register_out
+
+    return KLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1, acc_vals)
 
 
 def compxsmm_generator_gemm_get_blocking_and_mask(
@@ -816,7 +848,7 @@ def compxsmm_generator_gemm_header_nloop(
     n_init: int,
     n_blocking: int,
     n_done: int,
-) -> x86_scf.ForOp:
+) -> tuple[x86_scf.ForOp, NLoopVals]:
     """
     In original, adds three lines of assembly: set counter to n_init, add label, add n_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
@@ -853,7 +885,16 @@ def compxsmm_generator_gemm_header_nloop(
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in body_block.args}
 
-    return nloop_op
+    _n_val, a_val, b_val, c_val, rbp_val, rsp_val = body_block.args
+    a_val = SSAValue.get(a_val, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_val, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_val, type=GeneralRegisterType)
+    rbp_val = SSAValue.get(rbp_val, type=GeneralRegisterType)
+    assert rbp_val.type == x86.registers.RBP
+    rsp_val = SSAValue.get(rsp_val, type=GeneralRegisterType)
+    assert rsp_val.type == x86.registers.RSP
+
+    return nloop_op, NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val)
 
 
 def compxsmm_generator_gemm_footer_nloop(
@@ -863,7 +904,7 @@ def compxsmm_generator_gemm_footer_nloop(
     desc: GEMMDescriptor,
     *,
     n_blocking: int,
-) -> None:
+) -> NLoopVals:
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
     is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
     is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm()
@@ -1034,7 +1075,18 @@ def compxsmm_generator_gemm_footer_nloop(
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in nloop_op.results}
 
+    a_val, b_val, c_val, rbp_val, rsp_val = nloop_op.results
+    a_val = SSAValue.get(a_val, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_val, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_val, type=GeneralRegisterType)
+    rbp_val = SSAValue.get(rbp_val, type=GeneralRegisterType)
+    assert rbp_val.type == x86.registers.RBP
+    rsp_val = SSAValue.get(rsp_val, type=GeneralRegisterType)
+    assert rsp_val.type == x86.registers.RSP
+
     generated_code.builder.insertion_point = InsertPoint.after(nloop_op)
+
+    return NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val)
 
 
 def compxsmm_generator_gemm_header_mloop(
@@ -1042,16 +1094,16 @@ def compxsmm_generator_gemm_header_mloop(
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
     *,
+    args: MLoopVals,
     m_init: int,
     m_blocking: int,
     m_done: int,
-) -> x86_scf.ForOp:
+) -> tuple[x86_scf.ForOp, MLoopVals]:
     """
     In original, adds three lines of assembly: set counter to m_init, add label, add m_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
     """
     m_arg_reg = gp_reg_mapping.gp_reg_mloop
-    n_arg_reg = gp_reg_mapping.gp_reg_nloop
 
     curr_vals = generated_code.current_val_by_reg
     generated_code.insert(m_init_op := x86.ops.DI_MovOp(m_init, destination=m_arg_reg))
@@ -1061,20 +1113,12 @@ def compxsmm_generator_gemm_header_mloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    # m is passed as lb, so no need to include in iter_args
-    # n loop is currently accidentally included in the args even though it's not used in the loop, exclude it for now
-    args = tuple(
-        val
-        for val in generated_code.current_val_by_reg.values()
-        if val.type not in (m_arg_reg, n_arg_reg)
-    )
-
     mloop_op = generated_code.builder.insert(
         x86_scf.ForOp(
             m_init_op.destination,
             IntegerAttr(m_done, si32),
             IntegerAttr(m_blocking, si32),
-            args,
+            args.vals,
         )
     )
 
@@ -1084,7 +1128,18 @@ def compxsmm_generator_gemm_header_mloop(
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in body_block.args}
 
-    return mloop_op
+    _m_val, a_val, b_val, c_val, rbp_val, rsp_val, *rest = body_block.args
+    a_val = SSAValue.get(a_val, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_val, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_val, type=GeneralRegisterType)
+    rbp_val = SSAValue.get(rbp_val, type=GeneralRegisterType)
+    assert rbp_val.type == x86.registers.RBP
+    rsp_val = SSAValue.get(rsp_val, type=GeneralRegisterType)
+    assert rsp_val.type == x86.registers.RSP
+    mask_k1 = None
+    if args.mask_k1 is not None:
+        mask_k1 = SSAValue.get(rest[0], type=AVX512MaskRegisterType)
+    return mloop_op, MLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1)
 
 
 def compxsmm_generator_gemm_footer_mloop(
@@ -1094,7 +1149,7 @@ def compxsmm_generator_gemm_footer_mloop(
     desc: GEMMDescriptor,
     *,
     m_blocking: int,
-) -> None:
+) -> MLoopVals:
     # k packing factor for VNNI
     k_pack_factor = 1
     is_Ai4_Bf16_gemm = (
@@ -1241,6 +1296,32 @@ def compxsmm_generator_gemm_footer_mloop(
         generated_code.current_val_by_reg[val_type] for val_type in yielded_arg_types
     )
     generated_code.insert(x86_scf.YieldOp(*yielded_args))
+    # Set up builder to build after loop
+    mloop_op = body_block.parent_op()
+    assert isinstance(mloop_op, x86_scf.ForOp), mloop_op
+
+    curr_vals = generated_code.current_val_by_reg
+    curr_vals.clear()
+    curr_vals |= {arg.type: arg for arg in mloop_op.results}
+
+    if len(mloop_op.results) == 5:
+        a_val, b_val, c_val, rbp_val, rsp_val = mloop_op.results
+        mask_k1 = None
+    else:
+        a_val, b_val, c_val, rbp_val, rsp_val, mask_k1 = mloop_op.results
+        mask_k1 = SSAValue.get(mask_k1, type=AVX512MaskRegisterType)
+
+    a_val = SSAValue.get(a_val, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_val, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_val, type=GeneralRegisterType)
+    rbp_val = SSAValue.get(rbp_val, type=GeneralRegisterType)
+    assert rbp_val.type == x86.registers.RBP
+    rsp_val = SSAValue.get(rsp_val, type=GeneralRegisterType)
+    assert rsp_val.type == x86.registers.RSP
+
+    generated_code.builder.insertion_point = InsertPoint.after(mloop_op)
+
+    return MLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1)
 
 
 def compxsmm_generator_gemm_load_C(
@@ -1250,6 +1331,9 @@ def compxsmm_generator_gemm_load_C(
     desc: GEMMDescriptor,
     m_blocking: int,
     n_blocking: int,
+    *,
+    c_val: SSAValue[GeneralRegisterType],
+    mask_k1: SSAValue[AVX512MaskRegisterType] | None = None,
 ) -> None:
     # register blocking counter in n
     n = 0
@@ -1425,19 +1509,17 @@ def compxsmm_generator_gemm_load_C(
                             micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX
                             and use_masking
                         ):
-                            mask_reg = AVX512MaskRegisterType.from_index(
-                                2
-                                if (
-                                    is_Amxfp4_Bbf16_gemm
-                                    or is_Amxfp4_Bfp32_gemm
-                                    or is_Amxfp4_Bi8_gemm
-                                )
-                                else 1
+                            use_k2_mask = (
+                                is_Amxfp4_Bbf16_gemm
+                                or is_Amxfp4_Bfp32_gemm
+                                or is_Amxfp4_Bi8_gemm
                             )
-                            mask_val = generated_code.get_val(mask_reg)
+                            if use_k2_mask:
+                                raise NotImplementedError
+
+                            mask_val = mask_k1
                             _mask_const = None
                         else:
-                            mask_reg = None
                             mask_val = None
                             _mask_const = m_blocking % micro_kernel_config.vector_length
 
@@ -1456,7 +1538,7 @@ def compxsmm_generator_gemm_load_C(
                         compxsmm_x86_instruction_unified_vec_move_ld(
                             generated_code,
                             micro_kernel_config.c_vmove_ld_instruction,
-                            generated_code.get_val(gp_reg_mapping.gp_reg_c),
+                            c_val,
                             None,
                             0,
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
@@ -1522,6 +1604,9 @@ def compxsmm_generator_gemm_store_C(
     desc: GEMMDescriptor,
     m_blocking: int,
     n_blocking: int,
+    *,
+    c_val: SSAValue[GeneralRegisterType],
+    mask_k1: SSAValue[AVX512MaskRegisterType] | None = None,
 ) -> None:
     # deriving register blocking from kernel config
     is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
@@ -1669,19 +1754,18 @@ def compxsmm_generator_gemm_store_C(
                         micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX
                         and use_masking
                     ):
-                        mask_reg = AVX512MaskRegisterType.from_index(
-                            2
-                            if (
-                                is_Amxfp4_Bbf16_gemm
-                                or is_Amxfp4_Bfp32_gemm
-                                or is_Amxfp4_Bi8_gemm
-                            )
-                            else 1
+                        use_k2_mask = (
+                            is_Amxfp4_Bbf16_gemm
+                            or is_Amxfp4_Bfp32_gemm
+                            or is_Amxfp4_Bi8_gemm
                         )
-                        mask_val = generated_code.get_val(mask_reg)
+
+                        if use_k2_mask:
+                            raise NotImplementedError
+
+                        mask_val = mask_k1
                         _mask_const = None
                     else:
-                        mask_reg = None
                         mask_val = None
                         _mask_const = m_blocking % micro_kernel_config.vector_length
 
@@ -1746,7 +1830,7 @@ def compxsmm_generator_gemm_store_C(
                         compxsmm_x86_instruction_unified_vec_move_st(
                             generated_code,
                             vstore,
-                            generated_code.get_val(gp_reg_mapping.gp_reg_c),
+                            c_val,
                             None,
                             0,
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
