@@ -69,16 +69,13 @@ def compxsmm_x86_instruction_unified_vec_move_st(
         else:
             compxsmm_x86_instruction_vec_move_st(
                 generated_code,
-                generated_code.arch,
                 i_vmove_instr,
-                base_val,
-                reg_idx,
-                scale,
-                displacement,
-                source_val,
-                None,
-                False,
-                is_store,
+                base_val=base_val,
+                displacement=displacement,
+                source_val=source_val,
+                mask_val=None,
+                use_zero_masking=False,
+                is_store=is_store,
             )
 
     else:
@@ -254,30 +251,24 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
         if use_masking:
             compxsmm_x86_instruction_vec_move_st(
                 generated_code,
-                generated_code.arch,
                 vmove_instr,
-                base_val,
-                reg_idx,
-                scale,
-                displacement,
-                source_val,
-                mask_val,
-                not is_store,
-                is_store,
+                base_val=base_val,
+                displacement=displacement,
+                source_val=source_val,
+                mask_val=mask_val,
+                use_zero_masking=not is_store,
+                is_store=is_store,
             )
         else:
             compxsmm_x86_instruction_vec_move_st(
                 generated_code,
-                generated_code.arch,
                 vmove_instr,
-                base_val,
-                reg_idx,
-                scale,
-                displacement,
-                source_val,
-                None,
-                not is_store,
-                is_store,
+                base_val=base_val,
+                displacement=displacement,
+                source_val=source_val,
+                mask_val=None,
+                use_zero_masking=not is_store,
+                is_store=is_store,
             )
     elif generated_code.arch >= Arch.LIBXSMM_X86_AVX:
         if use_masking:
@@ -295,16 +286,13 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_st(
         else:
             compxsmm_x86_instruction_vec_move_st(
                 generated_code,
-                generated_code.arch,
                 vmove_instr,
-                base_val,
-                reg_idx,
-                scale,
-                displacement,
-                source_val,
-                None,
-                True,
-                is_store,
+                base_val=base_val,
+                displacement=displacement,
+                source_val=source_val,
+                mask_val=None,
+                use_zero_masking=True,
+                is_store=is_store,
             )
     else:
         assert False
@@ -449,7 +437,6 @@ def compxsmm_x86_instruction_vec_mask_move_ld(
 
 def compxsmm_x86_instruction_vec_move_st(
     generated_code: GeneratedCode,
-    instruction_set: int,
     vmove_instr: type[
         x86.ops.MS_VmovapdOp
         | x86.ops.MS_VmovupdOp
@@ -459,9 +446,8 @@ def compxsmm_x86_instruction_vec_move_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
+    *,
     base_val: SSAValue[x86.registers.GeneralRegisterType],
-    reg_idx: x86.registers.GeneralRegisterType | None,
-    scale: int,
     displacement: int,
     source_val: SSAValue[
         x86.registers.SSERegisterType
