@@ -933,9 +933,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         kloop_op, kloop_block_vals = compxsmm_generator_gemm_kloop(
             generated_code,
             gp_reg_mapping,
-            micro_kernel_config,
             vals=kloop_vals,
-            m_blocking=m_blocking,
             k_blocking=k_blocking,
             max_blocked_k=desc.k,
         )
@@ -950,19 +948,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             kloop_block_vals,
         )
 
-        body_block = generated_code.builder.insertion_point.block
-        yielded_arg_types = body_block.arg_types[1:]
-        a_val, b_val, c_val, rsp_val, rbp_val, *acc_vals = tuple(
-            generated_code.current_val_by_reg[val_type]
-            for val_type in yielded_arg_types
-        )
         kloop_vals = compxsmm_generator_gemm_footer_kloop(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
             desc,
             m_blocking,
-            desc.k,
             True,
             kloop_yielded_vals,
         )
@@ -990,9 +981,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 kloop_op, kloop_block_vals = compxsmm_generator_gemm_kloop(
                     generated_code,
                     gp_reg_mapping,
-                    micro_kernel_config,
                     vals=kloop_vals,
-                    m_blocking=m_blocking,
                     k_blocking=k_blocking,
                     max_blocked_k=l_max_blocked_k,
                 )
@@ -1013,10 +1002,9 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     gp_reg_mapping,
                     micro_kernel_config,
                     desc,
-                    m_blocking,
-                    l_max_blocked_k,
-                    False,
-                    kloop_yielded_vals,
+                    m_blocking=m_blocking,
+                    k_loop_complete=False,
+                    kloop_yielded_vals=kloop_yielded_vals,
                 )
 
             # Now handle the remainder

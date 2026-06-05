@@ -307,10 +307,8 @@ def compxsmm_generator_gemm_setval_stack_var(
 def compxsmm_generator_gemm_kloop(
     generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
-    micro_kernel_config: MicroKernelConfig,
     *,
     vals: KLoopVals,
-    m_blocking: int,
     k_blocking: int,
     max_blocked_k: int,
 ) -> tuple[x86_scf.ForOp, KLoopVals]:
@@ -328,8 +326,6 @@ def compxsmm_generator_gemm_kloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    args = vals.vals
-
     assert k_init_op.next_op is None, (
         "Not sure how this can happen, adding assert to catch later (this assert adding when refactoring to x86_scf generation)"
     )
@@ -339,7 +335,7 @@ def compxsmm_generator_gemm_kloop(
             k_init_op.destination,
             IntegerAttr(max_blocked_k, si32),
             IntegerAttr(k_blocking, si32),
-            args,
+            vals.vals,
         )
     )
 
@@ -353,7 +349,6 @@ def compxsmm_generator_gemm_kloop(
             kloop_op.body.block.args
         )
         mask_k1 = SSAValue.get(mask_k1, type=AVX512MaskRegisterType)
-
     a_val = SSAValue.get(a_val, type=GeneralRegisterType)
     b_val = SSAValue.get(b_val, type=GeneralRegisterType)
     c_val = SSAValue.get(c_val, type=GeneralRegisterType)
@@ -380,11 +375,10 @@ def compxsmm_generator_gemm_footer_kloop(
     micro_kernel_config: MicroKernelConfig,
     gemm_desc: GEMMDescriptor,
     m_blocking: int,
-    max_blocked_k: int,
     k_loop_complete: bool,
-    vals: KLoopVals,
-) -> KLoopVals:
-    generated_code.insert(yield_op := x86_scf.YieldOp(*vals.vals))
+    kloop_yielded_vals: KLoopVals,
+):
+    generated_code.insert(yield_op := x86_scf.YieldOp(*kloop_yielded_vals.vals))
 
     # Set up builder to build at end of block containing for loop
     kloop_op = yield_op.parent_op()
@@ -395,7 +389,7 @@ def compxsmm_generator_gemm_footer_kloop(
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in kloop_op.results}
 
-    if vals.mask_k1 is None:
+    if kloop_yielded_vals.mask_k1 is None:
         a_val, b_val, c_val, rbp_val, rsp_val, *acc_vals = kloop_op.results
         mask_k1 = None
     else:
