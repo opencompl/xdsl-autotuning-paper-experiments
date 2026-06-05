@@ -726,7 +726,41 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
+                m_blocking_vec = (
+                    m_blocking // micro_kernel_config.vector_length
+                    if (m_blocking % micro_kernel_config.vector_length == 0)
+                    else (m_blocking // micro_kernel_config.vector_length) + 1
+                )
+                vec_reg_acc_start = (
+                    micro_kernel_config.vector_reg_count - n_blocking * m_blocking_vec
+                )
+                match micro_kernel_config.vector_name:
+                    case "x":
+                        dest_type = x86.registers.SSERegisterType
+                    case "y":
+                        dest_type = x86.registers.AVX2RegisterType
+                    case "z":
+                        dest_type = x86.registers.AVX512RegisterType
+                acc_vals = tuple(
+                    generated_code.get_val(
+                        dest_type.from_index(
+                            vec_reg_acc_start + m + (m_blocking_vec * n)
+                        )
+                    )
+                    for n in range(n_blocking)
+                    for m in range(m_blocking_vec)
+                )
+                kloop_vals = KLoopVals(
+                    mloop_block_vals.a,
+                    mloop_block_vals.b,
+                    mloop_block_vals.c,
+                    mloop_block_vals.rbp,
+                    mloop_block_vals.rsp,
+                    mloop_block_vals.mask_k1,
+                    acc_vals,
+                )
+
+                kloop_vals = compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     generated_code,
                     loop_label_tracker,
                     gp_reg_mapping,
@@ -734,7 +768,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     desc,
                     m_blocking,
                     n_blocking,
-                    mloop_block_vals=mloop_block_vals,
+                    kloop_vals=kloop_vals,
                 )
 
                 if (
@@ -743,6 +777,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     or GEMMFlag.BATCH_REDUCE_STRIDE in desc.flags
                 ):
                     raise NotImplementedError
+
+                a_val = kloop_vals.a
+                b_val = kloop_vals.b
+                c_val = kloop_vals.c
+                rbp_val = kloop_vals.rbp
+                rsp_val = kloop_vals.rsp
 
                 compxsmm_generator_gemm_store_C(
                     generated_code,
@@ -836,8 +876,8 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     m_blocking: int,
     n_blocking: int,
     *,
-    mloop_block_vals: MLoopVals,
-) -> None:
+    kloop_vals: KLoopVals,
+) -> KLoopVals:
     # some hard coded parameters for k-blocking
     k_blocking = 0
     k_threshold = 0
@@ -950,12 +990,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         for m in range(m_blocking_vec)
     )
     kloop_vals = KLoopVals(
-        mloop_block_vals.a,
-        mloop_block_vals.b,
-        mloop_block_vals.c,
-        mloop_block_vals.rbp,
-        mloop_block_vals.rsp,
-        mloop_block_vals.mask_k1,
+        kloop_vals.a,
+        kloop_vals.b,
+        kloop_vals.c,
+        kloop_vals.rbp,
+        kloop_vals.rsp,
+        kloop_vals.mask_k1,
         acc_vals,
     )
 
@@ -1056,13 +1096,15 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             else:
                 b_offset = desc.k * micro_kernel_config.datatype_size_in2
 
-            generated_code.insert(
+            kloop_vals.b = generated_code.insert(
                 x86.ops.RI_SubOp(
-                    generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b],
+                    kloop_vals.b,
                     b_offset,
                     register_out=gp_reg_mapping.gp_reg_b,
                 )
-            )
+            ).register_out
 
     if is_Ai8_Bbf16_gemm and not is_Ai8_Bbf16_gemm_bf16fma:
         raise NotImplementedError
+
+    return kloop_vals
