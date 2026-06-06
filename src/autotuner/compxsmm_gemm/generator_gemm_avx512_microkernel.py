@@ -162,8 +162,6 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
     # register blocking counter in m
     m = 0
     k = 0
-    # start register of accumulator
-    vec_reg_acc_start = micro_kernel_config.vector_reg_count - (n_blocking * m_blocking)
     vreg_ab_offset = 0
     # temp variable for b-offset to handle no-trans/trans B
     b_offset = 0
@@ -209,7 +207,6 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
     rbp_val = vals.rbp
     rsp_val = vals.rsp
     mask_k1 = vals.mask_k1
-    acc_vals = vals.acc_vectors
 
     if is_Ai8_Bf16_gemm:
         raise NotImplementedError
@@ -348,6 +345,9 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 # prefetch a different A matrix provided by the prefetch pointers
                 raise NotImplementedError
 
+    # List of length n x m of vectors loaded from A
+    acc_vectors = list(vals.acc_vectors)
+
     for k in range(k_iters):
         for n in range(n_blocking):
             b_vname = micro_kernel_config.vector_name
@@ -478,27 +478,17 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 elif use_f16_replacement_fma:
                     raise NotImplementedError
                 else:
-                    match micro_kernel_config.vector_name:
-                        case "x":
-                            source_type = x86.registers.SSERegisterType
-                        case "y":
-                            source_type = x86.registers.AVX2RegisterType
-                        case "z":
-                            source_type = x86.registers.AVX512RegisterType
+                    acc_val_index = m + (m_blocking * n)
+                    acc_vector = acc_vectors[acc_val_index]
 
-                    reg_dst = source_type.from_index(
-                        vec_reg_acc_start + m + (m_blocking * n)
-                    )
-                    dst = generated_code.get_val(reg_dst)
-
-                    compxsmm_x86_instruction_vec_compute_3reg(
+                    acc_vector = compxsmm_x86_instruction_vec_compute_3reg(
                         generated_code,
                         micro_kernel_config.vmul_instruction,
                         a_vec_vals[m],
                         b_vec_val,
-                        dst,
+                        acc_vector,
                     )
 
-    acc_vals = tuple(generated_code.get_val(acc_val.type) for acc_val in acc_vals)
+                    acc_vectors[acc_val_index] = acc_vector
 
-    return KLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1, acc_vals)
+    return KLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1, tuple(acc_vectors))
