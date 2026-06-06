@@ -842,6 +842,7 @@ def compxsmm_generator_gemm_header_nloop(
     n_init: int,
     n_blocking: int,
     n_done: int,
+    vals: NLoopVals,
 ) -> tuple[x86_scf.ForOp, NLoopVals]:
     """
     In original, adds three lines of assembly: set counter to n_init, add label, add n_blocking to loop counter.
@@ -858,18 +859,13 @@ def compxsmm_generator_gemm_header_nloop(
     assert parent_region is not None
 
     # n is passed as lb, so no need to include in iter_args
-    args = tuple(
-        val
-        for val in generated_code.current_val_by_reg.values()
-        if val.type != n_arg_reg
-    )
 
     nloop_op = generated_code.builder.insert(
         x86_scf.ForOp(
             n_init_op.destination,
             IntegerAttr(n_done, si32),
             IntegerAttr(n_blocking, si32),
-            args,
+            vals.vals,
         )
     )
 

@@ -16,8 +16,10 @@ from xdsl.dialects.x86.registers import (
     RDX,
     RSI,
     UNALLOCATED_REG64,
+    GeneralRegisterType,
 )
 from xdsl.dialects.x86_func import FuncOp
+from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_header_mloop,
@@ -170,6 +172,10 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     micro_kernel_config = MicroKernelConfig()
     # These values may be modified below
     m, n, k, lda, ldb, ldc, dt, flags, prefetch = desc
+    a_val, b_val, c_val = generated_code.func_op.body.block.args
+    a_val = SSAValue.get(a_val, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_val, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_val, type=GeneralRegisterType)
 
     is_Ai4_Bf16_gemm = (
         ((desc.flags & GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2) > 0)
@@ -394,7 +400,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         raise NotImplementedError
 
     # Setting up the stack frame
-    rbp_val, rsp = compxsmm_generator_gemm_setup_stack_frame(
+    rbp_val, rsp_val = compxsmm_generator_gemm_setup_stack_frame(
         generated_code, desc, gp_reg_mapping, micro_kernel_config
     )
 
@@ -470,6 +476,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             n_init=n_done,
             n_blocking=n_blocking,
             n_done=n_done + n_N[n_count],
+            vals=NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val),
         )
 
         a_val = nloop_block_vals.a
@@ -809,7 +816,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             n_blocking=n_blocking,
             vals=nloop_inner_vals,
         )
+
+        a_val = nloop_result_vals.a
+        b_val = nloop_result_vals.b
+        c_val = nloop_result_vals.c
         rbp_val = nloop_result_vals.rbp
+        rsp_val = nloop_result_vals.rsp
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:
