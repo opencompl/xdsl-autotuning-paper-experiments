@@ -175,7 +175,7 @@ def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     mask_cntl: int,
     sae_cntl: int,
     imm8: int | None,
-):
+) -> SSAValue[VectorRegT]:
     assert vec_instr is not None
     # if ( (libxsmm_x86_instruction_vec_is_hybrid( i_vec_instr )  == 0) and
     #     (libxsmm_x86_instruction_vec_is_regonly( i_vec_instr ) == 0)    ) {
@@ -198,7 +198,11 @@ def compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         if imm8 is not None:
             raise NotImplementedError
         else:
-            generated_code.insert(vec_instr(dst_val, src0_val, src1_val))
+            res = generated_code.insert(
+                vec_instr(dst_val, src0_val, src1_val)
+            ).register_out
+            res = SSAValue.get(res, type=VectorRegT)
+            return res
     else:
         raise NotImplementedError
 
@@ -209,8 +213,8 @@ def compxsmm_x86_instruction_vec_compute_3reg(
     src0_val: SSAValue[X86VectorRegisterType],
     src1_val: SSAValue[X86VectorRegisterType],
     dst_val: SSAValue[X86VectorRegisterType],
-) -> None:
-    compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
+) -> SSAValue[VectorRegT]:
+    return compxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         generated_code,
         vec_instr,
         src0_val,
