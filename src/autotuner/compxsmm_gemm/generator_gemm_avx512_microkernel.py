@@ -28,6 +28,8 @@ def compxsmm_generator_gemm_avx512_kloop_kernel(
     n_blocking: int,
     k_blocking: int,
     vals: KLoopVals,
+    *,
+    disable_regalloc: bool,
 ) -> KLoopVals:
     k = 0
     _k_pack_factor = 1
@@ -137,6 +139,7 @@ def compxsmm_generator_gemm_avx512_kloop_kernel(
                 m_blocking,
                 n_blocking,
                 vals,
+                disable_regalloc=disable_regalloc,
             )
 
     return vals
@@ -150,6 +153,8 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
     m_blocking: int,
     n_blocking: int,
     vals: KLoopVals,
+    *,
+    disable_regalloc: bool,
 ) -> KLoopVals:
     # deriving register blocking from kernel config
     m_blocking = (
@@ -288,11 +293,14 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     )
                     mask_val = mask_k1 if use_masking else None
 
-                    a_vec_reg = a_vec_type.from_index(
-                        m + vreg_ab_offset
-                        if (is_Ai2_Bi8_gemm > 0)
-                        else 1 + m + vreg_ab_offset
-                    )
+                    if disable_regalloc:
+                        a_vec_reg = a_vec_type.unallocated()
+                    else:
+                        a_vec_reg = a_vec_type.from_index(
+                            m + vreg_ab_offset
+                            if (is_Ai2_Bi8_gemm > 0)
+                            else 1 + m + vreg_ab_offset
+                        )
                     a_vec_val = compxsmm_x86_instruction_vec_move_ld(
                         generated_code,
                         micro_kernel_config.instruction_set,
@@ -395,7 +403,10 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     dest_type = x86.registers.AVX2RegisterType
                 case "z":
                     dest_type = x86.registers.AVX512RegisterType
-            b_vec_reg = dest_type.from_index(vreg_ab_offset)
+            if disable_regalloc:
+                b_vec_reg = dest_type.unallocated()
+            else:
+                b_vec_reg = dest_type.from_index(vreg_ab_offset)
 
             b_vec_val = compxsmm_x86_instruction_vec_move_ld(
                 generated_code,

@@ -40,6 +40,12 @@ def main():
         choices=["SP", "DP"],
         help="Precision: SP or DP",
     )
+    parser.add_argument(
+        "--disable-regalloc",
+        dest="disable_regalloc",
+        action="store_true",
+        help="Disable register allocation.",
+    )
 
     args = parser.parse_args()
 
@@ -96,5 +102,9 @@ def main():
     assert arch == Arch.LIBXSMM_X86_AVX512_SKX, f"Only `skx` arch supported, got {arch}"
 
     compxsmm_generator_gemm_directasm(
-        args.filename, args.routine_name, descriptor, arch
+        args.filename,
+        args.routine_name,
+        descriptor,
+        arch,
+        disable_regalloc=args.disable_regalloc,
     )

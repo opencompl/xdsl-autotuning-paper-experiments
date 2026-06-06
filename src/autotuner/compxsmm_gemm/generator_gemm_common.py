@@ -1304,6 +1304,7 @@ def compxsmm_generator_gemm_load_C(
     *,
     c_val: SSAValue[GeneralRegisterType],
     mask_k1: SSAValue[AVX512MaskRegisterType] | None = None,
+    disable_regalloc: bool,
 ) -> tuple[SSAValue[VectorRegT], ...]:
     result: list[SSAValue[VectorRegT]] = []
     # register blocking counter in n
@@ -1468,9 +1469,12 @@ def compxsmm_generator_gemm_load_C(
                                 dest_type = x86.registers.AVX2RegisterType
                             case "z":
                                 dest_type = x86.registers.AVX512RegisterType
-                        c_vec_reg = dest_type.from_index(
-                            vec_reg_acc_start + m + (m_blocking * n)
-                        )
+                        if disable_regalloc:
+                            c_vec_reg = dest_type.unallocated()
+                        else:
+                            c_vec_reg = dest_type.from_index(
+                                vec_reg_acc_start + m + (m_blocking * n)
+                            )
                         use_masking = (
                             micro_kernel_config.use_masking_a_c
                             if (m == (m_blocking - 1))

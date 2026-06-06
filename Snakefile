@@ -323,7 +323,8 @@ rule compxsmm_rowmaj_mlir:
             1 1 \
             {params.target_xsmm} \
             nopf \
-            {params.dtype}
+            {params.dtype} \
+            --disable-regalloc
         """
 
 

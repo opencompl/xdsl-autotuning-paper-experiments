@@ -15,7 +15,12 @@ from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
 def compxsmm_generator_gemm_directasm(
-    file_out: Path, routine_name: str, desc: GEMMDescriptor, arch: Arch
+    file_out: Path,
+    routine_name: str,
+    desc: GEMMDescriptor,
+    arch: Arch,
+    *,
+    disable_regalloc: bool,
 ):
     module_op = ModuleOp(Region(Block()))
 
@@ -24,7 +29,9 @@ def compxsmm_generator_gemm_directasm(
 
     # Generate the actual kernel code for current description depending on the
     # architecture.
-    compxsmm_generator_gemm_kernel(func_op, arch, desc)
+    compxsmm_generator_gemm_kernel(
+        func_op, arch, desc, disable_regalloc=disable_regalloc
+    )
 
     func_op.body.blocks[-1].add_op(RetOp())
 
@@ -33,7 +40,13 @@ def compxsmm_generator_gemm_directasm(
         Printer(stream=f).print_op(func_op)
 
 
-def compxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescriptor):
+def compxsmm_generator_gemm_kernel(
+    func_op: FuncOp,
+    arch: Arch,
+    desc: GEMMDescriptor,
+    *,
+    disable_regalloc: bool,
+):
     m, n, k, lda, ldb, ldc, datatype, flags, prefetch = desc
 
     vector_length = 1
@@ -633,7 +646,7 @@ def compxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescri
             # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
         else:
             compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
-                func_op, arch, desc_mod
+                func_op, arch, desc_mod, disable_regalloc=disable_regalloc
             )
     elif arch in (Arch.LIBXSMM_AARCH64_V81, Arch.LIBXSMM_AARCH64_V82):
         raise NotImplementedError
