@@ -145,9 +145,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     gp_reg_mapping.gp_reg_help_2 = RBX
 
     builder = Builder(InsertPoint.at_end(func_op.body.block))
-    generated_code = GeneratedCode(
-        func_op, builder, arch, {arg.type: arg for arg in func_op.body.block.args}
-    )
+    generated_code = GeneratedCode(func_op, builder, arch)
 
     compxsmm_x86_instruction_open_stream_gemm(
         generated_code, gp_reg_mapping, False, desc.prefetch
@@ -933,38 +931,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         raise NotImplementedError
 
     # Apply multiple k_blocking strategies
-    m_blocking_vec = (
-        m_blocking // micro_kernel_config.vector_length
-        if (m_blocking % micro_kernel_config.vector_length == 0)
-        else (m_blocking // micro_kernel_config.vector_length) + 1
-    )
-    vec_reg_acc_start = (
-        micro_kernel_config.vector_reg_count - n_blocking * m_blocking_vec
-    )
-    match micro_kernel_config.vector_name:
-        case "x":
-            dest_type = x86.registers.SSERegisterType
-        case "y":
-            dest_type = x86.registers.AVX2RegisterType
-        case "z":
-            dest_type = x86.registers.AVX512RegisterType
-    acc_vals = tuple(
-        generated_code.get_val(
-            dest_type.from_index(vec_reg_acc_start + m + (m_blocking_vec * n))
-        )
-        for n in range(n_blocking)
-        for m in range(m_blocking_vec)
-    )
-    kloop_vals = KLoopVals(
-        kloop_vals.a,
-        kloop_vals.b,
-        kloop_vals.c,
-        kloop_vals.rbp,
-        kloop_vals.rsp,
-        kloop_vals.mask_k1,
-        acc_vals,
-    )
-
     if not desc.k % k_blocking and k_threshold < desc.k:
         # 1. we are larger the k_threshold and a multiple of a predefined blocking parameter
         kloop_op, kloop_block_vals = compxsmm_generator_gemm_kloop(

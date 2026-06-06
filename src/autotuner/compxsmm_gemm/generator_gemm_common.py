@@ -318,7 +318,6 @@ def compxsmm_generator_gemm_kloop(
     """
     k_arg_reg = gp_reg_mapping.gp_reg_kloop
 
-    curr_vals = generated_code.current_val_by_reg
     generated_code.insert(k_init_op := x86.ops.DI_MovOp(0, destination=k_arg_reg))
 
     existing_block = k_init_op.parent
@@ -363,8 +362,6 @@ def compxsmm_generator_gemm_kloop(
 
     # Set up builder to build inside of loop
     generated_code.builder.insertion_point = InsertPoint.at_start(kloop_op.body.block)
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in kloop_op.body.block.args}
 
     return kloop_op, kloop_block_vals
 
@@ -385,9 +382,6 @@ def compxsmm_generator_gemm_footer_kloop(
     assert isinstance(kloop_op, x86_scf.ForOp)
     assert kloop_op.parent is not None
     generated_code.builder.insertion_point = InsertPoint.at_end(kloop_op.parent)
-    curr_vals = generated_code.current_val_by_reg
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in kloop_op.results}
 
     if kloop_yielded_vals.mask_k1 is None:
         a_val, b_val, c_val, rbp_val, rsp_val, *acc_vals = kloop_op.results
@@ -850,7 +844,6 @@ def compxsmm_generator_gemm_header_nloop(
     """
     n_arg_reg = gp_reg_mapping.gp_reg_nloop
 
-    curr_vals = generated_code.current_val_by_reg
     generated_code.insert(n_init_op := x86.ops.DI_MovOp(n_init, destination=n_arg_reg))
 
     existing_block = n_init_op.parent
@@ -872,8 +865,6 @@ def compxsmm_generator_gemm_header_nloop(
     body_block = nloop_op.body.block
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in body_block.args}
 
     _n_val, a_val, b_val, c_val, rbp_val, rsp_val = body_block.args
     a_val = SSAValue.get(a_val, type=GeneralRegisterType)
@@ -1054,10 +1045,6 @@ def compxsmm_generator_gemm_footer_nloop(
     nloop_op = body_block.parent_op()
     assert isinstance(nloop_op, x86_scf.ForOp), nloop_op
 
-    curr_vals = generated_code.current_val_by_reg
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in nloop_op.results}
-
     a_val, b_val, c_val, rbp_val, rsp_val = nloop_op.results
     a_val = SSAValue.get(a_val, type=GeneralRegisterType)
     b_val = SSAValue.get(b_val, type=GeneralRegisterType)
@@ -1088,7 +1075,6 @@ def compxsmm_generator_gemm_header_mloop(
     """
     m_arg_reg = gp_reg_mapping.gp_reg_mloop
 
-    curr_vals = generated_code.current_val_by_reg
     generated_code.insert(m_init_op := x86.ops.DI_MovOp(m_init, destination=m_arg_reg))
 
     existing_block = m_init_op.parent
@@ -1108,8 +1094,6 @@ def compxsmm_generator_gemm_header_mloop(
     body_block = mloop_op.body.block
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in body_block.args}
 
     _m_val, a_val, b_val, c_val, rbp_val, rsp_val, *rest = body_block.args
     a_val = SSAValue.get(a_val, type=GeneralRegisterType)
@@ -1289,10 +1273,6 @@ def compxsmm_generator_gemm_footer_mloop(
     body_block = generated_code.builder.insertion_point.block
     mloop_op = body_block.parent_op()
     assert isinstance(mloop_op, x86_scf.ForOp), mloop_op
-
-    curr_vals = generated_code.current_val_by_reg
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in mloop_op.results}
 
     if mask_k1 is None:
         a_val, b_val, c_val, rbp_val, rsp_val = mloop_op.results
