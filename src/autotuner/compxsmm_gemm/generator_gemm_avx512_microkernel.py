@@ -1,11 +1,16 @@
 from xdsl.dialects import x86
+from xdsl.ir import SSAValue
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping, MicroKernelConfig
 from autotuner.compxsmm_gemm.generator_x86_instructions import (
     compxsmm_x86_instruction_vec_compute_3reg,
     compxsmm_x86_instruction_vec_move_ld,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode, KLoopVals
+from autotuner.compxsmm_gemm.libxsmm_generator import (
+    GeneratedCode,
+    KLoopVals,
+    VectorRegT,
+)
 from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMDescriptor,
     GEMMFlag,
@@ -234,6 +239,9 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         # for VNNI we are stepping through to pack ks */
         raise NotImplementedError
 
+    # List of length m of vectors loaded from A
+    a_vec_vals: list[SSAValue[VectorRegT]] = []
+
     for m in range(m_blocking):
         # load column vectors of A upfront
         # const char *const l_env_a_k_pf_dist = getenv("LIBXSMM_GEMM_K_A_PF_DIST");
@@ -288,7 +296,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                         if (is_Ai2_Bi8_gemm > 0)
                         else 1 + m + vreg_ab_offset
                     )
-                    compxsmm_x86_instruction_vec_move_ld(
+                    a_vec_val = compxsmm_x86_instruction_vec_move_ld(
                         generated_code,
                         micro_kernel_config.instruction_set,
                         a_vmove_instruction,
@@ -304,6 +312,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                         True,
                         False,
                     )
+                    a_vec_vals.append(a_vec_val)
 
                 if (
                     (
@@ -476,20 +485,16 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                             source_type = x86.registers.AVX2RegisterType
                         case "z":
                             source_type = x86.registers.AVX512RegisterType
-                    reg_src0 = source_type.from_index(
-                        1 + m + vreg_ab_offset + k * m_blocking
-                    )
 
                     reg_dst = source_type.from_index(
                         vec_reg_acc_start + m + (m_blocking * n)
                     )
-                    src0 = generated_code.get_val(reg_src0)
                     dst = generated_code.get_val(reg_dst)
 
                     compxsmm_x86_instruction_vec_compute_3reg(
                         generated_code,
                         micro_kernel_config.vmul_instruction,
-                        src0,
+                        a_vec_vals[m],
                         b_vec_val,
                         dst,
                     )
