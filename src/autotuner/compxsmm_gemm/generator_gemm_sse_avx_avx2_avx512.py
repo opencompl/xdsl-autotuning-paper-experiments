@@ -18,7 +18,6 @@ from xdsl.dialects.x86.registers import (
     UNALLOCATED_REG64,
 )
 from xdsl.dialects.x86_func import FuncOp
-from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_header_mloop,
@@ -800,17 +799,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
                 micro_kernel_config, desc, generated_code.arch, m_blocking
             )
-
-        curr_vals = generated_code.current_val_by_reg
-
-        a_val, b_val, c_val, rbp_val, rsp_val, *mask_vals = curr_vals.values()
-        a_val = SSAValue.get(a_val, type=x86.registers.GeneralRegisterType)
-        b_val = SSAValue.get(b_val, type=x86.registers.GeneralRegisterType)
-        c_val = SSAValue.get(c_val, type=x86.registers.GeneralRegisterType)
-        rbp_val = SSAValue.get(rbp_val, type=x86.registers.GeneralRegisterType)
-        assert rbp_val.type == x86.registers.RBP
-        rsp_val = SSAValue.get(rsp_val, type=x86.registers.GeneralRegisterType)
-        assert rsp_val.type == x86.registers.RSP
 
         nloop_inner_vals = NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val)
         nloop_result_vals = compxsmm_generator_gemm_footer_nloop(

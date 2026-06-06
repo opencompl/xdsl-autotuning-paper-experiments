@@ -1298,7 +1298,7 @@ def compxsmm_generator_gemm_footer_mloop(
     curr_vals.clear()
     curr_vals |= {arg.type: arg for arg in mloop_op.results}
 
-    if len(mloop_op.results) == 5:
+    if mask_k1 is None:
         a_val, b_val, c_val, rbp_val, rsp_val = mloop_op.results
         mask_k1 = None
     else:
