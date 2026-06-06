@@ -783,11 +783,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 c_val = kloop_vals.c
                 rbp_val = kloop_vals.rbp
                 rsp_val = kloop_vals.rsp
-                mask_k1_val = (
-                    generated_code.get_val(LIBXSMM_X86_AVX512_MASK_REG)
-                    if mloop_block_vals.mask_k1 is not None
-                    else None
-                )
+                mask_k1_val = kloop_vals.mask_k1
 
                 compxsmm_generator_gemm_store_C(
                     generated_code,
@@ -796,15 +792,9 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     desc,
                     m_blocking,
                     n_blocking,
-                    c_val=generated_code.get_val(gp_reg_mapping.gp_reg_c),
+                    c_val=c_val,
                     mask_k1=mask_k1_val,
                 )
-
-                a_val = generated_code.get_val(gp_reg_mapping.gp_reg_a)
-                b_val = generated_code.get_val(gp_reg_mapping.gp_reg_b)
-                c_val = generated_code.get_val(gp_reg_mapping.gp_reg_c)
-                rbp_val = generated_code.get_val(x86.registers.RBP)
-                rsp_val = generated_code.get_val(x86.registers.RSP)
 
                 mloop_vals = compxsmm_generator_gemm_footer_mloop(
                     generated_code,
