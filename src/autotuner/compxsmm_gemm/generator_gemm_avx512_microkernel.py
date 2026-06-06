@@ -388,7 +388,7 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     dest_type = x86.registers.AVX512RegisterType
             b_vec_reg = dest_type.from_index(vreg_ab_offset)
 
-            compxsmm_x86_instruction_vec_move_ld(
+            b_vec_val = compxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 micro_kernel_config.instruction_set,
                 b_vmove_instruction,
@@ -479,19 +479,18 @@ def compxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     reg_src0 = source_type.from_index(
                         1 + m + vreg_ab_offset + k * m_blocking
                     )
-                    reg_src1 = source_type.from_index(vreg_ab_offset)
+
                     reg_dst = source_type.from_index(
                         vec_reg_acc_start + m + (m_blocking * n)
                     )
                     src0 = generated_code.get_val(reg_src0)
-                    src1 = generated_code.get_val(reg_src1)
                     dst = generated_code.get_val(reg_dst)
 
                     compxsmm_x86_instruction_vec_compute_3reg(
                         generated_code,
                         micro_kernel_config.vmul_instruction,
                         src0,
-                        src1,
+                        b_vec_val,
                         dst,
                     )
 
