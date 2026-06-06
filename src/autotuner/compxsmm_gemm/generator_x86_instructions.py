@@ -8,7 +8,7 @@ from xdsl.dialects.x86.registers import (
 from xdsl.ir import SSAValue
 from autotuner.libxsmm_gemm.generator_common import GPRegMapping
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode
+from autotuner.compxsmm_gemm.libxsmm_generator import GeneratedCode, VectorRegT
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
 
 
@@ -117,7 +117,7 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
     use_masking: bool,
     mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[False],
-) -> None:
+) -> SSAValue[VectorRegT]:
     assert i_vmove_instr is not None
     if generated_code.arch < Arch.LIBXSMM_X86_AVX:
         if use_masking:
@@ -131,7 +131,7 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
             else:
                 assert False, f"Unsupported move op: {i_vmove_instr}"
         else:
-            compxsmm_x86_instruction_vec_move_ld(
+            return compxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 i_vmove_instr,
@@ -151,7 +151,7 @@ def compxsmm_x86_instruction_unified_vec_move_ld(
         if generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX:
             raise NotImplementedError
         else:
-            compxsmm_x86_instruction_vex_evex_mask_mov_ld(
+            return compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 generated_code,
                 vmove_instr,
                 base_val,
@@ -319,10 +319,10 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
     use_masking: bool,
     mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[False],
-):
+) -> SSAValue[VectorRegT]:
     if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL128_SKX:
         if use_masking:
-            compxsmm_x86_instruction_vec_move_ld(
+            return compxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
@@ -336,7 +336,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 is_store,
             )
         else:
-            compxsmm_x86_instruction_vec_move_ld(
+            return compxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
@@ -351,7 +351,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
             )
     elif generated_code.arch >= Arch.LIBXSMM_X86_AVX:
         if use_masking:
-            compxsmm_x86_instruction_vec_mask_move_ld(
+            return compxsmm_x86_instruction_vec_mask_move_ld(
                 generated_code,
                 vmove_instr,
                 base_val,
@@ -363,7 +363,7 @@ def compxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 is_store,
             )
         else:
-            compxsmm_x86_instruction_vec_move_ld(
+            return compxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
@@ -533,7 +533,7 @@ def compxsmm_x86_instruction_vec_move_ld(
     mask_val: SSAValue[AVX512MaskRegisterType] | None,
     use_zero_masking: bool,
     is_store: Literal[False],
-):
+) -> SSAValue[VectorRegT]:
     """
     The is_store is False branches of `libxsmm_x86_instruction_vec_move`
     """
@@ -578,7 +578,7 @@ def compxsmm_x86_instruction_vec_move_ld(
                 assert False
 
         # build vmovpd/ps/sd/ss instruction, load use
-        generated_code.insert(
+        return generated_code.insert(
             masked_vmove_instr(
                 memory=base_val,
                 memory_offset=displacement,
@@ -586,7 +586,7 @@ def compxsmm_x86_instruction_vec_move_ld(
                 mask_reg=mask_val,
                 z=zero_flag or False,
             )
-        )
+        ).destination
     else:
         # build vmovpd/ps/sd/ss instruction, load use
         assert isinstance(
@@ -595,11 +595,13 @@ def compxsmm_x86_instruction_vec_move_ld(
             | x86.registers.AVX2RegisterType
             | x86.registers.AVX512RegisterType,
         )
-        generated_code.insert(
+        res = generated_code.insert(
             vmove_instr(
                 memory=base_val, memory_offset=displacement, destination=dest_reg
             )
-        )
+        ).destination
+        res = SSAValue.get(res, type=VectorRegT)
+        return res
 
 
 def compxsmm_x86_instruction_mask_move_ld(
