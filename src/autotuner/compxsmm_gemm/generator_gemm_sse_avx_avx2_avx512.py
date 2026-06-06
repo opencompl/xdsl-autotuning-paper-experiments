@@ -793,6 +793,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     m_blocking,
                     n_blocking,
                     c_val=c_val,
+                    acc_vectors=kloop_vals.acc_vectors,
                     mask_k1=mask_k1_val,
                 )
 

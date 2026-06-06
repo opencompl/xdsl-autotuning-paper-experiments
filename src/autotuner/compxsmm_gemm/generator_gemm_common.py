@@ -1600,6 +1600,7 @@ def compxsmm_generator_gemm_store_C(
     n_blocking: int,
     *,
     c_val: SSAValue[GeneralRegisterType],
+    acc_vectors: tuple[SSAValue[VectorRegT], ...],
     mask_k1: SSAValue[AVX512MaskRegisterType] | None = None,
 ) -> None:
     # deriving register blocking from kernel config
@@ -1612,8 +1613,6 @@ def compxsmm_generator_gemm_store_C(
         if m_blocking % micro_kernel_config.vector_length == 0
         else (m_blocking // micro_kernel_config.vector_length + 1)
     )
-    # start register of accumulator
-    vec_reg_acc_start = micro_kernel_config.vector_reg_count - n_blocking * m_blocking
     # select store instruction */
     if GEMMFlag.ALIGN_C_NTS_HINT in desc.flags:
         raise NotImplementedError
@@ -1737,8 +1736,6 @@ def compxsmm_generator_gemm_store_C(
 
             for n in range(n_blocking):
                 for m in range(m_blocking):
-                    reg_X = vec_reg_acc_start + m + m_blocking * n
-
                     use_masking = (
                         micro_kernel_config.use_masking_a_c
                         if (m == (m_blocking - 1))
@@ -1763,17 +1760,7 @@ def compxsmm_generator_gemm_store_C(
                         mask_val = None
                         _mask_const = m_blocking % micro_kernel_config.vector_length
 
-                    vname_store = micro_kernel_config.vector_name
-                    match vname_store:
-                        case "x":
-                            dest_type = x86.registers.SSERegisterType
-                        case "y":
-                            dest_type = x86.registers.AVX2RegisterType
-                        case "z":
-                            dest_type = x86.registers.AVX512RegisterType
-
-                    c_vec_reg = dest_type.from_index(reg_X)
-                    c_vec_val = generated_code.get_val(c_vec_reg)
+                    c_vec_val = acc_vectors[m + m_blocking * n]
 
                     if (
                         micro_kernel_config.fused_relu_nobitmask
