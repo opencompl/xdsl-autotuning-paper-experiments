@@ -708,7 +708,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     m_blocking=m_blocking,
                     m_done=m_done,
                 )
-                compxsmm_generator_gemm_load_C(
+                acc_vals = compxsmm_generator_gemm_load_C(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
@@ -726,30 +726,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                m_blocking_vec = (
-                    m_blocking // micro_kernel_config.vector_length
-                    if (m_blocking % micro_kernel_config.vector_length == 0)
-                    else (m_blocking // micro_kernel_config.vector_length) + 1
-                )
-                vec_reg_acc_start = (
-                    micro_kernel_config.vector_reg_count - n_blocking * m_blocking_vec
-                )
-                match micro_kernel_config.vector_name:
-                    case "x":
-                        dest_type = x86.registers.SSERegisterType
-                    case "y":
-                        dest_type = x86.registers.AVX2RegisterType
-                    case "z":
-                        dest_type = x86.registers.AVX512RegisterType
-                acc_vals = tuple(
-                    generated_code.get_val(
-                        dest_type.from_index(
-                            vec_reg_acc_start + m + (m_blocking_vec * n)
-                        )
-                    )
-                    for n in range(n_blocking)
-                    for m in range(m_blocking_vec)
-                )
                 kloop_vals = KLoopVals(
                     mloop_block_vals.a,
                     mloop_block_vals.b,

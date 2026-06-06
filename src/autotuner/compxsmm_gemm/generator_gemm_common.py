@@ -1328,7 +1328,8 @@ def compxsmm_generator_gemm_load_C(
     *,
     c_val: SSAValue[GeneralRegisterType],
     mask_k1: SSAValue[AVX512MaskRegisterType] | None = None,
-) -> None:
+) -> tuple[SSAValue[VectorRegT], ...]:
+    result: list[SSAValue[VectorRegT]] = []
     # register blocking counter in n
     n = 0
     # register blocking counter in m
@@ -1529,7 +1530,7 @@ def compxsmm_generator_gemm_load_C(
 
                         # we only mask the last m-blocked load
 
-                        compxsmm_x86_instruction_unified_vec_move_ld(
+                        res_vec = compxsmm_x86_instruction_unified_vec_move_ld(
                             generated_code,
                             micro_kernel_config.c_vmove_ld_instruction,
                             c_val,
@@ -1542,6 +1543,7 @@ def compxsmm_generator_gemm_load_C(
                             mask_val,
                             False,
                         )
+                        result.append(res_vec)
                         if (
                             Datatype.F16 == desc.datatype.c
                             and Datatype.F32 == desc.datatype.comp
@@ -1589,6 +1591,8 @@ def compxsmm_generator_gemm_load_C(
                         #     i_micro_kernel_config->vector_name,
                         #     l_vec_reg_acc_start + l_m + (l_m_blocking * l_n),
                         #     l_vec_reg_acc_start + l_m + (l_m_blocking * l_n) );
+
+    return tuple(result)
 
 
 def compxsmm_generator_gemm_store_C(
