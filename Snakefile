@@ -637,6 +637,9 @@ for dataset, samples in DATASET_BASES.items():
 rule dataset_code:
     input: [p + "time.o" for p in flatten(DATASET_BASES.values())]
 
+rule dataset_validate:
+    input: [p + "test.log" for p in flatten(DATASET_BASES.values())]
+
 rule dataset:
     input:
         expand(

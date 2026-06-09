@@ -17,7 +17,7 @@ from xdsl.dialects.x86.registers import (
     RSI,
     UNALLOCATED_REG64,
 )
-from xdsl.dialects.x86_func import FuncOp, RetOp
+from xdsl.dialects.x86_func import FuncOp
 from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK,
@@ -132,9 +132,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     gp_reg_mapping.gp_reg_help_1 = R15
     gp_reg_mapping.gp_reg_help_2 = RBX
 
-    ret_op = func_op.body.block.last_op
-    assert isinstance(ret_op, RetOp)
-    builder = Builder(InsertPoint.before(ret_op))
+    builder = Builder(InsertPoint.at_end(func_op.body.block))
+
     generated_code = GeneratedCode(
         func_op, builder, arch, {arg.type: arg for arg in func_op.body.block.args}
     )

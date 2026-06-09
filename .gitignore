@@ -186,3 +186,6 @@ tests/**/Output/*
 
 # macOS
 .DS_Store
+
+# direnv
+.direnv/

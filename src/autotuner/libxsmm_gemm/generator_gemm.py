@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from xdsl.dialects.builtin import ModuleOp
-from xdsl.dialects.x86_func import FuncOp
+from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.ir import Block, Region
 from xdsl.printer import Printer
 
@@ -25,6 +25,8 @@ def libxsmm_generator_gemm_directasm(
     # Generate the actual kernel code for current description depending on the
     # architecture.
     libxsmm_generator_gemm_kernel(func_op, arch, desc)
+
+    func_op.body.blocks[-1].add_op(RetOp())
 
     # Append code to source file
     with open(file_out, "w") as f:
