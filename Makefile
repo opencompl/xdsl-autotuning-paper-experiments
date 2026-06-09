@@ -31,7 +31,7 @@ dataset_code:
 
 .PHONY: dataset_validate
 dataset_validate:
-	uv run snakemake --quiet --cores all dataset_validate $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake --quiet --cores all dataset_validate --forceall $(if $(TARGET),--config target=$(TARGET),)
 
 # --cores 1 to avoid contention issues when measuring performance
 # re-run time measurement every time
