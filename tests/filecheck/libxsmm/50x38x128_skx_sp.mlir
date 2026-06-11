@@ -423,7 +423,6 @@
 // CHECK-NEXT:      ret
 
 // CHECK-IR-LIBXSMM:       builtin.module {
-// CHECK-IR-LIBXSMM:       builtin.module {
 // CHECK-IR-LIBXSMM-NEXT:    x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
 // CHECK-IR-LIBXSMM-NEXT:      %3 = x86.get_register : !x86.reg64<rbp>
 // CHECK-IR-LIBXSMM-NEXT:      %4 = x86.get_register : !x86.reg64<rsp>
