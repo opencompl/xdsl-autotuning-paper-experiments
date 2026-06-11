@@ -220,4 +220,3 @@
 // CHECK-IR-LIBXSMM-NEXT:      x86_func.ret
 // CHECK-IR-LIBXSMM-NEXT:    }
 // CHECK-IR-LIBXSMM-NEXT:  }
-
