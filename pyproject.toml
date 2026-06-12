@@ -28,10 +28,14 @@ url = "https://llvm.github.io/eudsl"
 explicit = true
 format = "flat"
 
+[tool.uv]
+# Override MLIR Python bindings dependency for lighthouse, remember to update when changing lighthouse commit.
+override-dependencies = ["mlir-python-bindings==20260611+a36610c9d"]
+
 [tool.uv.sources]
 xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "5ef95a7932e18786c043a6e1237c84ac42716ab2" }
 tvm = { index = "corse" }
-lighthouse = { git = "https://github.com/llvm/lighthouse.git", rev = "6601c79a734d969a5a3ea6e91591eb8f200e4d58" }
+lighthouse = { git = "https://github.com/llvm/lighthouse.git", rev = "d50a962b181bb0fa6fec1b8026da7f52bff25be2" }
 mlir-python-bindings = { index = "eudsl" }
 
 [project.scripts]

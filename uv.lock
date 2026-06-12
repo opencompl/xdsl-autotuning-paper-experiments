@@ -10,6 +10,9 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+overrides = [{ name = "mlir-python-bindings", specifier = "==20260611+a36610c9d", index = "https://llvm.github.io/eudsl" }]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -185,7 +188,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
-    { name = "lighthouse", git = "https://github.com/llvm/lighthouse.git?rev=6601c79a734d969a5a3ea6e91591eb8f200e4d58" },
+    { name = "lighthouse", git = "https://github.com/llvm/lighthouse.git?rev=d50a962b181bb0fa6fec1b8026da7f52bff25be2" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "snakemake", specifier = ">=8.30.0" },
@@ -1004,7 +1007,7 @@ wheels = [
 [[package]]
 name = "lighthouse"
 version = "0.1.0a1"
-source = { git = "https://github.com/llvm/lighthouse.git?rev=6601c79a734d969a5a3ea6e91591eb8f200e4d58#6601c79a734d969a5a3ea6e91591eb8f200e4d58" }
+source = { git = "https://github.com/llvm/lighthouse.git?rev=d50a962b181bb0fa6fec1b8026da7f52bff25be2#d50a962b181bb0fa6fec1b8026da7f52bff25be2" }
 dependencies = [
     { name = "mlir-python-bindings" },
     { name = "pyyaml" },
@@ -1263,7 +1266,7 @@ wheels = [
 
 [[package]]
 name = "mlir-python-bindings"
-version = "20260503+37e0109a6"
+version = "20260611+a36610c9d"
 source = { registry = "https://llvm.github.io/eudsl" }
 dependencies = [
     { name = "ml-dtypes" },
@@ -1271,17 +1274,15 @@ dependencies = [
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp311-cp311-macosx_11_0_arm64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp311-cp311-macosx_13_0_arm64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp311-cp311-manylinux_2_34_aarch64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp311-cp311-manylinux_2_34_x86_64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp311-cp311-win_amd64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp312-cp312-macosx_11_0_arm64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp312-cp312-macosx_13_0_arm64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp312-cp312-manylinux_2_34_aarch64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp312-cp312-manylinux_2_34_x86_64.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp312-cp312-pyemscripten_2024_0_wasm32.whl" },
-    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260503+37e0109a6-cp312-cp312-win_amd64.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp311-cp311-macosx_13_0_arm64.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp311-cp311-manylinux_2_34_aarch64.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp311-cp311-manylinux_2_34_x86_64.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp311-cp311-win_amd64.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp312-cp312-macosx_13_0_arm64.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp312-cp312-manylinux_2_34_aarch64.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp312-cp312-manylinux_2_34_x86_64.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp312-cp312-pyemscripten_2024_0_wasm32.whl" },
+    { url = "https://github.com/llvm/eudsl/releases/download/mlir-python-bindings/mlir_python_bindings-20260611+a36610c9d-cp312-cp312-win_amd64.whl" },
 ]
 
 [[package]]
@@ -1901,11 +1902,11 @@ wheels = [
 
 [[package]]
 name = "pyreadline3"
-version = "3.5.4"
+version = "3.5.6"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0f/49/4cea918a08f02817aabae639e3d0ac046fef9f9180518a3ad394e22da148/pyreadline3-3.5.4.tar.gz", hash = "sha256:8d57d53039a1c75adba8e50dd3d992b28143480816187ea5efbd5c78e6c885b7", size = 99839, upload-time = "2024-09-19T02:40:10.062Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b6/6d/f94028646d7bbe6d9d873c47ee7c246f2d29129d253f0d96cb6fcab70733/pyreadline3-3.5.6.tar.gz", hash = "sha256:61e53218b99656091ddb077df9e71f25850e72e030b6183b39c9b7e6e4f4a9bf", size = 100368, upload-time = "2026-05-14T17:55:04.471Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5a/dc/491b7661614ab97483abf2056be1deee4dc2490ecbf7bff9ab5cdbac86e1/pyreadline3-3.5.4-py3-none-any.whl", hash = "sha256:eaf8e6cc3c49bcccf145fc6067ba8643d1df34d604a1ec0eccbf7a18e6d3fae6", size = 83178, upload-time = "2024-09-19T02:40:08.598Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/5e/35c856e186b74678c24927847ad9895a51f1bc02a0c6126477a6c6040064/pyreadline3-3.5.6-py3-none-any.whl", hash = "sha256:8449b734232e42a5dcd74048e39b60db2839a4c38cf3ae2bf7707d58b5389c0d", size = 85243, upload-time = "2026-05-14T17:55:03.262Z" },
 ]
 
 [[package]]
@@ -2615,11 +2616,11 @@ wheels = [
 
 [[package]]
 name = "tzdata"
-version = "2025.3"
+version = "2026.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/5e/a7/c202b344c5ca7daf398f3b8a477eeb205cf3b6f32e7ec3a6bac0629ca975/tzdata-2025.3.tar.gz", hash = "sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7", size = 196772, upload-time = "2025-12-13T17:45:35.667Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/19/1b9b0e29f30c6d35cb345486df41110984ea67ae69dddbc0e8a100999493/tzdata-2026.2.tar.gz", hash = "sha256:9173fde7d80d9018e02a662e168e5a2d04f87c41ea174b139fbef642eda62d10", size = 198254, upload-time = "2026-04-24T15:22:08.651Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/b0/003792df09decd6849a5e39c28b513c06e84436a54440380862b5aeff25d/tzdata-2025.3-py2.py3-none-any.whl", hash = "sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1", size = 348521, upload-time = "2025-12-13T17:45:33.889Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/e4/dccd7f47c4b64213ac01ef921a1337ee6e30e8c6466046018326977efd95/tzdata-2026.2-py2.py3-none-any.whl", hash = "sha256:bbe9af844f658da81a5f95019480da3a89415801f6cc966806612cc7169bffe7", size = 349321, upload-time = "2026-04-24T15:22:05.876Z" },
 ]
 
 [[package]]
