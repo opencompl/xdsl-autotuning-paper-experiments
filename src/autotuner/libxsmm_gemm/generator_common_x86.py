@@ -1,7 +1,6 @@
 from xdsl.dialects import x86
 from xdsl.dialects.x86.registers import GeneralRegisterType
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
-    libxsmm_x86_instruction_alu_imm_i64,
     libxsmm_x86_instruction_mask_move_ld,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
@@ -70,9 +69,9 @@ def libxsmm_generator_initialize_avx512_mask(
 
     # /* move mask to GP register */
 
-    libxsmm_x86_instruction_alu_imm_i64(
-        generated_code, x86.ops.DI_MovOp, gp_reg_tmp, mask
-    )
+    mask_tmp_val = generated_code.builder.insert(
+        x86.ops.DI_MovOp(mask, destination=gp_reg_tmp)
+    ).destination
 
     # loading the mask register
     if datatype == Datatype.F64 or datatype == Datatype.I64:
@@ -81,14 +80,14 @@ def libxsmm_generator_initialize_avx512_mask(
             x86.ops.KS_KMovBOp
             if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SKX
             else x86.ops.KS_KMovWOp,
-            gp_reg_tmp,
+            mask_tmp_val,
             mask_reg,
         )
     elif datatype == Datatype.F32 or datatype == Datatype.I32:
         libxsmm_x86_instruction_mask_move_ld(
             generated_code,
             x86.ops.KS_KMovWOp,
-            gp_reg_tmp,
+            mask_tmp_val,
             mask_reg,
         )
     elif (
