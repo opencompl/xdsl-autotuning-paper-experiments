@@ -56,6 +56,21 @@ can be executed on that machine.
 For example, when executing `make tests` on macOS, x86 assembly will be created, but it
 will not be executed.
 
+#### Lighthouse pipeline
+
+The `lighthouse` variant uses [llvm/lighthouse](https://github.com/llvm/lighthouse)
+torch ingress and the KernelBench `x86_64/matmul/f32.yaml` schedule (vendored under
+[`lighthouse-pipelines/x86_64/`](lighthouse-pipelines/x86_64/)) to compile a
+parameterized `torch.matmul` kernel to a linkable object file. Snakemake then links that
+object with the shared `time.c` / `test.c` harnesses via
+[`kernels/matmul_rowmaj/lighthouse_shim.c`](kernels/matmul_rowmaj/lighthouse_shim.c).
+The codegen entry point is [`scripts/lighthouse_codegen.py`](scripts/lighthouse_codegen.py).
+
+Lighthouse benchmarks are **f32-only** and codegen runs on the host CPU (tower Linux).
+`torch`, `torch-mlir`, and `ml-dtypes` are installed only on Linux (`sys_platform == 'linux'`
+in `pyproject.toml`) because upstream wheels are not published for macOS. `make tests`
+includes a small f32 lighthouse correctness check when AVX tests run on the target machine.
+
 ### Computing Data
 
 Generate the data for the host platform by running `make dataset`. JSONL outputs are written under `data/<TARGET>/` (with `TARGET` from `.env` or `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example `f32.ttile.jsonl`). Build artifacts go under `build/<TARGET>/`.

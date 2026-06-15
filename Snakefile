@@ -117,7 +117,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     target="neon|ci|tower|pinocchio",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|lighthouse"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -132,6 +132,19 @@ rule templated_vector_intrinsic:
     output: target_file(variant='vector_intrinsic',ext='arith.mlir')
     template_engine:
         "jinja2"
+
+LIGHTHOUSE_PIPELINE_YAML = "lighthouse-pipelines/x86_64/matmul/f32.yaml"
+
+rule lighthouse_o:
+    input:
+        script="scripts/lighthouse_codegen.py",
+        pipeline=LIGHTHOUSE_PIPELINE_YAML,
+    output: target_ll_file(variant="lighthouse", ext="o")
+    shell:
+        """uv run python {input.script} \
+            --pipeline {input.pipeline} \
+            --m {wildcards.m} --n {wildcards.n} --k {wildcards.k} \
+            --output {output}"""
 
 rule merge_transform:
     input:
@@ -386,6 +399,35 @@ rule executable:
     shell:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.linker_flag}"
 
+# Lighthouse-specific executable: links the codegen object from
+# `Runner.dump_object_file()` with a C shim that exposes `void matmul(A, B, C)`.
+ruleorder: lighthouse_executable > executable
+
+rule lighthouse_executable:
+    wildcard_constraints:
+        variant = "lighthouse"
+    input:
+        obj=target_ll_file(ext='o'),
+        shim="kernels/{kernel}/lighthouse_shim.c",
+        harness="kernels/{kernel}/{executable}.c",
+    output: target_ll_file(ext='{executable}.o')
+    params:
+        target_triple=target_triple,
+        target_arch=target_arch,
+        target_libs_opts=target_libs_opts,
+        target_freq=target_freq,
+        cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+        use_papi=target_use_papi,
+        linker_flag=target_linker_flag,
+    shell:
+        """MLIR_LIB_DIR=$(uv run python -c "from lighthouse.utils.mlir import get_mlir_library_path; print(get_mlir_library_path())") && \
+        {params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} \
+            -target {params.target_triple} -march={params.target_arch} \
+            -o {output} {input.harness} {input.shim} {input.obj} \
+            -L"$MLIR_LIB_DIR" -lmlir_c_runner_utils -lmlir_runner_utils \
+            {params.target_libs_opts} {params.linker_flag}"""
+
 rule validation:
     input:  target_ll_file(ext='test.o')
     log:    target_ll_file(ext='test.log')
@@ -447,10 +489,10 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "lighthouse"],
         "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
-        "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
-        "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm","mkl"],
+        "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
         "f64.small_matrices": ["libxsmm", "xdsl_libxsmm"],
     },
     "pinocchio": {
@@ -679,7 +721,7 @@ TESTSET_CI = [
 ]
 
 # For targets that can execute AVX instructions
-TESTSET_AVX = expand(
+TESTSET_AVX_F64 = expand(
     target_ll_file(
         kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f64",
         target=THIS_TARGET,
@@ -691,8 +733,22 @@ TESTSET_AVX = expand(
         "libxsmm",
         "xdsl_libxsmm",
         "mkl",
+    ],
+)
+TESTSET_AVX_F32 = expand(
+    target_ll_file(
+        kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f32",
+        target=THIS_TARGET,
+        ext="test.log",
+    ),
+    variant=[
+        "libxsmm",
+        "xdsl_libxsmm",
+        "mkl",
+        "lighthouse",
     ]
 )
+TESTSET_AVX = TESTSET_AVX_F64 + TESTSET_AVX_F32
 
 TESTSET = {
     "neon": TESTSET_MAC,
