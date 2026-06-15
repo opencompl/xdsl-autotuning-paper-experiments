@@ -176,10 +176,10 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     micro_kernel_config = MicroKernelConfig()
     # These values may be modified below
     m, n, k, lda, ldb, ldc, dt, flags, prefetch = desc
-    a_val, b_val, c_val = generated_code.func_op.body.block.args
-    a_val = SSAValue.get(a_val, type=GeneralRegisterType)
-    b_val = SSAValue.get(b_val, type=GeneralRegisterType)
-    c_val = SSAValue.get(c_val, type=GeneralRegisterType)
+    arg_by_reg = {arg.type: arg for arg in generated_code.func_op.body.block.args}
+    a_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_a], type=GeneralRegisterType)
+    b_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_b], type=GeneralRegisterType)
+    c_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_c], type=GeneralRegisterType)
 
     is_Ai4_Bf16_gemm = (
         ((desc.flags & GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2) > 0)
