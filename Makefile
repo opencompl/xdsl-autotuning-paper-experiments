@@ -18,7 +18,7 @@ filecheck:
 
 .PHONY: snakemake
 snakemake:
-	uv run snakemake --cores all tests --forceall $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake --quiet all --cores all tests --forceall $(if $(TARGET),--config target=$(TARGET),)
 
 .PHONY: tests
 tests: pytest filecheck snakemake
