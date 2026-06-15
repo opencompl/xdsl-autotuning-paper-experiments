@@ -110,12 +110,12 @@ plots: $(PLOTS)
 # set up all precommit hooks
 .PHONY: precommit-install
 precommit-install:
-	uv run pre-commit install
+	uv run prek install
 
 # run all precommit hooks and apply them
 .PHONY: precommit
 precommit:
-	uv run pre-commit run --all
+	uv run prek run --all-files
 
 # build docker image
 .PHONY: docker-build
