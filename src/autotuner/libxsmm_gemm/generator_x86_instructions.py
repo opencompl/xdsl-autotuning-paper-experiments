@@ -684,28 +684,6 @@ def libxsmm_x86_instruction_vec_move_ld(
         )
 
 
-def libxsmm_x86_instruction_alu_imm_i64(
-    generated_code: GeneratedCode,
-    alu_instr: type[x86.ops.DI_MovOp],
-    gp_reg_number: GeneralRegisterType,
-    immediate: int,
-):
-    #   switch ( alu_instr ) {
-    #     case LIBXSMM_X86_INSTR_MOVQ:
-    #     case LIBXSMM_X86_INSTR_MOVB_R_IMM8:
-    #     case LIBXSMM_X86_INSTR_MOVW_R_IMM16:
-    #     case LIBXSMM_X86_INSTR_MOVD_R_IMM32:
-    #     case LIBXSMM_X86_INSTR_MOVQ_R_IMM64:
-    #       break;
-    #     default:
-    #       fprintf(stderr, "libxsmm_x86_instruction_alu_imm_i64: Unknown instruction type: 0x%08x\n", alu_instr);
-    #       LIBXSMM_EXIT_ERROR(generated_code);
-    #       return;
-    #   }
-
-    generated_code.insert(alu_instr(immediate, destination=gp_reg_number))
-
-
 def libxsmm_x86_instruction_mask_move_ld(
     generated_code: GeneratedCode,
     mask_instr: type[x86.ops.KS_KMovBOp]
