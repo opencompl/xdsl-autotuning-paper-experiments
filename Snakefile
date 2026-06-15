@@ -133,52 +133,18 @@ rule templated_vector_intrinsic:
     template_engine:
         "jinja2"
 
-# Lighthouse path: needs a payload that returns the matmul result so the
-# linalg.matmul stays live through the transform-dialect scheduling that
-# precedes bufferization in `lighthouse-pipelines/cpu_matmul.compat.yaml`.
-LIGHTHOUSE_PIPELINE_YAML = "lighthouse-pipelines/cpu_matmul.compat.yaml"
-LIGHTHOUSE_PIPELINE_INCLUDES = [
-    "lighthouse-pipelines/bufferization.yaml",
-    "lighthouse-pipelines/bufferization_cleanup.yaml",
-    "lighthouse-pipelines/llvm_lowering.yaml",
-    "lighthouse-pipelines/cleanup.yaml",
-]
+LIGHTHOUSE_PIPELINE_YAML = "lighthouse-pipelines/x86_64/matmul/f32.yaml"
 
-rule templated_lighthouse_tensor:
-    input: "kernels/{kernel}/lighthouse.mlir"
-    output: target_file(variant='lighthouse_tensor',ext='mlir')
-    template_engine:
-        "jinja2"
-
-rule lighthouse_mlir:
+rule lighthouse_o:
     input:
-        payload=target_file(variant='lighthouse_tensor',ext='mlir'),
+        script="scripts/lighthouse_codegen.py",
         pipeline=LIGHTHOUSE_PIPELINE_YAML,
-        includes=LIGHTHOUSE_PIPELINE_INCLUDES,
-        script="scripts/lighthouse_compile.py",
-    output: target_file(variant='lighthouse',ext='mlir')
+    output: target_ll_file(variant="lighthouse", ext="o")
     shell:
         """uv run python {input.script} \
-            --input {input.payload} \
             --pipeline {input.pipeline} \
-            --output {output} \
-            --func lh_matmul_inner"""
-
-rule lighthouse_ll:
-    input: target_file(variant='lighthouse',ext='mlir')
-    output: target_file(variant='lighthouse',ext='ll')
-    shell:
-        "mlir-translate --mlir-to-llvmir {input} -o {output}"
-
-rule lighthouse_s:
-    input: target_file(variant='lighthouse',ext='ll')
-    output: target_ll_file(variant='lighthouse',ext='S')
-    params:
-        target_triple=target_triple,
-        target_arch=target_arch,
-        cc=CC_ASM,
-    shell:
-        "{params.cc} -O3 -S -Wno-override-module -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
+            --m {wildcards.m} --n {wildcards.n} --k {wildcards.k} \
+            --output {output}"""
 
 rule merge_transform:
     input:
@@ -433,18 +399,15 @@ rule executable:
     shell:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.linker_flag}"
 
-# Lighthouse-specific executable: the emitted `lh_matmul_inner` symbol uses the
-# MLIR memref calling convention, so we link the assembly together with a thin
-# C shim that exposes `void matmul(A, B, C)` and forwards through
-# `_mlir_ciface_lh_matmul_inner`. The `ruleorder` directive below picks this
-# rule over the generic `executable` whenever `variant=lighthouse`.
+# Lighthouse-specific executable: links the codegen object from
+# `Runner.dump_object_file()` with a C shim that exposes `void matmul(A, B, C)`.
 ruleorder: lighthouse_executable > executable
 
 rule lighthouse_executable:
     wildcard_constraints:
         variant = "lighthouse"
     input:
-        asm=target_ll_file(ext='S'),
+        obj=target_ll_file(ext='o'),
         shim="kernels/{kernel}/lighthouse_shim.c",
         harness="kernels/{kernel}/{executable}.c",
     output: target_ll_file(ext='{executable}.o')
@@ -458,7 +421,12 @@ rule lighthouse_executable:
         use_papi=target_use_papi,
         linker_flag=target_linker_flag,
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} {input.harness} {input.shim} {input.asm} {params.target_libs_opts} {params.linker_flag}"
+        """MLIR_LIB_DIR=$(uv run python -c "from lighthouse.utils.mlir import get_mlir_library_path; print(get_mlir_library_path())") && \
+        {params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} \
+            -target {params.target_triple} -march={params.target_arch} \
+            -o {output} {input.harness} {input.shim} {input.obj} \
+            -L"$MLIR_LIB_DIR" -lmlir_c_runner_utils -lmlir_runner_utils \
+            {params.target_libs_opts} {params.linker_flag}"""
 
 rule validation:
     input:  target_ll_file(ext='test.o')
@@ -522,10 +490,10 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "lighthouse"],
-        "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl", "lighthouse"],
-        "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl", "lighthouse"],
-        "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl", "lighthouse"],
-        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "lighthouse"],
+        "f64.cube_8": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "f64.cube_16": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "f64.cube_64": ["naive_c", "transform_mlir", "llvm_intrinsics", "libxsmm", "mkl"],
+        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
@@ -715,15 +683,6 @@ TESTSET_MAC = [
         kernel="matmul_rowmaj", m="6", n="32", k="5",
         variant="transform_xdsl", dtype="f64", target="tower", ext="S"
     ),
-    # Lighthouse cross-compiles to tower; assembly only on macOS hosts.
-    target_ll_file(
-        kernel="matmul_rowmaj", m="3", n="16", k="5",
-        variant="lighthouse", dtype="f64", target="tower", ext="S"
-    ),
-    target_ll_file(
-        kernel="matmul_rowmaj", m="6", n="32", k="5",
-        variant="lighthouse", dtype="f64", target="tower", ext="S"
-    ),
 ]
 
 TESTSET_CI = [
@@ -758,15 +717,6 @@ TESTSET_CI = [
     target_ll_file(
         kernel="matmul_rowmaj", m="5", n="6", k="7",
         variant="transform_mlir", dtype="f32", target="ci", ext="time.txt"
-    ),
-    # Lighthouse cross-compiles to tower; generate assembly on generic x86.
-    target_ll_file(
-        kernel="matmul_rowmaj", m="3", n="16", k="5",
-        variant="lighthouse", dtype="f64", target="tower", ext="S"
-    ),
-    target_ll_file(
-        kernel="matmul_rowmaj", m="6", n="32", k="5",
-        variant="lighthouse", dtype="f64", target="tower", ext="S"
     ),
 ]
 

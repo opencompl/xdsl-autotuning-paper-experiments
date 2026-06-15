@@ -7,6 +7,9 @@ requires-python = ">=3.11.2,<3.13"
 dependencies = [
     "jinja2>=3.1.6",
     "lighthouse",
+    "ml-dtypes; sys_platform == 'linux'",
+    "torch>=2.9.1; sys_platform == 'linux'",
+    "torch-mlir==20260529.826; sys_platform == 'linux'",
     "matplotlib>=3.10.3",
     "pandas>=2.3.1",
     "snakemake>=8.30.0",
@@ -28,8 +31,18 @@ url = "https://llvm.github.io/eudsl"
 explicit = true
 format = "flat"
 
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl"
+explicit = true
+
+[[tool.uv.index]]
+name = "torch_mlir"
+url = "https://github.com/llvm/torch-mlir-release/releases/expanded_assets/dev-wheels"
+explicit = true
+
 [tool.uv]
-# Override MLIR Python bindings dependency for lighthouse, remember to update when changing lighthouse commit.
+# Override MLIR Python bindings for lighthouse; update when changing lighthouse commit.
 override-dependencies = ["mlir-python-bindings==20260611+a36610c9d"]
 
 [tool.uv.sources]
@@ -37,6 +50,7 @@ xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "5ef95a7932e1878
 tvm = { index = "corse" }
 lighthouse = { git = "https://github.com/llvm/lighthouse.git", rev = "d50a962b181bb0fa6fec1b8026da7f52bff25be2" }
 mlir-python-bindings = { index = "eudsl" }
+torch-mlir = { index = "torch_mlir" }
 
 [project.scripts]
 hello = "autotuner.main:main"

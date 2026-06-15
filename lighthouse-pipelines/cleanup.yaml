@@ -1,5 +1,0 @@
-# Vendored from lighthouse/pipeline/descriptors/cleanup.yaml
-# at llvm/lighthouse@6601c79a734d969a5a3ea6e91591eb8f200e4d58.
-Pipeline:
- - pass: cse
- - pass: canonicalize
