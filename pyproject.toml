@@ -43,3 +43,5 @@ packages = ["src/autotuner"]
 
 [tool.pyright]
 include = ["src", "tests"]
+# We need this for TypeForm, should remove it once that's in
+enableExperimentalFeatures = true
