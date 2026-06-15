@@ -311,7 +311,7 @@ rule xdsl_libxsmm_s:
     output: target_ll_file(variant='xdsl_libxsmm',ext='S')
     shell:
         """
-        xdsl-opt {input} -p x86-prologue-epilogue-insertion -t x86-asm -o {output}
+        xdsl-opt {input} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
         """
 
 rule mkl_rowmaj_s:
