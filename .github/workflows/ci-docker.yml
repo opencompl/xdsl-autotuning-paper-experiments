@@ -21,7 +21,7 @@ jobs:
       PATH: /opt/toolchain/bin:/opt/venv/bin:/bin:/usr/local/bin:/usr/bin:/sbin:/bin
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # GitHub Actions overrides the image ENTRYPOINT, so we must sync here (same as
       # docker/entrypoint.sh) before running tests.
