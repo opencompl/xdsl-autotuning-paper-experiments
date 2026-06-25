@@ -79,7 +79,8 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
 
             config.vxor_instruction = x86.ops.DSS_VpxordOp
             config.vmul_instruction = x86.ops.RSS_Vfmadd231pdOp
-            config.vadd_instruction = x86.ops.DSS_VaddpdOp
+            config.vmul_mem_instruction = x86.ops.RSM_Vfmadd231pdOp
+            config.vadd_instruction = x86.ops.DSS_AddpdOp
         elif Datatype.F32 == desc.datatype.ab:
             config.vector_length = 16
             config.datatype_size_in = 4
@@ -110,7 +111,8 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
 
             config.vxor_instruction = x86.ops.DSS_VpxordOp
             config.vmul_instruction = x86.ops.RSS_Vfmadd231psOp
-            config.vadd_instruction = x86.ops.DSS_VaddpsOp
+            config.vmul_mem_instruction = x86.ops.RSM_Vfmadd231psOp
+            config.vadd_instruction = x86.ops.DSS_AddpsOp
 
         elif Datatype.I16 == desc.datatype.ab:
             raise NotImplementedError
