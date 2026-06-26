@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import cast
 
 from xdsl.builder import Builder
 from xdsl.dialects import x86

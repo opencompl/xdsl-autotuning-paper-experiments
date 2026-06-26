@@ -251,12 +251,13 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
             source_type = x86.registers.AVX512RegisterType
     reg_src0 = source_type.from_index(reg_number_src0)
     reg_dst = source_type.from_index(reg_number_dst)
+    # For zmm0 = zmm0 ^ zmm0 (= 0, essentially), zmm0 is not yet in the context, so must just get the register
     if reg_src0 not in generated_code.current_val_by_reg:
         generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src0))
     if reg_src1 not in generated_code.current_val_by_reg:
         generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src1))
-    src0 = generated_code.current_val_by_reg[reg_src0]
-    src1 = generated_code.current_val_by_reg[reg_src1]
+    src0 = generated_code.get_val(reg_src0)
+    src1 = generated_code.get_val(reg_src1)
 
     # build vXYZpd/ps/sd/ss instruction pure register use
     if generated_code.arch > Arch.LIBXSMM_X86_SSE42:
@@ -264,20 +265,10 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         if imm8 is not None:
             raise NotImplementedError
         elif issubclass(vec_instr, x86.ops.DSS_Operation):
-            src0 = cast(SSAValue[X86VectorRegisterType], src0)
-            src1 = cast(SSAValue[X86VectorRegisterType], src1)
-            generated_code.insert(
-                vec_instr(src0, src1, destination=reg_dst)  # pyright: ignore[reportCallIssue]
-            )
+            generated_code.insert(vec_instr(src0, src1, destination=reg_dst))
         elif issubclass(vec_instr, x86.ops.RSS_Operation):
-            if reg_dst not in generated_code.current_val_by_reg:
-                generated_code.insert(x86.ops.GetAVXRegisterOp(reg_dst))
-            dst = generated_code.current_val_by_reg[reg_dst]
-            assert dst.type == reg_dst
-            dst = cast(SSAValue[X86VectorRegisterType], dst)
+            dst = generated_code.get_val(reg_dst)
             generated_code.insert(vec_instr(dst, src0, src1))
-        else:
-            assert False, f"Unsupported vec compute op: {vec_instr}"
     else:
         raise NotImplementedError
 
@@ -335,11 +326,10 @@ def libxsmm_x86_instruction_vec_compute_mem_2reg(
         generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src1))
     if reg_dst not in generated_code.current_val_by_reg:
         generated_code.insert(x86.ops.GetAVXRegisterOp(reg_dst))
-    src1 = generated_code.current_val_by_reg[reg_src1]
-    dst = generated_code.current_val_by_reg[reg_dst]
+    src1 = generated_code.get_val(reg_src1)
+    dst = generated_code.get_val(reg_dst)
     assert dst.type == reg_dst
-    dst = cast(SSAValue[X86VectorRegisterType], dst)
-    base = generated_code.current_val_by_reg[gp_reg_base]
+    base = generated_code.get_val(gp_reg_base)
 
     match vec_instr:
         case x86.ops.RSS_Vfmadd231pdOp:
