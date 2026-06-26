@@ -18,6 +18,7 @@ from xdsl.dialects.x86_func import FuncOp
 from xdsl.rewriter import InsertPoint, Rewriter
 
 LIBXSMM_X86_AVX512_MASK = 1  # this specifies k1
+LIBXSMM_X86_VEC_REG_UNDEF = 255
 
 
 def libxsmm_mmfunction_signature(module: ModuleOp, routine_name: str) -> FuncOp:

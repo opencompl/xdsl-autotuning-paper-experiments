@@ -6,7 +6,11 @@ from xdsl.dialects.x86.registers import (
 )
 from xdsl.ir import Block, SSAValue
 from xdsl.rewriter import InsertPoint
-from autotuner.libxsmm_gemm.generator_common import GPRegMapping, LoopLabelTracker
+from autotuner.libxsmm_gemm.generator_common import (
+    GPRegMapping,
+    LIBXSMM_X86_VEC_REG_UNDEF,
+    LoopLabelTracker,
+)
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
@@ -246,8 +250,11 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         case "z":
             source_type = x86.registers.AVX512RegisterType
     reg_src0 = source_type.from_index(reg_number_src0)
-    reg_src1 = source_type.from_index(reg_number_src1)
     reg_dst = source_type.from_index(reg_number_dst)
+    if reg_number_src1 == LIBXSMM_X86_VEC_REG_UNDEF:
+        reg_src1 = reg_src0
+    else:
+        reg_src1 = source_type.from_index(reg_number_src1)
     # For zmm0 = zmm0 ^ zmm0 (= 0, essentially), zmm0 is not yet in the context, so must just get the register
     if reg_src0 not in generated_code.current_val_by_reg:
         generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src0))
