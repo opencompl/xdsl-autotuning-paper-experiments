@@ -211,7 +211,9 @@ def libxsmm_x86_instruction_register_jump_back_label(
 
 def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
+    | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_AddpdOp | x86.ops.DSS_AddpsOp]
+    | None,
     vector_name: Literal["x", "y", "z"],
     reg_number_src0: int,
     reg_number_src1: int,
@@ -246,17 +248,23 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     reg_src0 = source_type.from_index(reg_number_src0)
     reg_src1 = source_type.from_index(reg_number_src1)
     reg_dst = source_type.from_index(reg_number_dst)
+    # For zmm0 = zmm0 ^ zmm0 (= 0, essentially), zmm0 is not yet in the context, so must just get the register
+    if reg_src0 not in generated_code.current_val_by_reg:
+        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src0))
+    if reg_src1 not in generated_code.current_val_by_reg:
+        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src1))
     src0 = generated_code.get_val(reg_src0)
     src1 = generated_code.get_val(reg_src1)
-    dst = generated_code.get_val(reg_dst)
-    assert dst.type == reg_dst
 
     # build vXYZpd/ps/sd/ss instruction pure register use
     if generated_code.arch > Arch.LIBXSMM_X86_SSE42:
         # if ( ( ((i_vec_instr >> 16) & 0x08) == 0x08 ) and (i_imm8 != LIBXSMM_X86_IMM_UNDEF) ) {
         if imm8 is not None:
             raise NotImplementedError
-        else:
+        elif issubclass(vec_instr, x86.ops.DSS_Operation):
+            generated_code.insert(vec_instr(src0, src1, destination=reg_dst))
+        elif issubclass(vec_instr, x86.ops.RSS_Operation):
+            dst = generated_code.get_val(reg_dst)
             generated_code.insert(vec_instr(dst, src0, src1))
     else:
         raise NotImplementedError
@@ -264,7 +272,9 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
 
 def libxsmm_x86_instruction_vec_compute_3reg(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
+    | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_AddpdOp | x86.ops.DSS_AddpsOp]
+    | None,
     vector_name: Literal["x", "y", "z"],
     reg_number_src0: int,
     reg_number_src1: int,
