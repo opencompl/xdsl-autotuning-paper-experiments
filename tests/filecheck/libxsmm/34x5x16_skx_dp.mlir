@@ -681,21 +681,21 @@
 // CHECK-NEXT:      vfmadd231pd zmm15, zmm1, [rsi+504]{1to8}
 // CHECK-NEXT:      vfmadd231pd zmm16, zmm1, [rsi+632]{1to8}
 // CHECK-NEXT:      add rsi, 128
-// CHECK-NEXT:      addpd zmm27, zmm22, zmm27
-// CHECK-NEXT:      addpd zmm28, zmm23, zmm28
-// CHECK-NEXT:      addpd zmm29, zmm24, zmm29
-// CHECK-NEXT:      addpd zmm30, zmm25, zmm30
-// CHECK-NEXT:      addpd zmm31, zmm26, zmm31
-// CHECK-NEXT:      addpd zmm27, zmm17, zmm27
-// CHECK-NEXT:      addpd zmm28, zmm18, zmm28
-// CHECK-NEXT:      addpd zmm29, zmm19, zmm29
-// CHECK-NEXT:      addpd zmm30, zmm20, zmm30
-// CHECK-NEXT:      addpd zmm31, zmm21, zmm31
-// CHECK-NEXT:      addpd zmm27, zmm12, zmm27
-// CHECK-NEXT:      addpd zmm28, zmm13, zmm28
-// CHECK-NEXT:      addpd zmm29, zmm14, zmm29
-// CHECK-NEXT:      addpd zmm30, zmm15, zmm30
-// CHECK-NEXT:      addpd zmm31, zmm16, zmm31
+// CHECK-NEXT:      vaddpd zmm27, zmm22, zmm27
+// CHECK-NEXT:      vaddpd zmm28, zmm23, zmm28
+// CHECK-NEXT:      vaddpd zmm29, zmm24, zmm29
+// CHECK-NEXT:      vaddpd zmm30, zmm25, zmm30
+// CHECK-NEXT:      vaddpd zmm31, zmm26, zmm31
+// CHECK-NEXT:      vaddpd zmm27, zmm17, zmm27
+// CHECK-NEXT:      vaddpd zmm28, zmm18, zmm28
+// CHECK-NEXT:      vaddpd zmm29, zmm19, zmm29
+// CHECK-NEXT:      vaddpd zmm30, zmm20, zmm30
+// CHECK-NEXT:      vaddpd zmm31, zmm21, zmm31
+// CHECK-NEXT:      vaddpd zmm27, zmm12, zmm27
+// CHECK-NEXT:      vaddpd zmm28, zmm13, zmm28
+// CHECK-NEXT:      vaddpd zmm29, zmm14, zmm29
+// CHECK-NEXT:      vaddpd zmm30, zmm15, zmm30
+// CHECK-NEXT:      vaddpd zmm31, zmm16, zmm31
 // CHECK-NEXT:      vmovupd [rdx] {k1}, zmm27
 // CHECK-NEXT:      vmovupd [rdx+272] {k1}, zmm28
 // CHECK-NEXT:      vmovupd [rdx+544] {k1}, zmm29
@@ -1416,21 +1416,21 @@
 // CHECK-IR-LIBXSMM-NEXT:      %695 = x86.rsm.vfmadd231pd %671, %685, [%557 + 504] {broadcast} : (!x86.avx512reg<zmm15>, !x86.avx512reg<zmm1>, !x86.reg64<rsi>) -> !x86.avx512reg<zmm15>
 // CHECK-IR-LIBXSMM-NEXT:      %696 = x86.rsm.vfmadd231pd %672, %685, [%557 + 632] {broadcast} : (!x86.avx512reg<zmm16>, !x86.avx512reg<zmm1>, !x86.reg64<rsi>) -> !x86.avx512reg<zmm16>
 // CHECK-IR-LIBXSMM-NEXT:      %697 = x86.ri.add %557, 128 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-IR-LIBXSMM-NEXT:      %698 = x86.dss.addpd %680, %674 : (!x86.avx512reg<zmm22>, !x86.avx512reg<zmm27>) -> !x86.avx512reg<zmm27>
-// CHECK-IR-LIBXSMM-NEXT:      %699 = x86.dss.addpd %681, %675 : (!x86.avx512reg<zmm23>, !x86.avx512reg<zmm28>) -> !x86.avx512reg<zmm28>
-// CHECK-IR-LIBXSMM-NEXT:      %700 = x86.dss.addpd %682, %676 : (!x86.avx512reg<zmm24>, !x86.avx512reg<zmm29>) -> !x86.avx512reg<zmm29>
-// CHECK-IR-LIBXSMM-NEXT:      %701 = x86.dss.addpd %683, %677 : (!x86.avx512reg<zmm25>, !x86.avx512reg<zmm30>) -> !x86.avx512reg<zmm30>
-// CHECK-IR-LIBXSMM-NEXT:      %702 = x86.dss.addpd %684, %678 : (!x86.avx512reg<zmm26>, !x86.avx512reg<zmm31>) -> !x86.avx512reg<zmm31>
-// CHECK-IR-LIBXSMM-NEXT:      %703 = x86.dss.addpd %686, %698 : (!x86.avx512reg<zmm17>, !x86.avx512reg<zmm27>) -> !x86.avx512reg<zmm27>
-// CHECK-IR-LIBXSMM-NEXT:      %704 = x86.dss.addpd %687, %699 : (!x86.avx512reg<zmm18>, !x86.avx512reg<zmm28>) -> !x86.avx512reg<zmm28>
-// CHECK-IR-LIBXSMM-NEXT:      %705 = x86.dss.addpd %688, %700 : (!x86.avx512reg<zmm19>, !x86.avx512reg<zmm29>) -> !x86.avx512reg<zmm29>
-// CHECK-IR-LIBXSMM-NEXT:      %706 = x86.dss.addpd %689, %701 : (!x86.avx512reg<zmm20>, !x86.avx512reg<zmm30>) -> !x86.avx512reg<zmm30>
-// CHECK-IR-LIBXSMM-NEXT:      %707 = x86.dss.addpd %690, %702 : (!x86.avx512reg<zmm21>, !x86.avx512reg<zmm31>) -> !x86.avx512reg<zmm31>
-// CHECK-IR-LIBXSMM-NEXT:      %708 = x86.dss.addpd %692, %703 : (!x86.avx512reg<zmm12>, !x86.avx512reg<zmm27>) -> !x86.avx512reg<zmm27>
-// CHECK-IR-LIBXSMM-NEXT:      %709 = x86.dss.addpd %693, %704 : (!x86.avx512reg<zmm13>, !x86.avx512reg<zmm28>) -> !x86.avx512reg<zmm28>
-// CHECK-IR-LIBXSMM-NEXT:      %710 = x86.dss.addpd %694, %705 : (!x86.avx512reg<zmm14>, !x86.avx512reg<zmm29>) -> !x86.avx512reg<zmm29>
-// CHECK-IR-LIBXSMM-NEXT:      %711 = x86.dss.addpd %695, %706 : (!x86.avx512reg<zmm15>, !x86.avx512reg<zmm30>) -> !x86.avx512reg<zmm30>
-// CHECK-IR-LIBXSMM-NEXT:      %712 = x86.dss.addpd %696, %707 : (!x86.avx512reg<zmm16>, !x86.avx512reg<zmm31>) -> !x86.avx512reg<zmm31>
+// CHECK-IR-LIBXSMM-NEXT:      %698 = x86.dss.vaddpd %680, %674 : (!x86.avx512reg<zmm22>, !x86.avx512reg<zmm27>) -> !x86.avx512reg<zmm27>
+// CHECK-IR-LIBXSMM-NEXT:      %699 = x86.dss.vaddpd %681, %675 : (!x86.avx512reg<zmm23>, !x86.avx512reg<zmm28>) -> !x86.avx512reg<zmm28>
+// CHECK-IR-LIBXSMM-NEXT:      %700 = x86.dss.vaddpd %682, %676 : (!x86.avx512reg<zmm24>, !x86.avx512reg<zmm29>) -> !x86.avx512reg<zmm29>
+// CHECK-IR-LIBXSMM-NEXT:      %701 = x86.dss.vaddpd %683, %677 : (!x86.avx512reg<zmm25>, !x86.avx512reg<zmm30>) -> !x86.avx512reg<zmm30>
+// CHECK-IR-LIBXSMM-NEXT:      %702 = x86.dss.vaddpd %684, %678 : (!x86.avx512reg<zmm26>, !x86.avx512reg<zmm31>) -> !x86.avx512reg<zmm31>
+// CHECK-IR-LIBXSMM-NEXT:      %703 = x86.dss.vaddpd %686, %698 : (!x86.avx512reg<zmm17>, !x86.avx512reg<zmm27>) -> !x86.avx512reg<zmm27>
+// CHECK-IR-LIBXSMM-NEXT:      %704 = x86.dss.vaddpd %687, %699 : (!x86.avx512reg<zmm18>, !x86.avx512reg<zmm28>) -> !x86.avx512reg<zmm28>
+// CHECK-IR-LIBXSMM-NEXT:      %705 = x86.dss.vaddpd %688, %700 : (!x86.avx512reg<zmm19>, !x86.avx512reg<zmm29>) -> !x86.avx512reg<zmm29>
+// CHECK-IR-LIBXSMM-NEXT:      %706 = x86.dss.vaddpd %689, %701 : (!x86.avx512reg<zmm20>, !x86.avx512reg<zmm30>) -> !x86.avx512reg<zmm30>
+// CHECK-IR-LIBXSMM-NEXT:      %707 = x86.dss.vaddpd %690, %702 : (!x86.avx512reg<zmm21>, !x86.avx512reg<zmm31>) -> !x86.avx512reg<zmm31>
+// CHECK-IR-LIBXSMM-NEXT:      %708 = x86.dss.vaddpd %692, %703 : (!x86.avx512reg<zmm12>, !x86.avx512reg<zmm27>) -> !x86.avx512reg<zmm27>
+// CHECK-IR-LIBXSMM-NEXT:      %709 = x86.dss.vaddpd %693, %704 : (!x86.avx512reg<zmm13>, !x86.avx512reg<zmm28>) -> !x86.avx512reg<zmm28>
+// CHECK-IR-LIBXSMM-NEXT:      %710 = x86.dss.vaddpd %694, %705 : (!x86.avx512reg<zmm14>, !x86.avx512reg<zmm29>) -> !x86.avx512reg<zmm29>
+// CHECK-IR-LIBXSMM-NEXT:      %711 = x86.dss.vaddpd %695, %706 : (!x86.avx512reg<zmm15>, !x86.avx512reg<zmm30>) -> !x86.avx512reg<zmm30>
+// CHECK-IR-LIBXSMM-NEXT:      %712 = x86.dss.vaddpd %696, %707 : (!x86.avx512reg<zmm16>, !x86.avx512reg<zmm31>) -> !x86.avx512reg<zmm31>
 // CHECK-IR-LIBXSMM-NEXT:      x86.msk.vmovupd[%558], %708, %563 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>, !x86.avx512maskreg<k1>) -> ()
 // CHECK-IR-LIBXSMM-NEXT:      x86.msk.vmovupd[%558 + 272], %709, %563 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>, !x86.avx512maskreg<k1>) -> ()
 // CHECK-IR-LIBXSMM-NEXT:      x86.msk.vmovupd[%558 + 544], %710, %563 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>, !x86.avx512maskreg<k1>) -> ()
