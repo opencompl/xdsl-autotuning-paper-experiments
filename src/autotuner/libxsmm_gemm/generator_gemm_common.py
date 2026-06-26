@@ -77,7 +77,7 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
                 config.c_vmove_st_instruction = x86.ops.MS_VmovupdOp
                 config.c_vmove_nts_instruction = x86.ops.MS_VmovupdOp
 
-            # config.vxor_instruction = LIBXSMM_X86_INSTR_VPXORD;
+            config.vxor_instruction = x86.ops.DSS_VpxordOp
             config.vmul_instruction = x86.ops.RSS_Vfmadd231pdOp
             config.vadd_instruction = x86.ops.DSS_AddpdOp
         elif Datatype.F32 == desc.datatype.ab:
@@ -108,7 +108,7 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
                 config.c_vmove_st_instruction = x86.ops.MS_VmovupsOp
                 config.c_vmove_nts_instruction = x86.ops.MS_VmovupsOp
 
-            # config.vxor_instruction = LIBXSMM_X86_INSTR_VPXORD;
+            config.vxor_instruction = x86.ops.DSS_VpxordOp
             config.vmul_instruction = x86.ops.RSS_Vfmadd231psOp
             config.vadd_instruction = x86.ops.DSS_AddpsOp
 
