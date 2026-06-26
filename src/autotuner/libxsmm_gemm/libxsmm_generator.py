@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from xdsl.builder import Builder
+from xdsl.dialects import x86
 from xdsl.dialects.x86_func import FuncOp
 from xdsl.ir import Attribute, OperationInvT, SSAValue
 
@@ -14,6 +15,9 @@ class GeneratedCode:
     arch: Arch
 
     current_val_by_reg: dict[Attribute, SSAValue]
+
+    def get_val(self, reg: x86.ops.R1InvT) -> SSAValue[x86.ops.R1InvT]:
+        return self.current_val_by_reg[reg]  # pyright: ignore
 
     @property
     def current_block(self):

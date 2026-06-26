@@ -1,9 +1,8 @@
-from typing import Literal, cast
+from typing import Literal
 from xdsl.dialects import x86
 from xdsl.dialects.x86.registers import (
     AVX512MaskRegisterType,
     GeneralRegisterType,
-    X86VectorRegisterType,
 )
 from xdsl.ir import Block, SSAValue
 from xdsl.rewriter import InsertPoint
@@ -247,11 +246,10 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     reg_src0 = source_type.from_index(reg_number_src0)
     reg_src1 = source_type.from_index(reg_number_src1)
     reg_dst = source_type.from_index(reg_number_dst)
-    src0 = generated_code.current_val_by_reg[reg_src0]
-    src1 = generated_code.current_val_by_reg[reg_src1]
-    dst = generated_code.current_val_by_reg[reg_dst]
+    src0 = generated_code.get_val(reg_src0)
+    src1 = generated_code.get_val(reg_src1)
+    dst = generated_code.get_val(reg_dst)
     assert dst.type == reg_dst
-    dst = cast(SSAValue[X86VectorRegisterType], dst)
 
     # build vXYZpd/ps/sd/ss instruction pure register use
     if generated_code.arch > Arch.LIBXSMM_X86_SSE42:
