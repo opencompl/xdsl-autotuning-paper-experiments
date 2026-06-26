@@ -301,56 +301,6 @@ def libxsmm_x86_instruction_vec_compute_3reg(
     )
 
 
-def libxsmm_x86_instruction_vec_compute_2reg_mask_sae_imm8(
-    generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
-    | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_AddpdOp | x86.ops.DSS_AddpsOp]
-    | None,
-    vector_name: Literal["x", "y", "z"],
-    reg_number_src0: int,
-    reg_number_dst: int,
-    mask_reg_number: int,
-    mask_cntl: int,
-    sae_cntl: int,
-    imm8: int | None,
-) -> None:
-    libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
-        generated_code,
-        vec_instr,
-        vector_name,
-        reg_number_src0,
-        LIBXSMM_X86_VEC_REG_UNDEF,
-        reg_number_dst,
-        mask_reg_number,
-        mask_cntl,
-        sae_cntl,
-        imm8,
-    )
-
-
-def libxsmm_x86_instruction_vec_compute_2reg(
-    generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
-    | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_AddpdOp | x86.ops.DSS_AddpsOp]
-    | None,
-    vector_name: Literal["x", "y", "z"],
-    reg_number_src0: int,
-    reg_number_dst: int,
-) -> None:
-    libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
-        generated_code,
-        vec_instr,
-        vector_name,
-        reg_number_src0,
-        LIBXSMM_X86_VEC_REG_UNDEF,
-        reg_number_dst,
-        0,
-        0,
-        0,
-        None,
-    )
-
-
 def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
     generated_code: GeneratedCode,
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
