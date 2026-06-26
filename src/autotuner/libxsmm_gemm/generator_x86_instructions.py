@@ -301,6 +301,108 @@ def libxsmm_x86_instruction_vec_compute_3reg(
     )
 
 
+def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
+    generated_code: GeneratedCode,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
+    vector_name: Literal["x", "y", "z"],
+    gp_reg_base: x86.registers.GeneralRegisterType,
+    gp_reg_idx: x86.registers.GeneralRegisterType | None,
+    scale: int,
+    displacement: int,
+    use_broadcast: int,
+    reg_number_src1: int,
+    reg_number_dst: int,
+    mask_reg_number: int,
+    mask_rnd_exp_cntl: int,
+    imm8: int | None,
+) -> None:
+    assert vec_instr is not None
+    # if ( (libxsmm_x86_instruction_vec_is_hybrid( i_vec_instr )     == 0) &&
+    #      (libxsmm_x86_instruction_vec_is_regmemonly( i_vec_instr ) == 0)    ) {
+    #   fprintf(stderr, "libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8: unexpected instruction number: 0x%08x\n", i_vec_instr);
+    #   LIBXSMM_EXIT_ERROR(io_generated_code);
+    #   return;
+    # }
+
+    # check that we are not masking 'y'
+    assert not (
+        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_reg_number
+    ), (
+        "libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8: Masking is only available for AVX512!"
+    )
+
+    if generated_code.arch > Arch.LIBXSMM_X86_SSE42:
+        if gp_reg_idx is None:
+            match vector_name:
+                case "x":
+                    source_type = x86.registers.SSERegisterType
+                case "y":
+                    source_type = x86.registers.AVX2RegisterType
+                case "z":
+                    source_type = x86.registers.AVX512RegisterType
+            reg_src1 = source_type.from_index(reg_number_src1)
+            reg_dst = source_type.from_index(reg_number_dst)
+            if reg_src1 not in generated_code.current_val_by_reg:
+                generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src1))
+            if reg_dst not in generated_code.current_val_by_reg:
+                generated_code.insert(x86.ops.GetAVXRegisterOp(reg_dst))
+            src1 = generated_code.get_val(reg_src1)
+            dst = generated_code.get_val(reg_dst)
+            assert dst.type == reg_dst
+            base = generated_code.get_val(gp_reg_base)
+
+            match vec_instr:
+                case x86.ops.RSS_Vfmadd231pdOp:
+                    mem_instr = x86.ops.RSM_Vfmadd231pdOp
+                case x86.ops.RSS_Vfmadd231psOp:
+                    mem_instr = x86.ops.RSM_Vfmadd231psOp
+                case _:
+                    assert False, f"Unsupported vec compute mem op: {vec_instr}"
+
+            generated_code.insert(
+                mem_instr(
+                    dst,
+                    src1,
+                    base,
+                    displacement,
+                    broadcast=bool(use_broadcast),
+                )
+            )
+        else:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
+
+
+def libxsmm_x86_instruction_vec_compute_mem_2reg(
+    generated_code: GeneratedCode,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
+    vector_name: Literal["x", "y", "z"],
+    gp_reg_base: x86.registers.GeneralRegisterType,
+    gp_reg_idx: x86.registers.GeneralRegisterType | None,
+    scale: int,
+    displacement: int,
+    use_broadcast: int,
+    reg_number_src1: int,
+    reg_number_dst: int,
+) -> None:
+    libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
+        generated_code,
+        vec_instr,
+        vector_name,
+        gp_reg_base,
+        gp_reg_idx,
+        scale,
+        displacement,
+        use_broadcast,
+        reg_number_src1,
+        reg_number_dst,
+        0,
+        0,
+        None,
+    )
+
+
 def libxsmm_x86_instruction_vex_evex_mask_mov_st(
     generated_code: GeneratedCode,
     vmove_instr: type[
