@@ -16,35 +16,6 @@ from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
 
 
-def _vector_register_type(
-    vector_name: Literal["x", "y", "z"],
-) -> type[
-    x86.registers.SSERegisterType
-    | x86.registers.AVX2RegisterType
-    | x86.registers.AVX512RegisterType
-]:
-    match vector_name:
-        case "x":
-            return x86.registers.SSERegisterType
-        case "y":
-            return x86.registers.AVX2RegisterType
-        case "z":
-            return x86.registers.AVX512RegisterType
-
-
-def _ensure_vector_register(
-    generated_code: GeneratedCode,
-    vector_name: Literal["x", "y", "z"],
-    reg_number: int,
-) -> SSAValue[X86VectorRegisterType]:
-    reg_type = _vector_register_type(vector_name).from_index(reg_number)
-    if reg_type not in generated_code.current_val_by_reg:
-        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_type))
-    return cast(
-        SSAValue[X86VectorRegisterType], generated_code.current_val_by_reg[reg_type]
-    )
-
-
 def libxsmm_x86_instruction_open_stream_gemm(
     generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
@@ -244,7 +215,9 @@ def libxsmm_x86_instruction_register_jump_back_label(
 
 def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.X86Instruction] | None,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
+    | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_AddpdOp | x86.ops.DSS_AddpsOp]
+    | None,
     vector_name: Literal["x", "y", "z"],
     reg_number_src0: int,
     reg_number_src1: int,
@@ -278,8 +251,12 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
             source_type = x86.registers.AVX512RegisterType
     reg_src0 = source_type.from_index(reg_number_src0)
     reg_dst = source_type.from_index(reg_number_dst)
-    src0 = _ensure_vector_register(generated_code, vector_name, reg_number_src0)
-    src1 = _ensure_vector_register(generated_code, vector_name, reg_number_src1)
+    if reg_src0 not in generated_code.current_val_by_reg:
+        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src0))
+    if reg_src1 not in generated_code.current_val_by_reg:
+        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src1))
+    src0 = generated_code.current_val_by_reg[reg_src0]
+    src1 = generated_code.current_val_by_reg[reg_src1]
 
     # build vXYZpd/ps/sd/ss instruction pure register use
     if generated_code.arch > Arch.LIBXSMM_X86_SSE42:
@@ -287,11 +264,17 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         if imm8 is not None:
             raise NotImplementedError
         elif issubclass(vec_instr, x86.ops.DSS_Operation):
+            src0 = cast(SSAValue[X86VectorRegisterType], src0)
+            src1 = cast(SSAValue[X86VectorRegisterType], src1)
             generated_code.insert(
                 vec_instr(src0, src1, destination=reg_dst)  # pyright: ignore[reportCallIssue]
             )
         elif issubclass(vec_instr, x86.ops.RSS_Operation):
-            dst = _ensure_vector_register(generated_code, vector_name, reg_number_dst)
+            if reg_dst not in generated_code.current_val_by_reg:
+                generated_code.insert(x86.ops.GetAVXRegisterOp(reg_dst))
+            dst = generated_code.current_val_by_reg[reg_dst]
+            assert dst.type == reg_dst
+            dst = cast(SSAValue[X86VectorRegisterType], dst)
             generated_code.insert(vec_instr(dst, src0, src1))
         else:
             assert False, f"Unsupported vec compute op: {vec_instr}"
@@ -301,7 +284,9 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
 
 def libxsmm_x86_instruction_vec_compute_3reg(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.X86Instruction] | None,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
+    | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_AddpdOp | x86.ops.DSS_AddpsOp]
+    | None,
     vector_name: Literal["x", "y", "z"],
     reg_number_src0: int,
     reg_number_src1: int,
@@ -323,7 +308,7 @@ def libxsmm_x86_instruction_vec_compute_3reg(
 
 def libxsmm_x86_instruction_vec_compute_mem_2reg(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSM_Vfmadd231pdOp | x86.ops.RSM_Vfmadd231psOp] | None,
+    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
     vector_name: Literal["x", "y", "z"],
     gp_reg_base: x86.registers.GeneralRegisterType,
     gp_reg_idx: x86.registers.GeneralRegisterType | None,
@@ -346,12 +331,26 @@ def libxsmm_x86_instruction_vec_compute_mem_2reg(
             source_type = x86.registers.AVX512RegisterType
     reg_src1 = source_type.from_index(reg_number_src1)
     reg_dst = source_type.from_index(reg_number_dst)
-    src1 = _ensure_vector_register(generated_code, vector_name, reg_number_src1)
-    dst = _ensure_vector_register(generated_code, vector_name, reg_number_dst)
+    if reg_src1 not in generated_code.current_val_by_reg:
+        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src1))
+    if reg_dst not in generated_code.current_val_by_reg:
+        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_dst))
+    src1 = generated_code.current_val_by_reg[reg_src1]
+    dst = generated_code.current_val_by_reg[reg_dst]
+    assert dst.type == reg_dst
+    dst = cast(SSAValue[X86VectorRegisterType], dst)
     base = generated_code.current_val_by_reg[gp_reg_base]
 
+    match vec_instr:
+        case x86.ops.RSS_Vfmadd231pdOp:
+            mem_instr = x86.ops.RSM_Vfmadd231pdOp
+        case x86.ops.RSS_Vfmadd231psOp:
+            mem_instr = x86.ops.RSM_Vfmadd231psOp
+        case _:
+            assert False, f"Unsupported vec compute mem op: {vec_instr}"
+
     generated_code.insert(
-        vec_instr(
+        mem_instr(
             dst,
             src1,
             base,

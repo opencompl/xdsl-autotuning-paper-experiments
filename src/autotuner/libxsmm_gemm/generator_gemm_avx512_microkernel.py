@@ -174,7 +174,7 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
     assert a_vmove_instruction is not None
     assert micro_kernel_config.vxor_instruction is not None
     assert micro_kernel_config.vadd_instruction is not None
-    assert micro_kernel_config.vmul_mem_instruction is not None
+    assert micro_kernel_config.vmul_instruction is not None
 
     for k in range(1, n_accs):
         for n in range(n_blocking):
@@ -258,7 +258,7 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
                 if desc.datatype.ab in (Datatype.F64, Datatype.F32):
                     libxsmm_x86_instruction_vec_compute_mem_2reg(
                         generated_code,
-                        micro_kernel_config.vmul_mem_instruction,
+                        micro_kernel_config.vmul_instruction,
                         micro_kernel_config.vector_name,
                         gp_reg_mapping.gp_reg_b,
                         None,
@@ -279,7 +279,7 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
                 if desc.datatype.ab in (Datatype.F64, Datatype.F32):
                     libxsmm_x86_instruction_vec_compute_mem_2reg(
                         generated_code,
-                        micro_kernel_config.vmul_mem_instruction,
+                        micro_kernel_config.vmul_instruction,
                         micro_kernel_config.vector_name,
                         gp_reg_mapping.gp_reg_b,
                         None,

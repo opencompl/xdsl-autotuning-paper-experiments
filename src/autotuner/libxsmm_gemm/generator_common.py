@@ -157,9 +157,6 @@ class MicroKernelConfig:
     vmul_instruction: (
         type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None
     ) = field(default=None)
-    vmul_mem_instruction: (
-        type[x86.ops.RSM_Vfmadd231pdOp | x86.ops.RSM_Vfmadd231psOp] | None
-    ) = field(default=None)
     vadd_instruction: type[x86.ops.DSS_AddpdOp | x86.ops.DSS_AddpsOp] | None = field(
         default=None
     )
