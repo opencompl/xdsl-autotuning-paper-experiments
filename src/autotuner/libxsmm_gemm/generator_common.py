@@ -152,7 +152,7 @@ class MicroKernelConfig:
     ) = field(default=None)
     use_masking_a_c: bool = field(default=False)
     prefetch_instruction: int = field(default=0)
-    vxor_instruction: int = field(default=0)
+    vxor_instruction: type[x86.ops.DSS_VpxordOp] | None = field(default=None)
     vmul_instruction: (
         type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None
     ) = field(default=None)
