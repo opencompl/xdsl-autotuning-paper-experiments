@@ -49,27 +49,18 @@ PLOTS =
 
 PLOTS += plots/neon/f32.ttile.png
 PLOTS += plots/neon/f64.ttile.png
-PLOTS += plots/neon/f64.cube_8.png
-PLOTS += plots/neon/f64.cube_16.png
-PLOTS += plots/neon/f64.cube_64.png
 # PLOTS += plots/neon/f64.ttile_squares.png
 # PLOTS += plots/neon/f64.ttile_combined.png
 # PLOTS += plots/neon/f64.heatmap.png
 
 PLOTS += plots/tower/f32.ttile.png
 PLOTS += plots/tower/f64.ttile.png
-PLOTS += plots/tower/f64.cube_8.png
-PLOTS += plots/tower/f64.cube_16.png
-PLOTS += plots/tower/f64.cube_64.png
 PLOTS += plots/tower/f64.ttile_squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
 
 PLOTS += plots/pinocchio/f32.ttile.png
 PLOTS += plots/pinocchio/f64.ttile.png
-PLOTS += plots/pinocchio/f64.cube_8.png
-PLOTS += plots/pinocchio/f64.cube_16.png
-PLOTS += plots/pinocchio/f64.cube_64.png
 PLOTS += plots/pinocchio/f64.ttile_squares.png
 PLOTS += plots/pinocchio/f64.ttile_combined.png
 PLOTS += plots/pinocchio/f64.heatmap.png
@@ -88,18 +79,6 @@ plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_
 
 plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_combined.py
 	uv run plot-ttile-combined $< --output $@
-
-plots/%.cube_8.png: data/%.cube_8.jsonl src/autotuner/plot_cube.py
-	uv run plot-cube $< --output $@
-
-plots/%.cube_16.png: data/%.cube_16.jsonl src/autotuner/plot_cube.py
-	uv run plot-cube $< --output $@
-
-plots/%.cube_64.png: data/%.cube_64.jsonl src/autotuner/plot_cube.py
-	uv run plot-cube $< --output $@
-
-plots/%.bars.png: data/%.bars.jsonl src/autotuner/plot_cube.py
-	uv run plot-cube $< --output $@
 
 plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 	uv run plot-heatmap $< --output $@
