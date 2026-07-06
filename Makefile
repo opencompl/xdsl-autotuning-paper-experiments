@@ -33,11 +33,12 @@ dataset_code:
 dataset_validate:
 	uv run snakemake --quiet --cores all dataset_validate --forceall $(if $(TARGET),--config target=$(TARGET),)
 
-# --cores 1 to avoid contention issues when measuring performance
-# re-run time measurement every time
+# --cores 1 to avoid contention issues when measuring performance.
+# Run `make clean` to re-measure everything.
+# Run `make clean-ours` to re-measure just our code.
 .PHONY: dataset
 dataset: dataset_code
-	uv run snakemake --quiet --cores 1 dataset --forcerun time $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake --quiet --cores 1 dataset $(if $(TARGET),--config target=$(TARGET),)
 
 
 # Prevent Make from deleting this intermediate file
@@ -120,7 +121,13 @@ docker-run:
 		nice -n -15 taskset -c 2 docker run -e IN_DOCKER=1 --platform linux/amd64 --cap-add=SYS_ADMIN --cap-add=PERFMON --security-opt seccomp=unconfined --security-opt apparmor=unconfined --pid=host -v .:/src -ti xdsl-autotuner; \
 	fi
 
+.PHONY: clean-ours
+clean-ours:
+	find build -name 'xdsl_libxsmm.*' -exec rm -f {} + 2>/dev/null || true
+	rm -f data/$(TARGET)/*
+
 .PHONY: clean
 clean:
 	find tests/filecheck -type d -name "Output" -exec rm -rf {} \; 2>/dev/null || true
 	rm -rf build 2>/dev/null || true
+	rm -f data/$(TARGET)/*
