@@ -124,6 +124,7 @@ docker-run:
 .PHONY: clean-ours
 clean-ours:
 	find build -name 'xdsl_libxsmm.*' -exec rm -f {} + 2>/dev/null || true
+	rm -f data/$(TARGET)/*
 
 .PHONY: clean
 clean:
