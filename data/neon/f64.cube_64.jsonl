@@ -1,2 +1,0 @@
-{"M":64,"N":64,"K":64,"peak":0.0,"flops":524288,"time":168094.726562,"variant":"naive_c","target":"neon","dtype":"f64"}
-{"M":64,"N":64,"K":64,"peak":0.0,"flops":524288,"time":26939.453125,"variant":"transform_mlir","target":"neon","dtype":"f64"}
