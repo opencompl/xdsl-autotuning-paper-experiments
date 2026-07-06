@@ -1,5 +1,6 @@
 configfile: "default.yaml"
 
+import glob
 import os
 import shutil
 
@@ -109,6 +110,10 @@ def target_ll_file(
     base = target_base(target=target, kernel=kernel, m=m, n=n, k=k)
     var = target_variant(variant=variant, dtype=dtype, ext=ext)
     return f"{base}/{var}"
+
+LIBXSMM_GEMM_SOURCES = sorted(
+    glob.glob("src/autotuner/libxsmm_gemm/**/*.py", recursive=True)
+)
 
 # Rules
 
@@ -287,6 +292,7 @@ rule libxsmm_rowmaj_c:
 
 
 rule xdsl_libxsmm_rowmaj_mlir:
+    input: ["pyproject.toml"] + LIBXSMM_GEMM_SOURCES
     output: target_ll_file(kernel='matmul_rowmaj',variant='xdsl_libxsmm',ext='libxsmm.mlir')
     params:
         target_xsmm=target_xsmm,
@@ -307,11 +313,13 @@ rule xdsl_libxsmm_rowmaj_mlir:
         """
 
 rule xdsl_libxsmm_s:
-    input: target_ll_file(variant='xdsl_libxsmm',ext='libxsmm.mlir')
+    input:
+        mlir=target_ll_file(variant='xdsl_libxsmm',ext='libxsmm.mlir'),
+        sources=["pyproject.toml"] + LIBXSMM_GEMM_SOURCES,
     output: target_ll_file(variant='xdsl_libxsmm',ext='S')
     shell:
         """
-        xdsl-opt {input} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
+        xdsl-opt {input.mlir} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
         """
 
 rule mkl_rowmaj_s:
