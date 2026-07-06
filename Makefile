@@ -130,3 +130,4 @@ clean-ours:
 clean:
 	find tests/filecheck -type d -name "Output" -exec rm -rf {} \; 2>/dev/null || true
 	rm -rf build 2>/dev/null || true
+	rm -f data/$(TARGET)/*
