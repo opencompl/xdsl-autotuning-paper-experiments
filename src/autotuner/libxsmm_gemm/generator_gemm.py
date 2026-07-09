@@ -8,6 +8,7 @@ from xdsl.printer import Printer
 from autotuner.libxsmm_gemm.generator_common import libxsmm_mmfunction_signature
 from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
     libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper,
+    libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel_wrapper,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
@@ -33,7 +34,30 @@ def libxsmm_generator_gemm_directasm(
         Printer(stream=f).print_op(func_op)
 
 
-def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescriptor):
+def libxsmm_generator_gemm_microkernel_directasm(
+    file_out: Path, routine_name: str, desc: GEMMDescriptor, arch: Arch
+):
+    """Like ``libxsmm_generator_gemm_directasm`` but emits only the microkernel.
+
+    The generated routine computes exactly one ``desc.m`` x ``desc.n`` register tile
+    over the full ``desc.k`` contraction (load C, K-loop, store C), with no outer M/N
+    tiling loops. Intended for benchmarking individual microkernels.
+    """
+    module_op = ModuleOp(Region(Block()))
+
+    func_op = libxsmm_mmfunction_signature(module_op, routine_name)
+
+    libxsmm_generator_gemm_kernel(func_op, arch, desc, microkernel=True)
+
+    func_op.body.blocks[-1].add_op(RetOp())
+
+    with open(file_out, "w") as f:
+        Printer(stream=f).print_op(func_op)
+
+
+def libxsmm_generator_gemm_kernel(
+    func_op: FuncOp, arch: Arch, desc: GEMMDescriptor, microkernel: bool = False
+):
     m, n, k, lda, ldb, ldc, datatype, flags, prefetch = desc
 
     vector_length = 1
@@ -631,6 +655,10 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         ):
             raise NotImplementedError
             # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
+        elif microkernel:
+            libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel_wrapper(
+                func_op, arch, desc_mod
+            )
         else:
             libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
                 func_op, arch, desc_mod

@@ -1,5 +1,8 @@
 from pathlib import Path
-from autotuner.libxsmm_gemm.generator_gemm import libxsmm_generator_gemm_directasm
+from autotuner.libxsmm_gemm.generator_gemm import (
+    libxsmm_generator_gemm_directasm,
+    libxsmm_generator_gemm_microkernel_directasm,
+)
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
 from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
 from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
@@ -39,6 +42,12 @@ def main():
         "precision",
         choices=["SP", "DP"],
         help="Precision: SP or DP",
+    )
+    parser.add_argument(
+        "--microkernel",
+        action="store_true",
+        help="Emit only a single register-tile microkernel (load C, K-loop, store C) "
+        "for the given m x n x k tile, without the outer M/N tiling loops.",
     )
 
     args = parser.parse_args()
@@ -95,4 +104,11 @@ def main():
     assert args.density == "dense", f"Only dense supported, got {args.density}"
     assert arch == Arch.LIBXSMM_X86_AVX512_SKX, f"Only `skx` arch supported, got {arch}"
 
-    libxsmm_generator_gemm_directasm(args.filename, args.routine_name, descriptor, arch)
+    if args.microkernel:
+        libxsmm_generator_gemm_microkernel_directasm(
+            args.filename, args.routine_name, descriptor, arch
+        )
+    else:
+        libxsmm_generator_gemm_directasm(
+            args.filename, args.routine_name, descriptor, arch
+        )

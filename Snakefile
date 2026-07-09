@@ -4,6 +4,8 @@ import glob
 import os
 import shutil
 
+from autotuner.libxsmm_gemm.microkernel_sizes import supported_microkernel_sizes
+
 ########################################################################################
 # Build
 ########################################################################################
@@ -122,7 +124,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     target="neon|ci|tower|pinocchio",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|xdsl_libxsmm_microkernel"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -322,6 +324,41 @@ rule xdsl_libxsmm_s:
         xdsl-opt {input.mlir} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
         """
 
+rule xdsl_libxsmm_microkernel_rowmaj_mlir:
+    input: ["pyproject.toml"] + LIBXSMM_GEMM_SOURCES
+    output: target_ll_file(kernel='matmul_rowmaj',variant='xdsl_libxsmm_microkernel',ext='libxsmm.mlir')
+    params:
+        target_xsmm=target_xsmm,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+        c_dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+    shell:
+        """
+        # Single register-tile microkernel: exactly one M x N tile over K, no outer
+        # M/N tiling loops. Row-major via the same A/B swap + transposed descriptor as
+        # xdsl_libxsmm, so the register/vectorized dimension is the row-major N (CCOLS)
+        # and the broadcast dimension is the row-major M (CROWS).
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        SWAP_A_B=1 libxsmm-gemm --microkernel dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.target_xsmm} \
+            nopf \
+            {params.dtype}
+        """
+
+rule xdsl_libxsmm_microkernel_s:
+    input:
+        mlir=target_ll_file(variant='xdsl_libxsmm_microkernel',ext='libxsmm.mlir'),
+        sources=["pyproject.toml"] + LIBXSMM_GEMM_SOURCES,
+    output: target_ll_file(variant='xdsl_libxsmm_microkernel',ext='S')
+    shell:
+        """
+        xdsl-opt {input.mlir} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
+        """
+
 rule mkl_rowmaj_s:
     output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -450,18 +487,22 @@ DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.microkernels": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm"],
         "f64.small_matrices": ["libxsmm", "xdsl_libxsmm"],
+        "f64.microkernels": ["xdsl_libxsmm_microkernel"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.microkernels": [],
     },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.microkernels": [],
     },
 }[THIS_TARGET]
 
@@ -503,7 +544,26 @@ DATASET_BASES = {
         m=range(1, 17),
         n=range(1, 17),
         variant=DATASET_VARIANTS["f64.small_matrices"]
-    )
+    ),
+    # One data point per supported microkernel register tile (m_blocking, n_blocking)
+    # at K=64. The valid (mb, nb) set is triangular (nb cap shrinks as mb grows), so it
+    # is built explicitly rather than as an independent m/n cross product. Under the
+    # row-major A/B swap the register/vectorized dimension mb is the row-major N (CCOLS,
+    # path {n}) and the broadcast dimension nb is the row-major M (CROWS, path {m}).
+    "f64.microkernels": [
+        target_file(
+            kernel="matmul_rowmaj",
+            m=str(nb),
+            n=str(mb),
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+            variant=variant,
+        )
+        for (mb, nb) in supported_microkernel_sizes(k=64)
+        for variant in DATASET_VARIANTS["f64.microkernels"]
+    ],
 }
 
 # If a dataset has no samples skip it here and in the dataset rule below
