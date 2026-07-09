@@ -67,6 +67,8 @@ class Block:
     size: int
     loop_id: int
     kind: str = ""  # "", "masked", "remainder", "unrolled"
+    # For M blocks: the avx512 nanokernel emitted for this block ("fsdbcst"/"nofsdbcst").
+    nanokernel: str = ""
 
 
 @dataclass
@@ -151,6 +153,19 @@ def _compute_n_blocks(
     return blocks
 
 
+def _nanokernel(m_blocking: int, vector_length: int) -> str:
+    """Which avx512 nanokernel the k-loop emits for an M block of this width.
+
+    Mirror of the dispatch in ``libxsmm_generator_gemm_avx512_kloop_kernel``: for a
+    plain F64/skylake dense GEMM every special-case flag is false, so the choice
+    reduces to ``m_vector == 1`` -> ``fsdbcst`` (B fused as a broadcast memory operand
+    of the FMA), otherwise ``nofsdbcst`` (B broadcast into a register first). ``m_vector``
+    is the number of vector registers spanning the M block.
+    """
+    m_vector = -(-m_blocking // vector_length)  # ceil(m_blocking / vector_length)
+    return "fsdbcst" if m_vector == 1 else "nofsdbcst"
+
+
 def _compute_m_blocks(config: MicroKernelConfig, desc: GEMMDescriptor) -> list[Block]:
     """Mirror of the `while m_done` walk (:474-740).
 
@@ -172,9 +187,10 @@ def _compute_m_blocks(config: MicroKernelConfig, desc: GEMMDescriptor) -> list[B
         if m_done != m_done_old:
             # get_m_blocking stores whether this block width needs masking.
             masked = "masked" if config.use_masking_a_c else ""
+            nk = _nanokernel(m_blocking, config.vector_length)
             start = m_done_old
             for _ in range(n_full):
-                blocks.append(Block(start, m_blocking, loop_id, masked))
+                blocks.append(Block(start, m_blocking, loop_id, masked, nk))
                 start += m_blocking
             loop_id += 1
         # Recompute to obtain the (smaller) remainder block width.
@@ -259,9 +275,12 @@ def compute_tiling(m: int, n: int, k: int) -> Tiling:
 # Rendering (matplotlib -> SVG)
 # --------------------------------------------------------------------------------------
 
-# A single faint tint per special tile kind; everything else stays uncolored.
+# C tiles are tinted by the nanokernel emitted for them; A/B use structural tints.
+_FILL_FSDBCST = "#dfeee0"  # fsdbcst nanokernel (m_vector == 1)
+_FILL_NOFSDBCST = "#e7e0f0"  # nofsdbcst nanokernel (m_vector > 1)
 _FILL_MASKED = "#f0e2c4"  # M remainder that needs masking
 _FILL_REMAINDER = "#cfe3ef"  # K remainder
+_NANOKERNEL_FILL = {"fsdbcst": _FILL_FSDBCST, "nofsdbcst": _FILL_NOFSDBCST}
 _GRID_THIN = "#c8c8c8"
 _GRID_HEAVY = "#333333"
 _EDGE = "#222222"
@@ -335,8 +354,23 @@ def _draw(ax, tiling: Tiling) -> None:
     pad = max(1.0, 0.03 * max(width, height))
 
     # --- whole-band tints (drawn first, under the grid) ------------------------------
-    # K remainder first, masked M second, so the shared corner in A reads as "masked"
-    # (row priority), matching how the kernel loads/stores the masked M tail.
+    # C: tint each M band by the nanokernel emitted for its micro-kernels. The choice
+    # depends only on the M block width, so it is constant across N (and K) -> one tint
+    # per horizontal band of C.
+    for mb in t.m_blocks:
+        fill = _NANOKERNEL_FILL.get(mb.nanokernel)
+        if fill is not None:
+            ax.add_patch(
+                Rectangle(
+                    (x0, y0 + mb.start),
+                    n,
+                    mb.size,
+                    facecolor=fill,
+                    edgecolor="none",
+                    zorder=0,
+                )
+            )
+    # A/B K remainder columns/rows.
     for kb in t.k_blocks:
         if kb.kind == "remainder":
             ax.add_patch(
@@ -360,8 +394,8 @@ def _draw(ax, tiling: Tiling) -> None:
                 )
             )
     # A masked M block masks only its *tail* lanes: the last (size % vector_length)
-    # rows, i.e. the partial vector left over after the full vector registers. Tint
-    # just those rows (not the whole block) and mark where the full-vector part ends.
+    # rows, i.e. the partial vector left over after the full vector registers. Shown on
+    # A only (C encodes the nanokernel instead); mark where the full-vector part ends.
     for mb in t.m_blocks:
         if mb.kind == "masked":
             tail = mb.size % t.vector_length or mb.size
@@ -373,29 +407,18 @@ def _draw(ax, tiling: Tiling) -> None:
                     tail,
                     facecolor=_FILL_MASKED,
                     edgecolor="none",
-                    zorder=0,
-                )
-            )
-            ax.add_patch(
-                Rectangle(
-                    (x0, y0 + ts),
-                    n,
-                    tail,
-                    facecolor=_FILL_MASKED,
-                    edgecolor="none",
-                    zorder=0,
+                    zorder=1,
                 )
             )
             if tail < mb.size:
-                for xlo, xhi in ((0, k), (x0, x0 + n)):
-                    ax.plot(
-                        [xlo, xhi],
-                        [y0 + ts, y0 + ts],
-                        color="#b58a2e",
-                        lw=0.6,
-                        ls=(0, (4, 2)),
-                        zorder=2,
-                    )
+                ax.plot(
+                    [0, k],
+                    [y0 + ts, y0 + ts],
+                    color="#b58a2e",
+                    lw=0.6,
+                    ls=(0, (4, 2)),
+                    zorder=2,
+                )
 
     # --- internal grid lines (thin per-tile, heavy between hardware-loop groups) ------
     def vlines(bounds, x_base, y_lo, y_hi):
@@ -494,25 +517,44 @@ def _draw(ax, tiling: Tiling) -> None:
         rotation=90,
     )
 
-    # --- legend (only for tile kinds actually present) -------------------------------
+    # --- legend (only for entries actually present) ----------------------------------
     handles = []
+    nanokernels = [b.nanokernel for b in t.m_blocks]
+    if "fsdbcst" in nanokernels:
+        handles.append(
+            Patch(
+                facecolor=_FILL_FSDBCST,
+                edgecolor="#999",
+                label="C tile: fsdbcst nanokernel (m_vector = 1)",
+            )
+        )
+    if "nofsdbcst" in nanokernels:
+        handles.append(
+            Patch(
+                facecolor=_FILL_NOFSDBCST,
+                edgecolor="#999",
+                label="C tile: nofsdbcst nanokernel (m_vector > 1)",
+            )
+        )
     if any(b.kind == "masked" for b in t.m_blocks):
         handles.append(
             Patch(
                 facecolor=_FILL_MASKED,
                 edgecolor="#999",
-                label="masked M tail (M % vector_length)",
+                label="A: masked M tail (M % vector_length)",
             )
         )
     if any(b.kind == "remainder" for b in t.k_blocks):
         handles.append(
-            Patch(facecolor=_FILL_REMAINDER, edgecolor="#999", label="K remainder")
+            Patch(facecolor=_FILL_REMAINDER, edgecolor="#999", label="A/B: K remainder")
         )
     if handles:
+        # upper-left is empty (above A, left of B) -> keeps the legend clear of the
+        # K/N axis labels along the bottom.
         ax.legend(
             handles=handles,
-            loc="lower left",
-            bbox_to_anchor=(0.0, 0.0),
+            loc="upper left",
+            bbox_to_anchor=(0.0, 1.0),
             frameon=False,
             fontsize=8,
         )
@@ -605,12 +647,21 @@ def _text_summary(t: Tiling) -> str:
     def fmt(blocks: list[Block]) -> str:
         return " + ".join(f"{count}x{size}" for _l, count, size in _loop_groups(blocks))
 
+    def nano(blocks: list[Block]) -> str:
+        # one entry per M loop-group (nanokernel is constant within a group)
+        seen: list[str] = []
+        for b in blocks:
+            if not seen or seen[-1] != f"{b.size}:{b.nanokernel}":
+                seen.append(f"{b.size}:{b.nanokernel}")
+        return ", ".join(f"m={s.split(':')[0]}→{s.split(':')[1]}" for s in seen)
+
     return (
         f"M={t.m} N={t.n} K={t.k}  (F64, skylake)\n"
         f"  N split : {fmt(t.n_blocks)}   (max_n_blocking={t.max_n_blocking})\n"
         f"  M split : {fmt(t.m_blocks)}   (vector_length={t.vector_length})\n"
         f"  K split : {fmt(t.k_blocks)}   "
-        f"(k_blocking={t.k_blocking}, k_threshold={t.k_threshold})"
+        f"(k_blocking={t.k_blocking}, k_threshold={t.k_threshold})\n"
+        f"  nanokernel : {nano(t.m_blocks)}"
     )
 
 
