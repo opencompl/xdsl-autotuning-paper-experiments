@@ -68,6 +68,28 @@ def _max_n_blocking(config: MicroKernelConfig, desc: GEMMDescriptor) -> int:
     return max_n
 
 
+def _vector_length(dt: Datatype) -> int:
+    desc = _make_descriptor(1, 1, dt)
+    config = MicroKernelConfig()
+    libxsmm_generator_gemm_init_micro_kernel_config(config, ARCH, desc, False)
+    assert config.vector_length, "micro kernel config not populated"
+    return config.vector_length
+
+
+def nanokernel_for_m_blocking(m_blocking: int, dt: Datatype = Datatype.F64) -> str:
+    """Return the AVX512 nanokernel emitted for an M register block of this width.
+
+    Mirror of the dispatch in ``libxsmm_generator_gemm_avx512_kloop_kernel``: for a
+    plain dense F32/F64 GEMM the choice reduces to ``m_vector == 1`` -> ``fsdbcst`` (B
+    fused as a broadcast memory operand of the FMA), otherwise ``nofsdbcst`` (B
+    broadcast into a register first). ``m_vector`` is the number of vector registers
+    spanning the M block, i.e. ``ceil(m_blocking / vector_length)``.
+    """
+    vlen = _vector_length(dt)
+    m_vector = -(-m_blocking // vlen)  # ceil(m_blocking / vlen)
+    return "fsdbcst" if m_vector == 1 else "nofsdbcst"
+
+
 def supported_microkernel_sizes(
     k: int = 64, dt: Datatype = Datatype.F64
 ) -> list[tuple[int, int]]:

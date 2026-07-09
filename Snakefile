@@ -4,7 +4,11 @@ import glob
 import os
 import shutil
 
-from autotuner.libxsmm_gemm.microkernel_sizes import supported_microkernel_sizes
+from autotuner.libxsmm_gemm.microkernel_sizes import (
+    supported_microkernel_sizes,
+    nanokernel_for_m_blocking,
+)
+from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 ########################################################################################
 # Build
@@ -66,6 +70,15 @@ def target_xsmm(wildcards):
 
 def target_libs_opts(wildcards):
     return " ".join(f"-l{x}" for x in T[wildcards.target]['libs'])
+
+def target_nanokernel(wildcards):
+    # Only the microkernel variant maps to a single well-defined AVX512 nanokernel.
+    # Under the row-major A/B swap the register/vectorized dimension (m_blocking) is the
+    # CCOLS (N) dimension of the tile, so the nanokernel is derived from wildcards.n.
+    if wildcards.variant != "xdsl_libxsmm_microkernel":
+        return ""
+    dt = Datatype.F64 if wildcards.dtype == "f64" else Datatype.F32
+    return nanokernel_for_m_blocking(int(wildcards.n), dt)
 
 # Path management
 
@@ -459,6 +472,7 @@ rule json:
         json=target_ll_file(ext="json")
     params:
         target_peak_flops=target_peak_flops,
+        nanokernel=target_nanokernel,
     shell:
         """
         M={wildcards.m}
@@ -470,7 +484,8 @@ rule json:
         VARIANT="{wildcards.variant}"
         TARGET="{wildcards.target}"
         DTYPE="{wildcards.dtype}"
-        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"peak":'${{PEAK}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'"}}' > {output.json}
+        NANOKERNEL="{params.nanokernel}"
+        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"peak":'${{PEAK}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'","nanokernel":"'${{NANOKERNEL}}'"}}' > {output.json}
         """
 
 ########################################################################################
