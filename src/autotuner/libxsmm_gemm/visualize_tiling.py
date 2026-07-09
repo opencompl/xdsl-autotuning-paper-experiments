@@ -1,5 +1,5 @@
 """Visualize the tiling/splitting tree of the libxsmm SSE/AVX/AVX2/AVX512 GEMM
-generator as a minimal HTML diagram over the A, B and C matrices.
+generator as a minimal matplotlib SVG diagram over the A, B and C matrices.
 
 The generator's kernel builder splits the problem along N (outer), then M (middle),
 then blocks along K (inner). Those decisions live as inline control flow inside
@@ -13,7 +13,7 @@ architecture is currently supported by the generator, so that is what we visuali
 
 Run as::
 
-    python -m autotuner.libxsmm_gemm.visualize_tiling --m 64 --n 16 --k 128 -o tiling.html
+    python -m autotuner.libxsmm_gemm.visualize_tiling --m 64 --n 16 --k 128 -o tiling.svg
 """
 
 from __future__ import annotations
@@ -256,17 +256,15 @@ def compute_tiling(m: int, n: int, k: int) -> Tiling:
 
 
 # --------------------------------------------------------------------------------------
-# HTML rendering
+# Rendering (matplotlib -> SVG)
 # --------------------------------------------------------------------------------------
 
-# A single faint tint per special tile kind; everything else stays grayscale.
-_KIND_FILL = {
-    "": "transparent",
-    "looped": "transparent",
-    "unrolled": "transparent",
-    "masked": "rgba(180,120,0,0.16)",  # M remainder that needs masking
-    "remainder": "rgba(0,110,160,0.16)",  # K remainder
-}
+# A single faint tint per special tile kind; everything else stays uncolored.
+_FILL_MASKED = "#f0e2c4"  # M remainder that needs masking
+_FILL_REMAINDER = "#cfe3ef"  # K remainder
+_GRID_THIN = "#c8c8c8"
+_GRID_HEAVY = "#333333"
+_EDGE = "#222222"
 
 
 def _loop_groups(blocks: list[Block]) -> list[tuple[int, int, int]]:
@@ -281,206 +279,176 @@ def _loop_groups(blocks: list[Block]) -> list[tuple[int, int, int]]:
     return groups
 
 
-def _tiles_html(
-    blocks: list[Block],
-    *,
-    axis: str,  # "x" (blocks laid horizontally) or "y" (vertically)
-    scale: float,
-    min_px: float,
-) -> str:
-    """Render blocks as a flex row/column of tile <div>s, with per-loop labels."""
-    direction = "row" if axis == "x" else "column"
-    cells: list[str] = []
-    prev_loop = None
-    for b in blocks:
-        extent = max(b.size * scale, min_px)
-        size_css = (
-            f"width:{extent:.2f}px" if axis == "x" else f"height:{extent:.2f}px"
-        )
-        fill = _KIND_FILL.get(b.kind, "transparent")
-        new_group = "grp" if b.loop_id != prev_loop else ""
-        prev_loop = b.loop_id
-        title = f"{b.kind or 'tile'} @{b.start} size {b.size}"
-        cells.append(
-            f'<div class="tile {new_group}" style="{size_css};background:{fill}" '
-            f'title="{title}"><span>{b.size}</span></div>'
-        )
-    return f'<div class="tiles {direction}">{"".join(cells)}</div>'
-
-
-def _loop_labels_html(blocks: list[Block], *, axis: str, scale: float, min_px: float) -> str:
-    """A row/column of `xN` labels, one per hardware loop, aligned to the tiles."""
-    spans: list[str] = []
+def _group_spans(blocks: list[Block]) -> list[tuple[int, int, int, int]]:
+    """(start_offset, extent, count, size) per hardware-loop group, in element units."""
+    spans: list[tuple[int, int, int, int]] = []
+    pos = 0
     for _lid, count, size in _loop_groups(blocks):
-        extent = max(size * scale, min_px) * count
-        dim = "width" if axis == "x" else "height"
-        label = f"&times;{count}" if count > 1 else "&times;1"
-        spans.append(
-            f'<div class="looplbl" style="{dim}:{extent:.2f}px">{label}</div>'
-        )
-    direction = "row" if axis == "x" else "column"
-    return f'<div class="loops {direction}">{"".join(spans)}</div>'
+        extent = count * size
+        spans.append((pos, extent, count, size))
+        pos += extent
+    return spans
 
 
-def _auto_scale(t: Tiling) -> float:
-    """Pixels per matrix element that keeps the whole diagram within a sane canvas.
+def _internal_boundaries(blocks: list[Block]) -> list[tuple[int, bool]]:
+    """(position, heavy) for each internal tile boundary; heavy at loop-group change."""
+    bounds: list[tuple[int, bool]] = []
+    pos = 0
+    for i, b in enumerate(blocks):
+        if i > 0:
+            bounds.append((pos, blocks[i - 1].loop_id != b.loop_id))
+        pos += b.size
+    return bounds
 
-    Layout width spans A (k) + C (n); height spans B (k) + C (m). Pick the largest
-    scale (capped at 14) that fits both, so large K/M problems shrink to fit while
-    small ones stay legible.
+
+def _split_summary(blocks: list[Block]) -> str:
+    return " + ".join(f"{count}×{size}" for _l, count, size in _loop_groups(blocks))
+
+
+def render_svg(tiling: Tiling, out_path: str) -> None:
+    """Draw the tiling as a matplotlib figure and write it to ``out_path`` as SVG.
+
+    All three matrices share one Axes with equal aspect, so tile boundaries line up
+    exactly:
+
+        B  (K x N)            top-right   -> N columns align with C
+        A  (M x K)  C (M x N) bottom row  -> M rows of A align with C
+
+    Coordinates are in matrix-element units and y is measured downward (the axis is
+    inverted at the end) so element (0,0) sits at each matrix's top-left corner.
     """
-    max_w, max_h = 1100.0, 900.0
-    scale = min(14.0, max_w / (t.k + t.n + 2), max_h / (t.k + t.m + 2))
-    return max(scale, 1.5)
+    import matplotlib
 
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch, Rectangle
 
-def render_html(
-    tiling: Tiling, *, scale: float | None = None, min_px: float = 6.0
-) -> str:
     t = tiling
-    if scale is None:
-        scale = _auto_scale(t)
+    m, n, k = t.m, t.n, t.k
 
-    # Matrix bodies. Each matrix is a grid of tiles: rows x cols.
-    #   A: rows = M split, cols = K split
-    #   B: rows = K split, cols = N split
-    #   C: rows = M split, cols = N split
-    def matrix_grid(rows: list[Block], cols: list[Block]) -> str:
-        # Build one flex column of rows; each row is a flex row of cells. Using nested
-        # flex keeps row/column boundaries aligned across the three matrices.
-        row_html: list[str] = []
-        prev_row_loop = None
-        for r in rows:
-            h = max(r.size * scale, min_px)
-            cell_html: list[str] = []
-            prev_col_loop = None
-            for c in cols:
-                w = max(c.size * scale, min_px)
-                # A cell's "kind" for tinting: prefer the row (M) kind, else col kind.
-                kind = r.kind or c.kind
-                fill = _KIND_FILL.get(kind, "transparent")
-                col_grp = "cgrp" if c.loop_id != prev_col_loop else ""
-                prev_col_loop = c.loop_id
-                cell_html.append(
-                    f'<div class="cell {col_grp}" '
-                    f'style="width:{w:.2f}px;height:{h:.2f}px;background:{fill}"></div>'
-                )
-            row_grp = "rgrp" if r.loop_id != prev_row_loop else ""
-            prev_row_loop = r.loop_id
-            row_html.append(
-                f'<div class="mrow {row_grp}">{"".join(cell_html)}</div>'
-            )
-        return f'<div class="matrix">{"".join(row_html)}</div>'
+    gap = max(2.0, 0.05 * max(k + n, k + m))  # blank space between the matrices
+    x0 = k + gap  # left edge of B and C
+    y0 = k + gap  # top edge of A and C
+    width = x0 + n
+    height = y0 + m
+    pad = max(1.0, 0.03 * max(width, height))
 
-    a_grid = matrix_grid(t.m_blocks, t.k_blocks)
-    b_grid = matrix_grid(t.k_blocks, t.n_blocks)
-    c_grid = matrix_grid(t.m_blocks, t.n_blocks)
+    longest = max(width, height)
+    fig, ax = plt.subplots(
+        figsize=(8.0 * width / longest + 2.4, 8.0 * height / longest + 2.4)
+    )
+    ax.set_aspect("equal")
+    ax.axis("off")
 
-    n_axis = _loop_labels_html(t.n_blocks, axis="x", scale=scale, min_px=min_px)
-    k_axis_x = _loop_labels_html(t.k_blocks, axis="x", scale=scale, min_px=min_px)
-    m_axis_y = _loop_labels_html(t.m_blocks, axis="y", scale=scale, min_px=min_px)
+    # --- whole-band tints (drawn first, under the grid) ------------------------------
+    # K remainder first, masked M second, so the shared corner in A reads as "masked"
+    # (row priority), matching how the kernel loads/stores the masked M tail.
+    for kb in t.k_blocks:
+        if kb.kind == "remainder":
+            ax.add_patch(Rectangle((kb.start, y0), kb.size, m,
+                                   facecolor=_FILL_REMAINDER, edgecolor="none", zorder=0))
+            ax.add_patch(Rectangle((x0, kb.start), n, kb.size,
+                                   facecolor=_FILL_REMAINDER, edgecolor="none", zorder=0))
+    # A masked M block masks only its *tail* lanes: the last (size % vector_length)
+    # rows, i.e. the partial vector left over after the full vector registers. Tint
+    # just those rows (not the whole block) and mark where the full-vector part ends.
+    for mb in t.m_blocks:
+        if mb.kind == "masked":
+            tail = mb.size % t.vector_length or mb.size
+            ts = mb.start + mb.size - tail
+            ax.add_patch(Rectangle((0, y0 + ts), k, tail,
+                                   facecolor=_FILL_MASKED, edgecolor="none", zorder=0))
+            ax.add_patch(Rectangle((x0, y0 + ts), n, tail,
+                                   facecolor=_FILL_MASKED, edgecolor="none", zorder=0))
+            if tail < mb.size:
+                for xlo, xhi in ((0, k), (x0, x0 + n)):
+                    ax.plot([xlo, xhi], [y0 + ts, y0 + ts], color="#b58a2e",
+                            lw=0.6, ls=(0, (4, 2)), zorder=2)
 
-    def split_summary(blocks: list[Block]) -> str:
-        parts = [f"{count}&times;{size}" for _l, count, size in _loop_groups(blocks)]
-        return " + ".join(parts)
+    # --- internal grid lines (thin per-tile, heavy between hardware-loop groups) ------
+    def vlines(bounds, x_base, y_lo, y_hi):
+        for pos, heavy in bounds:
+            ax.plot([x_base + pos, x_base + pos], [y_lo, y_hi],
+                    color=_GRID_HEAVY if heavy else _GRID_THIN,
+                    lw=1.6 if heavy else 0.5, zorder=2)
 
-    css = """
-:root { color-scheme: light dark; }
-* { box-sizing: border-box; }
-body { font: 13px/1.4 -apple-system, system-ui, sans-serif; margin: 24px;
-       color: #1a1a1a; background: #fff; }
-h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
-.caption { color: #555; margin: 0 0 20px; }
-.caption code { background: #f0f0f0; padding: 1px 5px; border-radius: 3px; }
-.layout { display: grid;
-          grid-template-columns: max-content max-content max-content;
-          grid-template-rows: max-content max-content max-content;
-          gap: 6px 10px; align-items: end; }
-/* rows/cols:  [m-axis] [A/C label] [matrix]                                    */
-.cell-B { grid-column: 3; grid-row: 1; }
-.cell-A { grid-column: 1; grid-row: 3; }
-.cell-C { grid-column: 3; grid-row: 3; }
-.axis-mC { grid-column: 2; grid-row: 3; }
-.axis-nC { grid-column: 3; grid-row: 4; }
-.title { font-weight: 600; margin-bottom: 3px; }
-.dim { color: #777; font-weight: 400; }
-.matrix { display: flex; flex-direction: column;
-          border: 2px solid #333; width: max-content; }
-.mrow { display: flex; flex-direction: row; }
-/* thin internal tile borders, heavier borders between hardware-loop groups */
-.cell { border-right: 1px solid #ccc; border-bottom: 1px solid #ccc; }
-.mrow .cell:last-child { border-right: none; }
-.mrow:last-child .cell { border-bottom: none; }
-.cell.cgrp { border-left: 1.5px solid #333; }
-.mrow .cell.cgrp:first-child { border-left: none; }
-.mrow.rgrp { border-top: 1.5px solid #333; }
-.matrix .mrow.rgrp:first-child { border-top: none; }
-/* loop-count labels */
-.loops { display: flex; }
-.loops.row { flex-direction: row; }
-.loops.column { flex-direction: column; }
-.looplbl { color: #333; font-size: 11px; text-align: center;
-           border-top: 1px solid #999; padding: 2px 0; }
-.loops.column .looplbl { border-top: none; border-left: 1px solid #999;
-                         writing-mode: vertical-rl; padding: 0 2px; text-align: center; }
-.axis-mC .loops.column { align-items: stretch; height: 100%; }
-.legend { margin-top: 22px; color: #555; }
-.legend .sw { display: inline-block; width: 12px; height: 12px; vertical-align: -1px;
-              border: 1px solid #999; margin: 0 4px 0 14px; }
-@media (prefers-color-scheme: dark) {
-  body { color: #e6e6e6; background: #16181c; }
-  .caption { color: #aaa; } .caption code { background: #2a2d33; }
-  .matrix { border-color: #ccc; }
-  .cell { border-right-color: #3a3d44; border-bottom-color: #3a3d44; }
-  .cell.cgrp { border-left-color: #ccc; } .mrow.rgrp { border-top-color: #ccc; }
-  .dim, .legend { color: #aaa; } .looplbl { color: #ccc; border-top-color: #666; }
-  .loops.column .looplbl { border-left-color: #666; }
-}
-"""
+    def hlines(bounds, y_base, x_lo, x_hi):
+        for pos, heavy in bounds:
+            ax.plot([x_lo, x_hi], [y_base + pos, y_base + pos],
+                    color=_GRID_HEAVY if heavy else _GRID_THIN,
+                    lw=1.6 if heavy else 0.5, zorder=2)
 
-    html = f"""<meta charset="utf-8">
-<title>libxsmm GEMM tiling {t.m}x{t.n}x{t.k}</title>
-<style>{css}</style>
-<h1>libxsmm GEMM tiling &mdash; M={t.m}, N={t.n}, K={t.k} (F64, skylake)</h1>
-<p class="caption">
-N &rarr; M &rarr; K split tree. Heavy borders separate hardware-loop groups;
-<code>&times;N</code> labels give each loop's repeat count. Tint marks
-tiles that differ in kind.<br>
-N: {split_summary(t.n_blocks)} &nbsp;&middot;&nbsp;
-M: {split_summary(t.m_blocks)} &nbsp;&middot;&nbsp;
-K: {split_summary(t.k_blocks)} &nbsp;&middot;&nbsp;
-<code>max_n_blocking={t.max_n_blocking}</code>
-<code>vector_length={t.vector_length}</code>
-<code>k_blocking={t.k_blocking}</code>
-<code>k_threshold={t.k_threshold}</code>
-</p>
+    m_b = _internal_boundaries(t.m_blocks)
+    n_b = _internal_boundaries(t.n_blocks)
+    k_b = _internal_boundaries(t.k_blocks)
 
-<div class="layout">
-  <div class="cell-B">
-    <div class="title">B <span class="dim">(K&times;N)</span></div>
-    {b_grid}
-  </div>
+    hlines(m_b, y0, 0, k)          # A: M rows
+    vlines(k_b, 0, y0, y0 + m)     # A: K cols
+    hlines(k_b, 0, x0, x0 + n)     # B: K rows
+    vlines(n_b, x0, 0, k)          # B: N cols
+    hlines(m_b, y0, x0, x0 + n)    # C: M rows
+    vlines(n_b, x0, y0, y0 + m)    # C: N cols
 
-  <div class="cell-A">
-    <div class="title">A <span class="dim">(M&times;K)</span></div>
-    {a_grid}
-    <div style="margin-top:4px">{k_axis_x}</div>
-  </div>
+    # --- outer borders ---------------------------------------------------------------
+    for x, y, w, h in ((0, y0, k, m), (x0, 0, n, k), (x0, y0, n, m)):
+        ax.add_patch(Rectangle((x, y), w, h, fill=False, edgecolor=_EDGE, lw=2, zorder=3))
 
-  <div class="axis-mC">{m_axis_y}</div>
-  <div class="cell-C">
-    <div class="title">C <span class="dim">(M&times;N)</span></div>
-    {c_grid}
-  </div>
-  <div class="axis-nC">{n_axis}</div>
-</div>
+    # --- matrix titles (just above each matrix's top-left corner) --------------------
+    tkw = dict(fontsize=11, fontweight="bold", va="bottom")
+    ax.text(0, y0 - pad * 0.4, "A  (M×K)", ha="left", **tkw)
+    ax.text(x0, 0 - pad * 0.4, "B  (K×N)", ha="left", **tkw)
+    ax.text(x0, y0 - pad * 0.4, "C  (M×N)", ha="left", **tkw)
 
-<p class="legend">
-<span class="sw" style="background:{_KIND_FILL['masked']}"></span>masked M remainder
-<span class="sw" style="background:{_KIND_FILL['remainder']}"></span>K remainder
-</p>
-"""
-    return html
+    # --- per-loop "count x size" labels + axis titles --------------------------------
+    lab_y = y0 + m + pad * 0.6
+    for x_base, blocks in ((x0, t.n_blocks), (0, t.k_blocks)):
+        for start, extent, count, size in _group_spans(blocks):
+            ax.text(x_base + start + extent / 2, lab_y, f"{count}×{size}",
+                    ha="center", va="top", fontsize=8)
+    ax.text(x0 + n / 2, lab_y + pad * 1.8, "N", ha="center", va="top",
+            fontsize=10, fontstyle="italic")
+    ax.text(k / 2, lab_y + pad * 1.8, "K", ha="center", va="top",
+            fontsize=10, fontstyle="italic")
+
+    lab_x = -pad * 0.6
+    for start, extent, count, size in _group_spans(t.m_blocks):
+        ax.text(lab_x, y0 + start + extent / 2, f"{count}×{size}",
+                ha="right", va="center", fontsize=8, rotation=90)
+    ax.text(lab_x - pad * 1.8, y0 + m / 2, "M", ha="right", va="center",
+            fontsize=10, fontstyle="italic", rotation=90)
+
+    # --- legend (only for tile kinds actually present) -------------------------------
+    handles = []
+    if any(b.kind == "masked" for b in t.m_blocks):
+        handles.append(Patch(facecolor=_FILL_MASKED, edgecolor="#999",
+                             label="masked M tail (M % vector_length)"))
+    if any(b.kind == "remainder" for b in t.k_blocks):
+        handles.append(Patch(facecolor=_FILL_REMAINDER, edgecolor="#999",
+                             label="K remainder"))
+    if handles:
+        ax.legend(handles=handles, loc="lower left", bbox_to_anchor=(0.0, 0.0),
+                  frameon=False, fontsize=8)
+
+    ax.set_xlim(lab_x - pad * 2.6, width + pad)
+    ax.set_ylim(0 - pad * 0.6, lab_y + pad * 3.0)
+    ax.invert_yaxis()
+
+    fig.suptitle(
+        f"libxsmm GEMM tiling — M={m}, N={n}, K={k}  (F64, skylake)",
+        fontsize=13, fontweight="bold",
+    )
+    caption = (
+        f"N → M → K split.   "
+        f"N: {_split_summary(t.n_blocks)}    "
+        f"M: {_split_summary(t.m_blocks)}    "
+        f"K: {_split_summary(t.k_blocks)}\n"
+        f"max_n_blocking={t.max_n_blocking}   vector_length={t.vector_length}   "
+        f"k_blocking={t.k_blocking}   k_threshold={t.k_threshold}"
+    )
+    fig.text(0.5, 0.93, caption, ha="center", va="top", fontsize=9, color="#444")
+
+    fig.savefig(out_path, format="svg", bbox_inches="tight", pad_inches=0.3)
+    plt.close(fig)
 
 
 # --------------------------------------------------------------------------------------
@@ -505,26 +473,18 @@ def _text_summary(t: Tiling) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Visualize the libxsmm GEMM tiling tree (F64, skylake) as HTML."
+        description="Visualize the libxsmm GEMM tiling tree (F64, skylake) as an SVG."
     )
     parser.add_argument("--m", type=int, required=True, help="rows of C / A")
     parser.add_argument("--n", type=int, required=True, help="cols of C / B")
     parser.add_argument("--k", type=int, required=True, help="contraction dimension")
     parser.add_argument(
-        "-o", "--out", default="tiling.html", help="output HTML file (default tiling.html)"
-    )
-    parser.add_argument(
-        "--scale",
-        type=float,
-        default=None,
-        help="pixels per matrix element (default: auto-fit to canvas)",
+        "-o", "--out", default="tiling.svg", help="output SVG file (default tiling.svg)"
     )
     args = parser.parse_args()
 
     tiling = compute_tiling(args.m, args.n, args.k)
-    html = render_html(tiling, scale=args.scale)
-    with open(args.out, "w") as f:
-        f.write(html)
+    render_svg(tiling, args.out)
 
     print(_text_summary(tiling))
     print(f"\nwrote {args.out}")
