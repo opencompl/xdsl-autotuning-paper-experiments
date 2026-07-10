@@ -90,6 +90,43 @@ def nanokernel_for_m_blocking(m_blocking: int, dt: Datatype = Datatype.F64) -> s
     return "fsdbcst" if m_vector == 1 else "nofsdbcst"
 
 
+def nanokernel_supports_m_blocking(
+    nanokernel: str, m_blocking: int, dt: Datatype = Datatype.F64
+) -> bool:
+    """Whether ``nanokernel`` emits correct code for an M register block of this width.
+
+    This is broader than ``nanokernel_for_m_blocking`` (which returns the one nanokernel
+    the generator would *pick*): a tile can be handled by a nanokernel it is never
+    auto-selected for. ``fsdbcst`` has no M loop, so it only works for a single-register
+    M block (``m_vector == 1``). ``nofsdbcst`` loops over up to ``_MAX_M_BLOCKS``
+    register blocks, so it works for every ``m_vector`` in ``1..._MAX_M_BLOCKS``.
+    """
+    vlen = _vector_length(dt)
+    m_vector = -(-m_blocking // vlen)  # ceil(m_blocking / vlen)
+    if nanokernel == "fsdbcst":
+        return m_vector == 1
+    if nanokernel == "nofsdbcst":
+        return 1 <= m_vector <= _MAX_M_BLOCKS
+    raise ValueError(f"unknown nanokernel {nanokernel!r}")
+
+
+def supported_sizes_by_nanokernel(
+    k: int = 64, dt: Datatype = Datatype.F64
+) -> dict[str, list[tuple[int, int]]]:
+    """Return, per nanokernel, every ``(m_blocking, n_blocking)`` tile it *works* on.
+
+    Unlike ``supported_microkernel_sizes`` (which labels each tile with the single
+    auto-picked nanokernel), the two lists here overlap: on the ``m_vector == 1`` tiles
+    both nanokernels produce correct code, so those tiles appear under both keys.
+    """
+    result: dict[str, list[tuple[int, int]]] = {"fsdbcst": [], "nofsdbcst": []}
+    for mb, nb in supported_microkernel_sizes(k, dt):
+        for nanokernel in result:
+            if nanokernel_supports_m_blocking(nanokernel, mb, dt):
+                result[nanokernel].append((mb, nb))
+    return result
+
+
 def supported_microkernel_sizes(
     k: int = 64, dt: Datatype = Datatype.F64
 ) -> list[tuple[int, int]]:

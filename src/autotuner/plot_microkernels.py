@@ -9,10 +9,11 @@ import pandas as pd
 from autotuner.plot_heatmap import plot_axis_heatmap
 
 # The two AVX512 nanokernels the F64/skylake generator can emit for a register tile.
-# Which one is used is forced by the register (vectorized) tile width, which under the
-# row-major A/B swap is the N dimension of a data point: N <= vector_length -> fsdbcst,
-# otherwise nofsdbcst. So each nanokernel covers a disjoint, ragged slice of the (M, N)
-# grid rather than the full space.
+# The auto-dispatch picks one from the register (vectorized) tile width -- under the
+# row-major A/B swap the N dimension of a data point: N <= vector_length -> fsdbcst,
+# otherwise nofsdbcst. The sweep additionally forces nofsdbcst on the N <= vector_length
+# tiles it also works on, so the nofsdbcst heatmap spans the full N range while fsdbcst
+# stays a ragged N <= vector_length slice; the two overlap on the small-N region.
 NANOKERNELS = ["fsdbcst", "nofsdbcst"]
 
 # Invalid (M, N) combinations (register budget exceeded) have no measurement; render
