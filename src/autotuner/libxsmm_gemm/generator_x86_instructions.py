@@ -245,7 +245,9 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
             ).destination
         elif issubclass(vec_instr, x86.ops.RSS_Operation):
             assert dst_val is not None
-            res = generated_code.insert(vec_instr(dst_val, src0_val, src1_val)).register_out
+            res = generated_code.insert(
+                vec_instr(dst_val, src0_val, src1_val)
+            ).register_out
         else:
             assert False, f"Unsupported vec compute op: {vec_instr}"
     else:
@@ -718,7 +720,9 @@ def libxsmm_x86_instruction_vec_move_ld(
     else:
         # build vmovpd/ps/sd/ss instruction, load use
         res = generated_code.insert(
-            vmove_instr(memory=base_val, memory_offset=displacement, destination=dest_reg)
+            vmove_instr(
+                memory=base_val, memory_offset=displacement, destination=dest_reg
+            )
         ).destination
 
     return SSAValue.get(res, type=VectorRegT)

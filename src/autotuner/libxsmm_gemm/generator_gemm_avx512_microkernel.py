@@ -8,7 +8,11 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_vec_move_ld,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode, KLoopVals, VectorRegT
+from autotuner.libxsmm_gemm.libxsmm_generator import (
+    GeneratedCode,
+    KLoopVals,
+    VectorRegT,
+)
 from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMDescriptor,
     GEMMFlag,

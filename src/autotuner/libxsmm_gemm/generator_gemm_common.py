@@ -1109,9 +1109,7 @@ def libxsmm_generator_gemm_footer_nloop(
         )
     )
 
-    curr_args = NLoopVals(
-        a_val, b_val, c_val, vals.rbp, vals.rsp, vals.n_counter
-    ).vals
+    curr_args = NLoopVals(a_val, b_val, c_val, vals.rbp, vals.rsp, vals.n_counter).vals
     fallthrough_args = libxsmm_x86_instruction_jump_back_to_label(
         generated_code, x86.ops.C_JlOp, loop_label_tracker, curr_args
     )
