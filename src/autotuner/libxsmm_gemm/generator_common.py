@@ -18,6 +18,9 @@ from xdsl.dialects.x86_func import FuncOp
 from xdsl.rewriter import InsertPoint, Rewriter
 
 LIBXSMM_X86_AVX512_MASK = 1  # this specifies k1
+LIBXSMM_X86_AVX512_MASK_REG = x86.registers.AVX512MaskRegisterType.from_index(
+    LIBXSMM_X86_AVX512_MASK
+)
 LIBXSMM_X86_VEC_REG_UNDEF = 255
 
 

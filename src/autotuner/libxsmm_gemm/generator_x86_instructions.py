@@ -3,16 +3,16 @@ from xdsl.dialects import x86
 from xdsl.dialects.x86.registers import (
     AVX512MaskRegisterType,
     GeneralRegisterType,
+    X86VectorRegisterType,
 )
-from xdsl.ir import Block, SSAValue
+from xdsl.ir import Block, BlockArgument, SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
-    LIBXSMM_X86_VEC_REG_UNDEF,
     LoopLabelTracker,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
+from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode, VectorRegT
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
 
 
@@ -46,14 +46,13 @@ def libxsmm_x86_instruction_unified_vec_move_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
-    vec_reg_number_0: int,
+    source_val: SSAValue[VectorRegT],
     use_masking: bool,
-    mask_reg_number: int,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[True],
 ) -> None:
     assert i_vmove_instr is not None
@@ -70,17 +69,13 @@ def libxsmm_x86_instruction_unified_vec_move_st(
         else:
             libxsmm_x86_instruction_vec_move_st(
                 generated_code,
-                generated_code.arch,
                 i_vmove_instr,
-                gp_reg_base,
-                reg_idx,
-                scale,
-                displacement,
-                vector_name,
-                vec_reg_number_0,
-                0,
-                False,
-                is_store,
+                base_val=base_val,
+                displacement=displacement,
+                source_val=source_val,
+                mask_val=None,
+                use_zero_masking=False,
+                is_store=is_store,
             )
 
     else:
@@ -92,14 +87,13 @@ def libxsmm_x86_instruction_unified_vec_move_st(
             libxsmm_x86_instruction_vex_evex_mask_mov_st(
                 generated_code,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
-                vec_reg_number_0,
+                source_val,
                 use_masking,
-                mask_reg_number,
+                mask_val,
                 is_store,
             )
 
@@ -113,40 +107,30 @@ def libxsmm_x86_instruction_unified_vec_move_ld(
         | x86.ops.DM_VmovupdOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
-    vec_reg_number_0: int,
+    dest_reg: VectorRegT,
     use_masking: bool,
-    mask_reg_number: int,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[False],
-) -> None:
+) -> SSAValue[VectorRegT]:
     assert i_vmove_instr is not None
     if generated_code.arch < Arch.LIBXSMM_X86_AVX:
         if use_masking:
             raise NotImplementedError
-            if issubclass(i_vmove_instr, x86.ops.DM_VmovapsOp | x86.ops.DM_VmovapsOp):
-                #         libxsmm_generator_maskedload_32bit_sse( generated_code, LIBXSMM_X86_GP_REG_RCX, 1, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_vec_reg_number_0, i_mask_reg_number );
-                ...
-            elif issubclass(i_vmove_instr, x86.ops.DM_VmovapdOp | x86.ops.DM_VmovapdOp):
-                #         libxsmm_generator_maskedload_64bit_sse( generated_code, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_vec_reg_number_0, i_mask_reg_number );
-                ...
-            else:
-                assert False, f"Unsupported move op: {i_vmove_instr}"
         else:
-            libxsmm_x86_instruction_vec_move_ld(
+            return libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 i_vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
-                vec_reg_number_0,
-                0,
+                dest_reg,
+                None,
                 False,
                 is_store,
             )
@@ -157,17 +141,16 @@ def libxsmm_x86_instruction_unified_vec_move_ld(
         if generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX:
             raise NotImplementedError
         else:
-            libxsmm_x86_instruction_vex_evex_mask_mov_ld(
+            return libxsmm_x86_instruction_vex_evex_mask_mov_ld(
                 generated_code,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
-                vec_reg_number_0,
+                dest_reg,
                 use_masking,
-                mask_reg_number,
+                mask_val,
                 is_store,
             )
 
@@ -176,14 +159,17 @@ def libxsmm_x86_instruction_jump_back_to_label(
     generated_code: GeneratedCode,
     jmp_instr: type[x86.ops.ConditionalJumpOperation],
     loop_label_tracker: LoopLabelTracker,
-):
+    curr_args: tuple[SSAValue, ...],
+) -> tuple[BlockArgument, ...]:
     """
-    In contrast to libxsmm, also inserts the comparison instruction
+    In contrast to libxsmm, also inserts the comparison instruction.
+
+    ``curr_args`` are the SSA values that are live across the loop, in the same order
+    as the loop header block's arguments (i.e. the appropriate ``*Vals.vals``). Returns
+    the arguments of the freshly created fallthrough block so the caller can rebuild its
+    ``*Vals`` from them.
     """
     dest_block = loop_label_tracker.dest_blocks.pop()
-    curr_vals = generated_code.current_val_by_reg
-
-    curr_args = tuple(curr_vals[arg.type] for arg in dest_block.args)
 
     curr_block = generated_code.current_block
     curr_region = curr_block.parent
@@ -201,10 +187,9 @@ def libxsmm_x86_instruction_jump_back_to_label(
         jmp_instr(cmp_op, curr_args, curr_args, dest_block, fallthrough_block)
     )
 
-    # set insert point to fallthrough block and update current values
+    # set insert point to fallthrough block
     generated_code.builder.insertion_point = InsertPoint.at_end(fallthrough_block)
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in fallthrough_block.args}
+    return fallthrough_block.args
 
 
 def libxsmm_x86_instruction_register_jump_back_label(
@@ -218,50 +203,36 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
     | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_VaddpdOp | x86.ops.DSS_VaddpsOp]
     | None,
-    vector_name: Literal["x", "y", "z"],
-    reg_number_src0: int,
-    reg_number_src1: int,
-    reg_number_dst: int,
-    mask_reg_number: int,
+    src0_reg: VectorRegT,
+    src1_reg: VectorRegT,
+    dst_reg: VectorRegT,
+    src0_val: SSAValue[X86VectorRegisterType] | None,
+    src1_val: SSAValue[X86VectorRegisterType] | None,
+    dst_val: SSAValue[X86VectorRegisterType] | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     mask_cntl: int,
     sae_cntl: int,
     imm8: int | None,
-):
+) -> SSAValue[VectorRegT]:
     assert vec_instr is not None
-    # if ( (libxsmm_x86_instruction_vec_is_hybrid( i_vec_instr )  == 0) and
-    #     (libxsmm_x86_instruction_vec_is_regonly( i_vec_instr ) == 0)    ) {
-    #     fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: unexpected instruction number: 0x%08x\n", i_vec_instr);
-    #     LIBXSMM_EXIT_ERROR(generated_code);
-    #     return;
-    # }
 
     # check that we are not masking 'y'
     assert not (
-        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_reg_number
+        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX
+        and (mask_val is not None)
     ), (
         "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: Masking is only available for AVX512!"
     )
 
-    match vector_name:
-        case "x":
-            source_type = x86.registers.SSERegisterType
-        case "y":
-            source_type = x86.registers.AVX2RegisterType
-        case "z":
-            source_type = x86.registers.AVX512RegisterType
-    reg_src0 = source_type.from_index(reg_number_src0)
-    reg_dst = source_type.from_index(reg_number_dst)
-    if reg_number_src1 == LIBXSMM_X86_VEC_REG_UNDEF:
-        reg_src1 = reg_src0
-    else:
-        reg_src1 = source_type.from_index(reg_number_src1)
-    # For zmm0 = zmm0 ^ zmm0 (= 0, essentially), zmm0 is not yet in the context, so must just get the register
-    if reg_src0 not in generated_code.current_val_by_reg:
-        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src0))
-    if reg_src1 not in generated_code.current_val_by_reg:
-        generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src1))
-    src0 = generated_code.get_val(reg_src0)
-    src1 = generated_code.get_val(reg_src1)
+    # For zmm0 = zmm0 ^ zmm0 (= 0, essentially), the register is not yet in the context,
+    # so we must just get the register.
+    if src0_val is None:
+        src0_val = generated_code.insert(x86.ops.GetAVXRegisterOp(src0_reg)).result
+    if src1_val is None:
+        if src1_reg == src0_reg:
+            src1_val = src0_val
+        else:
+            src1_val = generated_code.insert(x86.ops.GetAVXRegisterOp(src1_reg)).result
 
     # build vXYZpd/ps/sd/ss instruction pure register use
     if generated_code.arch > Arch.LIBXSMM_X86_SSE42:
@@ -269,12 +240,18 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         if imm8 is not None:
             raise NotImplementedError
         elif issubclass(vec_instr, x86.ops.DSS_Operation):
-            generated_code.insert(vec_instr(src0, src1, destination=reg_dst))
+            res = generated_code.insert(
+                vec_instr(src0_val, src1_val, destination=dst_reg)
+            ).destination
         elif issubclass(vec_instr, x86.ops.RSS_Operation):
-            dst = generated_code.get_val(reg_dst)
-            generated_code.insert(vec_instr(dst, src0, src1))
+            assert dst_val is not None
+            res = generated_code.insert(vec_instr(dst_val, src0_val, src1_val)).register_out
+        else:
+            assert False, f"Unsupported vec compute op: {vec_instr}"
     else:
         raise NotImplementedError
+
+    return SSAValue.get(res, type=VectorRegT)
 
 
 def libxsmm_x86_instruction_vec_compute_3reg(
@@ -282,19 +259,23 @@ def libxsmm_x86_instruction_vec_compute_3reg(
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
     | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_VaddpdOp | x86.ops.DSS_VaddpsOp]
     | None,
-    vector_name: Literal["x", "y", "z"],
-    reg_number_src0: int,
-    reg_number_src1: int,
-    reg_number_dst: int,
-) -> None:
-    libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
+    src0_reg: VectorRegT,
+    src1_reg: VectorRegT,
+    dst_reg: VectorRegT,
+    src0_val: SSAValue[X86VectorRegisterType] | None,
+    src1_val: SSAValue[X86VectorRegisterType] | None,
+    dst_val: SSAValue[X86VectorRegisterType] | None,
+) -> SSAValue[VectorRegT]:
+    return libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
         generated_code,
         vec_instr,
-        vector_name,
-        reg_number_src0,
-        reg_number_src1,
-        reg_number_dst,
-        0,
+        src0_reg,
+        src1_reg,
+        dst_reg,
+        src0_val,
+        src1_val,
+        dst_val,
+        None,
         0,
         0,
         None,
@@ -304,52 +285,39 @@ def libxsmm_x86_instruction_vec_compute_3reg(
 def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
     generated_code: GeneratedCode,
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
-    vector_name: Literal["x", "y", "z"],
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     gp_reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
     use_broadcast: int,
-    reg_number_src1: int,
-    reg_number_dst: int,
-    mask_reg_number: int,
+    src1_reg: VectorRegT,
+    dst_reg: VectorRegT,
+    src1_val: SSAValue[X86VectorRegisterType] | None,
+    dst_val: SSAValue[X86VectorRegisterType] | None,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     mask_rnd_exp_cntl: int,
     imm8: int | None,
-) -> None:
+) -> SSAValue[VectorRegT]:
     assert vec_instr is not None
-    # if ( (libxsmm_x86_instruction_vec_is_hybrid( i_vec_instr )     == 0) &&
-    #      (libxsmm_x86_instruction_vec_is_regmemonly( i_vec_instr ) == 0)    ) {
-    #   fprintf(stderr, "libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8: unexpected instruction number: 0x%08x\n", i_vec_instr);
-    #   LIBXSMM_EXIT_ERROR(io_generated_code);
-    #   return;
-    # }
 
     # check that we are not masking 'y'
     assert not (
-        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_reg_number
+        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX
+        and (mask_val is not None)
     ), (
         "libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8: Masking is only available for AVX512!"
     )
 
     if generated_code.arch > Arch.LIBXSMM_X86_SSE42:
         if gp_reg_idx is None:
-            match vector_name:
-                case "x":
-                    source_type = x86.registers.SSERegisterType
-                case "y":
-                    source_type = x86.registers.AVX2RegisterType
-                case "z":
-                    source_type = x86.registers.AVX512RegisterType
-            reg_src1 = source_type.from_index(reg_number_src1)
-            reg_dst = source_type.from_index(reg_number_dst)
-            if reg_src1 not in generated_code.current_val_by_reg:
-                generated_code.insert(x86.ops.GetAVXRegisterOp(reg_src1))
-            if reg_dst not in generated_code.current_val_by_reg:
-                generated_code.insert(x86.ops.GetAVXRegisterOp(reg_dst))
-            src1 = generated_code.get_val(reg_src1)
-            dst = generated_code.get_val(reg_dst)
-            assert dst.type == reg_dst
-            base = generated_code.get_val(gp_reg_base)
+            if src1_val is None:
+                src1_val = generated_code.insert(
+                    x86.ops.GetAVXRegisterOp(src1_reg)
+                ).result
+            if dst_val is None:
+                dst_val = generated_code.insert(
+                    x86.ops.GetAVXRegisterOp(dst_reg)
+                ).result
 
             match vec_instr:
                 case x86.ops.RSS_Vfmadd231pdOp:
@@ -359,15 +327,16 @@ def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
                 case _:
                     assert False, f"Unsupported vec compute mem op: {vec_instr}"
 
-            generated_code.insert(
+            res = generated_code.insert(
                 mem_instr(
-                    dst,
-                    src1,
-                    base,
+                    dst_val,
+                    src1_val,
+                    base_val,
                     displacement,
                     broadcast=bool(use_broadcast),
                 )
-            )
+            ).register_out
+            return SSAValue.get(res, type=VectorRegT)
         else:
             raise NotImplementedError
     else:
@@ -377,27 +346,29 @@ def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
 def libxsmm_x86_instruction_vec_compute_mem_2reg(
     generated_code: GeneratedCode,
     vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
-    vector_name: Literal["x", "y", "z"],
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     gp_reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
     use_broadcast: int,
-    reg_number_src1: int,
-    reg_number_dst: int,
-) -> None:
-    libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
+    src1_reg: VectorRegT,
+    dst_reg: VectorRegT,
+    src1_val: SSAValue[X86VectorRegisterType] | None,
+    dst_val: SSAValue[X86VectorRegisterType] | None,
+) -> SSAValue[VectorRegT]:
+    return libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
         generated_code,
         vec_instr,
-        vector_name,
-        gp_reg_base,
+        base_val,
         gp_reg_idx,
         scale,
         displacement,
         use_broadcast,
-        reg_number_src1,
-        reg_number_dst,
-        0,
+        src1_reg,
+        dst_reg,
+        src1_val,
+        dst_val,
+        None,
         0,
         None,
     )
@@ -414,75 +385,61 @@ def libxsmm_x86_instruction_vex_evex_mask_mov_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
-    vec_reg_number_0: int,
+    source_val: SSAValue[VectorRegT],
     use_masking: bool,
-    mask_reg_number: int,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[True],
 ):
     if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL128_SKX:
         if use_masking:
             libxsmm_x86_instruction_vec_move_st(
                 generated_code,
-                generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
-                reg_idx,
-                scale,
-                displacement,
-                vector_name,
-                vec_reg_number_0,
-                mask_reg_number,
-                not is_store,
-                is_store,
+                base_val=base_val,
+                displacement=displacement,
+                source_val=source_val,
+                mask_val=mask_val,
+                use_zero_masking=not is_store,
+                is_store=is_store,
             )
         else:
             libxsmm_x86_instruction_vec_move_st(
                 generated_code,
-                generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
-                reg_idx,
-                scale,
-                displacement,
-                vector_name,
-                vec_reg_number_0,
-                0,
-                not is_store,
-                is_store,
+                base_val=base_val,
+                displacement=displacement,
+                source_val=source_val,
+                mask_val=None,
+                use_zero_masking=not is_store,
+                is_store=is_store,
             )
     elif generated_code.arch >= Arch.LIBXSMM_X86_AVX:
         if use_masking:
             libxsmm_x86_instruction_vec_mask_move_st(
                 generated_code,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
-                vec_reg_number_0,
-                mask_reg_number,
+                source_val,
+                mask_val,
                 is_store,
             )
         else:
             libxsmm_x86_instruction_vec_move_st(
                 generated_code,
-                generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
-                reg_idx,
-                scale,
-                displacement,
-                vector_name,
-                vec_reg_number_0,
-                0,
-                True,
-                is_store,
+                base_val=base_val,
+                displacement=displacement,
+                source_val=source_val,
+                mask_val=None,
+                use_zero_masking=True,
+                is_store=is_store,
             )
     else:
         assert False
@@ -499,73 +456,68 @@ def libxsmm_x86_instruction_vex_evex_mask_mov_ld(
         | x86.ops.DM_VbroadcastssOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
-    vec_reg_number_0: int,
+    dest_reg: VectorRegT,
     use_masking: bool,
-    mask_reg_number: int,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: Literal[False],
-):
+) -> SSAValue[VectorRegT]:
     if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL128_SKX:
         if use_masking:
-            libxsmm_x86_instruction_vec_move_ld(
+            return libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
-                vec_reg_number_0,
-                mask_reg_number,
+                dest_reg,
+                mask_val,
                 not is_store,
                 is_store,
             )
         else:
-            libxsmm_x86_instruction_vec_move_ld(
+            return libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
-                vec_reg_number_0,
-                0,
+                dest_reg,
+                None,
                 not is_store,
                 is_store,
             )
     elif generated_code.arch >= Arch.LIBXSMM_X86_AVX:
         if use_masking:
-            libxsmm_x86_instruction_vec_mask_move_ld(
+            return libxsmm_x86_instruction_vec_mask_move_ld(
                 generated_code,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
-                vec_reg_number_0,
-                mask_reg_number,
+                dest_reg,
+                mask_val,
                 is_store,
             )
         else:
-            libxsmm_x86_instruction_vec_move_ld(
+            return libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 generated_code.arch,
                 vmove_instr,
-                gp_reg_base,
+                base_val,
                 reg_idx,
                 scale,
                 displacement,
-                vector_name,
-                vec_reg_number_0,
-                0,
+                dest_reg,
+                None,
                 True,
                 is_store,
             )
@@ -584,13 +536,12 @@ def libxsmm_x86_instruction_vec_mask_move_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
-    vec_reg_number_0: int,
-    vec_reg_mask_0: int,
+    source_val: SSAValue[VectorRegT],
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: bool,
 ):
     raise NotImplementedError
@@ -607,21 +558,19 @@ def libxsmm_x86_instruction_vec_mask_move_ld(
         | x86.ops.DM_VbroadcastssOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
-    vec_reg_number_0: int,
-    vec_reg_mask_0: int,
+    dest_reg: VectorRegT,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     is_store: bool,
-):
+) -> SSAValue[VectorRegT]:
     raise NotImplementedError
 
 
 def libxsmm_x86_instruction_vec_move_st(
     generated_code: GeneratedCode,
-    instruction_set: int,
     vmove_instr: type[
         x86.ops.MS_VmovapdOp
         | x86.ops.MS_VmovupdOp
@@ -631,13 +580,11 @@ def libxsmm_x86_instruction_vec_move_st(
         | x86.ops.MS_VmovntpsOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
-    reg_idx: x86.registers.GeneralRegisterType | None,
-    scale: int,
+    *,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
-    vec_reg_number_0: int,
-    mask_reg_number: int,
+    source_val: SSAValue[VectorRegT],
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     use_zero_masking: bool,
     is_store: Literal[True],
 ):
@@ -648,28 +595,17 @@ def libxsmm_x86_instruction_vec_move_st(
 
     # check that we are not masking 'y'
     assert not (
-        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_reg_number
+        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_val is not None
     )
 
     # check zero masking
-    assert not (use_zero_masking and mask_reg_number and is_store), (
+    assert not (use_zero_masking and (mask_val is not None) and is_store), (
         "libxsmm_instruction_vec_move: zero-masked store cannot operate on memory destination!"
     )
 
-    match vector_name:
-        case "x":
-            source_type = x86.registers.SSERegisterType
-        case "y":
-            source_type = x86.registers.AVX2RegisterType
-        case "z":
-            source_type = x86.registers.AVX512RegisterType
-    source_reg = source_type.from_index(vec_reg_number_0)
-    source = generated_code.current_val_by_reg[source_reg]
-    base = generated_code.current_val_by_reg[gp_reg_base]
-
-    if mask_reg_number:
+    if mask_val is not None:
         # Use the masking version of the operation
-        assert isinstance(source_reg, x86.registers.AVX512RegisterType), source
+        assert isinstance(source_val.type, x86.registers.AVX512RegisterType), source_val
         assert issubclass(
             vmove_instr,
             x86.ops.MS_VmovapdOp
@@ -678,8 +614,6 @@ def libxsmm_x86_instruction_vec_move_st(
             | x86.ops.MS_VmovupdOp,
         )
 
-        mask_reg = AVX512MaskRegisterType.from_index(mask_reg_number)
-        mask = generated_code.current_val_by_reg[mask_reg]
         match vmove_instr:
             case x86.ops.MS_VmovapdOp:
                 masked_vmove_instr = x86.ops.MSK_VmovapdOp
@@ -695,15 +629,15 @@ def libxsmm_x86_instruction_vec_move_st(
         # build vmovpd/ps/sd/ss instruction, load use
         generated_code.insert(
             masked_vmove_instr(
-                memory=base,
+                memory=base_val,
                 memory_offset=displacement,
-                source=source,
-                mask_reg=mask,
+                source=source_val,
+                mask_reg=mask_val,
             )
         )
     else:
         generated_code.insert(
-            vmove_instr(memory=base, source=source, memory_offset=displacement)
+            vmove_instr(memory=base_val, source=source_val, memory_offset=displacement)
         )
 
 
@@ -719,16 +653,15 @@ def libxsmm_x86_instruction_vec_move_ld(
         | x86.ops.DM_VbroadcastssOp
     ]
     | None,
-    gp_reg_base: x86.registers.GeneralRegisterType,
+    base_val: SSAValue[x86.registers.GeneralRegisterType],
     reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
     displacement: int,
-    vector_name: Literal["x", "y", "z"],
-    vec_reg_number_0: int,
-    mask_reg_number: int,
+    dest_reg: VectorRegT,
+    mask_val: SSAValue[AVX512MaskRegisterType] | None,
     use_zero_masking: bool,
     is_store: Literal[False],
-):
+) -> SSAValue[VectorRegT]:
     """
     The is_store is False branches of `libxsmm_x86_instruction_vec_move`
     """
@@ -736,32 +669,22 @@ def libxsmm_x86_instruction_vec_move_ld(
 
     # check that we are not masking 'y'
     assert not (
-        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_reg_number
+        generated_code.arch < Arch.LIBXSMM_X86_AVX512_VL128_SKX and mask_val is not None
     )
 
     # check zero masking
-    assert not (use_zero_masking and mask_reg_number and is_store), (
+    assert not (use_zero_masking and (mask_val is not None) and is_store), (
         "libxsmm_instruction_vec_move: zero-masked store cannot operate on memory destination!"
     )
 
-    if not use_zero_masking or not mask_reg_number:
+    if not use_zero_masking or mask_val is None:
         zero_flag = None
     else:
         zero_flag = True
 
-    match vector_name:
-        case "x":
-            dest_type = x86.registers.SSERegisterType
-        case "y":
-            dest_type = x86.registers.AVX2RegisterType
-        case "z":
-            dest_type = x86.registers.AVX512RegisterType
-    dest = dest_type.from_index(vec_reg_number_0)
-    base = generated_code.current_val_by_reg[gp_reg_base]
-
-    if mask_reg_number:
+    if mask_val is not None:
         # Use the masking version of the operation
-        assert isinstance(dest, x86.registers.AVX512RegisterType)
+        assert isinstance(dest_reg, x86.registers.AVX512RegisterType)
         assert issubclass(
             vmove_instr,
             x86.ops.DM_VmovapdOp
@@ -770,8 +693,6 @@ def libxsmm_x86_instruction_vec_move_ld(
             | x86.ops.DM_VmovupdOp,
         )
 
-        mask_reg = AVX512MaskRegisterType.from_index(mask_reg_number)
-        mask = generated_code.current_val_by_reg[mask_reg]
         match vmove_instr:
             case x86.ops.DM_VmovapdOp:
                 masked_vmove_instr = x86.ops.DMK_VmovapdOp
@@ -785,20 +706,22 @@ def libxsmm_x86_instruction_vec_move_ld(
                 assert False
 
         # build vmovpd/ps/sd/ss instruction, load use
-        generated_code.insert(
+        res = generated_code.insert(
             masked_vmove_instr(
-                memory=base,
+                memory=base_val,
                 memory_offset=displacement,
-                destination=dest,
-                mask_reg=mask,
+                destination=dest_reg,
+                mask_reg=mask_val,
                 z=zero_flag or False,
             )
-        )
+        ).destination
     else:
         # build vmovpd/ps/sd/ss instruction, load use
-        generated_code.insert(
-            vmove_instr(memory=base, memory_offset=displacement, destination=dest)
-        )
+        res = generated_code.insert(
+            vmove_instr(memory=base_val, memory_offset=displacement, destination=dest_reg)
+        ).destination
+
+    return SSAValue.get(res, type=VectorRegT)
 
 
 def libxsmm_x86_instruction_mask_move_ld(
@@ -808,26 +731,14 @@ def libxsmm_x86_instruction_mask_move_ld(
     | type[x86.ops.KS_KMovWOp]
     | type[x86.ops.KS_KMovQOp],
     mask_tmp_val: SSAValue[GeneralRegisterType],
-    mask_reg_number: int,
-):
-    # char l_new_code[512];
-    # int l_max_code_length = 511;
-    # int l_code_length = 0;
-    # char l_gp_reg_name[4];
-    # char l_instr_name[16];
-    # char l_prefix = '\0';
-
-    # libxsmm_get_x86_gp_reg_name( gp_reg_number, l_gp_reg_name, 3 );
-    # libxsmm_get_x86_instr_name( i_mask_instr, l_instr_name, 15 );
-
-    generated_code.insert(
+    mask_reg: x86.registers.AVX512MaskRegisterType,
+) -> SSAValue[x86.registers.AVX512MaskRegisterType]:
+    return generated_code.insert(
         mask_instr(
             mask_tmp_val,
-            destination=x86.registers.AVX512MaskRegisterType.from_index(
-                mask_reg_number
-            ),
+            destination=mask_reg,
         )
-    )
+    ).destination
 
 
 def libxsmm_x86_instruction_mask_move_st(
@@ -836,14 +747,12 @@ def libxsmm_x86_instruction_mask_move_st(
     | type[x86.ops.DK_KMovWOp]
     | type[x86.ops.DK_KMovWOp]
     | type[x86.ops.DK_KMovQOp],
-    gp_reg_number: x86.registers.GeneralRegisterType,
-    mask_reg_number: int,
+    gp_reg: x86.registers.GeneralRegisterType,
+    mask_val: SSAValue[x86.registers.AVX512MaskRegisterType],
 ):
     generated_code.insert(
         mask_instr(
-            generated_code.current_val_by_reg[
-                x86.registers.AVX512MaskRegisterType.from_index(mask_reg_number)
-            ],
-            destination=gp_reg_number,
+            mask_val,
+            destination=gp_reg,
         )
     )
