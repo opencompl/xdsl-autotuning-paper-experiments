@@ -486,6 +486,8 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         raise NotImplementedError
 
     # A vectors loaded upfront, indexed by m
+    # const char *const l_env_a_k_pf_dist = getenv("LIBXSMM_GEMM_K_A_PF_DIST");
+    # unsigned l_a_k_pf_dist = (l_env_a_k_pf_dist == 0) ? 0 : atoi(l_env_a_k_pf_dist);
     a_vec_vals: list[SSAValue[VectorRegT]] = []
 
     for m in range(m_blocking):
@@ -506,6 +508,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         )
         a_vec_type = _vec_reg_type(a_vname)
 
+        # unsigned int l_a_vmove_instruction = ((l_is_Ai8_Bf16_gemm > 0 || l_is_Abf8_Bf16_gemm > 0) && (io_generated_code->arch < LIBXSMM_X86_AVX512_SKX) && (l_m != (l_m_blocking - 1)) ) ? LIBXSMM_X86_INSTR_VMOVSD : i_micro_kernel_config->a_vmove_instruction;
         a_vmove_instruction = micro_kernel_config.a_vmove_instruction
 
         if is_Af16_Bf16_gemm:
@@ -561,6 +564,11 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     == 0
                 ) and (a_k_pf_dist > 0):
                     raise NotImplementedError
+                    # libxsmm_x86_instruction_prefetch( io_generated_code,
+                    #     LIBXSMM_X86_INSTR_PREFETCHT0,
+                    #     i_gp_reg_mapping->gp_reg_a,
+                    #     LIBXSMM_X86_GP_REG_UNDEF, 0,
+                    #     (i_micro_kernel_config->datatype_size_in) * (i_micro_kernel_config->vector_length) * l_m * l_k_pack_factor + l_a_k_pf_dist * i_xgemm_desc->lda * i_micro_kernel_config->datatype_size_in);
 
         if is_Ai4_Bi8_gemm:
             raise NotImplementedError
@@ -571,6 +579,9 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         else:
             # Process vreg A in case of f16/i8
             ...
+            # libxsmm_generator_gemm_avx512_microkernel_process_vreg_A( io_generated_code, i_micro_kernel_config, i_xgemm_desc,
+            #     vname_cvt, l_is_Ai8_Bf16_gemm, l_is_Abf8_Bf16_gemm, l_is_Af16_Bf16_gemm, l_use_f16_replacement_fma, l_use_f32_compute_with_f16_inp, l_m, l_m_blocking, 1+l_m+l_vreg_ab_offset);
+            # }
 
             if desc.prefetch == GEMMPrefetchType.AL2:
                 # prefetch a different A matrix provided by the prefetch pointers

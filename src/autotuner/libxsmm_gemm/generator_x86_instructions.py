@@ -120,6 +120,14 @@ def libxsmm_x86_instruction_unified_vec_move_ld(
     if generated_code.arch < Arch.LIBXSMM_X86_AVX:
         if use_masking:
             raise NotImplementedError
+            if issubclass(i_vmove_instr, x86.ops.DM_VmovapsOp | x86.ops.DM_VmovapsOp):
+                #         libxsmm_generator_maskedload_32bit_sse( generated_code, LIBXSMM_X86_GP_REG_RCX, 1, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_vec_reg_number_0, i_mask_reg_number );
+                ...
+            elif issubclass(i_vmove_instr, x86.ops.DM_VmovapdOp | x86.ops.DM_VmovapdOp):
+                #         libxsmm_generator_maskedload_64bit_sse( generated_code, i_gp_reg_base, i_reg_idx, i_scale, i_displacement, i_vec_reg_number_0, i_mask_reg_number );
+                ...
+            else:
+                assert False, f"Unsupported move op: {i_vmove_instr}"
         else:
             return libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
@@ -215,6 +223,12 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     imm8: int | None,
 ) -> SSAValue[VectorRegT]:
     assert vec_instr is not None
+    # if ( (libxsmm_x86_instruction_vec_is_hybrid( i_vec_instr )  == 0) and
+    #     (libxsmm_x86_instruction_vec_is_regonly( i_vec_instr ) == 0)    ) {
+    #     fprintf(stderr, "libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8: unexpected instruction number: 0x%08x\n", i_vec_instr);
+    #     LIBXSMM_EXIT_ERROR(generated_code);
+    #     return;
+    # }
 
     # check that we are not masking 'y'
     assert not (
@@ -301,6 +315,12 @@ def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
     imm8: int | None,
 ) -> SSAValue[VectorRegT]:
     assert vec_instr is not None
+    # if ( (libxsmm_x86_instruction_vec_is_hybrid( i_vec_instr )     == 0) &&
+    #      (libxsmm_x86_instruction_vec_is_regmemonly( i_vec_instr ) == 0)    ) {
+    #   fprintf(stderr, "libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8: unexpected instruction number: 0x%08x\n", i_vec_instr);
+    #   LIBXSMM_EXIT_ERROR(io_generated_code);
+    #   return;
+    # }
 
     # check that we are not masking 'y'
     assert not (
@@ -737,6 +757,15 @@ def libxsmm_x86_instruction_mask_move_ld(
     mask_tmp_val: SSAValue[GeneralRegisterType],
     mask_reg: x86.registers.AVX512MaskRegisterType,
 ) -> SSAValue[x86.registers.AVX512MaskRegisterType]:
+    # char l_new_code[512];
+    # int l_max_code_length = 511;
+    # int l_code_length = 0;
+    # char l_gp_reg_name[4];
+    # char l_instr_name[16];
+    # char l_prefix = '\0';
+
+    # libxsmm_get_x86_gp_reg_name( gp_reg_number, l_gp_reg_name, 3 );
+    # libxsmm_get_x86_instr_name( i_mask_instr, l_instr_name, 15 );
     return generated_code.insert(
         mask_instr(
             mask_tmp_val,
