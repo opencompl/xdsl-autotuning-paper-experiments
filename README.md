@@ -32,6 +32,9 @@ When running on a new machine, please create a `.env` file with the format:
 
 ```sh
 TARGET=your_target_name_here
+# Optional. Omit to use Snakemake's default ILP scheduler.
+# On Apple Silicon, set greedy — PuLP's bundled CBC is x86_64-only.
+# SNAKEMAKE_SCHEDULER=greedy
 ```
 
 Then add a specification of the machine to the `targets` field in [[default.yaml]], and populate the `TESTSET` and `DATASET_VARIANTS` in the Snakefile.
