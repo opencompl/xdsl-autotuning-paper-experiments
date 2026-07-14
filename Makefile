@@ -8,6 +8,10 @@ ifneq ("$(wildcard .env)","")
 	export
 endif
 
+# Empty by default (Snakemake uses its ILP scheduler). Override in .env, e.g.
+# SNAKEMAKE_SCHEDULER=greedy — needed on Apple Silicon where PuLP's bundled CBC is x86_64-only.
+SCHEDULER_FLAG = $(if $(SNAKEMAKE_SCHEDULER),--scheduler $(SNAKEMAKE_SCHEDULER),)
+
 .PHONY: pytest
 pytest:
 	uv run pytest -W error
@@ -18,7 +22,7 @@ filecheck:
 
 .PHONY: snakemake
 snakemake:
-	uv run snakemake --quiet all --cores all tests --forceall $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet all --cores all tests --forceall $(if $(TARGET),--config target=$(TARGET),)
 
 .PHONY: tests
 tests: pytest filecheck snakemake
@@ -27,24 +31,24 @@ tests: pytest filecheck snakemake
 
 .PHONY: dataset_code
 dataset_code:
-	uv run snakemake --quiet --cores all dataset_code $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_code $(if $(TARGET),--config target=$(TARGET),)
 
 .PHONY: dataset_validate
 dataset_validate:
-	uv run snakemake --quiet --cores all dataset_validate --forceall $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_validate --forceall $(if $(TARGET),--config target=$(TARGET),)
 
 # --cores 1 to avoid contention issues when measuring performance.
 # Run `make clean` to re-measure everything.
 # Run `make clean-ours` to re-measure just our code.
 .PHONY: dataset
 dataset: dataset_code
-	uv run snakemake --quiet --cores 1 dataset $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 dataset $(if $(TARGET),--config target=$(TARGET),)
 
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl
 data/$(TARGET)/f64.bars.jsonl:
-	uv run snakemake --cores 1 $@ --config target=$(TARGET)
+	uv run snakemake $(SCHEDULER_FLAG) --cores 1 $@ --config target=$(TARGET)
 
 PLOTS =
 
