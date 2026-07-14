@@ -3,6 +3,7 @@ from enum import IntEnum, IntFlag, unique
 
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
+
 @dataclass
 class DescDatatype:
     a: Datatype
@@ -20,6 +21,7 @@ class DescDatatype:
 
     def as_tuple(self) -> tuple[Datatype, Datatype, Datatype, Datatype]:
         return (self.a, self.b, self.c, self.comp)
+
 
 class GEMMFlag(IntFlag):
     NONE = 0
@@ -171,6 +173,7 @@ class GEMMPrefetchType(IntEnum):
     # CL1 = 4
     # AL2BL2 = 3
     # AL2BL2CL1 = 7
+
 
 @dataclass
 class GEMMDescriptor:

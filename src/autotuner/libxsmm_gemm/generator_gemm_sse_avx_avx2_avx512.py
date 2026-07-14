@@ -87,7 +87,11 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     gp_reg_mapping.gp_reg_zpt = R9
 
     # Python translation of register assignment logic
-    if desc.datatype.a == desc.datatype.b == "I8" and desc.datatype.c == "F32" and not is_amxfp4_bi8_gemm:
+    if (
+        desc.datatype.a == desc.datatype.b == "I8"
+        and desc.datatype.c == "F32"
+        and not is_amxfp4_bi8_gemm
+    ):
         gp_reg_mapping.gp_reg_scf = RCX
         gp_reg_mapping.gp_reg_a_prefetch = R8
         gp_reg_mapping.gp_reg_b_prefetch = R9
@@ -95,8 +99,14 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         gp_reg_mapping.gp_reg_scf = RCX
         if is_amxfp4_bi8_gemm:
             gp_reg_mapping.gp_reg_zpt = RBX
-    elif (desc.datatype.a == "I8" and desc.datatype.b == "F16" and desc.datatype.c in ("F16", "F32")) or (
-        desc.datatype.a == "I8" and desc.datatype.b == "BF16" and desc.datatype.c in ("BF16", "F32")
+    elif (
+        desc.datatype.a == "I8"
+        and desc.datatype.b == "F16"
+        and desc.datatype.c in ("F16", "F32")
+    ) or (
+        desc.datatype.a == "I8"
+        and desc.datatype.b == "BF16"
+        and desc.datatype.c in ("BF16", "F32")
     ):
         gp_reg_mapping.gp_reg_scf = RBX
         gp_reg_mapping.gp_reg_zpt = RCX
@@ -244,7 +254,10 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     # In case of F16 and IMPLICIT compute set proper compute
     if (
-        ((desc.datatype.a in (Datatype.I8, Datatype.BF8)) and desc.datatype.b == Datatype.F16)
+        (
+            (desc.datatype.a in (Datatype.I8, Datatype.BF8))
+            and desc.datatype.b == Datatype.F16
+        )
         or (desc.datatype.a == Datatype.F16 and desc.datatype.b == Datatype.F16)
     ) and desc.datatype.comp == Datatype.IMPLICIT:
         # if architecture is AMX (Sapphire Rapids or newer), compute in F16. Otherwise F32.
@@ -256,8 +269,12 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             desc.datatype.comp = Datatype.F32
 
     # In case of BF8/HF8 we might need to set different precisions
-    if (desc.datatype.a == Datatype.BF8 and desc.datatype.b in (Datatype.BF8, Datatype.HF8)) or (
-        desc.datatype.a == Datatype.HF8 and desc.datatype.b in (Datatype.BF8, Datatype.HF8)
+    if (
+        desc.datatype.a == Datatype.BF8
+        and desc.datatype.b in (Datatype.BF8, Datatype.HF8)
+    ) or (
+        desc.datatype.a == Datatype.HF8
+        and desc.datatype.b in (Datatype.BF8, Datatype.HF8)
     ):
         raise NotImplementedError
 

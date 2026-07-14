@@ -46,9 +46,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
         GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2 in desc.flags
         and Datatype.I8 == desc.datatype.a
         and Datatype.F16 == desc.datatype.b
-        and (
-            Datatype.F16 == desc.datatype.c or Datatype.F32 == desc.datatype.c
-        )
+        and (Datatype.F16 == desc.datatype.c or Datatype.F32 == desc.datatype.c)
     )
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
     is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
@@ -65,10 +63,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
             GEMMFlag.A_UNSIGNED not in desc.flags
             and GEMMFlag.B_UNSIGNED not in desc.flags
         )
-        or (
-            GEMMFlag.A_UNSIGNED in desc.flags
-            and GEMMFlag.B_UNSIGNED in desc.flags
-        )
+        or (GEMMFlag.A_UNSIGNED in desc.flags and GEMMFlag.B_UNSIGNED in desc.flags)
     )
 
     is_not_cpx_bf16 = (

@@ -170,7 +170,11 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             arch = Arch.LIBXSMM_X86_AVX512_SKX
 
     # Overwrite VNNI Flag when K == 1
-    if desc.datatype.ab == Datatype.BF16 and desc.k == 1 and GEMMFlag.VNNI_A in desc.flags:
+    if (
+        desc.datatype.ab == Datatype.BF16
+        and desc.k == 1
+        and GEMMFlag.VNNI_A in desc.flags
+    ):
         desc.flags &= ~GEMMFlag.VNNI_A
 
     assert desc.datatype.c not in (Datatype.I16, Datatype.I8)
@@ -318,7 +322,9 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         else:
             vector_length = 16
     elif Arch.LIBXSMM_X86_AVX512_GNR <= arch <= Arch.LIBXSMM_X86_ALLFEAT and (
-        desc.datatype.ab == Datatype.F16 and not desc.k % 2 and GEMMFlag.VNNI_A in desc.flags
+        desc.datatype.ab == Datatype.F16
+        and not desc.k % 2
+        and GEMMFlag.VNNI_A in desc.flags
     ):
         vector_length = 16
     elif (
@@ -340,10 +346,13 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         and desc.datatype.b == Datatype.F16
         and (desc.datatype.c in (Datatype.F16, Datatype.F32))
     ):
-        assert not (GEMMFlag.VNNI_A in desc.flags and arch < Arch.LIBXSMM_X86_AVX512_GNR), (
-            "Unsupported: VNNI_A for I8/BF8-F16 unless >= AVX512_GNR."
-        )
-        if desc.datatype.comp == Datatype.F16 or desc.datatype.comp == Datatype.IMPLICIT:
+        assert not (
+            GEMMFlag.VNNI_A in desc.flags and arch < Arch.LIBXSMM_X86_AVX512_GNR
+        ), "Unsupported: VNNI_A for I8/BF8-F16 unless >= AVX512_GNR."
+        if (
+            desc.datatype.comp == Datatype.F16
+            or desc.datatype.comp == Datatype.IMPLICIT
+        ):
             vector_length = 32
         else:
             vector_length = 16
@@ -365,7 +374,10 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         assert GEMMFlag.VNNI_A not in desc.flags, (
             "Unsupported: VNNI_A with F16 input and F16/F32 output on >= AVX512_SPR."
         )
-        if desc.datatype.comp == Datatype.F16 or desc.datatype.comp == Datatype.IMPLICIT:
+        if (
+            desc.datatype.comp == Datatype.F16
+            or desc.datatype.comp == Datatype.IMPLICIT
+        ):
             vector_length = 32
         else:
             vector_length = 16
@@ -505,9 +517,10 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             )
         elif desc.datatype.ab == Datatype.I8:
             assert desc.k % 8 == 0, "Unsupported: desc.k must be a multiple of 8 for I8"
-            assert GEMMFlag.A_UNSIGNED not in desc.flags or GEMMFlag.B_UNSIGNED in desc.flags, (
-                "Unsupported: A unsigned but B not for I8"
-            )
+            assert (
+                GEMMFlag.A_UNSIGNED not in desc.flags
+                or GEMMFlag.B_UNSIGNED in desc.flags
+            ), "Unsupported: A unsigned but B not for I8"
         # ASIMD + MMLA
         # TODO: These are not properly implemented yet
         assert Arch.LIBXSMM_AARCH64_SVE128 <= arch, (
@@ -548,7 +561,9 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         assert desc.k <= desc.lda or var_ld
 
         if desc.datatype.ab not in (Datatype.F32, Datatype.F64, Datatype.BF16):
-            assert desc.datatype.ab == Datatype.F16 and arch >= Arch.LIBXSMM_X86_AVX512_DMR
+            assert (
+                desc.datatype.ab == Datatype.F16 and arch >= Arch.LIBXSMM_X86_AVX512_DMR
+            )
         else:
             # BF16 A transpose is supported forflat A
             assert GEMMFlag.VNNI_A not in desc.flags
@@ -567,7 +582,9 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
     # Check for trans A cases which are not supported in the generator
     if desc.flags & GEMMFlag.TRANS_A:
         if desc.datatype.ab not in (Datatype.F32, Datatype.F64, Datatype.BF16):
-            assert desc.datatype.ab == Datatype.F16 and arch >= Arch.LIBXSMM_X86_AVX512_DMR
+            assert (
+                desc.datatype.ab == Datatype.F16 and arch >= Arch.LIBXSMM_X86_AVX512_DMR
+            )
         else:
             # BF16 A transpose is supported for flat A
             assert not desc.flags & GEMMFlag.VNNI_A
