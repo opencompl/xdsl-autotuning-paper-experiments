@@ -52,7 +52,6 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_main import (
-    DescDatatype,
     GEMMDescriptor,
     GEMMFlag,
     GEMMPrefetchType,
@@ -88,9 +87,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     gp_reg_mapping.gp_reg_zpt = R9
 
     # Python translation of register assignment logic
-    dt = desc.datatype
-
-    if dt.a == dt.b == "I8" and dt.c == "F32" and not is_amxfp4_bi8_gemm:
+    if desc.datatype.a == desc.datatype.b == "I8" and desc.datatype.c == "F32" and not is_amxfp4_bi8_gemm:
         gp_reg_mapping.gp_reg_scf = RCX
         gp_reg_mapping.gp_reg_a_prefetch = R8
         gp_reg_mapping.gp_reg_b_prefetch = R9
@@ -98,8 +95,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         gp_reg_mapping.gp_reg_scf = RCX
         if is_amxfp4_bi8_gemm:
             gp_reg_mapping.gp_reg_zpt = RBX
-    elif (dt.a == "I8" and dt.b == "F16" and dt.c in ("F16", "F32")) or (
-        dt.a == "I8" and dt.b == "BF16" and dt.c in ("BF16", "F32")
+    elif (desc.datatype.a == "I8" and desc.datatype.b == "F16" and desc.datatype.c in ("F16", "F32")) or (
+        desc.datatype.a == "I8" and desc.datatype.b == "BF16" and desc.datatype.c in ("BF16", "F32")
     ):
         gp_reg_mapping.gp_reg_scf = RBX
         gp_reg_mapping.gp_reg_zpt = RCX
@@ -159,14 +156,12 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     desc: GEMMDescriptor,
 ) -> None:
     micro_kernel_config = MicroKernelConfig()
-    # These values may be modified below
-    m, n, k, lda, ldb, ldc, dt, flags, prefetch = desc
 
     is_Ai4_Bf16_gemm = (
         ((desc.flags & GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2) > 0)
-        and (Datatype.I8 == dt.a)
-        and (Datatype.F16 == dt.b)
-        and (dt.c in (Datatype.F16, Datatype.F32))
+        and (Datatype.I8 == desc.datatype.a)
+        and (Datatype.F16 == desc.datatype.b)
+        and (desc.datatype.c in (Datatype.F16, Datatype.F32))
     )
 
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
@@ -181,8 +176,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.TRANS_B) == 0)
         and ((desc.flags & GEMMFlag.VNNI_B) == 0)
-        and (k % 2 == 0)
-        and (Datatype.BF16 == dt.ab)
+        and (desc.k % 2 == 0)
+        and (Datatype.BF16 == desc.datatype.ab)
     )
 
     atvnni_gemm_stack_alloc_tensors = (
@@ -190,8 +185,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.TRANS_B) == 0)
         and ((desc.flags & GEMMFlag.VNNI_B) == 0)
-        and (k % 2 == 0)
-        and (Datatype.BF16 == dt.ab)
+        and (desc.k % 2 == 0)
+        and (Datatype.BF16 == desc.datatype.ab)
     )
 
     avnni_btrans_gemm_stack_alloc_tensors = (
@@ -199,8 +194,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.TRANS_B) != 0)
         and ((desc.flags & GEMMFlag.VNNI_B) == 0)
-        and (k % 2 == 0)
-        and (Datatype.BF16 == dt.ab)
+        and (desc.k % 2 == 0)
+        and (Datatype.BF16 == desc.datatype.ab)
     )
 
     atvnni_btrans_gemm_stack_alloc_tensors = (
@@ -208,8 +203,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.TRANS_B) != 0)
         and ((desc.flags & GEMMFlag.VNNI_B) == 0)
-        and (k % 2 == 0)
-        and (Datatype.BF16 == dt.ab)
+        and (desc.k % 2 == 0)
+        and (Datatype.BF16 == desc.datatype.ab)
     )
 
     # Initialize n-blocking variables
@@ -223,9 +218,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     max_n_blocking = 0
 
     is_Ai8_Bbf16_gemm = (
-        (Datatype.I8 == dt.a and not is_Amxfp4_Bbf16_gemm)
-        and (Datatype.BF16 == dt.b)
-        and (dt.c in (Datatype.BF16, Datatype.F32))
+        (Datatype.I8 == desc.datatype.a and not is_Amxfp4_Bbf16_gemm)
+        and (Datatype.BF16 == desc.datatype.b)
+        and (desc.datatype.c in (Datatype.BF16, Datatype.F32))
     )
 
     # TODO: we need to implement a consolidate solution for callee save stuff
@@ -249,20 +244,20 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     # In case of F16 and IMPLICIT compute set proper compute
     if (
-        ((dt.a in (Datatype.I8, Datatype.BF8)) and dt.b == Datatype.F16)
-        or (dt.a == Datatype.F16 and dt.b == Datatype.F16)
-    ) and dt.comp == Datatype.IMPLICIT:
+        ((desc.datatype.a in (Datatype.I8, Datatype.BF8)) and desc.datatype.b == Datatype.F16)
+        or (desc.datatype.a == Datatype.F16 and desc.datatype.b == Datatype.F16)
+    ) and desc.datatype.comp == Datatype.IMPLICIT:
         # if architecture is AMX (Sapphire Rapids or newer), compute in F16. Otherwise F32.
         if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SPR:
             # Set desc.datatype fields for computation in F16
-            dt = DescDatatype(dt.a, dt.b, dt.c, Datatype.F16)
+            desc.datatype.comp = Datatype.F16
         else:
             # Set desc.datatype fields for computation in F32
-            dt = DescDatatype(dt.a, dt.b, dt.c, Datatype.F32)
+            desc.datatype.comp = Datatype.F32
 
     # In case of BF8/HF8 we might need to set different precisions
-    if (dt.a == Datatype.BF8 and dt.b in (Datatype.BF8, Datatype.HF8)) or (
-        dt.a == Datatype.HF8 and dt.b in (Datatype.BF8, Datatype.HF8)
+    if (desc.datatype.a == Datatype.BF8 and desc.datatype.b in (Datatype.BF8, Datatype.HF8)) or (
+        desc.datatype.a == Datatype.HF8 and desc.datatype.b in (Datatype.BF8, Datatype.HF8)
     ):
         raise NotImplementedError
 
@@ -273,14 +268,14 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         or avnni_btrans_gemm_stack_alloc_tensors
         or atvnni_btrans_gemm_stack_alloc_tensors
     ):
-        flags |= GEMMFlag.VNNI_A
+        desc.flags |= GEMMFlag.VNNI_A
 
     if atvnni_gemm_stack_alloc_tensors or atvnni_btrans_gemm_stack_alloc_tensors:
-        flags &= ~GEMMFlag.TRANS_A
-        assert lda % 2 == 0, "LIBXSMM_ERR_VNNI_A"
+        desc.flags &= ~GEMMFlag.TRANS_A
+        assert desc.lda % 2 == 0, "LIBXSMM_ERR_VNNI_A"
 
     if avnni_btrans_gemm_stack_alloc_tensors or atvnni_btrans_gemm_stack_alloc_tensors:
-        flags &= ~GEMMFlag.TRANS_B
+        desc.flags &= ~GEMMFlag.TRANS_B
 
     # Define the micro kernel code gen properties
     libxsmm_generator_gemm_init_micro_kernel_config(
@@ -288,38 +283,38 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     )
 
     # setup hf8 / bf8 conversion on stack before GEMM, we need to recheck as we now can update the field in ukernel config, need to use the original GEMM descriptor
-    if dt.ab == Datatype.BF8:
+    if desc.datatype.ab == Datatype.BF8:
         micro_kernel_config.bf8_gemm_via_stack_alloc_tensors = 1
 
-    if dt.ab == Datatype.HF8:
+    if desc.datatype.ab == Datatype.HF8:
         micro_kernel_config.bf8_gemm_via_stack_alloc_tensors = 1
 
     # in case when A needs to be transposed, we need to change temporarily the descriptor dimensions for gemm
-    if GEMMFlag.TRANS_A in flags:
-        assert dt.abc in (Datatype.F32, Datatype.F64)
-        lda = m
-        flags &= ~GEMMFlag.TRANS_A
+    if GEMMFlag.TRANS_A in desc.flags:
+        assert desc.datatype.abc in (Datatype.F32, Datatype.F64)
+        desc.lda = desc.m
+        desc.flags &= ~GEMMFlag.TRANS_A
         micro_kernel_config.atrans_gemm_stack_alloc_tensors = 1
-    elif GEMMFlag.TRANS_B | GEMMFlag.VNNI_B in flags:
+    elif GEMMFlag.TRANS_B | GEMMFlag.VNNI_B in desc.flags:
         raise NotImplementedError
 
     # handle A VNNI on stack */
     if avnni_gemm_stack_alloc_tensors:
-        lda = m
+        desc.lda = desc.m
         micro_kernel_config.avnni_gemm_stack_alloc_tensors = True
 
     if atvnni_gemm_stack_alloc_tensors:
-        lda = m
+        desc.lda = desc.m
         micro_kernel_config.atvnni_gemm_stack_alloc_tensors = True
 
     if avnni_btrans_gemm_stack_alloc_tensors:
-        lda = m
-        _ldb = k
+        desc.lda = desc.m
+        desc.ldb = desc.k
         micro_kernel_config.avnni_btrans_gemm_stack_alloc_tensors = True
 
     if atvnni_btrans_gemm_stack_alloc_tensors:
-        lda = m
-        _ldb = k
+        desc.lda = desc.m
+        desc.ldb = desc.k
         micro_kernel_config.atvnni_btrans_gemm_stack_alloc_tensors = True
 
     # Block according to the number of available registers or given limits
@@ -334,9 +329,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             init_m_blocking + micro_kernel_config.vector_length - 1
         ) // micro_kernel_config.vector_length
         is_Ai8_Bf16_gemm = (
-            dt.a == Datatype.I8
-            and dt.b == Datatype.F16
-            and (dt.c in (Datatype.F16, Datatype.F32))
+            desc.datatype.a == Datatype.I8
+            and desc.datatype.b == Datatype.F16
+            and (desc.datatype.c in (Datatype.F16, Datatype.F32))
         )
 
         if is_Ai8_Bf16_gemm:
@@ -368,7 +363,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     assert max_n_blocking
 
-    blocking = libxsmm_compute_equalized_blocking(n, max_n_blocking)
+    blocking = libxsmm_compute_equalized_blocking(desc.n, max_n_blocking)
     n_N[0] = blocking.range_1
     n_n[0] = blocking.block_1
     n_N[1] = blocking.range_2
@@ -378,10 +373,10 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     assert n_N[0]
 
     # implementing load from struct
-    if GEMMFlag.USE_XGEMM_ABI in flags or GEMMFlag.USE_XGEMM_EXT_ABI in flags:
+    if GEMMFlag.USE_XGEMM_ABI in desc.flags or GEMMFlag.USE_XGEMM_EXT_ABI in desc.flags:
         raise NotImplementedError
 
-    if GEMMFlag.USE_XGEMM_EXT_ABI in flags or micro_kernel_config.vnni_format_C:
+    if GEMMFlag.USE_XGEMM_EXT_ABI in desc.flags or micro_kernel_config.vnni_format_C:
         raise NotImplementedError
 
     # Setting up the stack frame

@@ -356,7 +356,7 @@ def libxsmm_generator_gemm_footer_kloop(
     loop_label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
-    gemm_desc: GEMMDescriptor,
+    desc: GEMMDescriptor,
     m_blocking: int,
     max_blocked_k: int,
     k_loop_complete: bool,
@@ -373,12 +373,12 @@ def libxsmm_generator_gemm_footer_kloop(
     )
     if k_loop_complete:
         b_offset = 0
-        if GEMMFlag.TRANS_B in gemm_desc.flags:
+        if GEMMFlag.TRANS_B in desc.flags:
             b_offset = (
-                gemm_desc.ldb * gemm_desc.k * micro_kernel_config.datatype_size_in2
+                desc.ldb * desc.k * micro_kernel_config.datatype_size_in2
             )
         else:
-            b_offset = gemm_desc.ldb * micro_kernel_config.datatype_size_in2
+            b_offset = desc.ldb * micro_kernel_config.datatype_size_in2
 
         generated_code.insert(
             x86.ops.RI_SubOp(

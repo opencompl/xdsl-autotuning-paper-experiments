@@ -20,7 +20,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
     generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
-    gemm_desc: GEMMDescriptor,
+    desc: GEMMDescriptor,
     m_blocking: int,
     n_blocking: int,
     k_blocking: int,
@@ -34,55 +34,55 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
     )
 
     is_Abf8_Bf16_gemm = (
-        Datatype.BF8 == gemm_desc.datatype.a and Datatype.F16 == gemm_desc.datatype.b
+        Datatype.BF8 == desc.datatype.a and Datatype.F16 == desc.datatype.b
     )
     is_Ai8_Bf16_gemm = (
-        Datatype.I8 == gemm_desc.datatype.a and Datatype.F16 == gemm_desc.datatype.b
+        Datatype.I8 == desc.datatype.a and Datatype.F16 == desc.datatype.b
     )
     is_Ai8_Bbf16_gemm = (
-        Datatype.I8 == gemm_desc.datatype.a and Datatype.BF16 == gemm_desc.datatype.b
+        Datatype.I8 == desc.datatype.a and Datatype.BF16 == desc.datatype.b
     )
     is_Ai4_Bf16_gemm = (
-        GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2 in gemm_desc.flags
-        and Datatype.I8 == gemm_desc.datatype.a
-        and Datatype.F16 == gemm_desc.datatype.b
+        GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2 in desc.flags
+        and Datatype.I8 == desc.datatype.a
+        and Datatype.F16 == desc.datatype.b
         and (
-            Datatype.F16 == gemm_desc.datatype.c or Datatype.F32 == gemm_desc.datatype.c
+            Datatype.F16 == desc.datatype.c or Datatype.F32 == desc.datatype.c
         )
     )
-    is_Ai4_Bi8_gemm = gemm_desc.is_Ai4_Bi8_gemm()
-    is_Ai2_Bi8_gemm = gemm_desc.is_Ai2_Bi8_gemm()
-    is_Ai1_Bi8_gemm = gemm_desc.is_Ai1_Bi8_gemm()
+    is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
+    is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
+    is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm()
     is_Af16_Bf16_gemm = (
-        Datatype.F16 == gemm_desc.datatype.a and Datatype.F16 == gemm_desc.datatype.b
+        Datatype.F16 == desc.datatype.a and Datatype.F16 == desc.datatype.b
     )
     _is_Ai8_Bbf16_gemm_bf16fma = (
         is_Ai8_Bbf16_gemm and micro_kernel_config.vmul_instruction == "VDPBF16PS"
     )
 
-    is_i8_uu_ss_gemm = gemm_desc.datatype.ab == "I8" and (
+    is_i8_uu_ss_gemm = desc.datatype.ab == "I8" and (
         (
-            GEMMFlag.A_UNSIGNED not in gemm_desc.flags
-            and GEMMFlag.B_UNSIGNED not in gemm_desc.flags
+            GEMMFlag.A_UNSIGNED not in desc.flags
+            and GEMMFlag.B_UNSIGNED not in desc.flags
         )
         or (
-            GEMMFlag.A_UNSIGNED in gemm_desc.flags
-            and GEMMFlag.B_UNSIGNED in gemm_desc.flags
+            GEMMFlag.A_UNSIGNED in desc.flags
+            and GEMMFlag.B_UNSIGNED in desc.flags
         )
     )
 
     is_not_cpx_bf16 = (
         generated_code.arch != "AVX512_CPX"
-        and gemm_desc.datatype.ab == "BF16"
-        and GEMMFlag.VNNI_A in gemm_desc.flags
+        and desc.datatype.ab == "BF16"
+        and GEMMFlag.VNNI_A in desc.flags
     )
 
-    if GEMMFlag.VNNI_A in gemm_desc.flags:
+    if GEMMFlag.VNNI_A in desc.flags:
         raise NotImplementedError
 
     if (
         m_vector == 1
-        and GEMMFlag.DECOMPRESS_A_VIA_BITMASK not in gemm_desc.flags
+        and GEMMFlag.DECOMPRESS_A_VIA_BITMASK not in desc.flags
         and not is_Abf8_Bf16_gemm
         and (not is_Ai8_Bf16_gemm)
         and (not is_Ai8_Bbf16_gemm)
@@ -92,14 +92,14 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
         and (not is_i8_uu_ss_gemm)
         and (not is_Ai2_Bi8_gemm)
         and (not is_Ai1_Bi8_gemm)
-        and (Datatype.BF8 != gemm_desc.datatype.ab)
+        and (Datatype.BF8 != desc.datatype.ab)
         and (not is_not_cpx_bf16)
     ):
         libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
-            gemm_desc,
+            desc,
             n_blocking,
             k_blocking,
         )
@@ -109,7 +109,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
         if (
             is_Ai8_Bbf16_gemm
             or is_Ai4_Bf16_gemm
-            or GEMMFlag.DECOMPRESS_A_VIA_BITMASK in gemm_desc.flags
+            or GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags
             or is_Ai4_Bi8_gemm
             or is_Ai2_Bi8_gemm
             or is_Ai1_Bi8_gemm
@@ -123,7 +123,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
             raise NotImplementedError
         elif (
             generated_code.arch != Arch.LIBXSMM_X86_AVX512_CPX
-            and Datatype.BF16 == gemm_desc.datatype.ab
+            and Datatype.BF16 == desc.datatype.ab
         ):
             raise NotImplementedError
         elif is_i8_uu_ss_gemm:
@@ -136,7 +136,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
                 generated_code,
                 gp_reg_mapping,
                 micro_kernel_config,
-                gemm_desc,
+                desc,
                 m_blocking,
                 n_blocking,
             )
