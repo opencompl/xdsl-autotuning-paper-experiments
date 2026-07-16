@@ -1,3 +1,4 @@
+from autotuner.libxsmm_gemm.generator_gemm_common import vec_reg_type
 from xdsl.dialects import x86
 from xdsl.ir import SSAValue
 
@@ -19,18 +20,6 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMPrefetchType,
 )
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
-
-
-def _vec_reg_type(vname: str) -> type[VectorRegT]:
-    match vname:
-        case "x":
-            return x86.registers.SSERegisterType
-        case "y":
-            return x86.registers.AVX2RegisterType
-        case "z":
-            return x86.registers.AVX512RegisterType
-        case _:
-            assert False, f"Unsupported vector name: {vname}"
 
 
 def libxsmm_generator_gemm_avx512_kloop_kernel(
@@ -200,7 +189,7 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
     assert micro_kernel_config.vmul_instruction is not None
 
     vname = micro_kernel_config.vector_name
-    vec_type = _vec_reg_type(vname)
+    vec_type = vec_reg_type(vname)
 
     a_val = vals.a
     b_val = vals.b
@@ -506,7 +495,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 )
             )
         )
-        a_vec_type = _vec_reg_type(a_vname)
+        a_vec_type = vec_reg_type(a_vname)
 
         # unsigned int l_a_vmove_instruction = ((l_is_Ai8_Bf16_gemm > 0 || l_is_Abf8_Bf16_gemm > 0) && (io_generated_code->arch < LIBXSMM_X86_AVX512_SKX) && (l_m != (l_m_blocking - 1)) ) ? LIBXSMM_X86_INSTR_VMOVSD : i_micro_kernel_config->a_vmove_instruction;
         a_vmove_instruction = micro_kernel_config.a_vmove_instruction
@@ -627,7 +616,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 )
                 else b_vname
             )
-            b_vec_type = _vec_reg_type(b_vname)
+            b_vec_type = vec_reg_type(b_vname)
             b_vec_val = libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 micro_kernel_config.instruction_set,
@@ -710,7 +699,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     raise NotImplementedError
                 else:
                     vname = micro_kernel_config.vector_name
-                    vec_type = _vec_reg_type(vname)
+                    vec_type = vec_reg_type(vname)
                     src0_idx = 1 + m + vreg_ab_offset + k * m_blocking
                     src1_idx = vreg_ab_offset
                     acc_idx = m + (m_blocking * n)

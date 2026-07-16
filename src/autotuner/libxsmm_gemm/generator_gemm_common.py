@@ -1,8 +1,10 @@
+from xdsl.dialects import x86
 from xdsl.dialects.builtin import IntegerAttr
 from xdsl.dialects.x86.ops import si32
 from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
 from xdsl.ir import Block, SSAValue
 from xdsl.rewriter import InsertPoint, Rewriter
+
 from autotuner.libxsmm_gemm.generator_common import (
     GEMMStackVar,
     GPRegMapping,
@@ -23,15 +25,24 @@ from autotuner.libxsmm_gemm.libxsmm_generator import (
     NLoopVals,
     VectorRegT,
 )
-
-from xdsl.dialects import x86
-
 from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMDescriptor,
     GEMMFlag,
     GEMMPrefetchType,
 )
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
+
+
+def vec_reg_type(vname: str) -> type[VectorRegT]:
+    match vname:
+        case "x":
+            return x86.registers.SSERegisterType
+        case "y":
+            return x86.registers.AVX2RegisterType
+        case "z":
+            return x86.registers.AVX512RegisterType
+        case _:
+            assert False, f"Unsupported vector name: {vname}"
 
 
 def libxsmm_generator_gemm_init_micro_kernel_config(
@@ -1521,13 +1532,7 @@ def libxsmm_generator_gemm_load_C(
                 for n in range(n_blocking):
                     for m in range(m_blocking):
                         vname_load = micro_kernel_config.vector_name
-                        match vname_load:
-                            case "x":
-                                dest_type = x86.registers.SSERegisterType
-                            case "y":
-                                dest_type = x86.registers.AVX2RegisterType
-                            case "z":
-                                dest_type = x86.registers.AVX512RegisterType
+                        dest_type = vec_reg_type(vname_load)
                         c_vec_reg = dest_type.from_index(
                             vec_reg_acc_start + m + (m_blocking * n)
                         )
