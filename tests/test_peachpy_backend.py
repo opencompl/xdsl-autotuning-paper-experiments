@@ -30,7 +30,12 @@ from peachpy.x86_64 import abi
 from autotuner.libxsmm_gemm.jit import is_available
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
-from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
+from autotuner.libxsmm_gemm.libxsmm_main import (
+    DescDatatype,
+    GEMMDescriptor,
+    GEMMFlag,
+    GEMMPrefetchType,
+)
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 from autotuner.libxsmm_gemm.peachpy_backend import build_callable, build_function
 
@@ -80,7 +85,7 @@ def _desc_from_runline(path: Path) -> tuple[str, GEMMDescriptor]:
         ldc=ldc,
         datatype=DescDatatype(dt, dt, dt, dt),
         flags=flags,
-        prefetch="nopf",
+        prefetch=GEMMPrefetchType.NONE,
     )
     return routine, desc
 

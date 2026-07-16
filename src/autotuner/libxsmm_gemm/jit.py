@@ -60,7 +60,7 @@ def _has_avx512f() -> bool:
     try:
         import numpy as np
 
-        features = getattr(np._core._multiarray_umath, "__cpu_features__", {})
+        features = getattr(np._core._multiarray_umath, "__cpu_features__", {})  # pyright: ignore[reportAttributeAccessIssue]
         if "AVX512F" in features:
             return bool(features["AVX512F"])
     except Exception:

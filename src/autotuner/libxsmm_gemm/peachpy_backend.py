@@ -69,7 +69,7 @@ _TARGET = uarch.skylake_xeon
 
 def PREG(value: SSAValue):
     """The PeachPy physical register singleton named by ``value``'s register type."""
-    return getattr(preg, value.type.register_name.data)
+    return getattr(preg, value.type.register_name.data)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def MEM(op):
@@ -94,7 +94,7 @@ def PREG32(value: SSAValue):
 
     ``kmovb`` takes a 32-bit GPR operand even though the IR carries the 64-bit register
     (mirrors ``KS_KMovBOp.assembly_line_args``' ``Reg32Type.from_index`` conversion)."""
-    return getattr(preg, Reg32Type.from_index(value.type.index.data).register_name.data)
+    return getattr(preg, Reg32Type.from_index(value.type.index.data).register_name.data)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def _mask(op):
