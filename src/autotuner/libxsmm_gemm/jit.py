@@ -39,7 +39,11 @@ import peachpy.x86_64.abi
 
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
-from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMPrefetchType
+from autotuner.libxsmm_gemm.libxsmm_main import (
+    DescDatatype,
+    GEMMDescriptor,
+    GEMMPrefetchType,
+)
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 from autotuner.libxsmm_gemm.peachpy_backend import build_callable
 
