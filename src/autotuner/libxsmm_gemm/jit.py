@@ -51,9 +51,32 @@ _ARCH = Arch.LIBXSMM_X86_AVX512_SKX
 _PTR_DOUBLE = ctypes.POINTER(ctypes.c_double)
 
 
+def _has_avx512f() -> bool:
+    """Whether the host CPU supports AVX-512F.
+
+    The generated kernels use AVX-512 (``zmm``/EVEX); executing them on a CPU without AVX-512
+    faults with SIGILL (uncatchable), so this must be checked before *calling* a kernel -- being
+    x86-64 is not enough (many x86-64 CPUs, including common CI runners, lack AVX-512)."""
+    try:
+        import numpy as np
+
+        features = getattr(np._core._multiarray_umath, "__cpu_features__", {})
+        if "AVX512F" in features:
+            return bool(features["AVX512F"])
+    except Exception:
+        pass
+    try:
+        with open("/proc/cpuinfo") as cpuinfo:  # Linux fallback
+            return "avx512f" in cpuinfo.read()
+    except OSError:
+        return False
+
+
 def is_available() -> bool:
-    """Whether compiled kernels can be executed here (i.e. the interpreter is x86-64)."""
-    return peachpy.x86_64.abi.detect() is not None
+    """Whether compiled kernels can be *executed* here: an x86-64 interpreter on a CPU with
+    AVX-512F. Building/encoding a kernel works on any x86-64 host, but calling one requires
+    AVX-512 (else SIGILL)."""
+    return peachpy.x86_64.abi.detect() is not None and _has_avx512f()
 
 
 def _as_kernel_arg(arr: np.ndarray) -> ctypes._Pointer:
@@ -69,8 +92,14 @@ def jit_matmul(m: int, n: int, k: int) -> Callable[..., np.ndarray]:
     is ``(k, n)`` and the result is ``(m, n)``. With ``out=None`` a fresh ``C = A @ B`` is
     returned; passing ``out`` accumulates in place (``out += A @ B``).
 
-    Results are cached per shape. Raises :class:`RuntimeError` on a non-x86-64 interpreter.
+    Results are cached per shape. Raises :class:`RuntimeError` unless the host is an x86-64 CPU
+    with AVX-512 (the generated kernels would otherwise fault with SIGILL when called).
     """
+    if not is_available():
+        raise RuntimeError(
+            "JIT matmul requires an x86-64 CPU with AVX-512 support "
+            "(the generated kernels use AVX-512 and would fault with SIGILL otherwise)."
+        )
     if not (m >= 1 and n >= 1 and k >= 1):
         raise ValueError(f"matmul dims must be >= 1, got (m={m}, n={n}, k={k})")
 

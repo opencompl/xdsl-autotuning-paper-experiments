@@ -10,10 +10,12 @@ Three levels of verification:
   x86-asm``). Stack-framing instructions (``push``/``pop``/``vzeroupper``) are dropped from both
   sides: xDSL's prologue-epilogue pass and PeachPy's ``finalize`` save the same callee-saved
   registers but in a different order, and PeachPy adds a ``vzeroupper``.
-* :func:`test_execution` -- x86-64 only (``xfail`` elsewhere). Loads the raw column-major
-  ``16x3x5`` kernel and checks the numerical result against a NumPy reference.
-* :func:`test_jit_matmul` -- x86-64 only. Exercises the row-major :mod:`autotuner.libxsmm_gemm.jit`
-  API across several small shapes (incl. masked and memory-broadcast microkernels).
+* :func:`test_execution` -- runs only on an x86-64 CPU with AVX-512 (``skipif`` otherwise,
+  since executing the kernel elsewhere SIGILLs). Loads the raw column-major ``16x3x5`` kernel
+  and checks the numerical result against a NumPy reference.
+* :func:`test_jit_matmul` -- same guard. Exercises the row-major
+  :mod:`autotuner.libxsmm_gemm.jit` API across several small shapes (incl. masked and
+  memory-broadcast microkernels).
 """
 
 from __future__ import annotations
@@ -22,15 +24,21 @@ import re
 from pathlib import Path
 
 import capstone
-import peachpy.x86_64.abi
 import pytest
 from peachpy.x86_64 import abi
 
+from autotuner.libxsmm_gemm.jit import is_available
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
 from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 from autotuner.libxsmm_gemm.peachpy_backend import build_callable, build_function
+
+# Executing the AVX-512 kernels requires an x86-64 CPU with AVX-512 (else SIGILL, which is
+# uncatchable). `skipif` -- not `xfail` -- because xfail still *runs* the test body.
+_requires_avx512 = pytest.mark.skipif(
+    not is_available(), reason="requires an x86-64 CPU with AVX-512"
+)
 
 _FILECHECK_DIR = Path(__file__).parent / "filecheck" / "libxsmm"
 
@@ -182,11 +190,7 @@ def test_encode_matches_reference(golden: str):
     assert _encoded_instructions(routine, desc) == _reference_instructions(path)
 
 
-@pytest.mark.xfail(
-    not peachpy.x86_64.abi.detect(),
-    reason="direct calling requires an x86-64 interpreter",
-    strict=True,
-)
+@_requires_avx512
 def test_execution():
     import ctypes
 
@@ -238,11 +242,7 @@ def test_execution():
     assert np.allclose(c, expected)
 
 
-@pytest.mark.xfail(
-    not peachpy.x86_64.abi.detect(),
-    reason="direct calling requires an x86-64 interpreter",
-    strict=True,
-)
+@_requires_avx512
 @pytest.mark.parametrize(
     "m,n,k",
     [(16, 3, 5), (8, 8, 8), (4, 4, 4), (6, 7, 3), (1, 1, 1), (2, 10, 7)],
