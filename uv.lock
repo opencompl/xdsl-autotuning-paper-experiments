@@ -227,6 +227,7 @@ source = { editable = "." }
 dependencies = [
     { name = "jinja2" },
     { name = "matplotlib" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "peachpy" },
     { name = "snakemake" },
@@ -243,6 +244,7 @@ dev = [
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "matplotlib", specifier = ">=3.10.3" },
+    { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "peachpy", editable = "../PeachPy" },
     { name = "snakemake", specifier = ">=8.30.0" },
