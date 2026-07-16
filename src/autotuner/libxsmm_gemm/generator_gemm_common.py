@@ -1365,6 +1365,9 @@ def libxsmm_generator_gemm_footer_mloop(
     return _mloop_from_args(fallthrough_args, vals.mask_k1 is not None)
 
 
+AccVals = tuple[SSAValue[VectorRegT], ...]
+
+
 def libxsmm_generator_gemm_load_C(
     generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
@@ -1375,7 +1378,7 @@ def libxsmm_generator_gemm_load_C(
     *,
     c_val: SSAValue[GeneralRegisterType],
     mask_k1: SSAValue[AVX512MaskRegisterType] | None = None,
-) -> tuple[SSAValue[VectorRegT], ...]:
+) -> AccVals:
     result: list[SSAValue[VectorRegT]] = []
     # register blocking counter in n
     n = 0
