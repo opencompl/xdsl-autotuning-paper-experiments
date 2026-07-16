@@ -39,6 +39,11 @@ libxsmm-gemm = "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+dev = [
+    "capstone>=5.0.9",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/autotuner"]
 
