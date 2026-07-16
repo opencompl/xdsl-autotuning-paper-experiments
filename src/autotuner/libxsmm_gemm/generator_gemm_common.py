@@ -1536,10 +1536,9 @@ def libxsmm_generator_gemm_load_C(
                         c_vec_reg = dest_type.from_index(
                             vec_reg_acc_start + m + (m_blocking * n)
                         )
+                        last_iteration = m == m_blocking - 1
                         use_masking = (
-                            micro_kernel_config.use_masking_a_c
-                            if (m == (m_blocking - 1))
-                            else False
+                            micro_kernel_config.use_masking_a_c and last_iteration
                         )
                         if (
                             micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX
@@ -1780,11 +1779,8 @@ def libxsmm_generator_gemm_store_C(
 
             for n in range(n_blocking):
                 for m in range(m_blocking):
-                    use_masking = (
-                        micro_kernel_config.use_masking_a_c
-                        if (m == (m_blocking - 1))
-                        else False
-                    )
+                    last_iteration = m == m_blocking - 1
+                    use_masking = micro_kernel_config.use_masking_a_c and last_iteration
                     if (
                         micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX
                         and use_masking
@@ -1813,12 +1809,13 @@ def libxsmm_generator_gemm_store_C(
                     elif micro_kernel_config.fused_sigmoid:
                         raise NotImplementedError
 
+                    last_iteration = m == m_blocking - 1
+                    use_masking = micro_kernel_config.use_masking_a_c and last_iteration
                     if (
                         Arch.LIBXSMM_X86_AVX
                         <= micro_kernel_config.instruction_set
                         < Arch.LIBXSMM_X86_AVX512_VL256_SKX
-                        and micro_kernel_config.use_masking_a_c
-                        and (m == m_blocking - 1)
+                        and use_masking
                     ):
                         raise NotImplementedError
 
@@ -1843,14 +1840,19 @@ def libxsmm_generator_gemm_store_C(
                     ):
                         raise NotImplementedError
 
+                    last_iteration = m == m_blocking - 1
+                    use_masking = micro_kernel_config.use_masking_a_c and last_iteration
                     if (
                         (desc.is_Amxfp4_Bbf16_gemm() or desc.is_Amxfp4_Bi8_gemm())
                         and Datatype.BF16 == desc.datatype.c
-                        and micro_kernel_config.use_masking_a_c
-                        and (m == m_blocking - 1)
+                        and use_masking
                     ):
                         raise NotImplementedError
                     else:
+                        last_iteration = m == m_blocking - 1
+                        use_masking = (
+                            micro_kernel_config.use_masking_a_c and last_iteration
+                        )
                         libxsmm_x86_instruction_unified_vec_move_st(
                             generated_code,
                             vstore,
@@ -1860,9 +1862,7 @@ def libxsmm_generator_gemm_store_C(
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
                             * (micro_kernel_config.datatype_size_out),
                             c_vec_val,
-                            micro_kernel_config.use_masking_a_c
-                            if (m == (m_blocking - 1))
-                            else False,
+                            use_masking,
                             mask_val,
                             True,
                         )
