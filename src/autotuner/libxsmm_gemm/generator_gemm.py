@@ -14,9 +14,16 @@ from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GE
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def libxsmm_generator_gemm_directasm(
-    file_out: Path, routine_name: str, desc: GEMMDescriptor, arch: Arch
-):
+def build_gemm_module(
+    routine_name: str, desc: GEMMDescriptor, arch: Arch
+) -> tuple[ModuleOp, FuncOp]:
+    """
+    Build the in-memory ``x86_func`` module for a GEMM kernel and return both the
+    enclosing ``ModuleOp`` and the generated ``FuncOp``.
+
+    This is the shared entry point for consumers that need the IR in memory (e.g. the
+    PeachPy backend) as well as ``libxsmm_generator_gemm_directasm``, which prints it.
+    """
     module_op = ModuleOp(Region(Block()))
 
     # Instead of function signature, generate `FuncOp`.
@@ -27,6 +34,14 @@ def libxsmm_generator_gemm_directasm(
     libxsmm_generator_gemm_kernel(func_op, arch, desc)
 
     func_op.body.blocks[-1].add_op(RetOp())
+
+    return module_op, func_op
+
+
+def libxsmm_generator_gemm_directasm(
+    file_out: Path, routine_name: str, desc: GEMMDescriptor, arch: Arch
+):
+    _, func_op = build_gemm_module(routine_name, desc, arch)
 
     # Append code to source file
     with open(file_out, "w") as f:
