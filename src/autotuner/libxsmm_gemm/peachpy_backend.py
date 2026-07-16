@@ -31,23 +31,30 @@ import peachpy.x86_64
 import peachpy.x86_64.registers as preg
 from peachpy import Argument, const_double_, double_, ptr
 from peachpy.x86_64 import abi, uarch
+from peachpy.x86_64.operand import qword, zword
 
 from xdsl.dialects.x86.ops import (
     ConditionalJumpOperation,
     DI_Operation,
     DM_Operation,
+    DMK_Operation,
     DS_Operation,
+    DSS_Operation,
     D_PopOp,
     FallthroughOp,
     GetAnyRegisterOperation,
+    KS_Operation,
     LabelOp,
     MS_Operation,
+    MSK_Operation,
     RI_Operation,
     RS_Operation,
+    RSMB_Operation,
     RSS_Operation,
     SI_CmpOp,
     S_PushOp,
 )
+from xdsl.dialects.x86.registers import Reg32Type
 from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.ir import SSAValue
 
@@ -80,6 +87,43 @@ def IMM(attr):
 def _mnemonic(op):
     """The PeachPy instruction callable for an ``x86`` instruction op."""
     return getattr(peachpy.x86_64, op.assembly_instruction_name().upper())
+
+
+def PREG32(value: SSAValue):
+    """The 32-bit PeachPy register for a 64-bit register value.
+
+    ``kmovb`` takes a 32-bit GPR operand even though the IR carries the 64-bit register
+    (mirrors ``KS_KMovBOp.assembly_line_args``' ``Reg32Type.from_index`` conversion)."""
+    return getattr(preg, Reg32Type.from_index(value.type.index.data).register_name.data)
+
+
+def _mask(op):
+    """The PeachPy mask operand for a masked op: ``k{z}`` when zero-masking, else ``k``."""
+    mask_reg = PREG(op.mask_reg)
+    return mask_reg.z if op.z is not None else mask_reg
+
+
+def MASKED_REG(value: SSAValue, op):
+    """A masked vector register, e.g. ``zmm26(k1)`` or ``zmm26(k1.z)``."""
+    return PREG(value)(_mask(op))
+
+
+def MASKED_MEM(op):
+    """A masked 512-bit memory operand for a masked store, e.g. ``zword[rdx+64](k1)``."""
+    base = PREG(op.memory)
+    offset = op.memory_offset.value.data
+    address = base + offset if offset else base
+    return zword[address](_mask(op))
+
+
+def BCAST_MEM(op):
+    """The memory operand of an ``RSMB`` op: ``qword.to8[base(+off)]`` when the EVEX broadcast
+    modifier is set (``{1to8}``), else a plain ``[base(+off)]`` memory operand."""
+    if op.broadcast is None:
+        return MEM(op)
+    base = PREG(op.memory)
+    offset = op.memory_offset.value.data
+    return qword.to8[base + offset] if offset else qword.to8[base]
 
 
 def _emit_op(op, labels: dict[str, peachpy.x86_64.Label]) -> None:
@@ -136,6 +180,20 @@ def _emit_op(op, labels: dict[str, peachpy.x86_64.Label]) -> None:
         _mnemonic(op)(MEM(op), PREG(op.source))
     elif isinstance(op, RSS_Operation):
         _mnemonic(op)(PREG(op.register_in), PREG(op.source1), PREG(op.source2))
+    elif isinstance(op, RSMB_Operation):
+        # Memory-broadcast FMA, e.g. `vfmadd231pd zmm, zmm, [rsi]{1to8}`.
+        _mnemonic(op)(PREG(op.register_in), PREG(op.source1), BCAST_MEM(op))
+    elif isinstance(op, DSS_Operation):
+        _mnemonic(op)(PREG(op.destination), PREG(op.source1), PREG(op.source2))
+    elif isinstance(op, KS_Operation):
+        # kmov from a (32-bit) general register into a mask register.
+        _mnemonic(op)(PREG(op.destination), PREG32(op.source))
+    elif isinstance(op, DMK_Operation):
+        # Masked load: `vmovupd zmm{k}, [mem]`.
+        _mnemonic(op)(MASKED_REG(op.destination, op), MEM(op))
+    elif isinstance(op, MSK_Operation):
+        # Masked store: `vmovupd [mem]{k}, zmm`.
+        _mnemonic(op)(MASKED_MEM(op), PREG(op.source))
     else:
         raise NotImplementedError(f"No PeachPy translation for {op.name}")
 
