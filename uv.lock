@@ -228,6 +228,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "matplotlib" },
     { name = "pandas" },
+    { name = "peachpy" },
     { name = "snakemake" },
     { name = "tvm" },
     { name = "xdsl", extra = ["dev"] },
@@ -238,6 +239,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
+    { name = "peachpy", editable = "../PeachPy" },
     { name = "snakemake", specifier = ">=8.30.0" },
     { name = "tvm", specifier = "==0.19.0.2025010903", index = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple" },
     { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=91ebc42cfc59b15e6c5492075bd0f0010ad2076c" },
@@ -2276,6 +2278,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/81/76/a1e769043c0c0c9fe
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b6/61/fae042894f4296ec49e3f193aff5d7c18440da9e48102c3315e1bc4519a7/parso-0.8.6-py2.py3-none-any.whl", hash = "sha256:2c549f800b70a5c4952197248825584cb00f033b29c692671d3bf08bf380baff", size = 106894, upload-time = "2026-02-09T15:45:21.391Z" },
 ]
+
+[[package]]
+name = "peachpy"
+version = "0.2.0"
+source = { editable = "../PeachPy" }
 
 [[package]]
 name = "pexpect"
