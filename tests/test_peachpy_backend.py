@@ -26,7 +26,7 @@ from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
 from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
-from autotuner.libxsmm_gemm.peachpy_backend import build_callable
+from autotuner.libxsmm_gemm.peachpy_backend import build_callable, build_function
 
 # The worked example: matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP
 # (M, N, K, lda, ldb, ldc, alpha, beta, align_a, align_c).
@@ -126,15 +126,13 @@ def _reference_instructions() -> list[str]:
 def _encoded_instructions() -> list[str]:
     """The normalized instruction stream of the PeachPy-encoded kernel.
 
-    ``build_callable`` returns the un-finalized ``Function`` on this non-x86 interpreter; we
-    finalize with the explicit System V ABI object to obtain the byte stream. PeachPy's
-    epilogue emits a ``vzeroupper`` (because the body uses AVX-512 registers) that the xDSL
-    reference does not -- drop it so the streams line up. Both sides emit the doubled
-    ``push``/``pop rbp`` (xDSL's prologue-epilogue pass and PeachPy's callee-save handling)."""
-    function = build_callable(_ROUTINE, _desc(), Arch.LIBXSMM_X86_AVX512_SKX)
-    if not isinstance(function, peachpy.x86_64.Function):
-        # On an x86-64 host build_callable returns a loaded kernel; re-translate for bytes.
-        pytest.skip("build_callable returned a loaded kernel; see test_execution")
+    ``build_function`` returns an un-finalized ``Function`` on any host; we finalize with the
+    explicit System V ABI object to obtain the byte stream (``abi.detect()`` is ``None`` on a
+    non-x86 interpreter). PeachPy's epilogue emits a ``vzeroupper`` (because the body uses
+    AVX-512 registers) that the xDSL reference does not -- drop it so the streams line up. Both
+    sides emit the doubled ``push``/``pop rbp`` (xDSL's prologue-epilogue pass and PeachPy's
+    callee-save handling)."""
+    function = build_function(_ROUTINE, _desc(), Arch.LIBXSMM_X86_AVX512_SKX)
     encoded = function.finalize(abi.system_v_x86_64_abi).encode()
     code = bytes(encoded.code_section.content)
 

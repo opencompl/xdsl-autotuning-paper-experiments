@@ -8,15 +8,16 @@ callee-save handling; they never allocate. That means we can translate each inst
 straight into a PeachPy instruction by reading the physical register name off every operand
 -- no SSA/value tracking required.
 
-Two public entry points:
+Public entry points:
 
 * :func:`gemm_func_to_peachpy` -- translate an already-built ``x86_func.FuncOp`` into an
   un-finalized :class:`peachpy.x86_64.Function`.
-* :func:`build_callable` -- generate the IR, translate it, and (on an x86-64 interpreter)
-  finalize/encode/load it into a ctypes-callable kernel. On a non-x86 interpreter
-  (``peachpy.x86_64.abi.detect()`` is ``None``, e.g. this arm64 Mac) it returns the
-  un-finalized ``Function``; the caller can still ``fn.finalize(system_v_x86_64_abi).encode()``
-  to obtain the machine code bytes.
+* :func:`build_function` -- generate the IR and translate it to an un-finalized ``Function``.
+  Works on any host; the caller can ``fn.finalize(system_v_x86_64_abi).encode()`` to obtain
+  the machine-code bytes even on a non-x86 interpreter (e.g. this arm64 Mac).
+* :func:`build_callable` -- finalize/encode/load the kernel into a ctypes-callable. Requires
+  an x86-64 interpreter (``peachpy.x86_64.abi.detect()`` is not ``None``) and raises
+  :class:`RuntimeError` otherwise.
 
 Scope: the simple aligned DP/SP path (M a multiple of the vector length, ``beta=1``, no
 masking). The family-based dispatch below extends cleanly to masked-remainder tiles later --
@@ -175,20 +176,36 @@ def gemm_func_to_peachpy(func_op: FuncOp) -> peachpy.x86_64.Function:
     return function
 
 
-def build_callable(routine_name: str, desc: GEMMDescriptor, arch: Arch):
+def build_function(
+    routine_name: str, desc: GEMMDescriptor, arch: Arch
+) -> peachpy.x86_64.Function:
     """
-    Generate the GEMM IR, translate it to PeachPy, and return either:
+    Generate the GEMM IR and translate it into an un-finalized :class:`peachpy.x86_64.Function`.
 
-    * a ctypes-callable kernel -- when the running interpreter is x86-64
-      (``abi.detect()`` is not ``None``): ``fn.finalize(abi).encode().load()``; or
-    * the un-finalized :class:`peachpy.x86_64.Function` otherwise -- direct calling requires
-      an x86-64 interpreter, but the caller can still
-      ``fn.finalize(abi.system_v_x86_64_abi).encode()`` to obtain the machine-code bytes.
+    Works on any host. To obtain machine-code bytes (including on a non-x86 interpreter),
+    ``build_function(...).finalize(abi.system_v_x86_64_abi).encode()``. For a directly-callable
+    kernel on an x86-64 host, use :func:`build_callable`.
     """
     _, func_op = build_gemm_module(routine_name, desc, arch)
-    function = gemm_func_to_peachpy(func_op)
+    return gemm_func_to_peachpy(func_op)
 
+
+def build_callable(routine_name: str, desc: GEMMDescriptor, arch: Arch):
+    """
+    Build the kernel and load it into a ctypes-callable, via
+    ``fn.finalize(abi).encode().load()``.
+
+    Requires the running interpreter to be x86-64 (``abi.detect()`` is not ``None``); raises
+    :class:`RuntimeError` otherwise. Use :func:`build_function` to obtain the un-finalized
+    ``Function`` / machine-code bytes on a non-x86 host.
+    """
     detected_abi = abi.detect()
-    if detected_abi is not None:
-        return function.finalize(detected_abi).encode().load()
-    return function
+    if detected_abi is None:
+        raise RuntimeError(
+            "build_callable requires an x86-64 interpreter "
+            "(peachpy.x86_64.abi.detect() returned None); use build_function() to obtain "
+            "the un-finalized Function or machine-code bytes on this host."
+        )
+    return (
+        build_function(routine_name, desc, arch).finalize(detected_abi).encode().load()
+    )
