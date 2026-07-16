@@ -39,7 +39,7 @@ import peachpy.x86_64.abi
 
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
-from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor
+from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMPrefetchType
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 from autotuner.libxsmm_gemm.peachpy_backend import build_callable
 
@@ -82,7 +82,7 @@ def jit_matmul(m: int, n: int, k: int) -> Callable[..., np.ndarray]:
         ldc=n,
         datatype=DescDatatype(dt, dt, dt, dt),
         flags=gemm_flags("N", "N"),  # no transpose, beta=1, unaligned
-        prefetch="nopf",
+        prefetch=GEMMPrefetchType.NONE,
     )
     kernel_fn = build_callable(f"matmul_{m}_{n}_{k}", desc, _ARCH)
 

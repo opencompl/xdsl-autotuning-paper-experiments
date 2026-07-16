@@ -260,8 +260,8 @@ def build_callable(routine_name: str, desc: GEMMDescriptor, arch: Arch):
     detected_abi = abi.detect()
     if detected_abi is None:
         raise RuntimeError(
-            "build_callable requires an x86-64 interpreter "
-            "(peachpy.x86_64.abi.detect() returned None); use build_function() to obtain "
+            "build_callable requires an x86-64 interpreter ",
+            "(peachpy.x86_64.abi.detect() returned None); use build_function() to obtain ",
             "the un-finalized Function or machine-code bytes on this host."
         )
     return (
