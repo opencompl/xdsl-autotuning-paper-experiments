@@ -26,7 +26,7 @@ explicit = true
 [tool.uv.sources]
 xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "91ebc42cfc59b15e6c5492075bd0f0010ad2076c" }
 tvm = { index = "corse" }
-peachpy = { path = "../PeachPy", editable = true }
+peachpy = { git = "https://github.com/jumerckx/PeachPy.git", branch = "jm/modern-python" }
 
 [project.scripts]
 hello = "autotuner.main:main"

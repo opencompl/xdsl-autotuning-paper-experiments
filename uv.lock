@@ -246,7 +246,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.3.1" },
-    { name = "peachpy", editable = "../PeachPy" },
+    { name = "peachpy", git = "https://github.com/jumerckx/PeachPy.git?branch=jm%2Fmodern-python" },
     { name = "snakemake", specifier = ">=8.30.0" },
     { name = "tvm", specifier = "==0.19.0.2025010903", index = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple" },
     { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=91ebc42cfc59b15e6c5492075bd0f0010ad2076c" },
@@ -2310,7 +2310,7 @@ wheels = [
 [[package]]
 name = "peachpy"
 version = "0.2.0"
-source = { editable = "../PeachPy" }
+source = { git = "https://github.com/jumerckx/PeachPy.git?branch=jm%2Fmodern-python#0038c883bc9b8308ae5e2dcbe5019bf2ef52d5d2" }
 
 [[package]]
 name = "pexpect"
