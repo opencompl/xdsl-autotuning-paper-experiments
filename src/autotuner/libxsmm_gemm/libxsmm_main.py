@@ -1,10 +1,11 @@
+from dataclasses import dataclass
 from enum import IntEnum, IntFlag, unique
-from typing import NamedTuple
 
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-class DescDatatype(NamedTuple):
+@dataclass
+class DescDatatype:
     a: Datatype
     b: Datatype
     c: Datatype
@@ -17,6 +18,9 @@ class DescDatatype(NamedTuple):
     @property
     def abc(self) -> Datatype | None:
         return self.a if self.a == self.b == self.c else None
+
+    def as_tuple(self) -> tuple[Datatype, Datatype, Datatype, Datatype]:
+        return (self.a, self.b, self.c, self.comp)
 
 
 class GEMMFlag(IntFlag):
@@ -171,7 +175,8 @@ class GEMMPrefetchType(IntEnum):
     # AL2BL2CL1 = 7
 
 
-class GEMMDescriptor(NamedTuple):
+@dataclass
+class GEMMDescriptor:
     m: int
     n: int
     k: int

@@ -1,7 +1,10 @@
+from xdsl.dialects import x86
 from xdsl.dialects.builtin import IntegerAttr
 from xdsl.dialects.x86.ops import si32
+from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
 from xdsl.ir import Block, SSAValue
 from xdsl.rewriter import InsertPoint, Rewriter
+
 from autotuner.libxsmm_gemm.generator_common import (
     GEMMStackVar,
     GPRegMapping,
@@ -15,16 +18,31 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_unified_vec_move_st,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
-
-from xdsl.dialects import x86
-
+from autotuner.libxsmm_gemm.libxsmm_generator import (
+    GeneratedCode,
+    KLoopVals,
+    MLoopVals,
+    NLoopVals,
+    VectorRegT,
+)
 from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMDescriptor,
     GEMMFlag,
     GEMMPrefetchType,
 )
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
+
+
+def vec_reg_type(vname: str) -> type[VectorRegT]:
+    match vname:
+        case "x":
+            return x86.registers.SSERegisterType
+        case "y":
+            return x86.registers.AVX2RegisterType
+        case "z":
+            return x86.registers.AVX512RegisterType
+        case _:
+            assert False, f"Unsupported vector name: {vname}"
 
 
 def libxsmm_generator_gemm_init_micro_kernel_config(
@@ -278,13 +296,13 @@ def libxsmm_generator_gemm_getval_stack_var(
     micro_kernel_config: MicroKernelConfig,
     stack_var: GEMMStackVar,
     destination: x86.registers.GeneralRegisterType,
-) -> SSAValue:
+    rbp_val: SSAValue[GeneralRegisterType],
+) -> SSAValue[GeneralRegisterType]:
     offset = GEMM_STACK_VAR_OFFSETS.get(stack_var, 0)
     # make sure we requested a legal stack var
     assert offset
-    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
     return generated_code.insert(
-        x86.ops.DM_MovOp(rbp, offset, destination=destination)
+        x86.ops.DM_MovOp(rbp_val, offset, destination=destination)
     ).destination
 
 
@@ -293,12 +311,66 @@ def libxsmm_generator_gemm_setval_stack_var(
     micro_kernel_config: MicroKernelConfig,
     stack_var: GEMMStackVar,
     source: SSAValue,
+    rbp_val: SSAValue[GeneralRegisterType],
 ) -> None:
     offset = GEMM_STACK_VAR_OFFSETS.get(stack_var, 0)
     # make sure we requested a legal stack var
     assert offset
-    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
-    generated_code.insert(x86.ops.MS_MovOp(rbp, source, offset))
+    generated_code.insert(x86.ops.MS_MovOp(rbp_val, source, offset))
+
+
+def _gpr(val: SSAValue) -> SSAValue[GeneralRegisterType]:
+    return SSAValue.get(val, type=GeneralRegisterType)
+
+
+def _nloop_from_args(args) -> NLoopVals:
+    a, b, c, rbp, rsp, n_ctr = args
+    rbp = _gpr(rbp)
+    rsp = _gpr(rsp)
+    assert rbp.type == x86.registers.RBP
+    assert rsp.type == x86.registers.RSP
+    return NLoopVals(_gpr(a), _gpr(b), _gpr(c), rbp, rsp, _gpr(n_ctr))
+
+
+def _mloop_from_args(args, has_mask: bool) -> MLoopVals:
+    a, b, c, rbp, rsp, n_ctr, m_ctr, *rest = args
+    rbp = _gpr(rbp)
+    rsp = _gpr(rsp)
+    assert rbp.type == x86.registers.RBP
+    assert rsp.type == x86.registers.RSP
+    mask = SSAValue.get(rest[0], type=AVX512MaskRegisterType) if has_mask else None
+    return MLoopVals(
+        _gpr(a), _gpr(b), _gpr(c), rbp, rsp, _gpr(n_ctr), _gpr(m_ctr), mask
+    )
+
+
+def _kloop_from_args(args, has_mask: bool, n_acc: int) -> KLoopVals:
+    args = list(args)
+    a, b, c, rbp, rsp, n_ctr, m_ctr = args[0:7]
+    idx = 7
+    mask = None
+    if has_mask:
+        mask = SSAValue.get(args[idx], type=AVX512MaskRegisterType)
+        idx += 1
+    acc = tuple(SSAValue.get(args[idx + i], type=VectorRegT) for i in range(n_acc))
+    idx += n_acc
+    k_ctr = args[idx]
+    rbp = _gpr(rbp)
+    rsp = _gpr(rsp)
+    assert rbp.type == x86.registers.RBP
+    assert rsp.type == x86.registers.RSP
+    return KLoopVals(
+        _gpr(a),
+        _gpr(b),
+        _gpr(c),
+        rbp,
+        rsp,
+        _gpr(n_ctr),
+        _gpr(m_ctr),
+        mask,
+        acc,
+        _gpr(k_ctr),
+    )
 
 
 def libxsmm_generator_gemm_header_kloop(
@@ -308,14 +380,14 @@ def libxsmm_generator_gemm_header_kloop(
     micro_kernel_config: MicroKernelConfig,
     m_blocking: int,
     k_blocking: int,
-) -> None:
+    vals: KLoopVals,
+) -> KLoopVals:
     """
     In original, adds three lines of assembly: set counter to 0, add label, add k_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
     """
     k_arg_reg = gp_reg_mapping.gp_reg_kloop
 
-    curr_vals = generated_code.current_val_by_reg
     generated_code.insert(k_init_op := x86.ops.DI_MovOp(0, destination=k_arg_reg))
 
     existing_block = k_init_op.parent
@@ -323,7 +395,21 @@ def libxsmm_generator_gemm_header_kloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    args = tuple(generated_code.current_val_by_reg.values())
+    # Ignore any incoming (unrolled) k_counter; the block K loop uses the freshly
+    # initialised counter as its loop-carried induction register.
+    entry = KLoopVals(
+        vals.a,
+        vals.b,
+        vals.c,
+        vals.rbp,
+        vals.rsp,
+        vals.n_counter,
+        vals.m_counter,
+        vals.mask_k1,
+        vals.acc_vectors,
+        k_init_op.destination,
+    )
+    args = entry.vals
     arg_types = tuple(arg.type for arg in args)
 
     assert k_init_op.next_op is None
@@ -342,13 +428,16 @@ def libxsmm_generator_gemm_header_kloop(
     )
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in body_block.args}
+    block_vals = _kloop_from_args(
+        body_block.args, vals.mask_k1 is not None, len(vals.acc_vectors)
+    )
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
-    generated_code.insert(
-        x86.ops.RI_AddOp(curr_vals[k_arg_reg], k_blocking, register_out=k_arg_reg)
-    )
+    assert block_vals.k_counter is not None
+    block_vals.k_counter = generated_code.insert(
+        x86.ops.RI_AddOp(block_vals.k_counter, k_blocking, register_out=k_arg_reg)
+    ).register_out
+    return block_vals
 
 
 def libxsmm_generator_gemm_footer_kloop(
@@ -356,37 +445,43 @@ def libxsmm_generator_gemm_footer_kloop(
     loop_label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
-    gemm_desc: GEMMDescriptor,
+    desc: GEMMDescriptor,
     m_blocking: int,
     max_blocked_k: int,
     k_loop_complete: bool,
-) -> None:
+    vals: KLoopVals,
+) -> KLoopVals:
+    assert vals.k_counter is not None
     generated_code.insert(
         x86.ops.SI_CmpOp(
-            generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_kloop],
+            vals.k_counter,
             max_blocked_k,
         )
     )
 
-    libxsmm_x86_instruction_jump_back_to_label(
-        generated_code, x86.ops.C_JlOp, loop_label_tracker
+    fallthrough_args = libxsmm_x86_instruction_jump_back_to_label(
+        generated_code, x86.ops.C_JlOp, loop_label_tracker, vals.vals
     )
+    result = _kloop_from_args(
+        fallthrough_args, vals.mask_k1 is not None, len(vals.acc_vectors)
+    )
+
     if k_loop_complete:
         b_offset = 0
-        if GEMMFlag.TRANS_B in gemm_desc.flags:
-            b_offset = (
-                gemm_desc.ldb * gemm_desc.k * micro_kernel_config.datatype_size_in2
-            )
+        if GEMMFlag.TRANS_B in desc.flags:
+            b_offset = desc.ldb * desc.k * micro_kernel_config.datatype_size_in2
         else:
-            b_offset = gemm_desc.ldb * micro_kernel_config.datatype_size_in2
+            b_offset = desc.ldb * micro_kernel_config.datatype_size_in2
 
-        generated_code.insert(
+        result.b = generated_code.insert(
             x86.ops.RI_SubOp(
-                generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b],
+                result.b,
                 b_offset,
-                register_out=gp_reg_mapping.gp_reg_b,
+                register_out=result.b.type,
             )
-        )
+        ).register_out
+
+    return result
 
 
 def libxsmm_generator_gemm_get_blocking_and_mask(
@@ -415,7 +510,12 @@ def libxsmm_generator_gemm_setup_stack_frame(
     desc: GEMMDescriptor,
     gp_reg_mapping: GPRegMapping,
     config: MicroKernelConfig,
-):
+) -> tuple[SSAValue[GeneralRegisterType], SSAValue[GeneralRegisterType]]:
+    """
+    Sets up stack frame with reserved offsets.
+
+    Returns RBP and RSP.
+    """
     temp_reg = x86.registers.R10
     l_is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
     l_is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
@@ -425,13 +525,17 @@ def libxsmm_generator_gemm_setup_stack_frame(
     l_is_Abf8_Bf16_gemm = desc.is_Abf8_Bf16_gemm()
     l_is_Ahf8_Bbf16_gemm = desc.is_Ahf8_Bbf16_gemm()
 
-    rbp = generated_code.insert(x86.ops.GetRegisterOp(x86.registers.RBP)).result
-    rsp = generated_code.insert(x86.ops.GetRegisterOp(x86.registers.RSP)).result
-    rsp = generated_code.insert(x86.ops.S_PushOp(rsp, rbp)).rsp_out
-    rbp = generated_code.insert(
-        x86.ops.DS_MovOp(rsp, destination=x86.registers.RBP)
+    rbp_val: SSAValue[GeneralRegisterType] = generated_code.insert(
+        x86.ops.GetRegisterOp(x86.registers.RBP)
+    ).result
+    rsp_val: SSAValue[GeneralRegisterType] = generated_code.insert(
+        x86.ops.GetRegisterOp(x86.registers.RSP)
+    ).result
+    rsp_val = generated_code.insert(x86.ops.S_PushOp(rsp_val, rbp_val)).rsp_out
+    rbp_val = generated_code.insert(
+        x86.ops.DS_MovOp(rsp_val, destination=x86.registers.RBP)
     ).destination
-    rsp = generated_code.insert(x86.ops.RI_SubOp(rsp, 192)).register_out
+    rsp_val = generated_code.insert(x86.ops.RI_SubOp(rsp_val, 192)).register_out
 
     # The stack now looks like this:
     #      10th param (if applicable)                <-- RBP+80
@@ -506,7 +610,7 @@ def libxsmm_generator_gemm_setup_stack_frame(
     temp = generated_code.builder.insert(
         x86.ops.DI_MovOp(IntegerAttr(-64, si32), destination=temp_reg)
     ).destination
-    rsp = generated_code.insert(x86.ops.RS_AndOp(rsp, temp))
+    rsp_val = generated_code.insert(x86.ops.RS_AndOp(rsp_val, temp)).register_out
 
     # Now allocate in stack required GEMM scratch if necessary
 
@@ -553,18 +657,23 @@ def libxsmm_generator_gemm_setup_stack_frame(
     #      SSE/AVX2 low precision helper, 64b aligned <-- (RBP-112) contains this address
     #      GEMM scratch, 64b aligned             <-- (RBP-48) contains this address
 
+    return (rbp_val, rsp_val)
+
 
 def libxsmm_generator_gemm_destroy_stack_frame(
     generated_code: GeneratedCode,
     desc: GEMMDescriptor,
     gp_reg_mapping: GPRegMapping,
     config: MicroKernelConfig,
-) -> None:
-    rbp = generated_code.current_val_by_reg[x86.registers.RBP]
+    rbp_val: SSAValue[GeneralRegisterType],
+) -> SSAValue[GeneralRegisterType]:
     rsp = generated_code.insert(
-        x86.ops.DS_MovOp(rbp, destination=x86.registers.RSP)
+        x86.ops.DS_MovOp(rbp_val, destination=x86.registers.RSP)
     ).destination
-    rbp = generated_code.insert(x86.ops.D_PopOp(rsp, destination=x86.registers.RBP))
+    rbp_val = generated_code.insert(
+        x86.ops.D_PopOp(rsp, destination=x86.registers.RBP)
+    ).destination
+    return rbp_val
 
 
 def libxsmm_generator_gemm_setup_stack_frame_allocate_scratch(
@@ -792,14 +901,18 @@ def libxsmm_generator_gemm_header_nloop(
     micro_kernel_config: MicroKernelConfig,
     n_init: int,
     n_blocking: int,
-) -> None:
+    a_val: SSAValue[GeneralRegisterType],
+    b_val: SSAValue[GeneralRegisterType],
+    c_val: SSAValue[GeneralRegisterType],
+    rbp_val: SSAValue[GeneralRegisterType],
+    rsp_val: SSAValue[GeneralRegisterType],
+) -> NLoopVals:
     """
     In original, adds three lines of assembly: set counter to n_init, add label, add n_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
     """
     n_arg_reg = gp_reg_mapping.gp_reg_nloop
 
-    curr_vals = generated_code.current_val_by_reg
     generated_code.insert(n_init_op := x86.ops.DI_MovOp(n_init, destination=n_arg_reg))
 
     existing_block = n_init_op.parent
@@ -807,7 +920,8 @@ def libxsmm_generator_gemm_header_nloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    args = tuple(generated_code.current_val_by_reg.values())
+    entry = NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, n_init_op.destination)
+    args = entry.vals
     arg_types = tuple(arg.type for arg in args)
 
     assert n_init_op.next_op is None
@@ -826,13 +940,13 @@ def libxsmm_generator_gemm_header_nloop(
     )
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in body_block.args}
+    block_vals = _nloop_from_args(body_block.args)
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
-    generated_code.insert(
-        x86.ops.RI_AddOp(curr_vals[n_arg_reg], n_blocking, register_out=n_arg_reg)
-    )
+    block_vals.n_counter = generated_code.insert(
+        x86.ops.RI_AddOp(block_vals.n_counter, n_blocking, register_out=n_arg_reg)
+    ).register_out
+    return block_vals
 
 
 def libxsmm_generator_gemm_footer_nloop(
@@ -843,7 +957,12 @@ def libxsmm_generator_gemm_footer_nloop(
     desc: GEMMDescriptor,
     n_blocking: int,
     n_done: int,
-) -> None:
+    vals: NLoopVals,
+) -> NLoopVals:
+    a_val = vals.a
+    b_val = vals.b
+    c_val = vals.c
+
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
     is_Ai2_Bi8_gemm = desc.is_Ai2_Bi8_gemm()
     is_Ai1_Bi8_gemm = desc.is_Ai1_Bi8_gemm()
@@ -857,14 +976,13 @@ def libxsmm_generator_gemm_footer_nloop(
     elif desc.datatype.c == Datatype.I8:
         raise NotImplementedError
     else:
-        c = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_c]
-        generated_code.insert(
+        c_val = generated_code.insert(
             x86.ops.RI_AddOp(
-                c,
+                c_val,
                 (n_blocking * (desc.ldc) * (micro_kernel_config.datatype_size_out))
                 - ((desc.m) * (micro_kernel_config.datatype_size_out)),
             )
-        )
+        ).register_out
 
     if (
         desc.datatype.c in (Datatype.F16, Datatype.F32)
@@ -912,6 +1030,7 @@ def libxsmm_generator_gemm_footer_nloop(
             micro_kernel_config,
             GEMMStackVar.ELT_OUTPUT_PTR,
             gp_reg_mapping.gp_reg_help_0,
+            vals.rbp,
         )
         output_ptr = generated_code.insert(
             x86.ops.RI_AddOp(output_ptr, (n_blocking * (desc.ldc) * 2) - ((desc.m) * 2))
@@ -921,6 +1040,7 @@ def libxsmm_generator_gemm_footer_nloop(
             micro_kernel_config,
             GEMMStackVar.ELT_OUTPUT_PTR,
             output_ptr,
+            vals.rbp,
         )
 
     if micro_kernel_config.fused_bcolbias or micro_kernel_config.fused_hcolbias:
@@ -967,16 +1087,14 @@ def libxsmm_generator_gemm_footer_nloop(
         else:
             b_offset = n_blocking * desc.ldb * micro_kernel_config.datatype_size_in2
 
-        a = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_a]
-        b = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b]
-        b = generated_code.insert(x86.ops.RI_AddOp(b, b_offset)).register_out
+        b_val = generated_code.insert(x86.ops.RI_AddOp(b_val, b_offset)).register_out
 
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
         else:
-            a = generated_code.insert(
+            a_val = generated_code.insert(
                 x86.ops.RI_SubOp(
-                    a,
+                    a_val,
                     desc.m
                     * micro_kernel_config.datatype_size_in
                     * k_pack_factor
@@ -995,14 +1113,16 @@ def libxsmm_generator_gemm_footer_nloop(
 
     generated_code.insert(
         x86.ops.SI_CmpOp(
-            generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_nloop],
+            vals.n_counter,
             n_done,
         )
     )
 
-    libxsmm_x86_instruction_jump_back_to_label(
-        generated_code, x86.ops.C_JlOp, loop_label_tracker
+    curr_args = NLoopVals(a_val, b_val, c_val, vals.rbp, vals.rsp, vals.n_counter).vals
+    fallthrough_args = libxsmm_x86_instruction_jump_back_to_label(
+        generated_code, x86.ops.C_JlOp, loop_label_tracker, curr_args
     )
+    return _nloop_from_args(fallthrough_args)
 
 
 def libxsmm_generator_gemm_header_mloop(
@@ -1012,14 +1132,15 @@ def libxsmm_generator_gemm_header_mloop(
     micro_kernel_config: MicroKernelConfig,
     m_init: int,
     m_blocking: int,
-) -> None:
+    vals: NLoopVals,
+    mask_k1: SSAValue[AVX512MaskRegisterType] | None,
+) -> MLoopVals:
     """
     In original, adds three lines of assembly: set counter to m_init, add label, add m_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
     """
     m_arg_reg = gp_reg_mapping.gp_reg_mloop
 
-    curr_vals = generated_code.current_val_by_reg
     generated_code.insert(m_init_op := x86.ops.DI_MovOp(m_init, destination=m_arg_reg))
 
     existing_block = m_init_op.parent
@@ -1027,7 +1148,17 @@ def libxsmm_generator_gemm_header_mloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    args = tuple(generated_code.current_val_by_reg.values())
+    entry = MLoopVals(
+        vals.a,
+        vals.b,
+        vals.c,
+        vals.rbp,
+        vals.rsp,
+        vals.n_counter,
+        m_init_op.destination,
+        mask_k1,
+    )
+    args = entry.vals
     arg_types = tuple(arg.type for arg in args)
 
     assert m_init_op.next_op is None
@@ -1046,13 +1177,13 @@ def libxsmm_generator_gemm_header_mloop(
     )
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    curr_vals.clear()
-    curr_vals |= {arg.type: arg for arg in body_block.args}
+    block_vals = _mloop_from_args(body_block.args, mask_k1 is not None)
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
-    generated_code.insert(
-        x86.ops.RI_AddOp(curr_vals[m_arg_reg], m_blocking, register_out=m_arg_reg)
-    )
+    block_vals.m_counter = generated_code.insert(
+        x86.ops.RI_AddOp(block_vals.m_counter, m_blocking, register_out=m_arg_reg)
+    ).register_out
+    return block_vals
 
 
 def libxsmm_generator_gemm_footer_mloop(
@@ -1063,7 +1194,11 @@ def libxsmm_generator_gemm_footer_mloop(
     desc: GEMMDescriptor,
     m_blocking: int,
     m_done: int,
-) -> None:
+    vals: MLoopVals,
+) -> MLoopVals:
+    a_val = vals.a
+    c_val = vals.c
+
     # k packing factor for VNNI
     k_pack_factor = 1
     is_Ai4_Bf16_gemm = (
@@ -1101,9 +1236,8 @@ def libxsmm_generator_gemm_footer_mloop(
         raise NotImplementedError
 
     # Advance C pointer
-    c = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_c]
-    c = generated_code.insert(
-        x86.ops.RI_AddOp(c, m_blocking * micro_kernel_config.datatype_size_out)
+    c_val = generated_code.insert(
+        x86.ops.RI_AddOp(c_val, m_blocking * micro_kernel_config.datatype_size_out)
     ).register_out
 
     if (
@@ -1183,7 +1317,6 @@ def libxsmm_generator_gemm_footer_mloop(
         desc.k * micro_kernel_config.datatype_size_in * desc.lda // k_scale
         - m_blocking * micro_kernel_config.datatype_size_in * k_pack_factor // a_adjust
     )
-    a = generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_a]
 
     # A prefetch
     if desc.prefetch == GEMMPrefetchType.AL2:
@@ -1201,20 +1334,36 @@ def libxsmm_generator_gemm_footer_mloop(
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
         else:
-            a = generated_code.insert(x86.ops.RI_SubOp(a, a_offset)).register_out
+            a_val = generated_code.insert(
+                x86.ops.RI_SubOp(a_val, a_offset)
+            ).register_out
 
     # loop handling
 
     generated_code.insert(
         x86.ops.SI_CmpOp(
-            generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_mloop],
+            vals.m_counter,
             m_done,
         )
     )
 
-    libxsmm_x86_instruction_jump_back_to_label(
-        generated_code, x86.ops.C_JlOp, loop_label_tracker
+    curr_args = MLoopVals(
+        a_val,
+        vals.b,
+        c_val,
+        vals.rbp,
+        vals.rsp,
+        vals.n_counter,
+        vals.m_counter,
+        vals.mask_k1,
+    ).vals
+    fallthrough_args = libxsmm_x86_instruction_jump_back_to_label(
+        generated_code, x86.ops.C_JlOp, loop_label_tracker, curr_args
     )
+    return _mloop_from_args(fallthrough_args, vals.mask_k1 is not None)
+
+
+AccVals = tuple[SSAValue[VectorRegT], ...]
 
 
 def libxsmm_generator_gemm_load_C(
@@ -1224,7 +1373,11 @@ def libxsmm_generator_gemm_load_C(
     desc: GEMMDescriptor,
     m_blocking: int,
     n_blocking: int,
-) -> None:
+    *,
+    c_val: SSAValue[GeneralRegisterType],
+    mask_k1: SSAValue[AVX512MaskRegisterType] | None = None,
+) -> AccVals:
+    result: list[SSAValue[VectorRegT]] = []
     # register blocking counter in n
     n = 0
     # register blocking counter in m
@@ -1380,22 +1533,31 @@ def libxsmm_generator_gemm_load_C(
                 for n in range(n_blocking):
                     for m in range(m_blocking):
                         vname_load = micro_kernel_config.vector_name
-                        mask_reg_or_val = (
-                            (
-                                2
-                                if (
-                                    is_Amxfp4_Bbf16_gemm
-                                    or is_Amxfp4_Bfp32_gemm
-                                    or is_Amxfp4_Bi8_gemm
-                                )
-                                else 1
-                            )
-                            if (
-                                micro_kernel_config.instruction_set
-                                >= Arch.LIBXSMM_X86_AVX
-                            )
-                            else m_blocking % micro_kernel_config.vector_length
+                        dest_type = vec_reg_type(vname_load)
+                        c_vec_reg = dest_type.from_index(
+                            vec_reg_acc_start + m + (m_blocking * n)
                         )
+                        last_iteration = m == m_blocking - 1
+                        use_masking = (
+                            micro_kernel_config.use_masking_a_c and last_iteration
+                        )
+                        if (
+                            micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX
+                            and use_masking
+                        ):
+                            use_k2_mask = (
+                                is_Amxfp4_Bbf16_gemm
+                                or is_Amxfp4_Bfp32_gemm
+                                or is_Amxfp4_Bi8_gemm
+                            )
+                            if use_k2_mask:
+                                raise NotImplementedError
+
+                            mask_val = mask_k1
+                            _mask_const = None
+                        else:
+                            mask_val = None
+                            _mask_const = m_blocking % micro_kernel_config.vector_length
 
                         if (
                             Datatype.F32 == desc.datatype.comp
@@ -1408,22 +1570,20 @@ def libxsmm_generator_gemm_load_C(
                             raise NotImplementedError
 
                         # we only mask the last m-blocked load
-                        libxsmm_x86_instruction_unified_vec_move_ld(
+                        res_vec = libxsmm_x86_instruction_unified_vec_move_ld(
                             generated_code,
                             micro_kernel_config.c_vmove_ld_instruction,
-                            gp_reg_mapping.gp_reg_c,
+                            c_val,
                             None,
                             0,
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
                             * (micro_kernel_config.datatype_size_out),
-                            vname_load,
-                            vec_reg_acc_start + m + (m_blocking * n),
-                            micro_kernel_config.use_masking_a_c
-                            if (m == (m_blocking - 1))
-                            else False,
-                            mask_reg_or_val,
+                            c_vec_reg,
+                            use_masking,
+                            mask_val,
                             False,
                         )
+                        result.append(res_vec)
                         if (
                             Datatype.F16 == desc.datatype.c
                             and Datatype.F32 == desc.datatype.comp
@@ -1472,6 +1632,8 @@ def libxsmm_generator_gemm_load_C(
                         #     l_vec_reg_acc_start + l_m + (l_m_blocking * l_n),
                         #     l_vec_reg_acc_start + l_m + (l_m_blocking * l_n) );
 
+    return tuple(result)
+
 
 def libxsmm_generator_gemm_store_C(
     generated_code: GeneratedCode,
@@ -1480,6 +1642,10 @@ def libxsmm_generator_gemm_store_C(
     desc: GEMMDescriptor,
     m_blocking: int,
     n_blocking: int,
+    *,
+    c_val: SSAValue[GeneralRegisterType],
+    acc_vectors: tuple[SSAValue[VectorRegT], ...],
+    mask_k1: SSAValue[AVX512MaskRegisterType] | None = None,
 ) -> None:
     # deriving register blocking from kernel config
     is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
@@ -1491,8 +1657,6 @@ def libxsmm_generator_gemm_store_C(
         if m_blocking % micro_kernel_config.vector_length == 0
         else (m_blocking // micro_kernel_config.vector_length + 1)
     )
-    # start register of accumulator
-    vec_reg_acc_start = micro_kernel_config.vector_reg_count - n_blocking * m_blocking
     # select store instruction */
     if GEMMFlag.ALIGN_C_NTS_HINT in desc.flags:
         raise NotImplementedError
@@ -1616,23 +1780,27 @@ def libxsmm_generator_gemm_store_C(
 
             for n in range(n_blocking):
                 for m in range(m_blocking):
-                    reg_X = vec_reg_acc_start + m + m_blocking * n
-
-                    mask_reg_or_val = (
-                        (
-                            2
-                            if (
-                                is_Amxfp4_Bbf16_gemm
-                                or is_Amxfp4_Bfp32_gemm
-                                or is_Amxfp4_Bi8_gemm
-                            )
-                            else 1
+                    last_iteration = m == m_blocking - 1
+                    use_masking = micro_kernel_config.use_masking_a_c and last_iteration
+                    if (
+                        micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX
+                        and use_masking
+                    ):
+                        use_k2_mask = (
+                            is_Amxfp4_Bbf16_gemm
+                            or is_Amxfp4_Bfp32_gemm
+                            or is_Amxfp4_Bi8_gemm
                         )
-                        if (micro_kernel_config.instruction_set >= Arch.LIBXSMM_X86_AVX)
-                        else m_blocking % micro_kernel_config.vector_length
-                    )
+                        if use_k2_mask:
+                            raise NotImplementedError
 
-                    vname_store = micro_kernel_config.vector_name
+                        mask_val = mask_k1
+                        _mask_const = None
+                    else:
+                        mask_val = None
+                        _mask_const = m_blocking % micro_kernel_config.vector_length
+
+                    c_vec_val = acc_vectors[m + m_blocking * n]
 
                     if (
                         micro_kernel_config.fused_relu_nobitmask
@@ -1642,12 +1810,13 @@ def libxsmm_generator_gemm_store_C(
                     elif micro_kernel_config.fused_sigmoid:
                         raise NotImplementedError
 
+                    last_iteration = m == m_blocking - 1
+                    use_masking = micro_kernel_config.use_masking_a_c and last_iteration
                     if (
                         Arch.LIBXSMM_X86_AVX
                         <= micro_kernel_config.instruction_set
                         < Arch.LIBXSMM_X86_AVX512_VL256_SKX
-                        and micro_kernel_config.use_masking_a_c
-                        and (m == m_blocking - 1)
+                        and use_masking
                     ):
                         raise NotImplementedError
 
@@ -1672,28 +1841,30 @@ def libxsmm_generator_gemm_store_C(
                     ):
                         raise NotImplementedError
 
+                    last_iteration = m == m_blocking - 1
+                    use_masking = micro_kernel_config.use_masking_a_c and last_iteration
                     if (
                         (desc.is_Amxfp4_Bbf16_gemm() or desc.is_Amxfp4_Bi8_gemm())
                         and Datatype.BF16 == desc.datatype.c
-                        and micro_kernel_config.use_masking_a_c
-                        and (m == m_blocking - 1)
+                        and use_masking
                     ):
                         raise NotImplementedError
                     else:
+                        last_iteration = m == m_blocking - 1
+                        use_masking = (
+                            micro_kernel_config.use_masking_a_c and last_iteration
+                        )
                         libxsmm_x86_instruction_unified_vec_move_st(
                             generated_code,
                             vstore,
-                            gp_reg_mapping.gp_reg_c,
+                            c_val,
                             None,
                             0,
                             ((n * desc.ldc) + (m * (micro_kernel_config.vector_length)))
                             * (micro_kernel_config.datatype_size_out),
-                            vname_store,
-                            reg_X,
-                            micro_kernel_config.use_masking_a_c
-                            if (m == (m_blocking - 1))
-                            else False,
-                            mask_reg_or_val,
+                            c_vec_val,
+                            use_masking,
+                            mask_val,
                             True,
                         )
             if bf16cvt_replacement:

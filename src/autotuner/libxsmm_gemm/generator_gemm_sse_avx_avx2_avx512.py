@@ -16,11 +16,13 @@ from xdsl.dialects.x86.registers import (
     RDX,
     RSI,
     UNALLOCATED_REG64,
+    GeneralRegisterType,
 )
 from xdsl.dialects.x86_func import FuncOp
+from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import (
-    LIBXSMM_X86_AVX512_MASK,
+    LIBXSMM_X86_AVX512_MASK_REG,
     GPRegMapping,
     LoopLabelTracker,
     MicroKernelConfig,
@@ -50,9 +52,13 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
-from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
+from autotuner.libxsmm_gemm.libxsmm_generator import (
+    GeneratedCode,
+    KLoopVals,
+    MLoopVals,
+    NLoopVals,
+)
 from autotuner.libxsmm_gemm.libxsmm_main import (
-    DescDatatype,
     GEMMDescriptor,
     GEMMFlag,
     GEMMPrefetchType,
@@ -91,9 +97,11 @@ def _build_gp_reg_mapping(desc: GEMMDescriptor) -> GPRegMapping:
     gp_reg_mapping.gp_reg_zpt = R9
 
     # Python translation of register assignment logic
-    dt = desc.datatype
-
-    if dt.a == dt.b == "I8" and dt.c == "F32" and not is_amxfp4_bi8_gemm:
+    if (
+        desc.datatype.a == desc.datatype.b == "I8"
+        and desc.datatype.c == "F32"
+        and not is_amxfp4_bi8_gemm
+    ):
         gp_reg_mapping.gp_reg_scf = RCX
         gp_reg_mapping.gp_reg_a_prefetch = R8
         gp_reg_mapping.gp_reg_b_prefetch = R9
@@ -101,8 +109,14 @@ def _build_gp_reg_mapping(desc: GEMMDescriptor) -> GPRegMapping:
         gp_reg_mapping.gp_reg_scf = RCX
         if is_amxfp4_bi8_gemm:
             gp_reg_mapping.gp_reg_zpt = RBX
-    elif (dt.a == "I8" and dt.b == "F16" and dt.c in ("F16", "F32")) or (
-        dt.a == "I8" and dt.b == "BF16" and dt.c in ("BF16", "F32")
+    elif (
+        desc.datatype.a == "I8"
+        and desc.datatype.b == "F16"
+        and desc.datatype.c in ("F16", "F32")
+    ) or (
+        desc.datatype.a == "I8"
+        and desc.datatype.b == "BF16"
+        and desc.datatype.c in ("BF16", "F32")
     ):
         gp_reg_mapping.gp_reg_scf = RBX
         gp_reg_mapping.gp_reg_zpt = RCX
@@ -146,9 +160,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
 
     builder = Builder(InsertPoint.at_end(func_op.body.block))
 
-    generated_code = GeneratedCode(
-        func_op, builder, arch, {arg.type: arg for arg in func_op.body.block.args}
-    )
+    generated_code = GeneratedCode(func_op, builder, arch)
 
     libxsmm_x86_instruction_open_stream_gemm(
         generated_code, gp_reg_mapping, False, desc.prefetch
@@ -178,9 +190,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel_wrapper(
 
     builder = Builder(InsertPoint.at_end(func_op.body.block))
 
-    generated_code = GeneratedCode(
-        func_op, builder, arch, {arg.type: arg for arg in func_op.body.block.args}
-    )
+    generated_code = GeneratedCode(func_op, builder, arch)
 
     libxsmm_x86_instruction_open_stream_gemm(
         generated_code, gp_reg_mapping, False, desc.prefetch
@@ -202,7 +212,10 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel(
     headers and footers. The tile dimensions are taken directly from the descriptor
     (``m_blocking = desc.m``, ``n_blocking = desc.n``).
     """
-    m, n, k, lda, ldb, ldc, dt, flags, prefetch = desc
+    m = desc.m
+    n = desc.n
+    dt = desc.datatype
+    flags = desc.flags
 
     # The microkernel-only path targets plain dense F32/F64 GEMM (the only case the
     # generator currently supports). Reject the special cases that the full kernel
@@ -226,8 +239,16 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel(
 
     loop_label_tracker = LoopLabelTracker()
 
-    # Setting up the stack frame
-    libxsmm_generator_gemm_setup_stack_frame(
+    # The base pointers arrive as the function's block arguments (A, B, C). Their live
+    # SSA values are threaded explicitly through every generator (there is no longer a
+    # register->value dictionary), mirroring the full kernel entry.
+    a_arg, b_arg, c_arg = generated_code.func_op.body.block.args
+    a_val = SSAValue.get(a_arg, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_arg, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_arg, type=GeneralRegisterType)
+
+    # Setting up the stack frame (returns the live RBP/RSP values to thread onward).
+    rbp_val, rsp_val = libxsmm_generator_gemm_setup_stack_frame(
         generated_code, desc, gp_reg_mapping, micro_kernel_config
     )
 
@@ -244,6 +265,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel(
 
     # Load the AVX512 tail mask when the M block is not a full multiple of the vector
     # length (mirror of the F64/F32 branch of the full kernel's m-loop body).
+    mask_k1_val = None
     if micro_kernel_config.use_masking_a_c:
         if (
             Arch.LIBXSMM_X86_AVX512_VL256_SKX
@@ -252,25 +274,39 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel(
         ):
             corrected_vlen = micro_kernel_config.vector_length
             mask_count = corrected_vlen - (m_blocking % corrected_vlen)
-            libxsmm_generator_initialize_avx512_mask(
+            mask_k1_val = libxsmm_generator_initialize_avx512_mask(
                 generated_code,
                 gp_reg_mapping.gp_reg_help_1,
-                LIBXSMM_X86_AVX512_MASK,
+                LIBXSMM_X86_AVX512_MASK_REG,
                 mask_count,
                 desc.datatype.c,
             )
         else:
             raise NotImplementedError
 
-    libxsmm_generator_gemm_load_C(
+    # The K loop threads its live values (including the outer N/M loop counters) as
+    # block arguments via KLoopVals.vals. A microkernel has no N/M loops to produce
+    # those counters, so emit the same zero-initialisations the loop headers would
+    # (r11/r10 <- 0). They give conflict-free dominating SSA values that are carried as
+    # harmless pass-throughs: never incremented, dead after the K loop.
+    n_counter_val = generated_code.insert(
+        x86.ops.DI_MovOp(0, destination=gp_reg_mapping.gp_reg_nloop)
+    ).destination
+    m_counter_val = generated_code.insert(
+        x86.ops.DI_MovOp(0, destination=gp_reg_mapping.gp_reg_mloop)
+    ).destination
+
+    acc_vals = libxsmm_generator_gemm_load_C(
         generated_code,
         gp_reg_mapping,
         micro_kernel_config,
         desc,
         m_blocking,
         n_blocking,
+        c_val=c_val,
+        mask_k1=mask_k1_val,
     )
-    libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
+    kloop_vals = libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         generated_code,
         loop_label_tracker,
         gp_reg_mapping,
@@ -278,6 +314,17 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel(
         desc,
         m_blocking,
         n_blocking,
+        KLoopVals(
+            a_val,
+            b_val,
+            c_val,
+            rbp_val,
+            rsp_val,
+            n_counter_val,
+            m_counter_val,
+            mask_k1_val,
+            acc_vals,
+        ),
     )
     libxsmm_generator_gemm_store_C(
         generated_code,
@@ -286,11 +333,14 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel(
         desc,
         m_blocking,
         n_blocking,
+        c_val=kloop_vals.c,
+        acc_vectors=kloop_vals.acc_vectors,
+        mask_k1=kloop_vals.mask_k1,
     )
 
     # destroy stack frame
     libxsmm_generator_gemm_destroy_stack_frame(
-        generated_code, desc, gp_reg_mapping, micro_kernel_config
+        generated_code, desc, gp_reg_mapping, micro_kernel_config, kloop_vals.rbp
     )
 
 
@@ -301,14 +351,17 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     desc: GEMMDescriptor,
 ) -> None:
     micro_kernel_config = MicroKernelConfig()
-    # These values may be modified below
-    m, n, k, lda, ldb, ldc, dt, flags, prefetch = desc
+
+    a_arg, b_arg, c_arg = generated_code.func_op.body.block.args
+    a_val = SSAValue.get(a_arg, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_arg, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_arg, type=GeneralRegisterType)
 
     is_Ai4_Bf16_gemm = (
         ((desc.flags & GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2) > 0)
-        and (Datatype.I8 == dt.a)
-        and (Datatype.F16 == dt.b)
-        and (dt.c in (Datatype.F16, Datatype.F32))
+        and (Datatype.I8 == desc.datatype.a)
+        and (Datatype.F16 == desc.datatype.b)
+        and (desc.datatype.c in (Datatype.F16, Datatype.F32))
     )
 
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
@@ -323,8 +376,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.TRANS_B) == 0)
         and ((desc.flags & GEMMFlag.VNNI_B) == 0)
-        and (k % 2 == 0)
-        and (Datatype.BF16 == dt.ab)
+        and (desc.k % 2 == 0)
+        and (Datatype.BF16 == desc.datatype.ab)
     )
 
     atvnni_gemm_stack_alloc_tensors = (
@@ -332,8 +385,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.TRANS_B) == 0)
         and ((desc.flags & GEMMFlag.VNNI_B) == 0)
-        and (k % 2 == 0)
-        and (Datatype.BF16 == dt.ab)
+        and (desc.k % 2 == 0)
+        and (Datatype.BF16 == desc.datatype.ab)
     )
 
     avnni_btrans_gemm_stack_alloc_tensors = (
@@ -341,8 +394,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.TRANS_B) != 0)
         and ((desc.flags & GEMMFlag.VNNI_B) == 0)
-        and (k % 2 == 0)
-        and (Datatype.BF16 == dt.ab)
+        and (desc.k % 2 == 0)
+        and (Datatype.BF16 == desc.datatype.ab)
     )
 
     atvnni_btrans_gemm_stack_alloc_tensors = (
@@ -350,8 +403,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.TRANS_B) != 0)
         and ((desc.flags & GEMMFlag.VNNI_B) == 0)
-        and (k % 2 == 0)
-        and (Datatype.BF16 == dt.ab)
+        and (desc.k % 2 == 0)
+        and (Datatype.BF16 == desc.datatype.ab)
     )
 
     # Initialize n-blocking variables
@@ -365,9 +418,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     max_n_blocking = 0
 
     is_Ai8_Bbf16_gemm = (
-        (Datatype.I8 == dt.a and not is_Amxfp4_Bbf16_gemm)
-        and (Datatype.BF16 == dt.b)
-        and (dt.c in (Datatype.BF16, Datatype.F32))
+        (Datatype.I8 == desc.datatype.a and not is_Amxfp4_Bbf16_gemm)
+        and (Datatype.BF16 == desc.datatype.b)
+        and (desc.datatype.c in (Datatype.BF16, Datatype.F32))
     )
 
     # TODO: we need to implement a consolidate solution for callee save stuff
@@ -391,20 +444,27 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     # In case of F16 and IMPLICIT compute set proper compute
     if (
-        ((dt.a in (Datatype.I8, Datatype.BF8)) and dt.b == Datatype.F16)
-        or (dt.a == Datatype.F16 and dt.b == Datatype.F16)
-    ) and dt.comp == Datatype.IMPLICIT:
+        (
+            (desc.datatype.a in (Datatype.I8, Datatype.BF8))
+            and desc.datatype.b == Datatype.F16
+        )
+        or (desc.datatype.a == Datatype.F16 and desc.datatype.b == Datatype.F16)
+    ) and desc.datatype.comp == Datatype.IMPLICIT:
         # if architecture is AMX (Sapphire Rapids or newer), compute in F16. Otherwise F32.
         if generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SPR:
             # Set desc.datatype fields for computation in F16
-            dt = DescDatatype(dt.a, dt.b, dt.c, Datatype.F16)
+            desc.datatype.comp = Datatype.F16
         else:
             # Set desc.datatype fields for computation in F32
-            dt = DescDatatype(dt.a, dt.b, dt.c, Datatype.F32)
+            desc.datatype.comp = Datatype.F32
 
     # In case of BF8/HF8 we might need to set different precisions
-    if (dt.a == Datatype.BF8 and dt.b in (Datatype.BF8, Datatype.HF8)) or (
-        dt.a == Datatype.HF8 and dt.b in (Datatype.BF8, Datatype.HF8)
+    if (
+        desc.datatype.a == Datatype.BF8
+        and desc.datatype.b in (Datatype.BF8, Datatype.HF8)
+    ) or (
+        desc.datatype.a == Datatype.HF8
+        and desc.datatype.b in (Datatype.BF8, Datatype.HF8)
     ):
         raise NotImplementedError
 
@@ -415,14 +475,14 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         or avnni_btrans_gemm_stack_alloc_tensors
         or atvnni_btrans_gemm_stack_alloc_tensors
     ):
-        flags |= GEMMFlag.VNNI_A
+        desc.flags |= GEMMFlag.VNNI_A
 
     if atvnni_gemm_stack_alloc_tensors or atvnni_btrans_gemm_stack_alloc_tensors:
-        flags &= ~GEMMFlag.TRANS_A
-        assert lda % 2 == 0, "LIBXSMM_ERR_VNNI_A"
+        desc.flags &= ~GEMMFlag.TRANS_A
+        assert desc.lda % 2 == 0, "LIBXSMM_ERR_VNNI_A"
 
     if avnni_btrans_gemm_stack_alloc_tensors or atvnni_btrans_gemm_stack_alloc_tensors:
-        flags &= ~GEMMFlag.TRANS_B
+        desc.flags &= ~GEMMFlag.TRANS_B
 
     # Define the micro kernel code gen properties
     libxsmm_generator_gemm_init_micro_kernel_config(
@@ -430,38 +490,38 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     )
 
     # setup hf8 / bf8 conversion on stack before GEMM, we need to recheck as we now can update the field in ukernel config, need to use the original GEMM descriptor
-    if dt.ab == Datatype.BF8:
+    if desc.datatype.ab == Datatype.BF8:
         micro_kernel_config.bf8_gemm_via_stack_alloc_tensors = 1
 
-    if dt.ab == Datatype.HF8:
+    if desc.datatype.ab == Datatype.HF8:
         micro_kernel_config.bf8_gemm_via_stack_alloc_tensors = 1
 
     # in case when A needs to be transposed, we need to change temporarily the descriptor dimensions for gemm
-    if GEMMFlag.TRANS_A in flags:
-        assert dt.abc in (Datatype.F32, Datatype.F64)
-        lda = m
-        flags &= ~GEMMFlag.TRANS_A
+    if GEMMFlag.TRANS_A in desc.flags:
+        assert desc.datatype.abc in (Datatype.F32, Datatype.F64)
+        desc.lda = desc.m
+        desc.flags &= ~GEMMFlag.TRANS_A
         micro_kernel_config.atrans_gemm_stack_alloc_tensors = 1
-    elif GEMMFlag.TRANS_B | GEMMFlag.VNNI_B in flags:
+    elif GEMMFlag.TRANS_B | GEMMFlag.VNNI_B in desc.flags:
         raise NotImplementedError
 
     # handle A VNNI on stack */
     if avnni_gemm_stack_alloc_tensors:
-        lda = m
+        desc.lda = desc.m
         micro_kernel_config.avnni_gemm_stack_alloc_tensors = True
 
     if atvnni_gemm_stack_alloc_tensors:
-        lda = m
+        desc.lda = desc.m
         micro_kernel_config.atvnni_gemm_stack_alloc_tensors = True
 
     if avnni_btrans_gemm_stack_alloc_tensors:
-        lda = m
-        _ldb = k
+        desc.lda = desc.m
+        desc.ldb = desc.k
         micro_kernel_config.avnni_btrans_gemm_stack_alloc_tensors = True
 
     if atvnni_btrans_gemm_stack_alloc_tensors:
-        lda = m
-        _ldb = k
+        desc.lda = desc.m
+        desc.ldb = desc.k
         micro_kernel_config.atvnni_btrans_gemm_stack_alloc_tensors = True
 
     # Block according to the number of available registers or given limits
@@ -476,9 +536,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             init_m_blocking + micro_kernel_config.vector_length - 1
         ) // micro_kernel_config.vector_length
         is_Ai8_Bf16_gemm = (
-            dt.a == Datatype.I8
-            and dt.b == Datatype.F16
-            and (dt.c in (Datatype.F16, Datatype.F32))
+            desc.datatype.a == Datatype.I8
+            and desc.datatype.b == Datatype.F16
+            and (desc.datatype.c in (Datatype.F16, Datatype.F32))
         )
 
         if is_Ai8_Bf16_gemm:
@@ -510,7 +570,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     assert max_n_blocking
 
-    blocking = libxsmm_compute_equalized_blocking(n, max_n_blocking)
+    blocking = libxsmm_compute_equalized_blocking(desc.n, max_n_blocking)
     n_N[0] = blocking.range_1
     n_n[0] = blocking.block_1
     n_N[1] = blocking.range_2
@@ -520,14 +580,14 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     assert n_N[0]
 
     # implementing load from struct
-    if GEMMFlag.USE_XGEMM_ABI in flags or GEMMFlag.USE_XGEMM_EXT_ABI in flags:
+    if GEMMFlag.USE_XGEMM_ABI in desc.flags or GEMMFlag.USE_XGEMM_EXT_ABI in desc.flags:
         raise NotImplementedError
 
-    if GEMMFlag.USE_XGEMM_EXT_ABI in flags or micro_kernel_config.vnni_format_C:
+    if GEMMFlag.USE_XGEMM_EXT_ABI in desc.flags or micro_kernel_config.vnni_format_C:
         raise NotImplementedError
 
     # Setting up the stack frame
-    libxsmm_generator_gemm_setup_stack_frame(
+    rbp_val, rsp_val = libxsmm_generator_gemm_setup_stack_frame(
         generated_code, desc, gp_reg_mapping, micro_kernel_config
     )
 
@@ -596,14 +656,25 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         m_blocking = 0
 
         # open N loop
-        libxsmm_generator_gemm_header_nloop(
+        nloop_vals = libxsmm_generator_gemm_header_nloop(
             generated_code,
             loop_label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
             n_done,
             n_blocking,
+            a_val,
+            b_val,
+            c_val,
+            rbp_val,
+            rsp_val,
         )
+        a_val = nloop_vals.a
+        b_val = nloop_vals.b
+        c_val = nloop_vals.c
+        rbp_val = nloop_vals.rbp
+        rsp_val = nloop_vals.rsp
+        n_counter_val = nloop_vals.n_counter
 
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
@@ -633,6 +704,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             ) // 8  # @TODO: FOR SSE ONLY and relumask
 
             if (m_done != m_done_old) and (m_done > 0):
+                mask_k1_val = None
                 # when on AVX512, load mask, if needed
                 if (
                     micro_kernel_config.use_masking_a_c
@@ -731,10 +803,10 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                             Datatype.F16 == desc.datatype.comp
                             and (generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SPR)
                         )
-                        libxsmm_generator_initialize_avx512_mask(
+                        mask_k1_val = libxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
-                            LIBXSMM_X86_AVX512_MASK,
+                            LIBXSMM_X86_AVX512_MASK_REG,
                             mask_count,
                             Datatype.F16 if is_compute_f16_gemm else Datatype.I32,
                         )
@@ -748,7 +820,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                             libxsmm_generator_initialize_avx512_mask(
                                 generated_code,
                                 gp_reg_mapping.gp_reg_help_1,
-                                2,
+                                x86.registers.AVX512MaskRegisterType.from_index(2),
                                 0
                                 if m_blocking % corrected_vlen >= c_vlen_adjusted
                                 else c_vlen_adjusted - (m_blocking % c_vlen_adjusted),
@@ -757,7 +829,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                             libxsmm_generator_initialize_avx512_mask(
                                 generated_code,
                                 gp_reg_mapping.gp_reg_help_1,
-                                3,
+                                x86.registers.AVX512MaskRegisterType.from_index(3),
                                 c_vlen_adjusted - (m_blocking % c_vlen_adjusted)
                                 if m_blocking % corrected_vlen >= c_vlen_adjusted
                                 else c_vlen_adjusted,
@@ -797,15 +869,15 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                         libxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
-                            2,
+                            x86.registers.AVX512MaskRegisterType.from_index(2),
                             mask_count,
                             desc.datatype.c,
                         )
                     else:
-                        libxsmm_generator_initialize_avx512_mask(
+                        mask_k1_val = libxsmm_generator_initialize_avx512_mask(
                             generated_code,
                             gp_reg_mapping.gp_reg_help_1,
-                            LIBXSMM_X86_AVX512_MASK,
+                            LIBXSMM_X86_AVX512_MASK_REG,
                             mask_count,
                             desc.datatype.c,
                         )
@@ -817,21 +889,34 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                libxsmm_generator_gemm_header_mloop(
+                mloop_vals = libxsmm_generator_gemm_header_mloop(
                     generated_code,
                     loop_label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
                     m_done_old,
                     m_blocking,
+                    NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, n_counter_val),
+                    mask_k1_val,
                 )
-                libxsmm_generator_gemm_load_C(
+                a_val = mloop_vals.a
+                b_val = mloop_vals.b
+                c_val = mloop_vals.c
+                rbp_val = mloop_vals.rbp
+                rsp_val = mloop_vals.rsp
+                n_counter_val = mloop_vals.n_counter
+                m_counter_val = mloop_vals.m_counter
+                mask_k1_val = mloop_vals.mask_k1
+
+                acc_vals = libxsmm_generator_gemm_load_C(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
                     desc,
                     m_blocking,
                     n_blocking,
+                    c_val=c_val,
+                    mask_k1=mask_k1_val,
                 )
 
                 if (
@@ -841,7 +926,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
+                kloop_vals = libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     generated_code,
                     loop_label_tracker,
                     gp_reg_mapping,
@@ -849,7 +934,26 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     desc,
                     m_blocking,
                     n_blocking,
+                    KLoopVals(
+                        a_val,
+                        b_val,
+                        c_val,
+                        rbp_val,
+                        rsp_val,
+                        n_counter_val,
+                        m_counter_val,
+                        mask_k1_val,
+                        acc_vals,
+                    ),
                 )
+                a_val = kloop_vals.a
+                b_val = kloop_vals.b
+                c_val = kloop_vals.c
+                rbp_val = kloop_vals.rbp
+                rsp_val = kloop_vals.rsp
+                n_counter_val = kloop_vals.n_counter
+                m_counter_val = kloop_vals.m_counter
+                mask_k1_val = kloop_vals.mask_k1
 
                 if (
                     GEMMFlag.BATCH_REDUCE_ADDRESS in desc.flags
@@ -865,8 +969,11 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     desc,
                     m_blocking,
                     n_blocking,
+                    c_val=c_val,
+                    acc_vectors=kloop_vals.acc_vectors,
+                    mask_k1=mask_k1_val,
                 )
-                libxsmm_generator_gemm_footer_mloop(
+                mloop_result = libxsmm_generator_gemm_footer_mloop(
                     generated_code,
                     loop_label_tracker,
                     gp_reg_mapping,
@@ -874,14 +981,32 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     desc,
                     m_blocking,
                     m_done,
+                    MLoopVals(
+                        a_val,
+                        b_val,
+                        c_val,
+                        rbp_val,
+                        rsp_val,
+                        n_counter_val,
+                        m_counter_val,
+                        mask_k1_val,
+                    ),
                 )
+                a_val = mloop_result.a
+                b_val = mloop_result.b
+                c_val = mloop_result.c
+                rbp_val = mloop_result.rbp
+                rsp_val = mloop_result.rsp
+                n_counter_val = mloop_result.n_counter
+                m_counter_val = mloop_result.m_counter
+                mask_k1_val = mloop_result.mask_k1
 
             # switch to next smaller m_blocking
             m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
                 micro_kernel_config, desc, generated_code.arch, m_blocking
             )
 
-        libxsmm_generator_gemm_footer_nloop(
+        nloop_result = libxsmm_generator_gemm_footer_nloop(
             generated_code,
             loop_label_tracker,
             gp_reg_mapping,
@@ -889,7 +1014,14 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             desc,
             n_blocking,
             n_done,
+            NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, n_counter_val),
         )
+        a_val = nloop_result.a
+        b_val = nloop_result.b
+        c_val = nloop_result.c
+        rbp_val = nloop_result.rbp
+        rsp_val = nloop_result.rsp
+        n_counter_val = nloop_result.n_counter
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:
@@ -897,7 +1029,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     # destroy stack frame
     libxsmm_generator_gemm_destroy_stack_frame(
-        generated_code, desc, gp_reg_mapping, micro_kernel_config
+        generated_code, desc, gp_reg_mapping, micro_kernel_config, rbp_val
     )
 
 
@@ -909,7 +1041,8 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     desc: GEMMDescriptor,
     m_blocking: int,
     n_blocking: int,
-) -> None:
+    kloop_vals: KLoopVals,
+) -> KLoopVals:
     # some hard coded parameters for k-blocking
     k_blocking = 0
     k_threshold = 0
@@ -1002,15 +1135,16 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
     if not desc.k % k_blocking and k_threshold < desc.k:
         # 1. we are larger the k_threshold and a multiple of a predefined blocking parameter
-        libxsmm_generator_gemm_header_kloop(
+        block_vals = libxsmm_generator_gemm_header_kloop(
             generated_code,
             label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
             m_blocking,
             k_blocking,
+            kloop_vals,
         )
-        generator_kloop_kernel(
+        block_vals = generator_kloop_kernel(
             generated_code,
             gp_reg_mapping,
             micro_kernel_config,
@@ -1018,8 +1152,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             m_blocking,
             n_blocking,
             k_blocking,
+            block_vals,
         )
-        libxsmm_generator_gemm_footer_kloop(
+        kloop_vals = libxsmm_generator_gemm_footer_kloop(
             generated_code,
             label_tracker,
             gp_reg_mapping,
@@ -1028,12 +1163,13 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             m_blocking,
             desc.k,
             True,
+            block_vals,
         )
     else:
         b_offset = 0
         # 2. we want to fully unroll below the threshold
         if desc.k <= k_threshold:
-            generator_kloop_kernel(
+            kloop_vals = generator_kloop_kernel(
                 generated_code,
                 gp_reg_mapping,
                 micro_kernel_config,
@@ -1041,6 +1177,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 m_blocking,
                 n_blocking,
                 desc.k,
+                kloop_vals,
             )
         # 3. we are larger than the threshold but not a multiple of the blocking factor -> largest possible blocking + remainder handling
         else:
@@ -1049,16 +1186,17 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
             # We can block as k is large enough
             if l_max_blocked_k > 0:
-                libxsmm_generator_gemm_header_kloop(
+                block_vals = libxsmm_generator_gemm_header_kloop(
                     generated_code,
                     label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
                     m_blocking,
                     k_blocking,
+                    kloop_vals,
                 )
 
-                generator_kloop_kernel(
+                block_vals = generator_kloop_kernel(
                     generated_code,
                     gp_reg_mapping,
                     micro_kernel_config,
@@ -1066,9 +1204,10 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     m_blocking,
                     n_blocking,
                     k_blocking,
+                    block_vals,
                 )
 
-                libxsmm_generator_gemm_footer_kloop(
+                kloop_vals = libxsmm_generator_gemm_footer_kloop(
                     generated_code,
                     label_tracker,
                     gp_reg_mapping,
@@ -1077,10 +1216,11 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     m_blocking,
                     l_max_blocked_k,
                     False,
+                    block_vals,
                 )
 
             # Now handle the remainder
-            generator_kloop_kernel(
+            kloop_vals = generator_kloop_kernel(
                 generated_code,
                 gp_reg_mapping,
                 micro_kernel_config,
@@ -1088,6 +1228,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 m_blocking,
                 n_blocking,
                 desc.k - l_max_blocked_k,
+                kloop_vals,
             )
 
             # Reset B pointer
@@ -1096,16 +1237,18 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             else:
                 b_offset = desc.k * micro_kernel_config.datatype_size_in2
 
-            generated_code.insert(
+            kloop_vals.b = generated_code.insert(
                 x86.ops.RI_SubOp(
-                    generated_code.current_val_by_reg[gp_reg_mapping.gp_reg_b],
+                    kloop_vals.b,
                     b_offset,
                     register_out=gp_reg_mapping.gp_reg_b,
                 )
-            )
+            ).register_out
 
     if is_Ai8_Bbf16_gemm and not is_Ai8_Bbf16_gemm_bf16fma:
         raise NotImplementedError
+
+    return kloop_vals
 
 
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
