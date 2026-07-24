@@ -145,6 +145,12 @@ isolcpus=2-15 nohz_full=2-15 rcu_nocbs=2-15
 #### Runtime setup (run before benchmarking)
 
 ```sh
+# 0. Disable simultaneous multithreading (offline sibling hardware threads)
+echo off | sudo tee /sys/devices/system/cpu/smt/control
+
+# verify — should print 0
+cat /sys/devices/system/cpu/smt/active
+
 # 1. Switch amd-pstate from EPP to passive mode (hands control to cpufreq)
 echo passive | sudo tee /sys/devices/system/cpu/amd_pstate/status
 
