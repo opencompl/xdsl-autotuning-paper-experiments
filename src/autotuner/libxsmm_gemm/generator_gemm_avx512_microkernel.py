@@ -1,3 +1,5 @@
+import os
+
 from autotuner.libxsmm_gemm.generator_gemm_common import vec_reg_type
 from xdsl.dialects import x86
 from xdsl.ir import SSAValue
@@ -82,7 +84,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
     if GEMMFlag.VNNI_A in desc.flags:
         raise NotImplementedError
 
-    if (
+    fsdbcst_applicable = (
         m_vector == 1
         and GEMMFlag.DECOMPRESS_A_VIA_BITMASK not in desc.flags
         and not is_Abf8_Bf16_gemm
@@ -96,7 +98,30 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
         and (not is_Ai1_Bi8_gemm)
         and (Datatype.BF8 != desc.datatype.ab)
         and (not is_not_cpx_bf16)
-    ):
+    )
+
+    # By default the nanokernel is picked from m_vector alone: fsdbcst for a single
+    # register M block, nofsdbcst otherwise. FORCE_NANOKERNEL overrides that choice so
+    # the microkernel sweep can benchmark a nanokernel on every tile it *works* on, not
+    # just the tiles it is auto-selected for. nofsdbcst handles m_vector 1..4 (its m loop
+    # spans up to 4 register blocks), so it is valid anywhere; fsdbcst has no m loop and
+    # only emits correct code for m_vector == 1.
+    force_nanokernel = os.environ.get("FORCE_NANOKERNEL")
+    if force_nanokernel == "fsdbcst":
+        if not fsdbcst_applicable:
+            raise ValueError(
+                "FORCE_NANOKERNEL=fsdbcst requires an m_vector==1 dense F32/F64 tile "
+                f"(got m_vector={m_vector})"
+            )
+        use_fsdbcst = True
+    elif force_nanokernel == "nofsdbcst":
+        use_fsdbcst = False
+    elif force_nanokernel is not None:
+        raise ValueError(f"unknown FORCE_NANOKERNEL={force_nanokernel!r}")
+    else:
+        use_fsdbcst = fsdbcst_applicable
+
+    if use_fsdbcst:
         vals = libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
             generated_code,
             gp_reg_mapping,

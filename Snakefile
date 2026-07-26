@@ -4,6 +4,13 @@ import glob
 import os
 import shutil
 
+from autotuner.libxsmm_gemm.microkernel_sizes import (
+    supported_microkernel_sizes,
+    supported_sizes_by_nanokernel,
+    nanokernel_for_m_blocking,
+)
+from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
+
 ########################################################################################
 # Build
 ########################################################################################
@@ -65,6 +72,22 @@ def target_xsmm(wildcards):
 def target_libs_opts(wildcards):
     return " ".join(f"-l{x}" for x in T[wildcards.target]['libs'])
 
+# Microkernel variants that pin (force) a specific AVX512 nanokernel encode it as a
+# suffix on the variant name, e.g. xdsl_libxsmm_microkernel_nofsdbcst.
+MICROKERNEL_FORCED_PREFIX = "xdsl_libxsmm_microkernel_"
+
+def target_nanokernel(wildcards):
+    # Only the microkernel variants map to a single well-defined AVX512 nanokernel.
+    # A forced variant names its nanokernel directly; the auto-dispatch variant derives
+    # it from the register/vectorized dimension, which under the row-major A/B swap is
+    # the CCOLS (N) dimension of the tile (wildcards.n).
+    if wildcards.variant.startswith(MICROKERNEL_FORCED_PREFIX):
+        return wildcards.variant[len(MICROKERNEL_FORCED_PREFIX):]
+    if wildcards.variant == "xdsl_libxsmm_microkernel":
+        dt = Datatype.F64 if wildcards.dtype == "f64" else Datatype.F32
+        return nanokernel_for_m_blocking(int(wildcards.n), dt)
+    return ""
+
 # Path management
 
 def target_base(
@@ -122,7 +145,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     target="neon|ci|tower|pinocchio",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|xdsl_libxsmm_microkernel|xdsl_libxsmm_microkernel_fsdbcst|xdsl_libxsmm_microkernel_nofsdbcst"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -322,6 +345,78 @@ rule xdsl_libxsmm_s:
         xdsl-opt {input.mlir} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
         """
 
+rule xdsl_libxsmm_microkernel_rowmaj_mlir:
+    input: ["pyproject.toml"] + LIBXSMM_GEMM_SOURCES
+    output: target_ll_file(kernel='matmul_rowmaj',variant='xdsl_libxsmm_microkernel',ext='libxsmm.mlir')
+    params:
+        target_xsmm=target_xsmm,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+        c_dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+    shell:
+        """
+        # Single register-tile microkernel: exactly one M x N tile over K, no outer
+        # M/N tiling loops. Row-major via the same A/B swap + transposed descriptor as
+        # xdsl_libxsmm, so the register/vectorized dimension is the row-major N (CCOLS)
+        # and the broadcast dimension is the row-major M (CROWS).
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        SWAP_A_B=1 libxsmm-gemm --microkernel dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.target_xsmm} \
+            nopf \
+            {params.dtype}
+        """
+
+rule xdsl_libxsmm_microkernel_s:
+    input:
+        mlir=target_ll_file(variant='xdsl_libxsmm_microkernel',ext='libxsmm.mlir'),
+        sources=["pyproject.toml"] + LIBXSMM_GEMM_SOURCES,
+    output: target_ll_file(variant='xdsl_libxsmm_microkernel',ext='S')
+    shell:
+        """
+        xdsl-opt {input.mlir} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
+        """
+
+# Same as xdsl_libxsmm_microkernel_rowmaj_mlir, but pins the AVX512 nanokernel via
+# FORCE_NANOKERNEL (encoded in the variant suffix) instead of letting the generator pick
+# from m_vector. This lets the sweep measure a nanokernel on every tile it works on --
+# in particular nofsdbcst on the m_vector==1 tiles where fsdbcst would otherwise be
+# auto-selected.
+rule xdsl_libxsmm_microkernel_forced_rowmaj_mlir:
+    input: ["pyproject.toml"] + LIBXSMM_GEMM_SOURCES
+    output: target_ll_file(kernel='matmul_rowmaj',variant='xdsl_libxsmm_microkernel_{nanokernel}',ext='libxsmm.mlir')
+    wildcard_constraints:
+        nanokernel="fsdbcst|nofsdbcst"
+    params:
+        target_xsmm=target_xsmm,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+    shell:
+        """
+        SWAP_A_B=1 FORCE_NANOKERNEL={wildcards.nanokernel} libxsmm-gemm --microkernel dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.target_xsmm} \
+            nopf \
+            {params.dtype}
+        """
+
+rule xdsl_libxsmm_microkernel_forced_s:
+    input:
+        mlir=target_ll_file(variant='xdsl_libxsmm_microkernel_{nanokernel}',ext='libxsmm.mlir'),
+        sources=["pyproject.toml"] + LIBXSMM_GEMM_SOURCES,
+    output: target_ll_file(variant='xdsl_libxsmm_microkernel_{nanokernel}',ext='S')
+    wildcard_constraints:
+        nanokernel="fsdbcst|nofsdbcst"
+    shell:
+        """
+        xdsl-opt {input.mlir} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
+        """
+
 rule mkl_rowmaj_s:
     output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -422,6 +517,7 @@ rule json:
         json=target_ll_file(ext="json")
     params:
         target_peak_flops=target_peak_flops,
+        nanokernel=target_nanokernel,
     shell:
         """
         M={wildcards.m}
@@ -433,7 +529,8 @@ rule json:
         VARIANT="{wildcards.variant}"
         TARGET="{wildcards.target}"
         DTYPE="{wildcards.dtype}"
-        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"peak":'${{PEAK}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'"}}' > {output.json}
+        NANOKERNEL="{params.nanokernel}"
+        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"peak":'${{PEAK}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","target":"'${{TARGET}}'","dtype":"'${{DTYPE}}'","nanokernel":"'${{NANOKERNEL}}'"}}' > {output.json}
         """
 
 ########################################################################################
@@ -450,18 +547,22 @@ DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.microkernels": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm"],
         "f64.small_matrices": ["libxsmm", "xdsl_libxsmm"],
+        "f64.microkernels": ["xdsl_libxsmm_microkernel", "xdsl_libxsmm_microkernel_nofsdbcst"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.microkernels": [],
     },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.microkernels": [],
     },
 }[THIS_TARGET]
 
@@ -503,7 +604,36 @@ DATASET_BASES = {
         m=range(1, 17),
         n=range(1, 17),
         variant=DATASET_VARIANTS["f64.small_matrices"]
-    )
+    ),
+    # One data point per supported microkernel register tile (m_blocking, n_blocking)
+    # at K=64. The valid (mb, nb) set is triangular (nb cap shrinks as mb grows), so it
+    # is built explicitly rather than as an independent m/n cross product. Under the
+    # row-major A/B swap the register/vectorized dimension mb is the row-major N (CCOLS,
+    # path {n}) and the broadcast dimension nb is the row-major M (CROWS, path {m}).
+    #
+    # The auto-dispatch variant covers every tile once, labelled with the nanokernel the
+    # generator picks (fsdbcst for mb<=vlen, nofsdbcst above). The forced-nofsdbcst
+    # variant then adds nofsdbcst measurements on the mb<=vlen tiles too -- the tiles it
+    # works on but is never auto-selected for -- so each nanokernel ends up with data on
+    # every tile it supports (the two overlap on the mb<=vlen region).
+    "f64.microkernels": [
+        target_file(
+            kernel="matmul_rowmaj",
+            m=str(nb),
+            n=str(mb),
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+            variant=variant,
+        )
+        for variant in DATASET_VARIANTS["f64.microkernels"]
+        for (mb, nb) in (
+            supported_sizes_by_nanokernel(k=64)["fsdbcst"]
+            if variant == "xdsl_libxsmm_microkernel_nofsdbcst"
+            else supported_microkernel_sizes(k=64)
+        )
+    ],
 }
 
 # If a dataset has no samples skip it here and in the dataset rule below

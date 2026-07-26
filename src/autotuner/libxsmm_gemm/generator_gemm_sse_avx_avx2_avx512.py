@@ -66,10 +66,13 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
-    func_op: FuncOp, arch: Arch, desc: GEMMDescriptor
-) -> None:
-    loop_label_tracker = LoopLabelTracker()
+def _build_gp_reg_mapping(desc: GEMMDescriptor) -> GPRegMapping:
+    """Build the GP register mapping for an x86 SSE/AVX/AVX512 GEMM kernel.
+
+    Shared by both the full tiled-kernel wrapper and the single-tile microkernel
+    wrapper, so the calling convention (and the optional ``SWAP_A_B`` swap used for
+    row-major matmuls) is identical between them.
+    """
     gp_reg_mapping = GPRegMapping()
     is_amxfp4_bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
     is_amxfp4_bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
@@ -146,6 +149,15 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     gp_reg_mapping.gp_reg_help_1 = R15
     gp_reg_mapping.gp_reg_help_2 = RBX
 
+    return gp_reg_mapping
+
+
+def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
+    func_op: FuncOp, arch: Arch, desc: GEMMDescriptor
+) -> None:
+    loop_label_tracker = LoopLabelTracker()
+    gp_reg_mapping = _build_gp_reg_mapping(desc)
+
     builder = Builder(InsertPoint.at_end(func_op.body.block))
 
     generated_code = GeneratedCode(func_op, builder, arch)
@@ -162,6 +174,174 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     # libxsmm_x86_instruction_close_stream_gemm(
     #     generated_code, gp_reg_mapping, False, desc.prefetch
     # )
+
+
+def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel_wrapper(
+    func_op: FuncOp, arch: Arch, desc: GEMMDescriptor
+) -> None:
+    """Generate a single register-tile microkernel (no outer M/N tiling loops).
+
+    Emits exactly one ``load_C`` -> K-loop (fsdbcst/nofsdbcst) -> ``store_C`` for the
+    tile ``(m=desc.m, n=desc.n)``, wrapped only in the stack-frame setup/teardown and
+    the microkernel's own (intrinsic) K-loop. Used to benchmark each microkernel in
+    isolation, as opposed to ``..._kernel_wrapper`` which tiles a larger matrix.
+    """
+    gp_reg_mapping = _build_gp_reg_mapping(desc)
+
+    builder = Builder(InsertPoint.at_end(func_op.body.block))
+
+    generated_code = GeneratedCode(func_op, builder, arch)
+
+    libxsmm_x86_instruction_open_stream_gemm(
+        generated_code, gp_reg_mapping, False, desc.prefetch
+    )
+    libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel(
+        generated_code, gp_reg_mapping, desc
+    )
+
+
+def libxsmm_generator_gemm_sse_avx_avx2_avx512_microkernel(
+    generated_code: GeneratedCode,
+    gp_reg_mapping: GPRegMapping,
+    desc: GEMMDescriptor,
+) -> None:
+    """Emit one register tile: mask setup (if needed), load_C, K-loop, store_C.
+
+    This mirrors the *inner body* of ``libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel``
+    (its m-loop body) for a single tile, but without any of the N-loop / M-loop
+    headers and footers. The tile dimensions are taken directly from the descriptor
+    (``m_blocking = desc.m``, ``n_blocking = desc.n``).
+    """
+    m = desc.m
+    n = desc.n
+    dt = desc.datatype
+    flags = desc.flags
+
+    # The microkernel-only path targets plain dense F32/F64 GEMM (the only case the
+    # generator currently supports). Reject the special cases that the full kernel
+    # handles with extra setup so we never silently emit wrong code.
+    if dt.ab not in (Datatype.F32, Datatype.F64):
+        raise NotImplementedError
+    for f in (
+        GEMMFlag.TRANS_A,
+        GEMMFlag.TRANS_B,
+        GEMMFlag.VNNI_A,
+        GEMMFlag.VNNI_B,
+        GEMMFlag.DECOMPRESS_A_VIA_BITMASK,
+    ):
+        if f in flags:
+            raise NotImplementedError
+
+    micro_kernel_config = MicroKernelConfig()
+    libxsmm_generator_gemm_init_micro_kernel_config(
+        micro_kernel_config, generated_code.arch, desc, False
+    )
+
+    loop_label_tracker = LoopLabelTracker()
+
+    # The base pointers arrive as the function's block arguments (A, B, C). Their live
+    # SSA values are threaded explicitly through every generator (there is no longer a
+    # register->value dictionary), mirroring the full kernel entry.
+    a_arg, b_arg, c_arg = generated_code.func_op.body.block.args
+    a_val = SSAValue.get(a_arg, type=GeneralRegisterType)
+    b_val = SSAValue.get(b_arg, type=GeneralRegisterType)
+    c_val = SSAValue.get(c_arg, type=GeneralRegisterType)
+
+    # Setting up the stack frame (returns the live RBP/RSP values to thread onward).
+    rbp_val, rsp_val = libxsmm_generator_gemm_setup_stack_frame(
+        generated_code, desc, gp_reg_mapping, micro_kernel_config
+    )
+
+    # Determine the register M-blocking for this single tile; this call also populates
+    # micro_kernel_config.use_masking_a_c when m is not a multiple of the vector length.
+    m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
+        micro_kernel_config, desc, generated_code.arch, 0
+    )
+    n_blocking = n
+    assert m_blocking == m, (
+        "microkernel expects the tile to be a single M-block; "
+        f"got m={m} but m_blocking={m_blocking} (m must be <= 32 for F64/F32 SKX)"
+    )
+
+    # Load the AVX512 tail mask when the M block is not a full multiple of the vector
+    # length (mirror of the F64/F32 branch of the full kernel's m-loop body).
+    mask_k1_val = None
+    if micro_kernel_config.use_masking_a_c:
+        if (
+            Arch.LIBXSMM_X86_AVX512_VL256_SKX
+            <= generated_code.arch
+            <= Arch.LIBXSMM_X86_ALLFEAT
+        ):
+            corrected_vlen = micro_kernel_config.vector_length
+            mask_count = corrected_vlen - (m_blocking % corrected_vlen)
+            mask_k1_val = libxsmm_generator_initialize_avx512_mask(
+                generated_code,
+                gp_reg_mapping.gp_reg_help_1,
+                LIBXSMM_X86_AVX512_MASK_REG,
+                mask_count,
+                desc.datatype.c,
+            )
+        else:
+            raise NotImplementedError
+
+    # The K loop threads its live values (including the outer N/M loop counters) as
+    # block arguments via KLoopVals.vals. A microkernel has no N/M loops to produce
+    # those counters, so emit the same zero-initialisations the loop headers would
+    # (r11/r10 <- 0). They give conflict-free dominating SSA values that are carried as
+    # harmless pass-throughs: never incremented, dead after the K loop.
+    n_counter_val = generated_code.insert(
+        x86.ops.DI_MovOp(0, destination=gp_reg_mapping.gp_reg_nloop)
+    ).destination
+    m_counter_val = generated_code.insert(
+        x86.ops.DI_MovOp(0, destination=gp_reg_mapping.gp_reg_mloop)
+    ).destination
+
+    acc_vals = libxsmm_generator_gemm_load_C(
+        generated_code,
+        gp_reg_mapping,
+        micro_kernel_config,
+        desc,
+        m_blocking,
+        n_blocking,
+        c_val=c_val,
+        mask_k1=mask_k1_val,
+    )
+    kloop_vals = libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
+        generated_code,
+        loop_label_tracker,
+        gp_reg_mapping,
+        micro_kernel_config,
+        desc,
+        m_blocking,
+        n_blocking,
+        KLoopVals(
+            a_val,
+            b_val,
+            c_val,
+            rbp_val,
+            rsp_val,
+            n_counter_val,
+            m_counter_val,
+            mask_k1_val,
+            acc_vals,
+        ),
+    )
+    libxsmm_generator_gemm_store_C(
+        generated_code,
+        gp_reg_mapping,
+        micro_kernel_config,
+        desc,
+        m_blocking,
+        n_blocking,
+        c_val=kloop_vals.c,
+        acc_vectors=kloop_vals.acc_vectors,
+        mask_k1=kloop_vals.mask_k1,
+    )
+
+    # destroy stack frame
+    libxsmm_generator_gemm_destroy_stack_frame(
+        generated_code, desc, gp_reg_mapping, micro_kernel_config, kloop_vals.rbp
+    )
 
 
 def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(

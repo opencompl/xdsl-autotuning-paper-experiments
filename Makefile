@@ -63,6 +63,7 @@ PLOTS += plots/tower/f64.ttile.png
 PLOTS += plots/tower/f64.ttile_squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
+PLOTS += plots/tower/f64.microkernels.png
 
 PLOTS += plots/pinocchio/f32.ttile.png
 PLOTS += plots/pinocchio/f64.ttile.png
@@ -87,6 +88,9 @@ plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile
 
 plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 	uv run plot-heatmap $< --output $@
+
+plots/%.microkernels.png: data/%.microkernels.jsonl src/autotuner/plot_microkernels.py
+	uv run plot-microkernels $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)
