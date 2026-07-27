@@ -1,4 +1,5 @@
 import os
+from collections.abc import Iterator
 
 from xdsl.builder import Builder
 from xdsl.dialects import x86
@@ -24,8 +25,13 @@ from xdsl.rewriter import InsertPoint
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK_REG,
     GPRegMapping,
+    KPhase,
+    KPhaseKind,
+    KPlan,
     LoopLabelTracker,
     MicroKernelConfig,
+    MLoop,
+    NLoop,
     libxsmm_compute_equalized_blocking,
 )
 from autotuner.libxsmm_gemm.generator_common_x86 import (
@@ -227,12 +233,6 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and (Datatype.BF16 == desc.datatype.ab)
     )
 
-    # Initialize n-blocking variables
-    n_count = 0  # array counter for blocking arrays
-    n_done = 0  # progress tracker
-    n_n = [0, 0]  # blocking sizes for blocks
-    n_N = [0, 0]  # size of blocks
-
     _adjust_A_pf_ptrs = 0
     _adjust_B_pf_ptrs = 0
     max_n_blocking = 0
@@ -345,59 +345,12 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         micro_kernel_config.atvnni_btrans_gemm_stack_alloc_tensors = True
 
     # Block according to the number of available registers or given limits
-    max_n_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking(
+    max_n_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_compute_max_n_blocking(
         micro_kernel_config, desc, generated_code.arch
     )
-    if max_n_blocking > 3:
-        init_m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
-            micro_kernel_config, desc, generated_code.arch, 0
-        )
-        init_m_blocks = (
-            init_m_blocking + micro_kernel_config.vector_length - 1
-        ) // micro_kernel_config.vector_length
-        is_Ai8_Bf16_gemm = (
-            desc.datatype.a == Datatype.I8
-            and desc.datatype.b == Datatype.F16
-            and (desc.datatype.c in (Datatype.F16, Datatype.F32))
-        )
-
-        if is_Ai8_Bf16_gemm:
-            raise NotImplementedError
-        elif is_Ai8_Bbf16_gemm:
-            raise NotImplementedError
-        elif is_Ai4_Bi8_gemm:
-            print(is_Ai4_Bi8_gemm, desc)
-            raise NotImplementedError
-        elif is_Ai2_Bi8_gemm:
-            raise NotImplementedError
-        elif is_Ai1_Bi8_gemm:
-            raise NotImplementedError
-        else:
-            if (
-                Arch.LIBXSMM_X86_AVX2_SRF
-                <= generated_code.arch
-                < Arch.LIBXSMM_X86_AVX512_SKX
-            ):
-                while (
-                    init_m_blocks * max_n_blocking + max_n_blocking + 1
-                ) > micro_kernel_config.vector_reg_count:
-                    max_n_blocking -= 1
-            else:
-                while (
-                    init_m_blocks * max_n_blocking + init_m_blocks + 1
-                ) > micro_kernel_config.vector_reg_count:
-                    max_n_blocking -= 1
-
-    assert max_n_blocking
-
-    blocking = libxsmm_compute_equalized_blocking(desc.n, max_n_blocking)
-    n_N[0] = blocking.range_1
-    n_n[0] = blocking.block_1
-    n_N[1] = blocking.range_2
-    n_n[1] = blocking.block_2
-
-    # check that l_n_N1 is non-zero
-    assert n_N[0]
+    n_loops = libxsmm_generator_gemm_sse_avx_avx2_avx512_iter_n_loops(
+        desc.n, max_n_blocking
+    )
 
     # implementing load from struct
     if GEMMFlag.USE_XGEMM_ABI in desc.flags or GEMMFlag.USE_XGEMM_EXT_ABI in desc.flags:
@@ -469,11 +422,9 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         raise NotImplementedError
 
     # apply n_blocking
-    while n_done != desc.n:
-        n_blocking = n_n[n_count]
-        m_done = 0
-        m_done_old = 0
-        m_blocking = 0
+    for n_loop in n_loops:
+        n_blocking = n_loop.n_blocking
+        n_done = n_loop.start
 
         # open N loop
         nloop_vals = libxsmm_generator_gemm_header_nloop(
@@ -500,25 +451,21 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             raise NotImplementedError
 
         # advance N
-        n_done += n_N[n_count]
-        n_count += 1
+        n_done += n_loop.extent
 
-        # define the micro kernel code gen properties, especially m-blocking affects the vector instruction length
-        m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
-            micro_kernel_config, desc, generated_code.arch, 0
-        )
         micro_kernel_config.m_bitmask_advance = 0  # @TODO: FOR SSE ONLY and relumask
 
-        # apply m_blocking
-        while m_done != desc.m:
-            assert m_blocking
-
-            m_done_old = m_done
+        # apply m_blocking (M split shared with the visualizer; the generator here
+        # drives it, so get_m_blocking's config side effects interleave as before)
+        for m_loop in libxsmm_generator_gemm_sse_avx_avx2_avx512_iter_m_loops(
+            micro_kernel_config, desc, generated_code.arch
+        ):
+            m_blocking = m_loop.m_blocking
+            m_done_old = m_loop.start
             micro_kernel_config.current_m = m_done_old
-            assert m_blocking
 
             # coverity[divide_by_zero]
-            m_done = m_done + (desc.m - m_done_old) // m_blocking * m_blocking
+            m_done = m_loop.start + m_loop.count * m_loop.m_blocking
             micro_kernel_config.m_bitmask_advance += (
                 m_done - m_done_old
             ) // 8  # @TODO: FOR SSE ONLY and relumask
@@ -821,11 +768,6 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 m_counter_val = mloop_result.m_counter
                 mask_k1_val = mloop_result.mask_k1
 
-            # switch to next smaller m_blocking
-            m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
-                micro_kernel_config, desc, generated_code.arch, m_blocking
-            )
-
         nloop_result = libxsmm_generator_gemm_footer_nloop(
             generated_code,
             loop_label_tracker,
@@ -863,9 +805,6 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     n_blocking: int,
     kloop_vals: KLoopVals,
 ) -> KLoopVals:
-    # some hard coded parameters for k-blocking
-    k_blocking = 0
-    k_threshold = 0
     _k_pack_factor = 1
     is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
     is_Ai8_Bbf16_gemm = (
@@ -873,49 +812,18 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         and not is_Amxfp4_Bbf16_gemm
         and desc.datatype.b == "BF16"
     )
-    is_Ai4_Bf16_gemm = (
-        (desc.flags & GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2)
-        and desc.datatype.a == "I8"
-        and desc.datatype.b == "F16"
-        and (desc.datatype.c == "F16" or desc.datatype.c == "F32")
-    )
     is_Ai8_Bbf16_gemm_bf16fma = (
         False  # micro_kernel_config.vmul_instruction == "VDPBF16PS"
     )
     is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
     is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
     is_Ai4_Bi8_gemm = desc.is_Ai4_Bi8_gemm()
-    is_i8_uu_ss_gemm = desc.datatype.ab == "I8" and (
-        GEMMFlag.A_UNSIGNED in desc.flags == GEMMFlag.B_UNSIGNED in desc.flags
+
+    # K split (a very simple k unrolling model): parameters + emission phases
+    k_plan = libxsmm_generator_gemm_sse_avx_avx2_avx512_compute_k_plan(
+        desc, generated_code.arch
     )
-
-    # a very simple k unrolling model */
-    k_blocking = 4
-    k_threshold = 23
-
-    if GEMMFlag.VNNI_A in desc.flags:
-        # VNNI kernel should maintain the same amount of unrolled instructions
-        raise NotImplementedError
-
-    if is_i8_uu_ss_gemm and generated_code.arch in (
-        Arch.LIBXSMM_X86_AVX512_SKX,
-        Arch.LIBXSMM_X86_AVX512_VL256_SKX,
-    ):
-        # for uu ss int 8 we need to limit the unrolling, software emulation code is very large
-        k_blocking = 8
-        k_threshold = 23
-
-    if is_Ai8_Bbf16_gemm:
-        raise NotImplementedError
-
-    assert k_blocking <= k_threshold
-
-    if is_Ai4_Bf16_gemm:
-        k_blocking = 4
-        k_threshold = 8
-    if is_Amxfp4_Bfp32_gemm or is_Amxfp4_Bbf16_gemm or is_Amxfp4_Bi8_gemm:
-        k_blocking = 32
-        k_threshold = desc.k
+    k_blocking = k_plan.k_blocking
 
     # Set up architecture dependent compute micro kernel generator.
     assert generated_code.arch >= Arch.LIBXSMM_TARGET_ARCH_GENERIC
@@ -951,95 +859,42 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     if is_Ai8_Bbf16_gemm and is_Ai8_Bbf16_gemm_bf16fma:
         raise NotImplementedError
 
-    # Apply multiple k_blocking strategies
-
-    if not desc.k % k_blocking and k_threshold < desc.k:
-        # 1. we are larger the k_threshold and a multiple of a predefined blocking parameter
-        block_vals = libxsmm_generator_gemm_header_kloop(
-            generated_code,
-            label_tracker,
-            gp_reg_mapping,
-            micro_kernel_config,
-            m_blocking,
-            k_blocking,
-            kloop_vals,
-        )
-        block_vals = generator_kloop_kernel(
-            generated_code,
-            gp_reg_mapping,
-            micro_kernel_config,
-            desc,
-            m_blocking,
-            n_blocking,
-            k_blocking,
-            block_vals,
-        )
-        kloop_vals = libxsmm_generator_gemm_footer_kloop(
-            generated_code,
-            label_tracker,
-            gp_reg_mapping,
-            micro_kernel_config,
-            desc,
-            m_blocking,
-            desc.k,
-            True,
-            block_vals,
-        )
-    else:
-        b_offset = 0
-        # 2. we want to fully unroll below the threshold
-        if desc.k <= k_threshold:
-            kloop_vals = generator_kloop_kernel(
+    # Apply the k_blocking strategy chosen by compute_k_plan: emit one hardware K-loop
+    # per "looped" phase and a bare unrolled body per "unrolled"/"remainder" phase.
+    for phase in k_plan.phases:
+        if phase.kind is KPhaseKind.LOOPED:
+            block_vals = libxsmm_generator_gemm_header_kloop(
+                generated_code,
+                label_tracker,
+                gp_reg_mapping,
+                micro_kernel_config,
+                m_blocking,
+                k_blocking,
+                kloop_vals,
+            )
+            block_vals = generator_kloop_kernel(
                 generated_code,
                 gp_reg_mapping,
                 micro_kernel_config,
                 desc,
                 m_blocking,
                 n_blocking,
-                desc.k,
-                kloop_vals,
+                k_blocking,
+                block_vals,
             )
-        # 3. we are larger than the threshold but not a multiple of the blocking factor -> largest possible blocking + remainder handling
+            kloop_vals = libxsmm_generator_gemm_footer_kloop(
+                generated_code,
+                label_tracker,
+                gp_reg_mapping,
+                micro_kernel_config,
+                desc,
+                m_blocking,
+                phase.extent,
+                phase.full,
+                block_vals,
+            )
         else:
-            # Largest possible blocking
-            l_max_blocked_k = (desc.k // k_blocking) * k_blocking
-
-            # We can block as k is large enough
-            if l_max_blocked_k > 0:
-                block_vals = libxsmm_generator_gemm_header_kloop(
-                    generated_code,
-                    label_tracker,
-                    gp_reg_mapping,
-                    micro_kernel_config,
-                    m_blocking,
-                    k_blocking,
-                    kloop_vals,
-                )
-
-                block_vals = generator_kloop_kernel(
-                    generated_code,
-                    gp_reg_mapping,
-                    micro_kernel_config,
-                    desc,
-                    m_blocking,
-                    n_blocking,
-                    k_blocking,
-                    block_vals,
-                )
-
-                kloop_vals = libxsmm_generator_gemm_footer_kloop(
-                    generated_code,
-                    label_tracker,
-                    gp_reg_mapping,
-                    micro_kernel_config,
-                    desc,
-                    m_blocking,
-                    l_max_blocked_k,
-                    False,
-                    block_vals,
-                )
-
-            # Now handle the remainder
+            # fully-unrolled body (strategy 2) or the strategy-3 remainder
             kloop_vals = generator_kloop_kernel(
                 generated_code,
                 gp_reg_mapping,
@@ -1047,23 +902,24 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 desc,
                 m_blocking,
                 n_blocking,
-                desc.k - l_max_blocked_k,
+                phase.size,
                 kloop_vals,
             )
 
-            # Reset B pointer
-            if GEMMFlag.TRANS_B in desc.flags:
-                b_offset = desc.ldb * desc.k * micro_kernel_config.datatype_size_in2
-            else:
-                b_offset = desc.k * micro_kernel_config.datatype_size_in2
+    # Reset B pointer after a blocked + remainder (strategy 3) decomposition
+    if k_plan.strategy == 3:
+        if GEMMFlag.TRANS_B in desc.flags:
+            b_offset = desc.ldb * desc.k * micro_kernel_config.datatype_size_in2
+        else:
+            b_offset = desc.k * micro_kernel_config.datatype_size_in2
 
-            kloop_vals.b = generated_code.insert(
-                x86.ops.RI_SubOp(
-                    kloop_vals.b,
-                    b_offset,
-                    register_out=gp_reg_mapping.gp_reg_b,
-                )
-            ).register_out
+        kloop_vals.b = generated_code.insert(
+            x86.ops.RI_SubOp(
+                kloop_vals.b,
+                b_offset,
+                register_out=gp_reg_mapping.gp_reg_b,
+            )
+        ).register_out
 
     if is_Ai8_Bbf16_gemm and not is_Ai8_Bbf16_gemm_bf16fma:
         raise NotImplementedError
@@ -1274,3 +1130,198 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking(
         # shouldn't happen
         pass
     return 0
+
+
+# --------------------------------------------------------------------------------------
+# Tiling planner
+
+
+def libxsmm_generator_gemm_sse_avx_avx2_avx512_compute_max_n_blocking(
+    config: MicroKernelConfig, desc: GEMMDescriptor, arch: Arch
+) -> int:
+    """N accumulator blocking (mirrors the top of ..._kernel).
+
+    Starts from the architecture cap, then shrinks until the N accumulators plus the M
+    block registers fit into the vector register file. The ``get_m_blocking(config, …,
+    0)`` probe mutates ``config.use_masking_a_c`` as a side effect, exactly as the
+    emitting kernel does just before the N loop, so callers get identical config state.
+    """
+    max_n_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking(
+        config, desc, arch
+    )
+    if max_n_blocking > 3:
+        init_m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
+            config, desc, arch, 0
+        )
+        init_m_blocks = (
+            init_m_blocking + config.vector_length - 1
+        ) // config.vector_length
+        is_Ai8_Bf16_gemm = (
+            desc.datatype.a == Datatype.I8
+            and desc.datatype.b == Datatype.F16
+            and (desc.datatype.c in (Datatype.F16, Datatype.F32))
+        )
+        is_Ai8_Bbf16_gemm = (
+            (desc.datatype.a == Datatype.I8 and not desc.is_Amxfp4_Bbf16_gemm())
+            and (desc.datatype.b == Datatype.BF16)
+            and (desc.datatype.c in (Datatype.BF16, Datatype.F32))
+        )
+
+        if is_Ai8_Bf16_gemm:
+            raise NotImplementedError
+        elif is_Ai8_Bbf16_gemm:
+            raise NotImplementedError
+        elif desc.is_Ai4_Bi8_gemm():
+            raise NotImplementedError
+        elif desc.is_Ai2_Bi8_gemm():
+            raise NotImplementedError
+        elif desc.is_Ai1_Bi8_gemm():
+            raise NotImplementedError
+        else:
+            if Arch.LIBXSMM_X86_AVX2_SRF <= arch < Arch.LIBXSMM_X86_AVX512_SKX:
+                while (
+                    init_m_blocks * max_n_blocking + max_n_blocking + 1
+                ) > config.vector_reg_count:
+                    max_n_blocking -= 1
+            else:
+                while (
+                    init_m_blocks * max_n_blocking + init_m_blocks + 1
+                ) > config.vector_reg_count:
+                    max_n_blocking -= 1
+
+    assert max_n_blocking
+    return max_n_blocking
+
+
+def libxsmm_generator_gemm_sse_avx_avx2_avx512_iter_n_loops(
+    n: int, max_n_blocking: int
+) -> list[NLoop]:
+    """The N split: one ``NLoop`` per equalized-blocking tier (mirrors ..._kernel)."""
+    blocking = libxsmm_compute_equalized_blocking(n, max_n_blocking)
+    n_N = [blocking.range_1, blocking.range_2]
+    n_n = [blocking.block_1, blocking.block_2]
+    assert n_N[0]
+
+    loops: list[NLoop] = []
+    n_done = 0
+    n_count = 0
+    while n_done != n:
+        loops.append(NLoop(n_done, n_n[n_count], n_N[n_count]))
+        n_done += n_N[n_count]
+        n_count += 1
+    return loops
+
+
+def libxsmm_generator_gemm_sse_avx_avx2_avx512_iter_m_loops(
+    config: MicroKernelConfig, desc: GEMMDescriptor, arch: Arch
+) -> Iterator[MLoop]:
+    """The M split (mirrors the ``while m_done`` walk in ..._kernel).
+
+    A generator so the per-group ``get_m_blocking`` calls — which mutate
+    ``config.use_masking_a_c`` / ``config.c_vmove_nts_instruction`` — interleave with the
+    caller's per-group work exactly as in the emitting kernel: at each ``yield`` the
+    config reflects the group being yielded. One ``MLoop`` per emitted hardware M-loop.
+    """
+    m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
+        config, desc, arch, 0
+    )
+    m_done = 0
+    while m_done != desc.m:
+        assert m_blocking
+        m_done_old = m_done
+        # Consume all full m_blocking chunks at once (one hardware M-loop).
+        count = (desc.m - m_done_old) // m_blocking
+        m_done = m_done_old + count * m_blocking
+        if m_done != m_done_old:
+            yield MLoop(m_done_old, m_blocking, count, config.use_masking_a_c)
+        # Recompute to obtain the (smaller) remainder block width for the next group.
+        m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
+            config, desc, arch, m_blocking
+        )
+
+
+def libxsmm_generator_gemm_sse_avx_avx2_avx512_compute_k_plan(
+    desc: GEMMDescriptor, arch: Arch
+) -> KPlan:
+    """The K split (mirrors the parameters + 3-strategy branch of ..._kloop).
+
+    Returns the ``k_blocking``/``k_threshold`` and the emission phases without emitting
+    or selecting the micro-kernel.
+    """
+    is_Amxfp4_Bbf16_gemm = desc.is_Amxfp4_Bbf16_gemm()
+    is_Ai8_Bbf16_gemm = (
+        desc.datatype.a == "I8"
+        and not is_Amxfp4_Bbf16_gemm
+        and desc.datatype.b == "BF16"
+    )
+    is_Ai4_Bf16_gemm = (
+        (desc.flags & GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2)
+        and desc.datatype.a == "I8"
+        and desc.datatype.b == "F16"
+        and (desc.datatype.c == "F16" or desc.datatype.c == "F32")
+    )
+    is_Amxfp4_Bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
+    is_Amxfp4_Bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
+    is_i8_uu_ss_gemm = desc.datatype.ab == "I8" and (
+        GEMMFlag.A_UNSIGNED in desc.flags == GEMMFlag.B_UNSIGNED in desc.flags
+    )
+
+    # a very simple k unrolling model
+    k_blocking = 4
+    k_threshold = 23
+
+    if GEMMFlag.VNNI_A in desc.flags:
+        # VNNI kernel should maintain the same amount of unrolled instructions
+        raise NotImplementedError
+
+    if is_i8_uu_ss_gemm and arch in (
+        Arch.LIBXSMM_X86_AVX512_SKX,
+        Arch.LIBXSMM_X86_AVX512_VL256_SKX,
+    ):
+        # for uu ss int 8 we need to limit the unrolling, software emulation code is very large
+        k_blocking = 8
+        k_threshold = 23
+
+    if is_Ai8_Bbf16_gemm:
+        raise NotImplementedError
+
+    assert k_blocking <= k_threshold
+
+    if is_Ai4_Bf16_gemm:
+        k_blocking = 4
+        k_threshold = 8
+    if is_Amxfp4_Bfp32_gemm or is_Amxfp4_Bbf16_gemm or is_Amxfp4_Bi8_gemm:
+        k_blocking = 32
+        k_threshold = desc.k
+
+    k = desc.k
+    if not k % k_blocking and k_threshold < k:
+        # 1. larger than the threshold and a multiple of the blocking parameter
+        strategy = 1
+        phases = [KPhase(KPhaseKind.LOOPED, k_blocking, k // k_blocking, k, True)]
+    elif k <= k_threshold:
+        # 2. fully unroll below the threshold
+        strategy = 2
+        phases = [KPhase(KPhaseKind.UNROLLED, k, 1, k, False)]
+    else:
+        # 3. largest possible blocking + remainder handling
+        strategy = 3
+        l_max_blocked_k = (k // k_blocking) * k_blocking
+        phases: list[KPhase] = []
+        if l_max_blocked_k > 0:
+            phases.append(
+                KPhase(
+                    KPhaseKind.LOOPED,
+                    k_blocking,
+                    l_max_blocked_k // k_blocking,
+                    l_max_blocked_k,
+                    False,
+                )
+            )
+        phases.append(
+            KPhase(
+                KPhaseKind.REMAINDER, k - l_max_blocked_k, 1, k - l_max_blocked_k, False
+            )
+        )
+
+    return KPlan(k_blocking, k_threshold, strategy, phases)

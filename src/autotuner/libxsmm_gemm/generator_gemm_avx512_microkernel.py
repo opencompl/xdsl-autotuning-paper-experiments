@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from autotuner.libxsmm_gemm.generator_gemm_common import vec_reg_type
 from xdsl.dialects import x86
 from xdsl.ir import SSAValue
@@ -22,18 +24,30 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def libxsmm_generator_gemm_avx512_kloop_kernel(
-    generated_code: GeneratedCode,
-    gp_reg_mapping: GPRegMapping,
+class Nanokernel(StrEnum):
+    """The avx512 inner GEMM nanokernel variant.
+
+    ``FSDBCST`` fuses B as a broadcast memory operand of the FMA (chosen when the M block
+    spans a single vector register and no special datatype/flag applies); ``NOFSDBCST``
+    broadcasts B into a register first.
+    """
+
+    FSDBCST = "fsdbcst"
+    NOFSDBCST = "nofsdbcst"
+
+
+def libxsmm_generator_gemm_avx512_select_microkernel(
+    arch: Arch,
     micro_kernel_config: MicroKernelConfig,
     desc: GEMMDescriptor,
     m_blocking: int,
-    n_blocking: int,
-    k_blocking: int,
-    vals: KLoopVals,
-) -> KLoopVals:
-    k = 0
-    _k_pack_factor = 1
+) -> Nanokernel:
+    """Which avx512 nanokernel a K-block of this M width uses.
+
+    ``m_vector`` is the number of vector registers spanning the M block. Shared by the
+    emitting kloop kernel and the tiling visualizer; raises ``NotImplementedError`` for
+    the unsupported combinations.
+    """
     m_vector = (
         m_blocking // micro_kernel_config.vector_length
         if (m_blocking % micro_kernel_config.vector_length == 0)
@@ -61,9 +75,6 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
     is_Af16_Bf16_gemm = (
         Datatype.F16 == desc.datatype.a and Datatype.F16 == desc.datatype.b
     )
-    _is_Ai8_Bbf16_gemm_bf16fma = (
-        is_Ai8_Bbf16_gemm and micro_kernel_config.vmul_instruction == "VDPBF16PS"
-    )
 
     is_i8_uu_ss_gemm = desc.datatype.ab == "I8" and (
         (
@@ -74,7 +85,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
     )
 
     is_not_cpx_bf16 = (
-        generated_code.arch != "AVX512_CPX"
+        arch != "AVX512_CPX"
         and desc.datatype.ab == "BF16"
         and GEMMFlag.VNNI_A in desc.flags
     )
@@ -97,6 +108,43 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
         and (Datatype.BF8 != desc.datatype.ab)
         and (not is_not_cpx_bf16)
     ):
+        return Nanokernel.FSDBCST
+
+    # void (*l_generator_microkernel)(libxsmm_generated_code*, const libxsmm_gp_reg_mapping*, const libxsmm_micro_kernel_config*,
+    #                                 const libxsmm_gemm_descriptor*, const unsigned int, const unsigned int);
+    if (
+        is_Ai8_Bbf16_gemm
+        or is_Ai4_Bf16_gemm
+        or GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags
+        or is_Ai4_Bi8_gemm
+        or is_Ai2_Bi8_gemm
+        or is_Ai1_Bi8_gemm
+    ):
+        raise NotImplementedError
+    elif Arch.LIBXSMM_X86_AVX512_VL256_SKX <= arch < Arch.LIBXSMM_X86_AVX512_SKX:
+        raise NotImplementedError
+    elif arch != Arch.LIBXSMM_X86_AVX512_CPX and Datatype.BF16 == desc.datatype.ab:
+        raise NotImplementedError
+    elif is_i8_uu_ss_gemm:
+        raise NotImplementedError
+    return Nanokernel.NOFSDBCST
+
+
+def libxsmm_generator_gemm_avx512_kloop_kernel(
+    generated_code: GeneratedCode,
+    gp_reg_mapping: GPRegMapping,
+    micro_kernel_config: MicroKernelConfig,
+    desc: GEMMDescriptor,
+    m_blocking: int,
+    n_blocking: int,
+    k_blocking: int,
+    vals: KLoopVals,
+) -> KLoopVals:
+    nanokernel = libxsmm_generator_gemm_avx512_select_microkernel(
+        generated_code.arch, micro_kernel_config, desc, m_blocking
+    )
+
+    if nanokernel is Nanokernel.FSDBCST:
         vals = libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
             generated_code,
             gp_reg_mapping,
@@ -107,35 +155,8 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
             vals,
         )
     else:
-        # void (*l_generator_microkernel)(libxsmm_generated_code*, const libxsmm_gp_reg_mapping*, const libxsmm_micro_kernel_config*,
-        #                                 const libxsmm_gemm_descriptor*, const unsigned int, const unsigned int);
-        if (
-            is_Ai8_Bbf16_gemm
-            or is_Ai4_Bf16_gemm
-            or GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags
-            or is_Ai4_Bi8_gemm
-            or is_Ai2_Bi8_gemm
-            or is_Ai1_Bi8_gemm
-        ):
-            raise NotImplementedError
-        elif (
-            Arch.LIBXSMM_X86_AVX512_VL256_SKX
-            <= generated_code.arch
-            < Arch.LIBXSMM_X86_AVX512_SKX
-        ):
-            raise NotImplementedError
-        elif (
-            generated_code.arch != Arch.LIBXSMM_X86_AVX512_CPX
-            and Datatype.BF16 == desc.datatype.ab
-        ):
-            raise NotImplementedError
-        elif is_i8_uu_ss_gemm:
-            raise NotImplementedError
-        else:
-            generator_microkernel = libxsmm_generator_gemm_avx512_microkernel_nofsdbcst
-
-        for k in range(k_blocking):
-            vals = generator_microkernel(
+        for _k in range(k_blocking):
+            vals = libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 generated_code,
                 gp_reg_mapping,
                 micro_kernel_config,

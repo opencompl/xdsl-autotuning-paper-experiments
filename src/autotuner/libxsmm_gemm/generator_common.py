@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Literal, NamedTuple
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 
 from xdsl.dialects import x86
 from xdsl.dialects.builtin import ModuleOp
@@ -341,6 +341,60 @@ class Blocking(NamedTuple):
     range_2: int
     block_2: int
     ret: int
+
+
+class NLoop(NamedTuple):
+    """One hardware N-loop (an equalized-blocking tier).
+
+    ``extent`` columns are covered in steps of ``n_blocking`` (tile count =
+    ``extent // n_blocking``).
+    """
+
+    start: int
+    n_blocking: int
+    extent: int
+
+
+class MLoop(NamedTuple):
+    """One hardware M-loop group: ``count`` tiles of width ``m_blocking``.
+
+    ``use_masking_a_c`` is the masking flag ``get_m_blocking`` set for this width.
+    """
+
+    start: int
+    m_blocking: int
+    count: int
+    use_masking_a_c: bool
+
+
+class KPhaseKind(StrEnum):
+    """How a ``KPhase`` is emitted.
+
+    ``LOOPED`` is a hardware K-loop of ``count`` tiles of ``size`` (``full`` marks the
+    strategy-1 whole-K loop); ``UNROLLED`` is a single fully-unrolled tile; ``REMAINDER``
+    is the strategy-3 tail tile.
+    """
+
+    LOOPED = "looped"
+    UNROLLED = "unrolled"
+    REMAINDER = "remainder"
+
+
+class KPhase(NamedTuple):
+    """One K emission phase."""
+
+    kind: KPhaseKind
+    size: int
+    count: int
+    extent: int
+    full: bool
+
+
+class KPlan(NamedTuple):
+    k_blocking: int
+    k_threshold: int
+    strategy: int  # 1 = blocked loop, 2 = full unroll, 3 = blocked + remainder
+    phases: list[KPhase]
 
 
 def libxsmm_compute_equalized_blocking(size: int, max_block: int) -> Blocking:
