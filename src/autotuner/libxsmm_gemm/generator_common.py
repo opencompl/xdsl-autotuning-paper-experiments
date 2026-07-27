@@ -356,21 +356,21 @@ class NLoop(NamedTuple):
 
 
 class MLoop(NamedTuple):
-    """One hardware M-loop group: ``count`` tiles of width ``m_blocking``.
+    """One hardware M-loop group: ``n_tiles`` tiles of width ``m_blocking``.
 
     ``use_masking_a_c`` is the masking flag ``get_m_blocking`` set for this width.
     """
 
     start: int
     m_blocking: int
-    count: int
+    n_tiles: int
     use_masking_a_c: bool
 
 
 class KPhaseKind(StrEnum):
     """How a ``KPhase`` is emitted.
 
-    ``LOOPED`` is a hardware K-loop of ``count`` tiles of ``size`` (``full`` marks the
+    ``LOOPED`` is a hardware K-loop of ``n_tiles`` tiles of ``size`` (``full`` marks the
     strategy-1 whole-K loop); ``UNROLLED`` is a single fully-unrolled tile; ``REMAINDER``
     is the strategy-3 tail tile.
     """
@@ -385,7 +385,7 @@ class KPhase(NamedTuple):
 
     kind: KPhaseKind
     size: int
-    count: int
+    n_tiles: int
     extent: int
     full: bool
 

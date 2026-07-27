@@ -465,7 +465,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             micro_kernel_config.current_m = m_done_old
 
             # coverity[divide_by_zero]
-            m_done = m_loop.start + m_loop.count * m_loop.m_blocking
+            m_done = m_loop.start + m_loop.n_tiles * m_loop.m_blocking
             micro_kernel_config.m_bitmask_advance += (
                 m_done - m_done_old
             ) // 8  # @TODO: FOR SSE ONLY and relumask
