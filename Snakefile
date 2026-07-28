@@ -115,6 +115,11 @@ LIBXSMM_GEMM_SOURCES = sorted(
     glob.glob("src/autotuner/libxsmm_gemm/**/*.py", recursive=True)
 )
 
+# CompXSMM currently reuses the generator modules from libxsmm_gemm, so depend on both
+COMPXSMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
+    glob.glob("src/autotuner/compxsmm_gemm/**/*.py", recursive=True)
+)
+
 # Rules
 
 wildcard_constraints:
@@ -122,7 +127,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     target="neon|ci|tower|pinocchio",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -322,6 +327,39 @@ rule xdsl_libxsmm_s:
         xdsl-opt {input.mlir} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
         """
 
+rule compxsmm_rowmaj_mlir:
+    input: ["pyproject.toml"] + COMPXSMM_GEMM_SOURCES
+    output: target_ll_file(kernel='matmul_rowmaj',variant='compxsmm',ext='compxsmm.mlir')
+    params:
+        target_xsmm=target_xsmm,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+        c_dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        SWAP_A_B=1 compxsmm-gemm dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.target_xsmm} \
+            nopf \
+            {params.dtype}
+        """
+
+rule compxsmm_s:
+    input:
+        mlir=target_ll_file(variant='compxsmm',ext='compxsmm.mlir'),
+        sources=["pyproject.toml"] + COMPXSMM_GEMM_SOURCES,
+    output: target_ll_file(variant='compxsmm',ext='S')
+    params:
+        passes=",".join(config["compxsmm-gemm-passes"])
+    shell:
+        """
+        xdsl-opt {input.mlir} -p {params.passes} -t x86-asm -o {output}
+        """
+
 rule mkl_rowmaj_s:
     output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -452,8 +490,8 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm"],
-        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
+        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
@@ -644,6 +682,7 @@ TESTSET_AVX = expand(
         "llvm_intrinsics",
         "libxsmm",
         "xdsl_libxsmm",
+        "compxsmm",
         "mkl",
     ]
 )
