@@ -19,6 +19,14 @@ xdsl-opt-backend-passes:
   - x86-allocate-registers
   - canonicalize
 
+libxsmm-gemm-passes:
+  - x86-regalloc-verify-liveness
+  - x86-prologue-epilogue-insertion
+
+compxsmm-gemm-passes:
+  - x86-regalloc-verify-liveness
+  - x86-prologue-epilogue-insertion
+
 targets:
   neon: {
     triple: "arm64-apple-darwin",
