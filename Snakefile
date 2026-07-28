@@ -322,9 +322,11 @@ rule xdsl_libxsmm_s:
         mlir=target_ll_file(variant='xdsl_libxsmm',ext='libxsmm.mlir'),
         sources=["pyproject.toml"] + LIBXSMM_GEMM_SOURCES,
     output: target_ll_file(variant='xdsl_libxsmm',ext='S')
+    params:
+        passes=",".join(config["libxsmm-gemm-passes"])
     shell:
         """
-        xdsl-opt {input.mlir} -p x86-regalloc-verify-liveness,x86-prologue-epilogue-insertion -t x86-asm -o {output}
+        xdsl-opt {input.mlir} -p {params.passes} -t x86-asm -o {output}
         """
 
 rule compxsmm_rowmaj_mlir:
