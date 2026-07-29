@@ -15,7 +15,7 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def libxsmm_generator_gemm_avx512_kloop_kernel(
+def compxsmm_generator_gemm_avx512_kloop_kernel(
     generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,

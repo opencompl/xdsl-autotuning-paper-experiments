@@ -5,16 +5,16 @@ from xdsl.dialects.x86_func import FuncOp, RetOp
 from xdsl.ir import Block, Region
 from xdsl.printer import Printer
 
-from autotuner.libxsmm_gemm.generator_common import libxsmm_mmfunction_signature
-from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
-    libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper,
+from autotuner.compxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
+    compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper,
 )
+from autotuner.libxsmm_gemm.generator_common import libxsmm_mmfunction_signature
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def libxsmm_generator_gemm_directasm(
+def compxsmm_generator_gemm_directasm(
     file_out: Path, routine_name: str, desc: GEMMDescriptor, arch: Arch
 ):
     module_op = ModuleOp(Region(Block()))
@@ -24,7 +24,7 @@ def libxsmm_generator_gemm_directasm(
 
     # Generate the actual kernel code for current description depending on the
     # architecture.
-    libxsmm_generator_gemm_kernel(func_op, arch, desc)
+    compxsmm_generator_gemm_kernel(func_op, arch, desc)
 
     func_op.body.blocks[-1].add_op(RetOp())
 
@@ -33,7 +33,7 @@ def libxsmm_generator_gemm_directasm(
         Printer(stream=f).print_op(func_op)
 
 
-def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescriptor):
+def compxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescriptor):
     vector_length = 1
     aarch64_bfdot = False
     aarch64_i8dot = False
@@ -645,7 +645,7 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             raise NotImplementedError
             # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
         else:
-            libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
+            compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
                 func_op, arch, desc
             )
     elif arch in (Arch.LIBXSMM_AARCH64_V81, Arch.LIBXSMM_AARCH64_V82):

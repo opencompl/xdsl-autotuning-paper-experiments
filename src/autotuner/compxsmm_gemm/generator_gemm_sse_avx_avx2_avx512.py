@@ -21,6 +21,9 @@ from xdsl.dialects.x86.registers import (
 from xdsl.dialects.x86_func import FuncOp
 from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
+from autotuner.compxsmm_gemm.generator_gemm_avx512_microkernel import (
+    compxsmm_generator_gemm_avx512_kloop_kernel,
+)
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK_REG,
     GPRegMapping,
@@ -30,9 +33,6 @@ from autotuner.libxsmm_gemm.generator_common import (
 )
 from autotuner.libxsmm_gemm.generator_common_x86 import (
     libxsmm_generator_initialize_avx512_mask,
-)
-from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
-    libxsmm_generator_gemm_avx512_kloop_kernel,
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_destroy_stack_frame,
@@ -69,7 +69,7 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
+def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     func_op: FuncOp, arch: Arch, desc: GEMMDescriptor
 ) -> None:
     loop_label_tracker = LoopLabelTracker()
@@ -156,7 +156,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     libxsmm_x86_instruction_open_stream_gemm(
         generated_code, gp_reg_mapping, False, desc.prefetch
     )
-    libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
+    compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         generated_code, loop_label_tracker, gp_reg_mapping, desc
     )
 
@@ -167,7 +167,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     # )
 
 
-def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
+def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     generated_code: GeneratedCode,
     label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
@@ -749,7 +749,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                kloop_vals = libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
+                kloop_vals = compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     generated_code,
                     loop_label_tracker,
                     gp_reg_mapping,
@@ -856,7 +856,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     )
 
 
-def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
+def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     generated_code: GeneratedCode,
     label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
@@ -942,7 +942,7 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX
         and generated_code.arch <= Arch.LIBXSMM_X86_ALLFEAT
     ):
-        generator_kloop_kernel = libxsmm_generator_gemm_avx512_kloop_kernel
+        generator_kloop_kernel = compxsmm_generator_gemm_avx512_kloop_kernel
     else:
         assert False, (
             f"Unsupported architecture {generated_code.arch} for micro-kernel generation"
