@@ -7,7 +7,9 @@ requires-python = ">=3.11.2"
 dependencies = [
     "jinja2>=3.1.6",
     "matplotlib>=3.10.3",
+    "numpy>=1.26",
     "pandas>=2.3.1",
+    "peachpy",
     "snakemake>=8.30.0",
     "tvm==0.19.0.2025010903",
     "xdsl[dev]",
@@ -24,6 +26,7 @@ explicit = true
 [tool.uv.sources]
 xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "91ebc42cfc59b15e6c5492075bd0f0010ad2076c" }
 tvm = { index = "corse" }
+peachpy = { git = "https://github.com/jumerckx/PeachPy.git", branch = "jm/modern-python" }
 
 [project.scripts]
 hello = "autotuner.main:main"
@@ -37,6 +40,11 @@ compxsmm-gemm = "autotuner.compxsmm_gemm.compxsmm_generator_gemm_driver:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "capstone>=5.0.9",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/autotuner"]
