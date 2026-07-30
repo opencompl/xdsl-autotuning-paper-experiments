@@ -1,5 +1,5 @@
 from pathlib import Path
-from autotuner.libxsmm_gemm.generator_gemm import libxsmm_generator_gemm_directasm
+from autotuner.compxsmm_gemm.generator_gemm import compxsmm_generator_gemm_directasm
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
 from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
 from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
@@ -95,4 +95,6 @@ def main():
     assert args.density == "dense", f"Only dense supported, got {args.density}"
     assert arch == Arch.LIBXSMM_X86_AVX512_SKX, f"Only `skx` arch supported, got {arch}"
 
-    libxsmm_generator_gemm_directasm(args.filename, args.routine_name, descriptor, arch)
+    compxsmm_generator_gemm_directasm(
+        args.filename, args.routine_name, descriptor, arch
+    )
