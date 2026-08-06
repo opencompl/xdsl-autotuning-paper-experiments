@@ -254,7 +254,7 @@ class VectorizeLibxsmmPattern(RewritePattern):
                     (constants[m], constants[n]),
                 )
 
-        rewriter.erase_op(op)
+        rewriter.erase(op)
 
 
 @dataclass(frozen=True)
