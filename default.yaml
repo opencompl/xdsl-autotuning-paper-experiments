@@ -20,11 +20,10 @@ xdsl-opt-backend-passes:
   - canonicalize
 
 libxsmm-gemm-passes:
-  - x86-regalloc-verify-liveness
   - x86-prologue-epilogue-insertion
 
 compxsmm-gemm-passes:
-  - x86-regalloc-verify-liveness
+  # - x86-regalloc-verify-liveness Verify later when we generate loops, as we currently don't support multiple blocks.
   - x86-prologue-epilogue-insertion
 
 targets:
