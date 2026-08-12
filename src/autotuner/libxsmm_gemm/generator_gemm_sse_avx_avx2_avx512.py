@@ -172,10 +172,11 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 ) -> None:
     micro_kernel_config = MicroKernelConfig()
 
-    a_arg, b_arg, c_arg = generated_code.func_op.body.block.args
-    a_val = SSAValue.get(a_arg, type=GeneralRegisterType)
-    b_val = SSAValue.get(b_arg, type=GeneralRegisterType)
-    c_val = SSAValue.get(c_arg, type=GeneralRegisterType)
+    # Respect SWAP_A_B when associating ABI arguments with matrix pointers.
+    arg_by_reg = {arg.type: arg for arg in generated_code.func_op.body.block.args}
+    a_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_a], type=GeneralRegisterType)
+    b_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_b], type=GeneralRegisterType)
+    c_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_c], type=GeneralRegisterType)
 
     is_Ai4_Bf16_gemm = (
         ((desc.flags & GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2) > 0)
