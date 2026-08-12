@@ -20,13 +20,9 @@ VectorRegT = SSERegisterType | AVX2RegisterType | AVX512RegisterType
 class NLoopVals:
     """SSA values that are live across the N loop.
 
-    Unlike compxsmm (which builds loops with ``x86_scf.ForOp`` and keeps the loop
-    counter as the induction variable), ``libxsmm_gemm`` builds loops from raw
-    block/branch ops, so the loop counter is an ordinary block argument that must be
-    threaded explicitly. ``n_counter`` is the value held in ``gp_reg_nloop``.
-
-    The ``vals`` property defines the block-argument / fallthrough / back-edge operand
-    order for the N loop.
+    Loop induction values are deliberately not part of this payload. Structured loops
+    expose them as induction variables, while raw block/branch loops thread them as
+    separate block arguments.
     """
 
     a: SSAValue[GeneralRegisterType]
@@ -34,20 +30,17 @@ class NLoopVals:
     c: SSAValue[GeneralRegisterType]
     rbp: SSAValue[GeneralRegisterType]
     rsp: SSAValue[GeneralRegisterType]
-    n_counter: SSAValue[GeneralRegisterType]
 
     @property
     def vals(self) -> tuple[SSAValue, ...]:
-        return (self.a, self.b, self.c, self.rbp, self.rsp, self.n_counter)
+        return (self.a, self.b, self.c, self.rbp, self.rsp)
 
 
 @dataclass
 class MLoopVals:
     """SSA values that are live across the M loop.
 
-    Carries the outer N counter through as well (it is threaded through the inner
-    loop's blocks so it remains available at the N footer). ``mask_k1`` is present only
-    when C masking is active for the current M block.
+    ``mask_k1`` is present only when C masking is active for the current M block.
     """
 
     a: SSAValue[GeneralRegisterType]
@@ -55,8 +48,6 @@ class MLoopVals:
     c: SSAValue[GeneralRegisterType]
     rbp: SSAValue[GeneralRegisterType]
     rsp: SSAValue[GeneralRegisterType]
-    n_counter: SSAValue[GeneralRegisterType]
-    m_counter: SSAValue[GeneralRegisterType]
     mask_k1: SSAValue[AVX512MaskRegisterType] | None
 
     @property
@@ -68,8 +59,6 @@ class MLoopVals:
             self.c,
             self.rbp,
             self.rsp,
-            self.n_counter,
-            self.m_counter,
             *masks,
         )
 
@@ -78,9 +67,8 @@ class MLoopVals:
 class KLoopVals:
     """SSA values that are live across the K loop.
 
-    Carries the outer N and M counters through, plus the accumulator vectors. The K
-    counter is inserted last (the K loop opens after ``load_C`` has produced the
-    accumulators), so it comes after the accumulators in ``vals``.
+    Carries the accumulator vectors produced by ``load_C``. Loop induction values are
+    handled separately by the control-flow-specific loop helpers.
     """
 
     a: SSAValue[GeneralRegisterType]
@@ -88,19 +76,11 @@ class KLoopVals:
     c: SSAValue[GeneralRegisterType]
     rbp: SSAValue[GeneralRegisterType]
     rsp: SSAValue[GeneralRegisterType]
-    n_counter: SSAValue[GeneralRegisterType]
-    m_counter: SSAValue[GeneralRegisterType]
     mask_k1: SSAValue[AVX512MaskRegisterType] | None
     acc_vectors: tuple[SSAValue[VectorRegT], ...]
-    # None when the K loop is fully unrolled (no counter register); set by header_kloop
-    # when a block K loop is emitted.
-    k_counter: SSAValue[GeneralRegisterType] | None = None
 
     @property
     def vals(self) -> tuple[SSAValue, ...]:
-        # Only used to build the block/branch loop's block arguments, which always
-        # include the K counter.
-        assert self.k_counter is not None
         masks = () if self.mask_k1 is None else (self.mask_k1,)
         return (
             self.a,
@@ -108,11 +88,8 @@ class KLoopVals:
             self.c,
             self.rbp,
             self.rsp,
-            self.n_counter,
-            self.m_counter,
             *masks,
             *self.acc_vectors,
-            self.k_counter,
         )
 
 

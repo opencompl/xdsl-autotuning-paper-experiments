@@ -368,11 +368,8 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
         c=vals.c,
         rbp=vals.rbp,
         rsp=vals.rsp,
-        n_counter=vals.n_counter,
-        m_counter=vals.m_counter,
         mask_k1=vals.mask_k1,
         acc_vectors=acc_vectors,
-        k_counter=vals.k_counter,
     )
 
 
@@ -716,9 +713,6 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         c=vals.c,
         rbp=vals.rbp,
         rsp=vals.rsp,
-        n_counter=vals.n_counter,
-        m_counter=vals.m_counter,
         mask_k1=vals.mask_k1,
         acc_vectors=tuple(acc_vectors),
-        k_counter=vals.k_counter,
     )

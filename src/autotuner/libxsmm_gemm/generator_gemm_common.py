@@ -323,28 +323,39 @@ def _gpr(val: SSAValue) -> SSAValue[GeneralRegisterType]:
     return SSAValue.get(val, type=GeneralRegisterType)
 
 
-def _nloop_from_args(args) -> NLoopVals:
+def _nloop_from_args(args) -> tuple[NLoopVals, SSAValue[GeneralRegisterType]]:
     a, b, c, rbp, rsp, n_ctr = args
     rbp = _gpr(rbp)
     rsp = _gpr(rsp)
     assert rbp.type == x86.registers.RBP
     assert rsp.type == x86.registers.RSP
-    return NLoopVals(_gpr(a), _gpr(b), _gpr(c), rbp, rsp, _gpr(n_ctr))
+    return NLoopVals(_gpr(a), _gpr(b), _gpr(c), rbp, rsp), _gpr(n_ctr)
 
 
-def _mloop_from_args(args, has_mask: bool) -> MLoopVals:
+def _mloop_from_args(
+    args, has_mask: bool
+) -> tuple[MLoopVals, SSAValue[GeneralRegisterType], SSAValue[GeneralRegisterType]]:
     a, b, c, rbp, rsp, n_ctr, m_ctr, *rest = args
     rbp = _gpr(rbp)
     rsp = _gpr(rsp)
     assert rbp.type == x86.registers.RBP
     assert rsp.type == x86.registers.RSP
     mask = SSAValue.get(rest[0], type=AVX512MaskRegisterType) if has_mask else None
-    return MLoopVals(
-        _gpr(a), _gpr(b), _gpr(c), rbp, rsp, _gpr(n_ctr), _gpr(m_ctr), mask
+    return (
+        MLoopVals(_gpr(a), _gpr(b), _gpr(c), rbp, rsp, mask),
+        _gpr(n_ctr),
+        _gpr(m_ctr),
     )
 
 
-def _kloop_from_args(args, has_mask: bool, n_acc: int) -> KLoopVals:
+def _kloop_from_args(
+    args, has_mask: bool
+) -> tuple[
+    KLoopVals,
+    SSAValue[GeneralRegisterType],
+    SSAValue[GeneralRegisterType],
+    SSAValue[GeneralRegisterType],
+]:
     args = list(args)
     a, b, c, rbp, rsp, n_ctr, m_ctr = args[0:7]
     idx = 7
@@ -352,23 +363,16 @@ def _kloop_from_args(args, has_mask: bool, n_acc: int) -> KLoopVals:
     if has_mask:
         mask = SSAValue.get(args[idx], type=AVX512MaskRegisterType)
         idx += 1
-    acc = tuple(SSAValue.get(args[idx + i], type=VectorRegT) for i in range(n_acc))
-    idx += n_acc
-    k_ctr = args[idx]
+    acc = tuple(SSAValue.get(arg, type=VectorRegT) for arg in args[idx:-1])
+    k_ctr = args[-1]
     rbp = _gpr(rbp)
     rsp = _gpr(rsp)
     assert rbp.type == x86.registers.RBP
     assert rsp.type == x86.registers.RSP
-    return KLoopVals(
-        _gpr(a),
-        _gpr(b),
-        _gpr(c),
-        rbp,
-        rsp,
+    return (
+        KLoopVals(_gpr(a), _gpr(b), _gpr(c), rbp, rsp, mask, acc),
         _gpr(n_ctr),
         _gpr(m_ctr),
-        mask,
-        acc,
         _gpr(k_ctr),
     )
 
@@ -381,7 +385,14 @@ def libxsmm_generator_gemm_header_kloop(
     m_blocking: int,
     k_blocking: int,
     vals: KLoopVals,
-) -> KLoopVals:
+    n_counter: SSAValue[GeneralRegisterType],
+    m_counter: SSAValue[GeneralRegisterType],
+) -> tuple[
+    KLoopVals,
+    SSAValue[GeneralRegisterType],
+    SSAValue[GeneralRegisterType],
+    SSAValue[GeneralRegisterType],
+]:
     """
     In original, adds three lines of assembly: set counter to 0, add label, add k_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
@@ -397,19 +408,7 @@ def libxsmm_generator_gemm_header_kloop(
 
     # Ignore any incoming (unrolled) k_counter; the block K loop uses the freshly
     # initialised counter as its loop-carried induction register.
-    entry = KLoopVals(
-        vals.a,
-        vals.b,
-        vals.c,
-        vals.rbp,
-        vals.rsp,
-        vals.n_counter,
-        vals.m_counter,
-        vals.mask_k1,
-        vals.acc_vectors,
-        k_init_op.destination,
-    )
-    args = entry.vals
+    args = (*vals.vals[:5], n_counter, m_counter, *vals.vals[5:], k_init_op.destination)
     arg_types = tuple(arg.type for arg in args)
 
     assert k_init_op.next_op is None
@@ -428,16 +427,15 @@ def libxsmm_generator_gemm_header_kloop(
     )
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    block_vals = _kloop_from_args(
-        body_block.args, vals.mask_k1 is not None, len(vals.acc_vectors)
+    block_vals, n_counter, m_counter, k_counter = _kloop_from_args(
+        body_block.args, vals.mask_k1 is not None
     )
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
-    assert block_vals.k_counter is not None
-    block_vals.k_counter = generated_code.insert(
-        x86.ops.RI_AddOp(block_vals.k_counter, k_blocking, register_out=k_arg_reg)
+    k_counter = generated_code.insert(
+        x86.ops.RI_AddOp(k_counter, k_blocking, register_out=k_arg_reg)
     ).register_out
-    return block_vals
+    return block_vals, n_counter, m_counter, k_counter
 
 
 def libxsmm_generator_gemm_footer_kloop(
@@ -450,20 +448,25 @@ def libxsmm_generator_gemm_footer_kloop(
     max_blocked_k: int,
     k_loop_complete: bool,
     vals: KLoopVals,
-) -> KLoopVals:
-    assert vals.k_counter is not None
+    n_counter: SSAValue[GeneralRegisterType],
+    m_counter: SSAValue[GeneralRegisterType],
+    k_counter: SSAValue[GeneralRegisterType],
+) -> tuple[KLoopVals, SSAValue[GeneralRegisterType], SSAValue[GeneralRegisterType]]:
     generated_code.insert(
         x86.ops.SI_CmpOp(
-            vals.k_counter,
+            k_counter,
             max_blocked_k,
         )
     )
 
     fallthrough_args = libxsmm_x86_instruction_jump_back_to_label(
-        generated_code, x86.ops.C_JlOp, loop_label_tracker, vals.vals
+        generated_code,
+        x86.ops.C_JlOp,
+        loop_label_tracker,
+        (*vals.vals[:5], n_counter, m_counter, *vals.vals[5:], k_counter),
     )
-    result = _kloop_from_args(
-        fallthrough_args, vals.mask_k1 is not None, len(vals.acc_vectors)
+    result, n_counter, m_counter, _ = _kloop_from_args(
+        fallthrough_args, vals.mask_k1 is not None
     )
 
     if k_loop_complete:
@@ -481,7 +484,7 @@ def libxsmm_generator_gemm_footer_kloop(
             )
         ).register_out
 
-    return result
+    return result, n_counter, m_counter
 
 
 def libxsmm_generator_gemm_get_blocking_and_mask(
@@ -906,7 +909,7 @@ def libxsmm_generator_gemm_header_nloop(
     c_val: SSAValue[GeneralRegisterType],
     rbp_val: SSAValue[GeneralRegisterType],
     rsp_val: SSAValue[GeneralRegisterType],
-) -> NLoopVals:
+) -> tuple[NLoopVals, SSAValue[GeneralRegisterType]]:
     """
     In original, adds three lines of assembly: set counter to n_init, add label, add n_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
@@ -920,8 +923,8 @@ def libxsmm_generator_gemm_header_nloop(
     parent_region = existing_block.parent
     assert parent_region is not None
 
-    entry = NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, n_init_op.destination)
-    args = entry.vals
+    entry = NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val)
+    args = (*entry.vals, n_init_op.destination)
     arg_types = tuple(arg.type for arg in args)
 
     assert n_init_op.next_op is None
@@ -940,13 +943,13 @@ def libxsmm_generator_gemm_header_nloop(
     )
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    block_vals = _nloop_from_args(body_block.args)
+    block_vals, n_counter = _nloop_from_args(body_block.args)
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
-    block_vals.n_counter = generated_code.insert(
-        x86.ops.RI_AddOp(block_vals.n_counter, n_blocking, register_out=n_arg_reg)
+    n_counter = generated_code.insert(
+        x86.ops.RI_AddOp(n_counter, n_blocking, register_out=n_arg_reg)
     ).register_out
-    return block_vals
+    return block_vals, n_counter
 
 
 def libxsmm_generator_gemm_footer_nloop(
@@ -958,7 +961,8 @@ def libxsmm_generator_gemm_footer_nloop(
     n_blocking: int,
     n_done: int,
     vals: NLoopVals,
-) -> NLoopVals:
+    n_counter: SSAValue[GeneralRegisterType],
+) -> tuple[NLoopVals, SSAValue[GeneralRegisterType]]:
     a_val = vals.a
     b_val = vals.b
     c_val = vals.c
@@ -1113,12 +1117,12 @@ def libxsmm_generator_gemm_footer_nloop(
 
     generated_code.insert(
         x86.ops.SI_CmpOp(
-            vals.n_counter,
+            n_counter,
             n_done,
         )
     )
 
-    curr_args = NLoopVals(a_val, b_val, c_val, vals.rbp, vals.rsp, vals.n_counter).vals
+    curr_args = (*NLoopVals(a_val, b_val, c_val, vals.rbp, vals.rsp).vals, n_counter)
     fallthrough_args = libxsmm_x86_instruction_jump_back_to_label(
         generated_code, x86.ops.C_JlOp, loop_label_tracker, curr_args
     )
@@ -1133,8 +1137,9 @@ def libxsmm_generator_gemm_header_mloop(
     m_init: int,
     m_blocking: int,
     vals: NLoopVals,
+    n_counter: SSAValue[GeneralRegisterType],
     mask_k1: SSAValue[AVX512MaskRegisterType] | None,
-) -> MLoopVals:
+) -> tuple[MLoopVals, SSAValue[GeneralRegisterType], SSAValue[GeneralRegisterType]]:
     """
     In original, adds three lines of assembly: set counter to m_init, add label, add m_blocking to loop counter.
     We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
@@ -1154,11 +1159,9 @@ def libxsmm_generator_gemm_header_mloop(
         vals.c,
         vals.rbp,
         vals.rsp,
-        vals.n_counter,
-        m_init_op.destination,
         mask_k1,
     )
-    args = entry.vals
+    args = (*entry.vals[:5], n_counter, m_init_op.destination, *entry.vals[5:])
     arg_types = tuple(arg.type for arg in args)
 
     assert m_init_op.next_op is None
@@ -1177,13 +1180,15 @@ def libxsmm_generator_gemm_header_mloop(
     )
 
     generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    block_vals = _mloop_from_args(body_block.args, mask_k1 is not None)
+    block_vals, n_counter, m_counter = _mloop_from_args(
+        body_block.args, mask_k1 is not None
+    )
 
     libxsmm_x86_instruction_register_jump_back_label(generated_code, loop_label_tracker)
-    block_vals.m_counter = generated_code.insert(
-        x86.ops.RI_AddOp(block_vals.m_counter, m_blocking, register_out=m_arg_reg)
+    m_counter = generated_code.insert(
+        x86.ops.RI_AddOp(m_counter, m_blocking, register_out=m_arg_reg)
     ).register_out
-    return block_vals
+    return block_vals, n_counter, m_counter
 
 
 def libxsmm_generator_gemm_footer_mloop(
@@ -1195,7 +1200,9 @@ def libxsmm_generator_gemm_footer_mloop(
     m_blocking: int,
     m_done: int,
     vals: MLoopVals,
-) -> MLoopVals:
+    n_counter: SSAValue[GeneralRegisterType],
+    m_counter: SSAValue[GeneralRegisterType],
+) -> tuple[MLoopVals, SSAValue[GeneralRegisterType], SSAValue[GeneralRegisterType]]:
     a_val = vals.a
     c_val = vals.c
 
@@ -1342,7 +1349,7 @@ def libxsmm_generator_gemm_footer_mloop(
 
     generated_code.insert(
         x86.ops.SI_CmpOp(
-            vals.m_counter,
+            m_counter,
             m_done,
         )
     )
@@ -1353,10 +1360,9 @@ def libxsmm_generator_gemm_footer_mloop(
         c_val,
         vals.rbp,
         vals.rsp,
-        vals.n_counter,
-        vals.m_counter,
         vals.mask_k1,
     ).vals
+    curr_args = (*curr_args[:5], n_counter, m_counter, *curr_args[5:])
     fallthrough_args = libxsmm_x86_instruction_jump_back_to_label(
         generated_code, x86.ops.C_JlOp, loop_label_tracker, curr_args
     )

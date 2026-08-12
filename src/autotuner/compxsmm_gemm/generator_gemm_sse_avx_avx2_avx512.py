@@ -24,10 +24,17 @@ from xdsl.rewriter import InsertPoint
 from autotuner.compxsmm_gemm.generator_gemm_avx512_microkernel import (
     compxsmm_generator_gemm_avx512_kloop_kernel,
 )
+from autotuner.compxsmm_gemm.generator_gemm_common import (
+    compxsmm_generator_gemm_footer_kloop,
+    compxsmm_generator_gemm_footer_mloop,
+    compxsmm_generator_gemm_footer_nloop,
+    compxsmm_generator_gemm_header_mloop,
+    compxsmm_generator_gemm_header_nloop,
+    compxsmm_generator_gemm_kloop,
+)
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK_REG,
     GPRegMapping,
-    LoopLabelTracker,
     MicroKernelConfig,
     libxsmm_compute_equalized_blocking,
 )
@@ -36,12 +43,6 @@ from autotuner.libxsmm_gemm.generator_common_x86 import (
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_destroy_stack_frame,
-    libxsmm_generator_gemm_footer_kloop,
-    libxsmm_generator_gemm_footer_mloop,
-    libxsmm_generator_gemm_footer_nloop,
-    libxsmm_generator_gemm_header_kloop,
-    libxsmm_generator_gemm_header_mloop,
-    libxsmm_generator_gemm_header_nloop,
     libxsmm_generator_gemm_init_micro_kernel_config,
     libxsmm_generator_gemm_load_C,
     libxsmm_generator_gemm_setup_stack_frame,
@@ -72,7 +73,6 @@ from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     func_op: FuncOp, arch: Arch, desc: GEMMDescriptor
 ) -> None:
-    loop_label_tracker = LoopLabelTracker()
     gp_reg_mapping = GPRegMapping()
     is_amxfp4_bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
     is_amxfp4_bi8_gemm = desc.is_Amxfp4_Bi8_gemm()
@@ -157,7 +157,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         generated_code, gp_reg_mapping, False, desc.prefetch
     )
     compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
-        generated_code, loop_label_tracker, gp_reg_mapping, desc
+        generated_code, gp_reg_mapping, desc
     )
 
     # In C, the stream is closed with the inline assembly register string, but we don't
@@ -169,7 +169,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
 
 def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     generated_code: GeneratedCode,
-    label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     desc: GEMMDescriptor,
 ) -> None:
@@ -421,8 +420,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     # Apply potential opA / opB
     # libxsmm_generator_gemm_apply_opA_opB( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, &l_micro_kernel_config, l_xgemm_desc, i_xgemm_desc);
 
-    loop_label_tracker = LoopLabelTracker()
-
     # generate hoisted BF16 emulation mask for AVX512
     if desc.datatype.ab == Datatype.BF16:
         raise NotImplementedError
@@ -479,25 +476,20 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         m_blocking = 0
 
         # open N loop
-        nloop_vals = libxsmm_generator_gemm_header_nloop(
+        nloop_vals = compxsmm_generator_gemm_header_nloop(
             generated_code,
-            loop_label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
-            n_done,
-            n_blocking,
-            a_val,
-            b_val,
-            c_val,
-            rbp_val,
-            rsp_val,
+            n_init=n_done,
+            n_blocking=n_blocking,
+            n_done=n_done + n_N[n_count],
+            vals=NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val),
         )
         a_val = nloop_vals.a
         b_val = nloop_vals.b
         c_val = nloop_vals.c
         rbp_val = nloop_vals.rbp
         rsp_val = nloop_vals.rsp
-        n_counter_val = nloop_vals.n_counter
 
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
@@ -712,23 +704,20 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 ):
                     raise NotImplementedError
 
-                mloop_vals = libxsmm_generator_gemm_header_mloop(
+                mloop_vals = compxsmm_generator_gemm_header_mloop(
                     generated_code,
-                    loop_label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
-                    m_done_old,
-                    m_blocking,
-                    NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, n_counter_val),
-                    mask_k1_val,
+                    m_init=m_done_old,
+                    m_blocking=m_blocking,
+                    m_done=m_done,
+                    vals=MLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1_val),
                 )
                 a_val = mloop_vals.a
                 b_val = mloop_vals.b
                 c_val = mloop_vals.c
                 rbp_val = mloop_vals.rbp
                 rsp_val = mloop_vals.rsp
-                n_counter_val = mloop_vals.n_counter
-                m_counter_val = mloop_vals.m_counter
                 mask_k1_val = mloop_vals.mask_k1
 
                 acc_vals = libxsmm_generator_gemm_load_C(
@@ -751,7 +740,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
                 kloop_vals = compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     generated_code,
-                    loop_label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
                     desc,
@@ -763,8 +751,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                         c_val,
                         rbp_val,
                         rsp_val,
-                        n_counter_val,
-                        m_counter_val,
                         mask_k1_val,
                         acc_vals,
                     ),
@@ -774,8 +760,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 c_val = kloop_vals.c
                 rbp_val = kloop_vals.rbp
                 rsp_val = kloop_vals.rsp
-                n_counter_val = kloop_vals.n_counter
-                m_counter_val = kloop_vals.m_counter
                 mask_k1_val = kloop_vals.mask_k1
 
                 if (
@@ -796,22 +780,18 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                     acc_vectors=kloop_vals.acc_vectors,
                     mask_k1=mask_k1_val,
                 )
-                mloop_result = libxsmm_generator_gemm_footer_mloop(
+                mloop_result = compxsmm_generator_gemm_footer_mloop(
                     generated_code,
-                    loop_label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
                     desc,
-                    m_blocking,
-                    m_done,
-                    MLoopVals(
+                    m_blocking=m_blocking,
+                    vals=MLoopVals(
                         a_val,
                         b_val,
                         c_val,
                         rbp_val,
                         rsp_val,
-                        n_counter_val,
-                        m_counter_val,
                         mask_k1_val,
                     ),
                 )
@@ -820,8 +800,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 c_val = mloop_result.c
                 rbp_val = mloop_result.rbp
                 rsp_val = mloop_result.rsp
-                n_counter_val = mloop_result.n_counter
-                m_counter_val = mloop_result.m_counter
                 mask_k1_val = mloop_result.mask_k1
 
             # switch to next smaller m_blocking
@@ -829,22 +807,19 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 micro_kernel_config, desc, generated_code.arch, m_blocking
             )
 
-        nloop_result = libxsmm_generator_gemm_footer_nloop(
+        nloop_result = compxsmm_generator_gemm_footer_nloop(
             generated_code,
-            loop_label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
             desc,
-            n_blocking,
-            n_done,
-            NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, n_counter_val),
+            n_blocking=n_blocking,
+            vals=NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val),
         )
         a_val = nloop_result.a
         b_val = nloop_result.b
         c_val = nloop_result.c
         rbp_val = nloop_result.rbp
         rsp_val = nloop_result.rsp
-        n_counter_val = nloop_result.n_counter
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:
@@ -858,7 +833,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
 def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     generated_code: GeneratedCode,
-    label_tracker: LoopLabelTracker,
     gp_reg_mapping: GPRegMapping,
     micro_kernel_config: MicroKernelConfig,
     desc: GEMMDescriptor,
@@ -958,14 +932,14 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
     if not desc.k % k_blocking and k_threshold < desc.k:
         # 1. we are larger the k_threshold and a multiple of a predefined blocking parameter
-        block_vals = libxsmm_generator_gemm_header_kloop(
+        block_vals = compxsmm_generator_gemm_kloop(
             generated_code,
-            label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
-            m_blocking,
-            k_blocking,
-            kloop_vals,
+            m_blocking=m_blocking,
+            k_blocking=k_blocking,
+            max_blocked_k=desc.k,
+            vals=kloop_vals,
         )
         block_vals = generator_kloop_kernel(
             generated_code,
@@ -977,16 +951,15 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             k_blocking,
             block_vals,
         )
-        kloop_vals = libxsmm_generator_gemm_footer_kloop(
+        kloop_vals = compxsmm_generator_gemm_footer_kloop(
             generated_code,
-            label_tracker,
             gp_reg_mapping,
             micro_kernel_config,
             desc,
-            m_blocking,
-            desc.k,
-            True,
-            block_vals,
+            m_blocking=m_blocking,
+            max_blocked_k=desc.k,
+            k_loop_complete=True,
+            vals=block_vals,
         )
     else:
         b_offset = 0
@@ -1009,14 +982,14 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
             # We can block as k is large enough
             if l_max_blocked_k > 0:
-                block_vals = libxsmm_generator_gemm_header_kloop(
+                block_vals = compxsmm_generator_gemm_kloop(
                     generated_code,
-                    label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
-                    m_blocking,
-                    k_blocking,
-                    kloop_vals,
+                    m_blocking=m_blocking,
+                    k_blocking=k_blocking,
+                    max_blocked_k=l_max_blocked_k,
+                    vals=kloop_vals,
                 )
 
                 block_vals = generator_kloop_kernel(
@@ -1030,16 +1003,15 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     block_vals,
                 )
 
-                kloop_vals = libxsmm_generator_gemm_footer_kloop(
+                kloop_vals = compxsmm_generator_gemm_footer_kloop(
                     generated_code,
-                    label_tracker,
                     gp_reg_mapping,
                     micro_kernel_config,
                     desc,
-                    m_blocking,
-                    l_max_blocked_k,
-                    False,
-                    block_vals,
+                    m_blocking=m_blocking,
+                    max_blocked_k=l_max_blocked_k,
+                    k_loop_complete=False,
+                    vals=block_vals,
                 )
 
             # Now handle the remainder

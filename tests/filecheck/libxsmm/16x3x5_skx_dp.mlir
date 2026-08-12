@@ -1,6 +1,6 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
 // RUN: libxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s --check-prefix CHECK-IR-LIBXSMM
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
+// RUN: compxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
 
 // CHECK:       .intel_syntax noprefix
 // CHECK-NEXT:  .text
@@ -13,10 +13,10 @@
 // CHECK-NEXT:      mov r10, -64
 // CHECK-NEXT:      and rsp, r10
 // CHECK-NEXT:      mov r11, 0
-// CHECK-NEXT:  l33:
+// CHECK-NEXT:  [[ASM_LABEL_33:^\S+]]:
 // CHECK-NEXT:      add r11, 3
 // CHECK-NEXT:      mov r10, 0
-// CHECK-NEXT:  l34:
+// CHECK-NEXT:  [[ASM_LABEL_34:^\S+]]:
 // CHECK-NEXT:      add r10, 16
 // CHECK-NEXT:      vmovapd zmm26, [rdx]
 // CHECK-NEXT:      vmovapd zmm27, [rdx+64]
@@ -98,12 +98,12 @@
 // CHECK-NEXT:      add rdx, 128
 // CHECK-NEXT:      sub rdi, 512
 // CHECK-NEXT:      cmp r10, 16
-// CHECK-NEXT:      jl l34
+// CHECK-NEXT:      jl [[ASM_LABEL_34]]
 // CHECK-NEXT:      add rdx, 256
 // CHECK-NEXT:      add rsi, 120
 // CHECK-NEXT:      sub rdi, 128
 // CHECK-NEXT:      cmp r11, 3
-// CHECK-NEXT:      jl l33
+// CHECK-NEXT:      jl [[ASM_LABEL_33]]
 // CHECK-NEXT:      mov rsp, rbp
 // CHECK-NEXT:      pop rbp
 // CHECK-NEXT:      pop rbp
