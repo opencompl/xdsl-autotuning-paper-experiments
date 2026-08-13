@@ -1,6 +1,6 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 16 29 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
 // RUN: libxsmm-gemm dense %t matmul_bac 16 29 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s --check-prefix CHECK-IR-LIBXSMM
-// RUN: compxsmm-gemm dense %t matmul_bac 16 29 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
+// RUN: compxsmm-gemm dense %t matmul_bac 16 29 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
 
 // CHECK:       .intel_syntax noprefix
 // CHECK-NEXT:  .text
@@ -13,10 +13,10 @@
 // CHECK-NEXT:      mov r10, -64
 // CHECK-NEXT:      and rsp, r10
 // CHECK-NEXT:      mov r11, 0
-// CHECK-NEXT:  l33:
+// CHECK-NEXT:  [[ASM_LABEL_33:^\S+]]:
 // CHECK-NEXT:      add r11, 10
 // CHECK-NEXT:      mov r10, 0
-// CHECK-NEXT:  l34:
+// CHECK-NEXT:  [[ASM_LABEL_34:^\S+]]:
 // CHECK-NEXT:      add r10, 16
 // CHECK-NEXT:      vmovapd zmm12, [rdx]
 // CHECK-NEXT:      vmovapd zmm13, [rdx+64]
@@ -605,17 +605,17 @@
 // CHECK-NEXT:      add rdx, 128
 // CHECK-NEXT:      sub rdi, 1920
 // CHECK-NEXT:      cmp r10, 16
-// CHECK-NEXT:      jl l34
+// CHECK-NEXT:      jl [[ASM_LABEL_34]]
 // CHECK-NEXT:      add rdx, 1152
 // CHECK-NEXT:      add rsi, 1280
 // CHECK-NEXT:      sub rdi, 128
 // CHECK-NEXT:      cmp r11, 20
-// CHECK-NEXT:      jl l33
+// CHECK-NEXT:      jl [[ASM_LABEL_33]]
 // CHECK-NEXT:      mov r11, 20
-// CHECK-NEXT:  l35:
+// CHECK-NEXT:  [[ASM_LABEL_35:^\S+]]:
 // CHECK-NEXT:      add r11, 9
 // CHECK-NEXT:      mov r10, 0
-// CHECK-NEXT:  l36:
+// CHECK-NEXT:  [[ASM_LABEL_36:^\S+]]:
 // CHECK-NEXT:      add r10, 16
 // CHECK-NEXT:      vmovapd zmm14, [rdx]
 // CHECK-NEXT:      vmovapd zmm15, [rdx+64]
@@ -1152,12 +1152,12 @@
 // CHECK-NEXT:      add rdx, 128
 // CHECK-NEXT:      sub rdi, 1920
 // CHECK-NEXT:      cmp r10, 16
-// CHECK-NEXT:      jl l36
+// CHECK-NEXT:      jl [[ASM_LABEL_36]]
 // CHECK-NEXT:      add rdx, 1024
 // CHECK-NEXT:      add rsi, 1152
 // CHECK-NEXT:      sub rdi, 128
 // CHECK-NEXT:      cmp r11, 29
-// CHECK-NEXT:      jl l35
+// CHECK-NEXT:      jl [[ASM_LABEL_35]]
 // CHECK-NEXT:      mov rsp, rbp
 // CHECK-NEXT:      pop rbp
 // CHECK-NEXT:      pop rbp
