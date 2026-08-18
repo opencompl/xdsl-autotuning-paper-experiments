@@ -1,4 +1,5 @@
 // RUN: compxsmm-gemm dense %t matmul_bac 16 1 16 16 16 16 1 1 1 1 skx nopf DP && cat %t | filecheck %s
+// RUN: compxsmm-gemm dense %t matmul_bac 16 1 16 16 16 16 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p x86-regalloc-verify-liveness,x86-allocate-registers,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
 
 // CHECK:     x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
 // CHECK-NEXT:  %3 = x86.get_register : !x86.reg64<rbp>
@@ -141,3 +142,149 @@
 // CHECK-NEXT:  %156, %157 = x86.d.pop %155 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
 // CHECK-NEXT:  x86_func.ret
 // CHECK-NEXT:}
+
+// CHECK-REGALLOC:       .intel_syntax noprefix
+// CHECK-REGALLOC-NEXT:  .text
+// CHECK-REGALLOC-NEXT:  .globl matmul_bac
+// CHECK-REGALLOC-NEXT:  matmul_bac:
+// CHECK-REGALLOC-NEXT:      push rbp
+// CHECK-REGALLOC-NEXT:      push rbp
+// CHECK-REGALLOC-NEXT:      mov rbp, rsp
+// CHECK-REGALLOC-NEXT:      sub rsp, 192
+// CHECK-REGALLOC-NEXT:      mov [[STACK_ALIGN:\S+]], -64
+// CHECK-REGALLOC-NEXT:      and rsp, [[STACK_ALIGN]]
+// CHECK-REGALLOC-NEXT:      mov [[N:\S+]], 0
+// CHECK-REGALLOC-NEXT:  [[SCF_N_BODY:^\S+]]:
+// CHECK-REGALLOC-NEXT:      add [[N]], 1
+// CHECK-REGALLOC-NEXT:      mov [[M:\S+]], 0
+// CHECK-REGALLOC-NEXT:  [[SCF_M_BODY:^\S+]]:
+// CHECK-REGALLOC-NEXT:      add [[M]], 16
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_ACC0:\S+]], [rdx]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_ACC1:\S+]], [rdx+64]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0:\S+]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1:\S+]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X2:\S+]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X0]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X1]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X0]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X1]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X2]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X1]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X2]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X0]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X2]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X0]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X1]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X0]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X1]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X2]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X1]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X2]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X0]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X2]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X0]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X1]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X0]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X1]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X2]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X1]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X2]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X0]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X2]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X0]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X1]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X0]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X1]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X2]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X1]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X2]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X0]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X2]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X0]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X1]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X0]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X1]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X2]], [[VEC_X0]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X2]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X1]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X2]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X0]], [[VEC_X1]]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X0]], [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd [[VEC_X1]], [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd [[VEC_X2]], [rsi]
+// CHECK-REGALLOC-NEXT:      add rsi, 8
+// CHECK-REGALLOC-NEXT:      add rdi, 128
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC0]], [[VEC_X0]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd [[VEC_ACC1]], [[VEC_X1]], [[VEC_X2]]
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx], [[VEC_ACC0]]
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+64], [[VEC_ACC1]]
+// CHECK-REGALLOC-NEXT:      add rdx, 128
+// CHECK-REGALLOC-NEXT:      sub rdi, 1920
+// CHECK-REGALLOC-NEXT:      cmp [[M]], 16
+// CHECK-REGALLOC-NEXT:      jl [[SCF_M_BODY]]
+// CHECK-REGALLOC-NEXT:      add rdx, 0
+// CHECK-REGALLOC-NEXT:      add rsi, 128
+// CHECK-REGALLOC-NEXT:      sub rdi, 128
+// CHECK-REGALLOC-NEXT:      cmp [[N]], 1
+// CHECK-REGALLOC-NEXT:      jl [[SCF_N_BODY]]
+// CHECK-REGALLOC-NEXT:      mov rsp, rbp
+// CHECK-REGALLOC-NEXT:      pop rbp
+// CHECK-REGALLOC-NEXT:      pop rbp
+// CHECK-REGALLOC-NEXT:      ret

@@ -1,6 +1,7 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
 // RUN: libxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s --check-prefix CHECK-IR-LIBXSMM
 // RUN: compxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion -t x86-asm | filecheck %s
+// RUN: compxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p x86-regalloc-verify-liveness,x86-allocate-registers,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
 
 // CHECK:       .intel_syntax noprefix
 // CHECK-NEXT:  .text
@@ -364,3 +365,173 @@
 // CHECK-IR-LIBXSMM-NEXT:      x86_func.ret
 // CHECK-IR-LIBXSMM-NEXT:    }
 // CHECK-IR-LIBXSMM-NEXT:  }
+
+// CHECK-REGALLOC:       .intel_syntax noprefix
+// CHECK-REGALLOC-NEXT:  .text
+// CHECK-REGALLOC-NEXT:  .globl matmul_bac
+// CHECK-REGALLOC-NEXT:  matmul_bac:
+// CHECK-REGALLOC-NEXT:  push rbp
+// CHECK-REGALLOC-NEXT:  push rbp
+// CHECK-REGALLOC-NEXT:  mov rbp, rsp
+// CHECK-REGALLOC-NEXT:  sub rsp, 192
+// CHECK-REGALLOC-NEXT:  mov [[STACK_ALIGN:\S+]], -64
+// CHECK-REGALLOC-NEXT:  and rsp, [[STACK_ALIGN]]
+// CHECK-REGALLOC-NEXT:  mov [[N:\S+]], 0
+// CHECK-REGALLOC-NEXT:  [[SCF_N_BODY:^\S+]]:
+// CHECK-REGALLOC-NEXT:  add [[N]], 5
+// CHECK-REGALLOC-NEXT:  mov [[M:\S+]], 127
+// CHECK-REGALLOC-NEXT:  kmovb [[MASK:\S+]], {{e[a-z0-9]+}}
+// CHECK-REGALLOC-NEXT:  mov [[M]], 0
+// CHECK-REGALLOC-NEXT:  [[SCF_M_BODY:^\S+]]:
+// CHECK-REGALLOC-NEXT:  add [[M]], 7
+// CHECK-REGALLOC-NEXT:  vmovupd zmm27 {[[MASK]]}{z}, [rdx]
+// CHECK-REGALLOC-NEXT:  vmovupd zmm28 {[[MASK]]}{z}, [rdx+56]
+// CHECK-REGALLOC-NEXT:  vmovupd zmm29 {[[MASK]]}{z}, [rdx+112]
+// CHECK-REGALLOC-NEXT:  vmovupd zmm30 {[[MASK]]}{z}, [rdx+168]
+// CHECK-REGALLOC-NEXT:  vmovupd zmm31 {[[MASK]]}{z}, [rdx+224]
+// CHECK-REGALLOC-NEXT:  vpxord zmm22, zmm22, zmm22
+// CHECK-REGALLOC-NEXT:  vpxord zmm23, zmm23, zmm23
+// CHECK-REGALLOC-NEXT:  vpxord zmm24, zmm24, zmm24
+// CHECK-REGALLOC-NEXT:  vpxord zmm25, zmm25, zmm25
+// CHECK-REGALLOC-NEXT:  vpxord zmm26, zmm26, zmm26
+// CHECK-REGALLOC-NEXT:  vpxord zmm17, zmm17, zmm17
+// CHECK-REGALLOC-NEXT:  vpxord zmm18, zmm18, zmm18
+// CHECK-REGALLOC-NEXT:  vpxord zmm19, zmm19, zmm19
+// CHECK-REGALLOC-NEXT:  vpxord zmm20, zmm20, zmm20
+// CHECK-REGALLOC-NEXT:  vpxord zmm21, zmm21, zmm21
+// CHECK-REGALLOC-NEXT:  vpxord zmm12, zmm12, zmm12
+// CHECK-REGALLOC-NEXT:  vpxord zmm13, zmm13, zmm13
+// CHECK-REGALLOC-NEXT:  vpxord zmm14, zmm14, zmm14
+// CHECK-REGALLOC-NEXT:  vpxord zmm15, zmm15, zmm15
+// CHECK-REGALLOC-NEXT:  vpxord zmm16, zmm16, zmm16
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X0:\S+]] {[[MASK]]}{z}, [rdi]
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X1:\S+]] {[[MASK]]}{z}, [rdi+56]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm27, [[VEC_X0]], [rsi]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm28, [[VEC_X0]], [rsi+128]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm29, [[VEC_X0]], [rsi+256]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm30, [[VEC_X0]], [rsi+384]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm31, [[VEC_X0]], [rsi+512]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X0]] {[[MASK]]}{z}, [rdi+112]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm22, [[VEC_X1]], [rsi+8]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm23, [[VEC_X1]], [rsi+136]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm24, [[VEC_X1]], [rsi+264]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm25, [[VEC_X1]], [rsi+392]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm26, [[VEC_X1]], [rsi+520]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X1]] {[[MASK]]}{z}, [rdi+168]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm17, [[VEC_X0]], [rsi+16]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm18, [[VEC_X0]], [rsi+144]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm19, [[VEC_X0]], [rsi+272]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm20, [[VEC_X0]], [rsi+400]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm21, [[VEC_X0]], [rsi+528]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X0]] {[[MASK]]}{z}, [rdi+224]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm12, [[VEC_X1]], [rsi+24]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm13, [[VEC_X1]], [rsi+152]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm14, [[VEC_X1]], [rsi+280]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm15, [[VEC_X1]], [rsi+408]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm16, [[VEC_X1]], [rsi+536]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X1]] {[[MASK]]}{z}, [rdi+280]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm27, [[VEC_X0]], [rsi+32]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm28, [[VEC_X0]], [rsi+160]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm29, [[VEC_X0]], [rsi+288]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm30, [[VEC_X0]], [rsi+416]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm31, [[VEC_X0]], [rsi+544]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X0]] {[[MASK]]}{z}, [rdi+336]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm22, [[VEC_X1]], [rsi+40]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm23, [[VEC_X1]], [rsi+168]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm24, [[VEC_X1]], [rsi+296]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm25, [[VEC_X1]], [rsi+424]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm26, [[VEC_X1]], [rsi+552]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X1]] {[[MASK]]}{z}, [rdi+392]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm17, [[VEC_X0]], [rsi+48]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm18, [[VEC_X0]], [rsi+176]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm19, [[VEC_X0]], [rsi+304]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm20, [[VEC_X0]], [rsi+432]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm21, [[VEC_X0]], [rsi+560]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X0]] {[[MASK]]}{z}, [rdi+448]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm12, [[VEC_X1]], [rsi+56]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm13, [[VEC_X1]], [rsi+184]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm14, [[VEC_X1]], [rsi+312]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm15, [[VEC_X1]], [rsi+440]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm16, [[VEC_X1]], [rsi+568]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X1]] {[[MASK]]}{z}, [rdi+504]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm27, [[VEC_X0]], [rsi+64]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm28, [[VEC_X0]], [rsi+192]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm29, [[VEC_X0]], [rsi+320]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm30, [[VEC_X0]], [rsi+448]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm31, [[VEC_X0]], [rsi+576]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X0]] {[[MASK]]}{z}, [rdi+560]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm22, [[VEC_X1]], [rsi+72]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm23, [[VEC_X1]], [rsi+200]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm24, [[VEC_X1]], [rsi+328]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm25, [[VEC_X1]], [rsi+456]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm26, [[VEC_X1]], [rsi+584]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X1]] {[[MASK]]}{z}, [rdi+616]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm17, [[VEC_X0]], [rsi+80]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm18, [[VEC_X0]], [rsi+208]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm19, [[VEC_X0]], [rsi+336]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm20, [[VEC_X0]], [rsi+464]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm21, [[VEC_X0]], [rsi+592]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X0]] {[[MASK]]}{z}, [rdi+672]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm12, [[VEC_X1]], [rsi+88]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm13, [[VEC_X1]], [rsi+216]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm14, [[VEC_X1]], [rsi+344]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm15, [[VEC_X1]], [rsi+472]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm16, [[VEC_X1]], [rsi+600]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X1]] {[[MASK]]}{z}, [rdi+728]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm27, [[VEC_X0]], [rsi+96]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm28, [[VEC_X0]], [rsi+224]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm29, [[VEC_X0]], [rsi+352]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm30, [[VEC_X0]], [rsi+480]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm31, [[VEC_X0]], [rsi+608]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X0]] {[[MASK]]}{z}, [rdi+784]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm22, [[VEC_X1]], [rsi+104]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm23, [[VEC_X1]], [rsi+232]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm24, [[VEC_X1]], [rsi+360]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm25, [[VEC_X1]], [rsi+488]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm26, [[VEC_X1]], [rsi+616]{1to8}
+// CHECK-REGALLOC-NEXT:  vmovupd [[VEC_X1]] {[[MASK]]}{z}, [rdi+840]
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm17, [[VEC_X0]], [rsi+112]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm18, [[VEC_X0]], [rsi+240]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm19, [[VEC_X0]], [rsi+368]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm20, [[VEC_X0]], [rsi+496]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm21, [[VEC_X0]], [rsi+624]{1to8}
+// CHECK-REGALLOC-NEXT:  add rdi, 896
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm12, [[VEC_X1]], [rsi+120]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm13, [[VEC_X1]], [rsi+248]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm14, [[VEC_X1]], [rsi+376]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm15, [[VEC_X1]], [rsi+504]{1to8}
+// CHECK-REGALLOC-NEXT:  vfmadd231pd zmm16, [[VEC_X1]], [rsi+632]{1to8}
+// CHECK-REGALLOC-NEXT:  add rsi, 128
+// CHECK-REGALLOC-NEXT:  vaddpd zmm27, zmm22, zmm27
+// CHECK-REGALLOC-NEXT:  vaddpd zmm28, zmm23, zmm28
+// CHECK-REGALLOC-NEXT:  vaddpd zmm29, zmm24, zmm29
+// CHECK-REGALLOC-NEXT:  vaddpd zmm30, zmm25, zmm30
+// CHECK-REGALLOC-NEXT:  vaddpd zmm31, zmm26, zmm31
+// CHECK-REGALLOC-NEXT:  vaddpd zmm27, zmm17, zmm27
+// CHECK-REGALLOC-NEXT:  vaddpd zmm28, zmm18, zmm28
+// CHECK-REGALLOC-NEXT:  vaddpd zmm29, zmm19, zmm29
+// CHECK-REGALLOC-NEXT:  vaddpd zmm30, zmm20, zmm30
+// CHECK-REGALLOC-NEXT:  vaddpd zmm31, zmm21, zmm31
+// CHECK-REGALLOC-NEXT:  vaddpd zmm27, zmm12, zmm27
+// CHECK-REGALLOC-NEXT:  vaddpd zmm28, zmm13, zmm28
+// CHECK-REGALLOC-NEXT:  vaddpd zmm29, zmm14, zmm29
+// CHECK-REGALLOC-NEXT:  vaddpd zmm30, zmm15, zmm30
+// CHECK-REGALLOC-NEXT:  vaddpd zmm31, zmm16, zmm31
+// CHECK-REGALLOC-NEXT:  vmovupd [rdx] {[[MASK]]}, zmm27
+// CHECK-REGALLOC-NEXT:  vmovupd [rdx+56] {[[MASK]]}, zmm28
+// CHECK-REGALLOC-NEXT:  vmovupd [rdx+112] {[[MASK]]}, zmm29
+// CHECK-REGALLOC-NEXT:  vmovupd [rdx+168] {[[MASK]]}, zmm30
+// CHECK-REGALLOC-NEXT:  vmovupd [rdx+224] {[[MASK]]}, zmm31
+// CHECK-REGALLOC-NEXT:  add rdx, 56
+// CHECK-REGALLOC-NEXT:  sub rdi, 840
+// CHECK-REGALLOC-NEXT:  cmp [[M]], 7
+// CHECK-REGALLOC-NEXT:  jl [[SCF_M_BODY]]
+// CHECK-REGALLOC-NEXT:  add rdx, 224
+// CHECK-REGALLOC-NEXT:  add rsi, 640
+// CHECK-REGALLOC-NEXT:  sub rdi, 56
+// CHECK-REGALLOC-NEXT:  cmp [[N]], 5
+// CHECK-REGALLOC-NEXT:  jl [[SCF_N_BODY]]
+// CHECK-REGALLOC-NEXT:  mov rsp, rbp
+// CHECK-REGALLOC-NEXT:  pop rbp
+// CHECK-REGALLOC-NEXT:  pop rbp
+// CHECK-REGALLOC-NEXT:  ret

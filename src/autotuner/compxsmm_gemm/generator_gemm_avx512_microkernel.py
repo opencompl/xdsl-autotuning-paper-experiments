@@ -24,6 +24,8 @@ def compxsmm_generator_gemm_avx512_kloop_kernel(
     n_blocking: int,
     k_blocking: int,
     vals: KLoopVals,
+    *,
+    disable_regalloc: bool,
 ) -> KLoopVals:
     k = 0
     _k_pack_factor = 1
@@ -98,6 +100,7 @@ def compxsmm_generator_gemm_avx512_kloop_kernel(
             n_blocking,
             k_blocking,
             vals,
+            disable_regalloc=disable_regalloc,
         )
     else:
         # void (*l_generator_microkernel)(libxsmm_generated_code*, const libxsmm_gp_reg_mapping*, const libxsmm_micro_kernel_config*,
@@ -136,6 +139,7 @@ def compxsmm_generator_gemm_avx512_kloop_kernel(
                 m_blocking,
                 n_blocking,
                 vals,
+                disable_regalloc=disable_regalloc,
             )
 
     return vals
