@@ -156,6 +156,8 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
     n_blocking: int,
     k_blocking: int,
     vals: KLoopVals,
+    *,
+    disable_regalloc: bool = False,
 ) -> KLoopVals:
     vreg_ab_offset = 0
     k_pack_factor = 1
@@ -218,6 +220,11 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
     for k in range(k_iters):
         if k == 0:
             reg_idx = vreg_ab_offset
+            a_dest = (
+                vec_type.unallocated()
+                if disable_regalloc
+                else vec_type.from_index(reg_idx)
+            )
             a_by_idx[reg_idx] = libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 micro_kernel_config.instruction_set,
@@ -226,13 +233,18 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
                 None,
                 0,
                 desc.lda * k * micro_kernel_config.datatype_size_in * k_pack_factor,
-                vec_type.from_index(reg_idx),
+                a_dest,
                 vals.mask_k1 if micro_kernel_config.use_masking_a_c else None,
                 True,
                 False,
             )
             if k_iters > 1:
                 reg_idx = 1 + vreg_ab_offset
+                a_dest = (
+                    vec_type.unallocated()
+                    if disable_regalloc
+                    else vec_type.from_index(reg_idx)
+                )
                 a_by_idx[reg_idx] = libxsmm_x86_instruction_vec_move_ld(
                     generated_code,
                     micro_kernel_config.instruction_set,
@@ -244,13 +256,18 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
                     * (k + 1)
                     * micro_kernel_config.datatype_size_in
                     * k_pack_factor,
-                    vec_type.from_index(reg_idx),
+                    a_dest,
                     vals.mask_k1 if micro_kernel_config.use_masking_a_c else None,
                     True,
                     False,
                 )
         elif k < (k_iters - 1):
             reg_idx = (k + 1) % 2 + vreg_ab_offset
+            a_dest = (
+                vec_type.unallocated()
+                if disable_regalloc
+                else vec_type.from_index(reg_idx)
+            )
             a_by_idx[reg_idx] = libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 micro_kernel_config.instruction_set,
@@ -262,7 +279,7 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
                 * (k + 1)
                 * micro_kernel_config.datatype_size_in
                 * k_pack_factor,
-                vec_type.from_index(reg_idx),
+                a_dest,
                 vals.mask_k1 if micro_kernel_config.use_masking_a_c else None,
                 True,
                 False,
@@ -381,6 +398,8 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
     m_blocking: int,
     n_blocking: int,
     vals: KLoopVals,
+    *,
+    disable_regalloc: bool = False,
 ) -> KLoopVals:
     # deriving register blocking from kernel config
     m_blocking = (
@@ -510,11 +529,14 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     use_masking_a = micro_kernel_config.use_masking_a_c and (
                         m == (m_blocking - 1)
                     )
-                    a_dest = a_vec_type.from_index(
-                        m + vreg_ab_offset
-                        if (is_Ai2_Bi8_gemm > 0)
-                        else 1 + m + vreg_ab_offset
-                    )
+                    if disable_regalloc:
+                        a_dest = a_vec_type.unallocated()
+                    else:
+                        a_dest = a_vec_type.from_index(
+                            m + vreg_ab_offset
+                            if (is_Ai2_Bi8_gemm > 0)
+                            else 1 + m + vreg_ab_offset
+                        )
                     a_vec_vals.append(
                         libxsmm_x86_instruction_vec_move_ld(
                             generated_code,
@@ -609,6 +631,10 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 else b_vname
             )
             b_vec_type = vec_reg_type(b_vname)
+            if disable_regalloc:
+                b_dest = b_vec_type.unallocated()
+            else:
+                b_dest = b_vec_type.from_index(vreg_ab_offset)
             b_vec_val = libxsmm_x86_instruction_vec_move_ld(
                 generated_code,
                 micro_kernel_config.instruction_set,
@@ -617,7 +643,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                 x86.registers.UNALLOCATED_REG64,
                 0,
                 b_offset,
-                b_vec_type.from_index(vreg_ab_offset),
+                b_dest,
                 None,
                 True,
                 False,

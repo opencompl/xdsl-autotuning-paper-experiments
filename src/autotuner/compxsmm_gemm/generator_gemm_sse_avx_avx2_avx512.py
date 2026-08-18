@@ -71,7 +71,7 @@ from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
 def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
-    func_op: FuncOp, arch: Arch, desc: GEMMDescriptor
+    func_op: FuncOp, arch: Arch, desc: GEMMDescriptor, *, disable_regalloc: bool
 ) -> None:
     gp_reg_mapping = GPRegMapping()
     is_amxfp4_bfp32_gemm = desc.is_Amxfp4_Bfp32_gemm()
@@ -142,12 +142,13 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
     elif GEMMFlag.BATCH_REDUCE_OFFSET in desc.flags:
         raise NotImplementedError
 
-    gp_reg_mapping.gp_reg_mloop = R10
-    gp_reg_mapping.gp_reg_nloop = R11
-    gp_reg_mapping.gp_reg_kloop = R12
-    gp_reg_mapping.gp_reg_help_0 = R14
-    gp_reg_mapping.gp_reg_help_1 = R15
-    gp_reg_mapping.gp_reg_help_2 = RBX
+    if not disable_regalloc:
+        gp_reg_mapping.gp_reg_mloop = R10
+        gp_reg_mapping.gp_reg_nloop = R11
+        gp_reg_mapping.gp_reg_kloop = R12
+        gp_reg_mapping.gp_reg_help_0 = R14
+        gp_reg_mapping.gp_reg_help_1 = R15
+        gp_reg_mapping.gp_reg_help_2 = RBX
 
     builder = Builder(InsertPoint.at_end(func_op.body.block))
 
@@ -157,7 +158,10 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         generated_code, gp_reg_mapping, False, desc.prefetch
     )
     compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
-        generated_code, gp_reg_mapping, desc
+        generated_code,
+        gp_reg_mapping,
+        desc,
+        disable_regalloc=disable_regalloc,
     )
 
     # In C, the stream is closed with the inline assembly register string, but we don't
@@ -171,6 +175,8 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
     desc: GEMMDescriptor,
+    *,
+    disable_regalloc: bool,
 ) -> None:
     micro_kernel_config = MicroKernelConfig()
 
@@ -755,6 +761,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                         mask_k1_val,
                         acc_vals,
                     ),
+                    disable_regalloc=disable_regalloc,
                 )
                 a_val = kloop_vals.a
                 b_val = kloop_vals.b
@@ -840,6 +847,8 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
     m_blocking: int,
     n_blocking: int,
     kloop_vals: KLoopVals,
+    *,
+    disable_regalloc: bool,
 ) -> KLoopVals:
     # some hard coded parameters for k-blocking
     k_blocking = 0
@@ -951,6 +960,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             n_blocking,
             k_blocking,
             block_vals,
+            disable_regalloc=disable_regalloc,
         )
         kloop_vals = compxsmm_generator_gemm_footer_kloop(
             generated_code,
@@ -975,6 +985,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 n_blocking,
                 desc.k,
                 kloop_vals,
+                disable_regalloc=disable_regalloc,
             )
         # 3. we are larger than the threshold but not a multiple of the blocking factor -> largest possible blocking + remainder handling
         else:
@@ -1002,6 +1013,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     n_blocking,
                     k_blocking,
                     block_vals,
+                    disable_regalloc=disable_regalloc,
                 )
 
                 kloop_vals = compxsmm_generator_gemm_footer_kloop(
@@ -1025,6 +1037,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 n_blocking,
                 desc.k - l_max_blocked_k,
                 kloop_vals,
+                disable_regalloc=disable_regalloc,
             )
 
             # Reset B pointer
