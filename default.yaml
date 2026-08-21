@@ -23,6 +23,7 @@ libxsmm-gemm-passes:
   - x86-prologue-epilogue-insertion
 
 compxsmm-gemm-passes:
+  - convert-xsmm-to-x86{disable-regalloc=true}
   - x86-regalloc-verify-liveness
   - x86-allocate-registers
   - convert-x86-scf-to-x86

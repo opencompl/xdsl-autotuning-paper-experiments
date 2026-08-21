@@ -21,9 +21,7 @@ from xdsl.dialects.x86.registers import (
 from xdsl.dialects.x86_func import FuncOp
 from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
-from autotuner.compxsmm_gemm.generator_gemm_avx512_microkernel import (
-    compxsmm_generator_gemm_avx512_kloop_kernel,
-)
+
 from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_footer_kloop,
     compxsmm_generator_gemm_footer_mloop,
@@ -32,6 +30,7 @@ from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_header_nloop,
     compxsmm_generator_gemm_kloop,
 )
+from autotuner.dialects.xsmm import MatmulKOp
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK_REG,
     GPRegMapping,
@@ -68,6 +67,18 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMPrefetchType,
 )
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
+
+
+def _kloop_vals_from_matmul_k(op: MatmulKOp) -> KLoopVals:
+    return KLoopVals(
+        op.a_out,
+        op.b_out,
+        op.c_out,
+        op.rbp_out,
+        op.rsp_out,
+        op.mask_out,
+        tuple(op.accumulator_outs),
+    )
 
 
 def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
@@ -932,7 +943,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX
         and generated_code.arch <= Arch.LIBXSMM_X86_ALLFEAT
     ):
-        generator_kloop_kernel = compxsmm_generator_gemm_avx512_kloop_kernel
+        pass
     else:
         assert False, (
             f"Unsupported architecture {generated_code.arch} for micro-kernel generation"
@@ -957,16 +968,27 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
             max_blocked_k=desc.k,
             vals=kloop_vals,
         )
-        block_vals = generator_kloop_kernel(
-            generated_code,
-            gp_reg_mapping,
-            micro_kernel_config,
-            desc,
-            m_blocking,
-            n_blocking,
-            k_blocking,
-            block_vals,
-            disable_regalloc=disable_regalloc,
+        datatype = desc.datatype.ab
+        assert datatype is not None
+        block_vals = _kloop_vals_from_matmul_k(
+            generated_code.insert(
+                MatmulKOp(
+                    block_vals.a,
+                    block_vals.b,
+                    block_vals.c,
+                    block_vals.rbp,
+                    block_vals.rsp,
+                    block_vals.mask_k1,
+                    block_vals.acc_vectors,
+                    m_blocking=m_blocking,
+                    n_blocking=n_blocking,
+                    k_blocking=k_blocking,
+                    lda=desc.lda,
+                    ldb=desc.ldb,
+                    datatype=datatype.builtin_type,
+                    aligned_a=GEMMFlag.ALIGN_A in desc.flags,
+                )
+            )
         )
         kloop_vals = compxsmm_generator_gemm_footer_kloop(
             generated_code,
@@ -982,16 +1004,27 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
         b_offset = 0
         # 2. we want to fully unroll below the threshold
         if desc.k <= k_threshold:
-            kloop_vals = generator_kloop_kernel(
-                generated_code,
-                gp_reg_mapping,
-                micro_kernel_config,
-                desc,
-                m_blocking,
-                n_blocking,
-                desc.k,
-                kloop_vals,
-                disable_regalloc=disable_regalloc,
+            datatype = desc.datatype.ab
+            assert datatype is not None
+            kloop_vals = _kloop_vals_from_matmul_k(
+                generated_code.insert(
+                    MatmulKOp(
+                        kloop_vals.a,
+                        kloop_vals.b,
+                        kloop_vals.c,
+                        kloop_vals.rbp,
+                        kloop_vals.rsp,
+                        kloop_vals.mask_k1,
+                        kloop_vals.acc_vectors,
+                        m_blocking=m_blocking,
+                        n_blocking=n_blocking,
+                        k_blocking=desc.k,
+                        lda=desc.lda,
+                        ldb=desc.ldb,
+                        datatype=datatype.builtin_type,
+                        aligned_a=GEMMFlag.ALIGN_A in desc.flags,
+                    )
+                )
             )
         # 3. we are larger than the threshold but not a multiple of the blocking factor -> largest possible blocking + remainder handling
         else:
@@ -1010,16 +1043,27 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                     vals=kloop_vals,
                 )
 
-                block_vals = generator_kloop_kernel(
-                    generated_code,
-                    gp_reg_mapping,
-                    micro_kernel_config,
-                    desc,
-                    m_blocking,
-                    n_blocking,
-                    k_blocking,
-                    block_vals,
-                    disable_regalloc=disable_regalloc,
+                datatype = desc.datatype.ab
+                assert datatype is not None
+                block_vals = _kloop_vals_from_matmul_k(
+                    generated_code.insert(
+                        MatmulKOp(
+                            block_vals.a,
+                            block_vals.b,
+                            block_vals.c,
+                            block_vals.rbp,
+                            block_vals.rsp,
+                            block_vals.mask_k1,
+                            block_vals.acc_vectors,
+                            m_blocking=m_blocking,
+                            n_blocking=n_blocking,
+                            k_blocking=k_blocking,
+                            lda=desc.lda,
+                            ldb=desc.ldb,
+                            datatype=datatype.builtin_type,
+                            aligned_a=GEMMFlag.ALIGN_A in desc.flags,
+                        )
+                    )
                 )
 
                 kloop_vals = compxsmm_generator_gemm_footer_kloop(
@@ -1034,16 +1078,27 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 )
 
             # Now handle the remainder
-            kloop_vals = generator_kloop_kernel(
-                generated_code,
-                gp_reg_mapping,
-                micro_kernel_config,
-                desc,
-                m_blocking,
-                n_blocking,
-                desc.k - l_max_blocked_k,
-                kloop_vals,
-                disable_regalloc=disable_regalloc,
+            datatype = desc.datatype.ab
+            assert datatype is not None
+            kloop_vals = _kloop_vals_from_matmul_k(
+                generated_code.insert(
+                    MatmulKOp(
+                        kloop_vals.a,
+                        kloop_vals.b,
+                        kloop_vals.c,
+                        kloop_vals.rbp,
+                        kloop_vals.rsp,
+                        kloop_vals.mask_k1,
+                        kloop_vals.acc_vectors,
+                        m_blocking=m_blocking,
+                        n_blocking=n_blocking,
+                        k_blocking=desc.k - l_max_blocked_k,
+                        lda=desc.lda,
+                        ldb=desc.ldb,
+                        datatype=datatype.builtin_type,
+                        aligned_a=GEMMFlag.ALIGN_A in desc.flags,
+                    )
+                )
             )
 
         # Reset B pointer
