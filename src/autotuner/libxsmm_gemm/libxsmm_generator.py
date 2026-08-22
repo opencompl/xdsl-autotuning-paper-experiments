@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
 from xdsl.builder import Builder
-from xdsl.dialects import x86_func
 from xdsl.dialects.x86.registers import (
     AVX2RegisterType,
     AVX512MaskRegisterType,
@@ -95,7 +94,6 @@ class KLoopVals:
 
 @dataclass
 class GeneratedCode:
-    func_op: x86_func.FuncOp
     builder: Builder
     arch: Arch
 

@@ -152,7 +152,13 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
 
     builder = Builder(InsertPoint.at_end(func_op.body.block))
 
-    generated_code = GeneratedCode(func_op, builder, arch)
+    generated_code = GeneratedCode(builder, arch)
+
+    # Respect SWAP_A_B
+    arg_by_reg = {arg.type: arg for arg in func_op.body.block.args}
+    a_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_a], type=GeneralRegisterType)
+    b_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_b], type=GeneralRegisterType)
+    c_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_c], type=GeneralRegisterType)
 
     libxsmm_x86_instruction_open_stream_gemm(
         generated_code, gp_reg_mapping, False, desc.prefetch
@@ -162,6 +168,9 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
         gp_reg_mapping,
         desc,
         disable_regalloc=disable_regalloc,
+        a_val=a_val,
+        b_val=b_val,
+        c_val=c_val,
     )
 
     # In C, the stream is closed with the inline assembly register string, but we don't
@@ -177,14 +186,11 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     desc: GEMMDescriptor,
     *,
     disable_regalloc: bool,
+    a_val: SSAValue[GeneralRegisterType],
+    b_val: SSAValue[GeneralRegisterType],
+    c_val: SSAValue[GeneralRegisterType],
 ) -> None:
     micro_kernel_config = MicroKernelConfig()
-
-    # Respect SWAP_A_B
-    arg_by_reg = {arg.type: arg for arg in generated_code.func_op.body.block.args}
-    a_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_a], type=GeneralRegisterType)
-    b_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_b], type=GeneralRegisterType)
-    c_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_c], type=GeneralRegisterType)
 
     is_Ai4_Bf16_gemm = (
         ((desc.flags & GEMMFlag.INTERPRETE_A_AS_INT4_VNNI2) > 0)

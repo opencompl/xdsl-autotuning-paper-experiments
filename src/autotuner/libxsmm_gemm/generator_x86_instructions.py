@@ -22,14 +22,6 @@ def libxsmm_x86_instruction_open_stream_gemm(
     skip_callee_save: bool,
     prefetch: GEMMPrefetchType,
 ) -> None:
-    args = generated_code.func_op.body.block.args
-    a, b, c = args
-
-    # TODO: (Sasha) commented out to allow swapping a with b symbolically
-    # generated_code.insert(x86.ops.DS_MovOp(a, destination=gp_reg_mapping.gp_reg_a))
-    # generated_code.insert(x86.ops.DS_MovOp(b, destination=gp_reg_mapping.gp_reg_b))
-    # generated_code.insert(x86.ops.DS_MovOp(c, destination=gp_reg_mapping.gp_reg_c))
-
     match prefetch:
         case GEMMPrefetchType.BL2 | GEMMPrefetchType.AL2:
             raise NotImplementedError
