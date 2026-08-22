@@ -33,7 +33,17 @@ from xdsl.utils.exceptions import VerifyException
 
 @irdl_op_definition
 class MatmulKOp(IRDLOperation):
-    """A blocked, register-resident matrix multiplication K body."""
+    """A blocked, register-resident matrix multiplication K body.
+
+    The operation performs ``k_blocking`` K steps. For the currently supported
+    non-transposed inputs, this advances A by ``k_blocking * lda`` elements and B
+    by ``k_blocking`` elements. The corresponding output operands expose those
+    advanced pointers; C and the frame and stack pointers are passed through.
+
+    Transformations that tile this operation must preserve these pointer results.
+    In particular, whether K is represented by one operation or by a loop of
+    smaller operations must not affect ``b_out``.
+    """
 
     name = "xsmm.matmul_k"
 

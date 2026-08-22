@@ -37,156 +37,140 @@
 // CHECK-NEXT:        %57 = x86.dm.vmovups [%33 + 1464] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm29>
 // CHECK-NEXT:        %58 = x86.dm.vmovups [%33 + 1528] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm30>
 // CHECK-NEXT:        %59 = x86.dm.vmovups [%33 + 1592] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm31>
-// CHECK-NEXT:        %60 = x86.di.mov 0 : () -> !x86.reg64<r12>
-// CHECK-NEXT:        %61, %62, %63, %64, %65, %66, %67, %68, %69, %70, %71, %72, %73, %74, %75, %76, %77, %78, %79, %80, %81, %82, %83, %84, %85, %86, %87, %88, %89, %90 = x86_scf.for %91 : !x86.reg64<r12>  = %60 to 128 : si32 step 4 : si32 iter_args(%92 = %31, %93 = %32, %94 = %33, %95 = %34, %96 = %35, %97 = %36, %98 = %37, %99 = %38, %100 = %39, %101 = %40, %102 = %41, %103 = %42, %104 = %43, %105 = %44, %106 = %45, %107 = %46, %108 = %47, %109 = %48, %110 = %49, %111 = %50, %112 = %51, %113 = %52, %114 = %53, %115 = %54, %116 = %55, %117 = %56, %118 = %57, %119 = %58, %120 = %59) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm8>, !x86.avx512reg<zmm9>, !x86.avx512reg<zmm10>, !x86.avx512reg<zmm11>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) {
-// CHECK-NEXT:          %121, %122, %123, %124, %125, %126, %127, %128, %129, %130, %131, %132, %133, %134, %135, %136, %137, %138, %139, %140, %141, %142, %143, %144, %145, %146, %147, %148, %149 = "xsmm.matmul_k"(%92, %93, %94, %95, %96, %97, %98, %99, %100, %101, %102, %103, %104, %105, %106, %107, %108, %109, %110, %111, %112, %113, %114, %115, %116, %117, %118, %119, %120) <{m_blocking = 64 : i64, n_blocking = 6 : i64, k_blocking = 4 : i64, lda = 70 : i64, ldb = 128 : i64, datatype = f32, aligned_a = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 24>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 24>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm8>, !x86.avx512reg<zmm9>, !x86.avx512reg<zmm10>, !x86.avx512reg<zmm11>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm8>, !x86.avx512reg<zmm9>, !x86.avx512reg<zmm10>, !x86.avx512reg<zmm11>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>)
-// CHECK-NEXT:          x86_scf.yield %121, %122, %123, %124, %125, %126, %127, %128, %129, %130, %131, %132, %133, %134, %135, %136, %137, %138, %139, %140, %141, %142, %143, %144, %145, %146, %147, %148, %149 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm8>, !x86.avx512reg<zmm9>, !x86.avx512reg<zmm10>, !x86.avx512reg<zmm11>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>
-// CHECK-NEXT:        }
-// CHECK-NEXT:        %150 = x86.ri.sub %63, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:        x86.ms.vmovups [%64], %67 : (!x86.reg64<rdx>, !x86.avx512reg<zmm8>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 64], %68 : (!x86.reg64<rdx>, !x86.avx512reg<zmm9>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 128], %69 : (!x86.reg64<rdx>, !x86.avx512reg<zmm10>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 192], %70 : (!x86.reg64<rdx>, !x86.avx512reg<zmm11>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 280], %71 : (!x86.reg64<rdx>, !x86.avx512reg<zmm12>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 344], %72 : (!x86.reg64<rdx>, !x86.avx512reg<zmm13>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 408], %73 : (!x86.reg64<rdx>, !x86.avx512reg<zmm14>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 472], %74 : (!x86.reg64<rdx>, !x86.avx512reg<zmm15>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 560], %75 : (!x86.reg64<rdx>, !x86.avx512reg<zmm16>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 624], %76 : (!x86.reg64<rdx>, !x86.avx512reg<zmm17>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 688], %77 : (!x86.reg64<rdx>, !x86.avx512reg<zmm18>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 752], %78 : (!x86.reg64<rdx>, !x86.avx512reg<zmm19>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 840], %79 : (!x86.reg64<rdx>, !x86.avx512reg<zmm20>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 904], %80 : (!x86.reg64<rdx>, !x86.avx512reg<zmm21>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 968], %81 : (!x86.reg64<rdx>, !x86.avx512reg<zmm22>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1032], %82 : (!x86.reg64<rdx>, !x86.avx512reg<zmm23>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1120], %83 : (!x86.reg64<rdx>, !x86.avx512reg<zmm24>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1184], %84 : (!x86.reg64<rdx>, !x86.avx512reg<zmm25>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1248], %85 : (!x86.reg64<rdx>, !x86.avx512reg<zmm26>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1312], %86 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1400], %87 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1464], %88 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1528], %89 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%64 + 1592], %90 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>) -> ()
-// CHECK-NEXT:        %151 = x86.ri.add %64, 256 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:        %152 = x86.ri.sub %62, 35584 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:        x86_scf.yield %152, %150, %151, %65, %66 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
+// CHECK-NEXT:        %60, %61, %62, %63, %64, %65, %66, %67, %68, %69, %70, %71, %72, %73, %74, %75, %76, %77, %78, %79, %80, %81, %82, %83, %84, %85, %86, %87, %88 = "xsmm.matmul_k"(%31, %32, %33, %34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, %50, %51, %52, %53, %54, %55, %56, %57, %58, %59) <{m_blocking = 64 : i64, n_blocking = 6 : i64, k_blocking = 128 : i64, lda = 70 : i64, ldb = 128 : i64, datatype = f32, aligned_a = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 24>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 24>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm8>, !x86.avx512reg<zmm9>, !x86.avx512reg<zmm10>, !x86.avx512reg<zmm11>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm8>, !x86.avx512reg<zmm9>, !x86.avx512reg<zmm10>, !x86.avx512reg<zmm11>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>)
+// CHECK-NEXT:        %89 = x86.ri.sub %61, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:        x86.ms.vmovups [%62], %65 : (!x86.reg64<rdx>, !x86.avx512reg<zmm8>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 64], %66 : (!x86.reg64<rdx>, !x86.avx512reg<zmm9>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 128], %67 : (!x86.reg64<rdx>, !x86.avx512reg<zmm10>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 192], %68 : (!x86.reg64<rdx>, !x86.avx512reg<zmm11>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 280], %69 : (!x86.reg64<rdx>, !x86.avx512reg<zmm12>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 344], %70 : (!x86.reg64<rdx>, !x86.avx512reg<zmm13>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 408], %71 : (!x86.reg64<rdx>, !x86.avx512reg<zmm14>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 472], %72 : (!x86.reg64<rdx>, !x86.avx512reg<zmm15>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 560], %73 : (!x86.reg64<rdx>, !x86.avx512reg<zmm16>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 624], %74 : (!x86.reg64<rdx>, !x86.avx512reg<zmm17>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 688], %75 : (!x86.reg64<rdx>, !x86.avx512reg<zmm18>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 752], %76 : (!x86.reg64<rdx>, !x86.avx512reg<zmm19>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 840], %77 : (!x86.reg64<rdx>, !x86.avx512reg<zmm20>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 904], %78 : (!x86.reg64<rdx>, !x86.avx512reg<zmm21>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 968], %79 : (!x86.reg64<rdx>, !x86.avx512reg<zmm22>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1032], %80 : (!x86.reg64<rdx>, !x86.avx512reg<zmm23>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1120], %81 : (!x86.reg64<rdx>, !x86.avx512reg<zmm24>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1184], %82 : (!x86.reg64<rdx>, !x86.avx512reg<zmm25>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1248], %83 : (!x86.reg64<rdx>, !x86.avx512reg<zmm26>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1312], %84 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1400], %85 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1464], %86 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1528], %87 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%62 + 1592], %88 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>) -> ()
+// CHECK-NEXT:        %90 = x86.ri.add %62, 256 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:        %91 = x86.ri.sub %60, 35584 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:        x86_scf.yield %91, %89, %90, %63, %64 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      %153 = x86.di.mov 63 : () -> !x86.reg64<r15>
-// CHECK-NEXT:      %154 = x86.ks.kmovw %153 : (!x86.reg64<r15>) -> !x86.avx512maskreg<k1>
-// CHECK-NEXT:      %155 = x86.di.mov 64 : () -> !x86.reg64<r10>
-// CHECK-NEXT:      %156, %157, %158, %159, %160, %161, %162 = x86_scf.for %163 : !x86.reg64<r10>  = %155 to 70 : si32 step 6 : si32 iter_args(%164 = %25, %165 = %26, %166 = %27, %167 = %28, %168 = %29, %169 = %154) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>) {
-// CHECK-NEXT:        %170 = x86.dmk.vmovups[%166], %169 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm26>
-// CHECK-NEXT:        %171 = x86.dmk.vmovups[%166 + 280], %169 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm27>
-// CHECK-NEXT:        %172 = x86.dmk.vmovups[%166 + 560], %169 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm28>
-// CHECK-NEXT:        %173 = x86.dmk.vmovups[%166 + 840], %169 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm29>
-// CHECK-NEXT:        %174 = x86.dmk.vmovups[%166 + 1120], %169 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm30>
-// CHECK-NEXT:        %175 = x86.dmk.vmovups[%166 + 1400], %169 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm31>
-// CHECK-NEXT:        %176 = x86.di.mov 0 : () -> !x86.reg64<r12>
-// CHECK-NEXT:        %177, %178, %179, %180, %181, %182, %183, %184, %185, %186, %187, %188, %189 = x86_scf.for %190 : !x86.reg64<r12>  = %176 to 128 : si32 step 4 : si32 iter_args(%191 = %164, %192 = %165, %193 = %166, %194 = %167, %195 = %168, %196 = %169, %197 = %170, %198 = %171, %199 = %172, %200 = %173, %201 = %174, %202 = %175) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) {
-// CHECK-NEXT:          %203, %204, %205, %206, %207, %208, %209, %210, %211, %212, %213, %214 = "xsmm.matmul_k"(%191, %192, %193, %194, %195, %196, %197, %198, %199, %200, %201, %202) <{m_blocking = 6 : i64, n_blocking = 6 : i64, k_blocking = 4 : i64, lda = 70 : i64, ldb = 128 : i64, datatype = f32, aligned_a = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 6>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 6>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>)
-// CHECK-NEXT:          x86_scf.yield %203, %204, %205, %206, %207, %208, %209, %210, %211, %212, %213, %214 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>
-// CHECK-NEXT:        }
-// CHECK-NEXT:        %215 = x86.ri.sub %179, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:        x86.msk.vmovups[%180], %184, %183 : (!x86.reg64<rdx>, !x86.avx512reg<zmm26>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%180 + 280], %185, %183 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%180 + 560], %186, %183 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%180 + 840], %187, %183 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%180 + 1120], %188, %183 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%180 + 1400], %189, %183 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        %216 = x86.ri.add %180, 24 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:        %217 = x86.ri.sub %178, 35816 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:        x86_scf.yield %217, %215, %216, %181, %182, %183 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>
+// CHECK-NEXT:      %92 = x86.di.mov 63 : () -> !x86.reg64<r15>
+// CHECK-NEXT:      %93 = x86.ks.kmovw %92 : (!x86.reg64<r15>) -> !x86.avx512maskreg<k1>
+// CHECK-NEXT:      %94 = x86.di.mov 64 : () -> !x86.reg64<r10>
+// CHECK-NEXT:      %95, %96, %97, %98, %99, %100, %101 = x86_scf.for %102 : !x86.reg64<r10>  = %94 to 70 : si32 step 6 : si32 iter_args(%103 = %25, %104 = %26, %105 = %27, %106 = %28, %107 = %29, %108 = %93) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>) {
+// CHECK-NEXT:        %109 = x86.dmk.vmovups[%105], %108 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm26>
+// CHECK-NEXT:        %110 = x86.dmk.vmovups[%105 + 280], %108 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm27>
+// CHECK-NEXT:        %111 = x86.dmk.vmovups[%105 + 560], %108 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm28>
+// CHECK-NEXT:        %112 = x86.dmk.vmovups[%105 + 840], %108 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm29>
+// CHECK-NEXT:        %113 = x86.dmk.vmovups[%105 + 1120], %108 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm30>
+// CHECK-NEXT:        %114 = x86.dmk.vmovups[%105 + 1400], %108 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm31>
+// CHECK-NEXT:        %115, %116, %117, %118, %119, %120, %121, %122, %123, %124, %125, %126 = "xsmm.matmul_k"(%103, %104, %105, %106, %107, %108, %109, %110, %111, %112, %113, %114) <{m_blocking = 6 : i64, n_blocking = 6 : i64, k_blocking = 128 : i64, lda = 70 : i64, ldb = 128 : i64, datatype = f32, aligned_a = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 6>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 6>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>)
+// CHECK-NEXT:        %127 = x86.ri.sub %116, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:        x86.msk.vmovups[%117], %121, %120 : (!x86.reg64<rdx>, !x86.avx512reg<zmm26>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%117 + 280], %122, %120 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%117 + 560], %123, %120 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%117 + 840], %124, %120 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%117 + 1120], %125, %120 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%117 + 1400], %126, %120 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        %128 = x86.ri.add %117, 24 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:        %129 = x86.ri.sub %115, 35816 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:        x86_scf.yield %129, %127, %128, %118, %119, %120 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      %218 = x86.ri.add %159, 1400 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:      %219 = x86.ri.add %158, 3072 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:      %220 = x86.ri.sub %157, 280 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:      x86_scf.yield %220, %219, %218, %160, %161 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
+// CHECK-NEXT:      %130 = x86.ri.add %98, 1400 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:      %131 = x86.ri.add %97, 3072 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:      %132 = x86.ri.sub %96, 280 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:      x86_scf.yield %132, %131, %130, %99, %100 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
 // CHECK-NEXT:    }
-// CHECK-NEXT:    %221 = x86.di.mov 18 : () -> !x86.reg64<r11>
-// CHECK-NEXT:    %222, %223, %224, %225, %226, %227 = x86_scf.for %228 : !x86.reg64<r11>  = %221 to 38 : si32 step 5 : si32 iter_args(%229 = %12, %230 = %13, %231 = %14, %232 = %15, %233 = %16) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
-// CHECK-NEXT:      %234 = x86.di.mov 0 : () -> !x86.reg64<r10>
-// CHECK-NEXT:      %235, %236, %237, %238, %239, %240 = x86_scf.for %241 : !x86.reg64<r10>  = %234 to 64 : si32 step 64 : si32 iter_args(%242 = %229, %243 = %230, %244 = %231, %245 = %232, %246 = %233) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
-// CHECK-NEXT:        %247 = x86.dm.vmovups [%244] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm12>
-// CHECK-NEXT:        %248 = x86.dm.vmovups [%244 + 64] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm13>
-// CHECK-NEXT:        %249 = x86.dm.vmovups [%244 + 128] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm14>
-// CHECK-NEXT:        %250 = x86.dm.vmovups [%244 + 192] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm15>
-// CHECK-NEXT:        %251 = x86.dm.vmovups [%244 + 280] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm16>
-// CHECK-NEXT:        %252 = x86.dm.vmovups [%244 + 344] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm17>
-// CHECK-NEXT:        %253 = x86.dm.vmovups [%244 + 408] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm18>
-// CHECK-NEXT:        %254 = x86.dm.vmovups [%244 + 472] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm19>
-// CHECK-NEXT:        %255 = x86.dm.vmovups [%244 + 560] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm20>
-// CHECK-NEXT:        %256 = x86.dm.vmovups [%244 + 624] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm21>
-// CHECK-NEXT:        %257 = x86.dm.vmovups [%244 + 688] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm22>
-// CHECK-NEXT:        %258 = x86.dm.vmovups [%244 + 752] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm23>
-// CHECK-NEXT:        %259 = x86.dm.vmovups [%244 + 840] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm24>
-// CHECK-NEXT:        %260 = x86.dm.vmovups [%244 + 904] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm25>
-// CHECK-NEXT:        %261 = x86.dm.vmovups [%244 + 968] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm26>
-// CHECK-NEXT:        %262 = x86.dm.vmovups [%244 + 1032] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm27>
-// CHECK-NEXT:        %263 = x86.dm.vmovups [%244 + 1120] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm28>
-// CHECK-NEXT:        %264 = x86.dm.vmovups [%244 + 1184] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm29>
-// CHECK-NEXT:        %265 = x86.dm.vmovups [%244 + 1248] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm30>
-// CHECK-NEXT:        %266 = x86.dm.vmovups [%244 + 1312] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm31>
-// CHECK-NEXT:        %267 = x86.di.mov 0 : () -> !x86.reg64<r12>
-// CHECK-NEXT:        %268, %269, %270, %271, %272, %273, %274, %275, %276, %277, %278, %279, %280, %281, %282, %283, %284, %285, %286, %287, %288, %289, %290, %291, %292, %293 = x86_scf.for %294 : !x86.reg64<r12>  = %267 to 128 : si32 step 4 : si32 iter_args(%295 = %242, %296 = %243, %297 = %244, %298 = %245, %299 = %246, %300 = %247, %301 = %248, %302 = %249, %303 = %250, %304 = %251, %305 = %252, %306 = %253, %307 = %254, %308 = %255, %309 = %256, %310 = %257, %311 = %258, %312 = %259, %313 = %260, %314 = %261, %315 = %262, %316 = %263, %317 = %264, %318 = %265, %319 = %266) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) {
-// CHECK-NEXT:          %320, %321, %322, %323, %324, %325, %326, %327, %328, %329, %330, %331, %332, %333, %334, %335, %336, %337, %338, %339, %340, %341, %342, %343, %344 = "xsmm.matmul_k"(%295, %296, %297, %298, %299, %300, %301, %302, %303, %304, %305, %306, %307, %308, %309, %310, %311, %312, %313, %314, %315, %316, %317, %318, %319) <{m_blocking = 64 : i64, n_blocking = 5 : i64, k_blocking = 4 : i64, lda = 70 : i64, ldb = 128 : i64, datatype = f32, aligned_a = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 20>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 20>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>)
-// CHECK-NEXT:          x86_scf.yield %320, %321, %322, %323, %324, %325, %326, %327, %328, %329, %330, %331, %332, %333, %334, %335, %336, %337, %338, %339, %340, %341, %342, %343, %344 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>
-// CHECK-NEXT:        }
-// CHECK-NEXT:        %345 = x86.ri.sub %270, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:        x86.ms.vmovups [%271], %274 : (!x86.reg64<rdx>, !x86.avx512reg<zmm12>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 64], %275 : (!x86.reg64<rdx>, !x86.avx512reg<zmm13>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 128], %276 : (!x86.reg64<rdx>, !x86.avx512reg<zmm14>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 192], %277 : (!x86.reg64<rdx>, !x86.avx512reg<zmm15>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 280], %278 : (!x86.reg64<rdx>, !x86.avx512reg<zmm16>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 344], %279 : (!x86.reg64<rdx>, !x86.avx512reg<zmm17>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 408], %280 : (!x86.reg64<rdx>, !x86.avx512reg<zmm18>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 472], %281 : (!x86.reg64<rdx>, !x86.avx512reg<zmm19>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 560], %282 : (!x86.reg64<rdx>, !x86.avx512reg<zmm20>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 624], %283 : (!x86.reg64<rdx>, !x86.avx512reg<zmm21>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 688], %284 : (!x86.reg64<rdx>, !x86.avx512reg<zmm22>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 752], %285 : (!x86.reg64<rdx>, !x86.avx512reg<zmm23>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 840], %286 : (!x86.reg64<rdx>, !x86.avx512reg<zmm24>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 904], %287 : (!x86.reg64<rdx>, !x86.avx512reg<zmm25>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 968], %288 : (!x86.reg64<rdx>, !x86.avx512reg<zmm26>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 1032], %289 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 1120], %290 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 1184], %291 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 1248], %292 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>) -> ()
-// CHECK-NEXT:        x86.ms.vmovups [%271 + 1312], %293 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>) -> ()
-// CHECK-NEXT:        %346 = x86.ri.add %271, 256 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:        %347 = x86.ri.sub %269, 35584 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:        x86_scf.yield %347, %345, %346, %272, %273 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
+// CHECK-NEXT:    %133 = x86.di.mov 18 : () -> !x86.reg64<r11>
+// CHECK-NEXT:    %134, %135, %136, %137, %138, %139 = x86_scf.for %140 : !x86.reg64<r11>  = %133 to 38 : si32 step 5 : si32 iter_args(%141 = %12, %142 = %13, %143 = %14, %144 = %15, %145 = %16) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
+// CHECK-NEXT:      %146 = x86.di.mov 0 : () -> !x86.reg64<r10>
+// CHECK-NEXT:      %147, %148, %149, %150, %151, %152 = x86_scf.for %153 : !x86.reg64<r10>  = %146 to 64 : si32 step 64 : si32 iter_args(%154 = %141, %155 = %142, %156 = %143, %157 = %144, %158 = %145) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
+// CHECK-NEXT:        %159 = x86.dm.vmovups [%156] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm12>
+// CHECK-NEXT:        %160 = x86.dm.vmovups [%156 + 64] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm13>
+// CHECK-NEXT:        %161 = x86.dm.vmovups [%156 + 128] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm14>
+// CHECK-NEXT:        %162 = x86.dm.vmovups [%156 + 192] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm15>
+// CHECK-NEXT:        %163 = x86.dm.vmovups [%156 + 280] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm16>
+// CHECK-NEXT:        %164 = x86.dm.vmovups [%156 + 344] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm17>
+// CHECK-NEXT:        %165 = x86.dm.vmovups [%156 + 408] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm18>
+// CHECK-NEXT:        %166 = x86.dm.vmovups [%156 + 472] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm19>
+// CHECK-NEXT:        %167 = x86.dm.vmovups [%156 + 560] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm20>
+// CHECK-NEXT:        %168 = x86.dm.vmovups [%156 + 624] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm21>
+// CHECK-NEXT:        %169 = x86.dm.vmovups [%156 + 688] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm22>
+// CHECK-NEXT:        %170 = x86.dm.vmovups [%156 + 752] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm23>
+// CHECK-NEXT:        %171 = x86.dm.vmovups [%156 + 840] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm24>
+// CHECK-NEXT:        %172 = x86.dm.vmovups [%156 + 904] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm25>
+// CHECK-NEXT:        %173 = x86.dm.vmovups [%156 + 968] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm26>
+// CHECK-NEXT:        %174 = x86.dm.vmovups [%156 + 1032] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm27>
+// CHECK-NEXT:        %175 = x86.dm.vmovups [%156 + 1120] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm28>
+// CHECK-NEXT:        %176 = x86.dm.vmovups [%156 + 1184] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm29>
+// CHECK-NEXT:        %177 = x86.dm.vmovups [%156 + 1248] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm30>
+// CHECK-NEXT:        %178 = x86.dm.vmovups [%156 + 1312] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm31>
+// CHECK-NEXT:        %179, %180, %181, %182, %183, %184, %185, %186, %187, %188, %189, %190, %191, %192, %193, %194, %195, %196, %197, %198, %199, %200, %201, %202, %203 = "xsmm.matmul_k"(%154, %155, %156, %157, %158, %159, %160, %161, %162, %163, %164, %165, %166, %167, %168, %169, %170, %171, %172, %173, %174, %175, %176, %177, %178) <{m_blocking = 64 : i64, n_blocking = 5 : i64, k_blocking = 128 : i64, lda = 70 : i64, ldb = 128 : i64, datatype = f32, aligned_a = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 20>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 20>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm12>, !x86.avx512reg<zmm13>, !x86.avx512reg<zmm14>, !x86.avx512reg<zmm15>, !x86.avx512reg<zmm16>, !x86.avx512reg<zmm17>, !x86.avx512reg<zmm18>, !x86.avx512reg<zmm19>, !x86.avx512reg<zmm20>, !x86.avx512reg<zmm21>, !x86.avx512reg<zmm22>, !x86.avx512reg<zmm23>, !x86.avx512reg<zmm24>, !x86.avx512reg<zmm25>, !x86.avx512reg<zmm26>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>)
+// CHECK-NEXT:        %204 = x86.ri.sub %180, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:        x86.ms.vmovups [%181], %184 : (!x86.reg64<rdx>, !x86.avx512reg<zmm12>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 64], %185 : (!x86.reg64<rdx>, !x86.avx512reg<zmm13>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 128], %186 : (!x86.reg64<rdx>, !x86.avx512reg<zmm14>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 192], %187 : (!x86.reg64<rdx>, !x86.avx512reg<zmm15>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 280], %188 : (!x86.reg64<rdx>, !x86.avx512reg<zmm16>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 344], %189 : (!x86.reg64<rdx>, !x86.avx512reg<zmm17>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 408], %190 : (!x86.reg64<rdx>, !x86.avx512reg<zmm18>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 472], %191 : (!x86.reg64<rdx>, !x86.avx512reg<zmm19>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 560], %192 : (!x86.reg64<rdx>, !x86.avx512reg<zmm20>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 624], %193 : (!x86.reg64<rdx>, !x86.avx512reg<zmm21>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 688], %194 : (!x86.reg64<rdx>, !x86.avx512reg<zmm22>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 752], %195 : (!x86.reg64<rdx>, !x86.avx512reg<zmm23>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 840], %196 : (!x86.reg64<rdx>, !x86.avx512reg<zmm24>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 904], %197 : (!x86.reg64<rdx>, !x86.avx512reg<zmm25>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 968], %198 : (!x86.reg64<rdx>, !x86.avx512reg<zmm26>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 1032], %199 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 1120], %200 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 1184], %201 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 1248], %202 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>) -> ()
+// CHECK-NEXT:        x86.ms.vmovups [%181 + 1312], %203 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>) -> ()
+// CHECK-NEXT:        %205 = x86.ri.add %181, 256 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:        %206 = x86.ri.sub %179, 35584 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:        x86_scf.yield %206, %204, %205, %182, %183 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      %348 = x86.di.mov 63 : () -> !x86.reg64<r15>
-// CHECK-NEXT:      %349 = x86.ks.kmovw %348 : (!x86.reg64<r15>) -> !x86.avx512maskreg<k1>
-// CHECK-NEXT:      %350 = x86.di.mov 64 : () -> !x86.reg64<r10>
-// CHECK-NEXT:      %351, %352, %353, %354, %355, %356, %357 = x86_scf.for %358 : !x86.reg64<r10>  = %350 to 70 : si32 step 6 : si32 iter_args(%359 = %236, %360 = %237, %361 = %238, %362 = %239, %363 = %240, %364 = %349) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>) {
-// CHECK-NEXT:        %365 = x86.dmk.vmovups[%361], %364 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm27>
-// CHECK-NEXT:        %366 = x86.dmk.vmovups[%361 + 280], %364 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm28>
-// CHECK-NEXT:        %367 = x86.dmk.vmovups[%361 + 560], %364 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm29>
-// CHECK-NEXT:        %368 = x86.dmk.vmovups[%361 + 840], %364 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm30>
-// CHECK-NEXT:        %369 = x86.dmk.vmovups[%361 + 1120], %364 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm31>
-// CHECK-NEXT:        %370 = x86.di.mov 0 : () -> !x86.reg64<r12>
-// CHECK-NEXT:        %371, %372, %373, %374, %375, %376, %377, %378, %379, %380, %381, %382 = x86_scf.for %383 : !x86.reg64<r12>  = %370 to 128 : si32 step 4 : si32 iter_args(%384 = %359, %385 = %360, %386 = %361, %387 = %362, %388 = %363, %389 = %364, %390 = %365, %391 = %366, %392 = %367, %393 = %368, %394 = %369) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) {
-// CHECK-NEXT:          %395, %396, %397, %398, %399, %400, %401, %402, %403, %404, %405 = "xsmm.matmul_k"(%384, %385, %386, %387, %388, %389, %390, %391, %392, %393, %394) <{m_blocking = 6 : i64, n_blocking = 5 : i64, k_blocking = 4 : i64, lda = 70 : i64, ldb = 128 : i64, datatype = f32, aligned_a = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 5>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 5>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>)
-// CHECK-NEXT:          x86_scf.yield %395, %396, %397, %398, %399, %400, %401, %402, %403, %404, %405 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>
-// CHECK-NEXT:        }
-// CHECK-NEXT:        %406 = x86.ri.sub %373, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:        x86.msk.vmovups[%374], %378, %377 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%374 + 280], %379, %377 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%374 + 560], %380, %377 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%374 + 840], %381, %377 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        x86.msk.vmovups[%374 + 1120], %382, %377 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-NEXT:        %407 = x86.ri.add %374, 24 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:        %408 = x86.ri.sub %372, 35816 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:        x86_scf.yield %408, %406, %407, %375, %376, %377 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>
+// CHECK-NEXT:      %207 = x86.di.mov 63 : () -> !x86.reg64<r15>
+// CHECK-NEXT:      %208 = x86.ks.kmovw %207 : (!x86.reg64<r15>) -> !x86.avx512maskreg<k1>
+// CHECK-NEXT:      %209 = x86.di.mov 64 : () -> !x86.reg64<r10>
+// CHECK-NEXT:      %210, %211, %212, %213, %214, %215, %216 = x86_scf.for %217 : !x86.reg64<r10>  = %209 to 70 : si32 step 6 : si32 iter_args(%218 = %148, %219 = %149, %220 = %150, %221 = %151, %222 = %152, %223 = %208) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>) {
+// CHECK-NEXT:        %224 = x86.dmk.vmovups[%220], %223 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm27>
+// CHECK-NEXT:        %225 = x86.dmk.vmovups[%220 + 280], %223 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm28>
+// CHECK-NEXT:        %226 = x86.dmk.vmovups[%220 + 560], %223 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm29>
+// CHECK-NEXT:        %227 = x86.dmk.vmovups[%220 + 840], %223 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm30>
+// CHECK-NEXT:        %228 = x86.dmk.vmovups[%220 + 1120], %223 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg<zmm31>
+// CHECK-NEXT:        %229, %230, %231, %232, %233, %234, %235, %236, %237, %238, %239 = "xsmm.matmul_k"(%218, %219, %220, %221, %222, %223, %224, %225, %226, %227, %228) <{m_blocking = 6 : i64, n_blocking = 5 : i64, k_blocking = 128 : i64, lda = 70 : i64, ldb = 128 : i64, datatype = f32, aligned_a = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 5>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 5>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm27>, !x86.avx512reg<zmm28>, !x86.avx512reg<zmm29>, !x86.avx512reg<zmm30>, !x86.avx512reg<zmm31>)
+// CHECK-NEXT:        %240 = x86.ri.sub %230, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:        x86.msk.vmovups[%231], %235, %234 : (!x86.reg64<rdx>, !x86.avx512reg<zmm27>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%231 + 280], %236, %234 : (!x86.reg64<rdx>, !x86.avx512reg<zmm28>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%231 + 560], %237, %234 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%231 + 840], %238, %234 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        x86.msk.vmovups[%231 + 1120], %239, %234 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>, !x86.avx512maskreg<k1>) -> ()
+// CHECK-NEXT:        %241 = x86.ri.add %231, 24 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:        %242 = x86.ri.sub %229, 35816 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:        x86_scf.yield %242, %240, %241, %232, %233, %234 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      %409 = x86.ri.add %354, 1120 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:      %410 = x86.ri.add %353, 2560 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:      %411 = x86.ri.sub %352, 280 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:      x86_scf.yield %411, %410, %409, %355, %356 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
+// CHECK-NEXT:      %243 = x86.ri.add %213, 1120 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:      %244 = x86.ri.add %212, 2560 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:      %245 = x86.ri.sub %211, 280 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:      x86_scf.yield %245, %244, %243, %214, %215 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
 // CHECK-NEXT:    }
-// CHECK-NEXT:    %412 = x86.ds.mov %226 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %413, %414 = x86.d.pop %412 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
+// CHECK-NEXT:    %246 = x86.ds.mov %138 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
+// CHECK-NEXT:    %247, %248 = x86.d.pop %246 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
 // CHECK-NEXT:    x86_func.ret
 // CHECK-NEXT:  }
 

@@ -14,10 +14,8 @@ from autotuner.libxsmm_gemm.generator_gemm_common import (
 )
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_generator import (
-    KLoopVals,
     MLoopVals,
     NLoopVals,
-    VectorRegT,
 )
 from xdsl.dialects.x86.registers import (
     AVX512MaskRegisterType,
@@ -47,113 +45,6 @@ def _mloop_from_args(args: tuple[SSAValue, ...], has_mask: bool) -> MLoopVals:
     a, b, c, rbp, rsp, *rest = args
     mask = SSAValue.get(rest[0], type=AVX512MaskRegisterType) if has_mask else None
     return MLoopVals(_gpr(a), _gpr(b), _gpr(c), _gpr(rbp), _gpr(rsp), mask)
-
-
-def _kloop_from_args(
-    args: tuple[SSAValue, ...], has_mask: bool, n_acc: int
-) -> KLoopVals:
-    vals = list(args)
-    a, b, c, rbp, rsp = vals[:5]
-    idx = 5
-    mask = None
-    if has_mask:
-        mask = SSAValue.get(vals[idx], type=AVX512MaskRegisterType)
-        idx += 1
-    acc = tuple(
-        SSAValue.get(value, type=VectorRegT) for value in vals[idx : idx + n_acc]
-    )
-    return KLoopVals(_gpr(a), _gpr(b), _gpr(c), _gpr(rbp), _gpr(rsp), mask, acc)
-
-
-def compxsmm_generator_gemm_kloop(
-    generated_code: GeneratedCode,
-    gp_reg_mapping: GPRegMapping,
-    micro_kernel_config: MicroKernelConfig,
-    *,
-    m_blocking: int,
-    k_blocking: int,
-    max_blocked_k: int,
-    vals: KLoopVals,
-) -> KLoopVals:
-    """
-    In original, adds three lines of assembly: set counter to 0, add label, add k_blocking to loop counter.
-    We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
-    """
-    k_arg_reg = gp_reg_mapping.gp_reg_kloop
-    generated_code.insert(k_init_op := x86.ops.DI_MovOp(0, destination=k_arg_reg))
-
-    existing_block = k_init_op.parent
-    assert existing_block is not None
-    parent_region = existing_block.parent
-    assert parent_region is not None
-
-    # k is passed as lb, so no need to include in iter_args
-    # m loop is currently accidentally included in the args even though it's not used in the loop, exclude it for now
-    args = vals.vals
-
-    assert k_init_op.next_op is None, (
-        "Not sure how this can happen, adding assert to catch later (this assert adding when refactoring to x86_scf generation)"
-    )
-
-    kloop_op = generated_code.builder.insert(
-        x86_scf.ForOp(
-            k_init_op.destination,
-            IntegerAttr(max_blocked_k, si32),
-            IntegerAttr(k_blocking, si32),
-            args,
-        )
-    )
-
-    # Set up builder to build inside of loop
-    generated_code.builder.insertion_point = InsertPoint.at_start(kloop_op.body.block)
-    block_vals = _kloop_from_args(
-        tuple(kloop_op.body.block.args[1:]),
-        vals.mask_k1 is not None,
-        len(vals.acc_vectors),
-    )
-
-    return block_vals
-
-
-def compxsmm_generator_gemm_footer_kloop(
-    generated_code: GeneratedCode,
-    gp_reg_mapping: GPRegMapping,
-    micro_kernel_config: MicroKernelConfig,
-    gemm_desc: GEMMDescriptor,
-    m_blocking: int,
-    max_blocked_k: int,
-    k_loop_complete: bool,
-    vals: KLoopVals,
-) -> KLoopVals:
-    generated_code.insert(yield_op := x86_scf.YieldOp(*vals.vals))
-
-    # Set up builder to build at end of block containing for loop
-    kloop_op = yield_op.parent_op()
-    assert isinstance(kloop_op, x86_scf.ForOp)
-    assert kloop_op.parent is not None
-    generated_code.builder.insertion_point = InsertPoint.at_end(kloop_op.parent)
-    result = _kloop_from_args(
-        tuple(kloop_op.results[1:]), vals.mask_k1 is not None, len(vals.acc_vectors)
-    )
-
-    if k_loop_complete:
-        b_offset = 0
-        if GEMMFlag.TRANS_B in gemm_desc.flags:
-            b_offset = (
-                gemm_desc.ldb * gemm_desc.k * micro_kernel_config.datatype_size_in2
-            )
-        else:
-            b_offset = gemm_desc.k * micro_kernel_config.datatype_size_in2
-
-        result.b = generated_code.insert(
-            x86.ops.RI_SubOp(
-                result.b,
-                b_offset,
-                register_out=gp_reg_mapping.gp_reg_b,
-            )
-        ).register_out
-
-    return result
 
 
 def compxsmm_generator_gemm_header_nloop(
