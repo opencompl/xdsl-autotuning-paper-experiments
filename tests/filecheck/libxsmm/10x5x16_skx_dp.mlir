@@ -335,6 +335,7 @@
 // CHECK-NEXT:      add rdi, 80
 // CHECK-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
 // CHECK-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
+// CHECK-NEXT:      sub rsi, 128
 // CHECK-NEXT:      vmovupd [rdx], zmm22
 // CHECK-NEXT:      vmovupd [rdx+64] {k1}, zmm23
 // CHECK-NEXT:      vmovupd [rdx+80], zmm24
@@ -695,6 +696,7 @@
 // CHECK-IR-LIBXSMM-NEXT:      %341 = x86.ri.add %322, 80 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
 // CHECK-IR-LIBXSMM-NEXT:      %342 = x86.rss.vfmadd231pd %323, %325, %339 : (!x86.avx512reg<zmm30>, !x86.avx512reg<zmm1>, !x86.avx512reg<zmm0>) -> !x86.avx512reg<zmm30>
 // CHECK-IR-LIBXSMM-NEXT:      %343 = x86.rss.vfmadd231pd %324, %326, %339 : (!x86.avx512reg<zmm31>, !x86.avx512reg<zmm2>, !x86.avx512reg<zmm0>) -> !x86.avx512reg<zmm31>
+// CHECK-IR-LIBXSMM-NEXT:      %344 = x86.ri.sub %340, 128 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
 // CHECK-IR-LIBXSMM-NEXT:      x86.ms.vmovupd [%23], %328 : (!x86.reg64<rdx>, !x86.avx512reg<zmm22>) -> ()
 // CHECK-IR-LIBXSMM-NEXT:      x86.msk.vmovupd[%23 + 64], %329, %28 : (!x86.reg64<rdx>, !x86.avx512reg<zmm23>, !x86.avx512maskreg<k1>) -> ()
 // CHECK-IR-LIBXSMM-NEXT:      x86.ms.vmovupd [%23 + 80], %331 : (!x86.reg64<rdx>, !x86.avx512reg<zmm24>) -> ()
@@ -705,19 +707,19 @@
 // CHECK-IR-LIBXSMM-NEXT:      x86.msk.vmovupd[%23 + 304], %338, %28 : (!x86.reg64<rdx>, !x86.avx512reg<zmm29>, !x86.avx512maskreg<k1>) -> ()
 // CHECK-IR-LIBXSMM-NEXT:      x86.ms.vmovupd [%23 + 320], %342 : (!x86.reg64<rdx>, !x86.avx512reg<zmm30>) -> ()
 // CHECK-IR-LIBXSMM-NEXT:      x86.msk.vmovupd[%23 + 384], %343, %28 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>, !x86.avx512maskreg<k1>) -> ()
-// CHECK-IR-LIBXSMM-NEXT:      %344 = x86.ri.add %23, 80 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-IR-LIBXSMM-NEXT:      %345 = x86.ri.sub %341, 1200 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-IR-LIBXSMM-NEXT:      %346 = x86.si.cmp %29, 10 : (!x86.reg64<r10>) -> !x86.rflags<rflags>
-// CHECK-IR-LIBXSMM-NEXT:      x86.c.jl %346 : !x86.rflags<rflags>, ^bb2(%345 : !x86.reg64<rdi>, %340 : !x86.reg64<rsi>, %344 : !x86.reg64<rdx>, %24 : !x86.reg64<rbp>, %25 : !x86.reg64<rsp>, %26 : !x86.reg64<r11>, %29 : !x86.reg64<r10>, %28 : !x86.avx512maskreg<k1>), ^bb3(%345 : !x86.reg64<rdi>, %340 : !x86.reg64<rsi>, %344 : !x86.reg64<rdx>, %24 : !x86.reg64<rbp>, %25 : !x86.reg64<rsp>, %26 : !x86.reg64<r11>, %29 : !x86.reg64<r10>, %28 : !x86.avx512maskreg<k1>)
-// CHECK-IR-LIBXSMM-NEXT:    ^bb3(%347: !x86.reg64<rdi>, %348: !x86.reg64<rsi>, %349: !x86.reg64<rdx>, %350: !x86.reg64<rbp>, %351: !x86.reg64<rsp>, %352: !x86.reg64<r11>, %353: !x86.reg64<r10>, %354: !x86.avx512maskreg<k1>):
-// CHECK-IR-LIBXSMM-NEXT:      %355 = x86.ri.add %349, 320 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-IR-LIBXSMM-NEXT:      %356 = x86.ri.add %348, 640 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-IR-LIBXSMM-NEXT:      %357 = x86.ri.sub %347, 80 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-IR-LIBXSMM-NEXT:      %358 = x86.si.cmp %352, 5 : (!x86.reg64<r11>) -> !x86.rflags<rflags>
-// CHECK-IR-LIBXSMM-NEXT:      x86.c.jl %358 : !x86.rflags<rflags>, ^bb1(%357 : !x86.reg64<rdi>, %356 : !x86.reg64<rsi>, %355 : !x86.reg64<rdx>, %350 : !x86.reg64<rbp>, %351 : !x86.reg64<rsp>, %352 : !x86.reg64<r11>), ^bb4(%357 : !x86.reg64<rdi>, %356 : !x86.reg64<rsi>, %355 : !x86.reg64<rdx>, %350 : !x86.reg64<rbp>, %351 : !x86.reg64<rsp>, %352 : !x86.reg64<r11>)
-// CHECK-IR-LIBXSMM-NEXT:    ^bb4(%359: !x86.reg64<rdi>, %360: !x86.reg64<rsi>, %361: !x86.reg64<rdx>, %362: !x86.reg64<rbp>, %363: !x86.reg64<rsp>, %364: !x86.reg64<r11>):
-// CHECK-IR-LIBXSMM-NEXT:      %365 = x86.ds.mov %362 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
-// CHECK-IR-LIBXSMM-NEXT:      %366, %367 = x86.d.pop %365 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
+// CHECK-IR-LIBXSMM-NEXT:      %345 = x86.ri.add %23, 80 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-IR-LIBXSMM-NEXT:      %346 = x86.ri.sub %341, 1200 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-IR-LIBXSMM-NEXT:      %347 = x86.si.cmp %29, 10 : (!x86.reg64<r10>) -> !x86.rflags<rflags>
+// CHECK-IR-LIBXSMM-NEXT:      x86.c.jl %347 : !x86.rflags<rflags>, ^bb2(%346 : !x86.reg64<rdi>, %344 : !x86.reg64<rsi>, %345 : !x86.reg64<rdx>, %24 : !x86.reg64<rbp>, %25 : !x86.reg64<rsp>, %26 : !x86.reg64<r11>, %29 : !x86.reg64<r10>, %28 : !x86.avx512maskreg<k1>), ^bb3(%346 : !x86.reg64<rdi>, %344 : !x86.reg64<rsi>, %345 : !x86.reg64<rdx>, %24 : !x86.reg64<rbp>, %25 : !x86.reg64<rsp>, %26 : !x86.reg64<r11>, %29 : !x86.reg64<r10>, %28 : !x86.avx512maskreg<k1>)
+// CHECK-IR-LIBXSMM-NEXT:    ^bb3(%348: !x86.reg64<rdi>, %349: !x86.reg64<rsi>, %350: !x86.reg64<rdx>, %351: !x86.reg64<rbp>, %352: !x86.reg64<rsp>, %353: !x86.reg64<r11>, %354: !x86.reg64<r10>, %355: !x86.avx512maskreg<k1>):
+// CHECK-IR-LIBXSMM-NEXT:      %356 = x86.ri.add %350, 320 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-IR-LIBXSMM-NEXT:      %357 = x86.ri.add %349, 640 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-IR-LIBXSMM-NEXT:      %358 = x86.ri.sub %348, 80 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-IR-LIBXSMM-NEXT:      %359 = x86.si.cmp %353, 5 : (!x86.reg64<r11>) -> !x86.rflags<rflags>
+// CHECK-IR-LIBXSMM-NEXT:      x86.c.jl %359 : !x86.rflags<rflags>, ^bb1(%358 : !x86.reg64<rdi>, %357 : !x86.reg64<rsi>, %356 : !x86.reg64<rdx>, %351 : !x86.reg64<rbp>, %352 : !x86.reg64<rsp>, %353 : !x86.reg64<r11>), ^bb4(%358 : !x86.reg64<rdi>, %357 : !x86.reg64<rsi>, %356 : !x86.reg64<rdx>, %351 : !x86.reg64<rbp>, %352 : !x86.reg64<rsp>, %353 : !x86.reg64<r11>)
+// CHECK-IR-LIBXSMM-NEXT:    ^bb4(%360: !x86.reg64<rdi>, %361: !x86.reg64<rsi>, %362: !x86.reg64<rdx>, %363: !x86.reg64<rbp>, %364: !x86.reg64<rsp>, %365: !x86.reg64<r11>):
+// CHECK-IR-LIBXSMM-NEXT:      %366 = x86.ds.mov %363 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
+// CHECK-IR-LIBXSMM-NEXT:      %367, %368 = x86.d.pop %366 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
 // CHECK-IR-LIBXSMM-NEXT:      x86_func.ret
 // CHECK-IR-LIBXSMM-NEXT:    }
 // CHECK-IR-LIBXSMM-NEXT:  }
