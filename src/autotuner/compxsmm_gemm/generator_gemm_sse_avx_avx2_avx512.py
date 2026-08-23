@@ -25,7 +25,7 @@ from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_footer_nloop,
     compxsmm_generator_gemm_header_nloop,
 )
-from autotuner.dialects.xsmm import MatmulMOp
+from autotuner.dialects.xsmm import MatmulNOp
 from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
     MicroKernelConfig,
@@ -45,7 +45,6 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import (
     GeneratedCode,
-    MLoopVals,
     NLoopVals,
 )
 from autotuner.libxsmm_gemm.libxsmm_main import (
@@ -54,17 +53,6 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMPrefetchType,
 )
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
-
-
-def _mloop_vals_from_matmul_m(op: MatmulMOp) -> MLoopVals:
-    return MLoopVals(
-        op.a_out,
-        op.b_out,
-        op.c_out,
-        op.rbp_out,
-        op.rsp_out,
-        op.mask_out,
-    )
 
 
 def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
@@ -510,39 +498,36 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
         datatype = desc.datatype.ab
         assert datatype is not None
-        matmul_m_vals = _mloop_vals_from_matmul_m(
-            generated_code.insert(
-                MatmulMOp(
-                    a_val,
-                    b_val,
-                    c_val,
-                    rbp_val,
-                    rsp_val,
-                    None,
-                    m_blocking=desc.m,
-                    n_blocking=n_blocking,
-                    k=desc.k,
-                    lda=desc.lda,
-                    ldb=desc.ldb,
-                    ldc=desc.ldc,
-                    datatype=datatype.builtin_type,
-                    aligned_a=GEMMFlag.ALIGN_A in desc.flags,
-                    aligned_c=GEMMFlag.ALIGN_C in desc.flags,
-                )
+        if datatype not in (Datatype.F32, Datatype.F64):
+            raise NotImplementedError
+        if desc.prefetch == GEMMPrefetchType.AL2:
+            raise NotImplementedError
+        matmul_n = generated_code.insert(
+            MatmulNOp(
+                a_val,
+                b_val,
+                c_val,
+                rbp_val,
+                rsp_val,
+                m=desc.m,
+                n_blocking=n_blocking,
+                k=desc.k,
+                lda=desc.lda,
+                ldb=desc.ldb,
+                ldc=desc.ldc,
+                datatype=datatype.builtin_type,
+                aligned_a=GEMMFlag.ALIGN_A in desc.flags,
+                aligned_c=GEMMFlag.ALIGN_C in desc.flags,
             )
         )
-        a_val = matmul_m_vals.a
-        b_val = matmul_m_vals.b
-        c_val = matmul_m_vals.c
-        rbp_val = matmul_m_vals.rbp
-        rsp_val = matmul_m_vals.rsp
+        a_val = matmul_n.a_out
+        b_val = matmul_n.b_out
+        c_val = matmul_n.c_out
+        rbp_val = matmul_n.rbp_out
+        rsp_val = matmul_n.rsp_out
 
         nloop_result = compxsmm_generator_gemm_footer_nloop(
             generated_code,
-            gp_reg_mapping,
-            micro_kernel_config,
-            desc,
-            n_blocking=n_blocking,
             vals=NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val),
         )
         a_val = nloop_result.a

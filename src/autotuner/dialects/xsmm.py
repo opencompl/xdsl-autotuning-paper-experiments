@@ -32,6 +32,118 @@ from xdsl.utils.exceptions import VerifyException
 
 
 @irdl_op_definition
+class MatmulNOp(IRDLOperation):
+    """A blocked matrix multiplication N body.
+
+    The operation computes the complete M extent for ``n_blocking`` output
+    columns over the complete K extent. For the currently supported
+    non-transposed inputs, A is unchanged, B advances by
+    ``n_blocking * ldb`` elements, and C advances by ``n_blocking * ldc``
+    elements. The frame and stack pointers are passed through.
+
+    Lowering this operation to ``xsmm.matmul_m`` must correct the M operation's
+    pointer results: ``matmul_m`` advances A and C through M and leaves B fixed,
+    whereas this operation exposes only the N advances of B and C.
+    """
+
+    name = "xsmm.matmul_n"
+
+    a = operand_def(GeneralRegisterType)
+    b = operand_def(GeneralRegisterType)
+    c = operand_def(GeneralRegisterType)
+    rbp = operand_def(GeneralRegisterType)
+    rsp = operand_def(GeneralRegisterType)
+
+    a_out = result_def(GeneralRegisterType)
+    b_out = result_def(GeneralRegisterType)
+    c_out = result_def(GeneralRegisterType)
+    rbp_out = result_def(GeneralRegisterType)
+    rsp_out = result_def(GeneralRegisterType)
+
+    m = prop_def(IntegerAttr)
+    n_blocking = prop_def(IntegerAttr)
+    k = prop_def(IntegerAttr)
+    lda = prop_def(IntegerAttr)
+    ldb = prop_def(IntegerAttr)
+    ldc = prop_def(IntegerAttr)
+    datatype = prop_def(Float32Type | Float64Type)
+    aligned_a = prop_def(BoolAttr)
+    aligned_c = prop_def(BoolAttr)
+
+    traits = traits_def(MemoryReadEffect(), MemoryWriteEffect())
+
+    def __init__(
+        self,
+        a: SSAValue,
+        b: SSAValue,
+        c: SSAValue,
+        rbp: SSAValue,
+        rsp: SSAValue,
+        *,
+        m: int,
+        n_blocking: int,
+        k: int,
+        lda: int,
+        ldb: int,
+        ldc: int,
+        datatype: Float32Type | Float64Type,
+        aligned_a: bool,
+        aligned_c: bool,
+    ):
+        super().__init__(
+            operands=(a, b, c, rbp, rsp),
+            result_types=(a.type, b.type, c.type, rbp.type, rsp.type),
+            properties={
+                "m": IntegerAttr(m, i64),
+                "n_blocking": IntegerAttr(n_blocking, i64),
+                "k": IntegerAttr(k, i64),
+                "lda": IntegerAttr(lda, i64),
+                "ldb": IntegerAttr(ldb, i64),
+                "ldc": IntegerAttr(ldc, i64),
+                "datatype": datatype,
+                "aligned_a": BoolAttr.from_bool(aligned_a),
+                "aligned_c": BoolAttr.from_bool(aligned_c),
+            },
+        )
+
+    def verify_(self) -> None:
+        integer_properties = {
+            "m": self.m.value.data,
+            "n_blocking": self.n_blocking.value.data,
+            "k": self.k.value.data,
+            "lda": self.lda.value.data,
+            "ldb": self.ldb.value.data,
+            "ldc": self.ldc.value.data,
+        }
+        for name, value in integer_properties.items():
+            if value <= 0:
+                raise VerifyException(f"{name} must be positive, got {value}")
+
+        vector_length = 512 // self.datatype.bitwidth
+        if self.aligned_a.value.data and self.lda.value.data % vector_length:
+            raise VerifyException(
+                "aligned A requires lda to be a multiple of the vector length"
+            )
+        if self.aligned_c.value.data and self.ldc.value.data % vector_length:
+            raise VerifyException(
+                "aligned C requires ldc to be a multiple of the vector length"
+            )
+
+        inputs = (self.a, self.b, self.c, self.rbp, self.rsp)
+        outputs = (
+            self.a_out,
+            self.b_out,
+            self.c_out,
+            self.rbp_out,
+            self.rsp_out,
+        )
+        if tuple(value.type for value in inputs) != tuple(
+            value.type for value in outputs
+        ):
+            raise VerifyException("operand and result types must match pairwise")
+
+
+@irdl_op_definition
 class MatmulMOp(IRDLOperation):
     """A blocked matrix multiplication M body.
 
@@ -335,6 +447,6 @@ class MatmulKOp(IRDLOperation):
 
 XSMM = Dialect(
     "xsmm",
-    [MatmulMOp, MatmulKOp],
+    [MatmulNOp, MatmulMOp, MatmulKOp],
     [],
 )
