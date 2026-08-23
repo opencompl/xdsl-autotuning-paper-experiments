@@ -3,7 +3,7 @@ from xdsl.dialects import builtin, x86, x86_scf
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 
-from autotuner.dialects.xsmm import MatmulNOp
+from autotuner.dialects.xsmm import MatmulMOp, MatmulNOp
 
 
 def split_n(
@@ -94,3 +94,61 @@ def tile_n(
     )
     rewriter.replace(op, [], tuple(nloop.results[1:]))
     return tiled_matmul
+
+
+def matmul_n_to_m(rewriter: PatternRewriter, op: MatmulNOp) -> MatmulMOp:
+    m = op.m.value.data
+    n_blocking = op.n_blocking.value.data
+    ldb = op.ldb.value.data
+    ldc = op.ldc.value.data
+    element_size = op.datatype.bitwidth // 8
+
+    matmul_m = MatmulMOp(
+        op.a,
+        op.b,
+        op.c,
+        op.rbp,
+        op.rsp,
+        None,
+        m_blocking=m,
+        n_blocking=n_blocking,
+        k=op.k.value.data,
+        lda=op.lda.value.data,
+        ldb=ldb,
+        ldc=ldc,
+        datatype=op.datatype,
+        aligned_a=bool(op.aligned_a),
+        aligned_c=bool(op.aligned_c),
+    )
+
+    # MatmulNOp increments by n_blocking, and MatmulMOp increments by m_blocking
+    # Add ops to adjust A, B and C pointers as appropriate, so that the results at the
+    # end of this transform have the expected values.
+    c_out_op = x86.ops.RI_AddOp(
+        matmul_m.c_out,
+        (n_blocking * ldc - m) * element_size,
+        register_out=matmul_m.c_out.type,
+    )
+    b_out_op = x86.ops.RI_AddOp(
+        matmul_m.b_out,
+        n_blocking * ldb * element_size,
+        register_out=matmul_m.b_out.type,
+    )
+    a_out_op = x86.ops.RI_SubOp(
+        matmul_m.a_out,
+        m * element_size,
+        register_out=matmul_m.a_out.type,
+    )
+
+    rewriter.replace(
+        op,
+        (matmul_m, c_out_op, b_out_op, a_out_op),
+        (
+            a_out_op.register_out,
+            b_out_op.register_out,
+            c_out_op.register_out,
+            matmul_m.rbp_out,
+            matmul_m.rsp_out,
+        ),
+    )
+    return matmul_m
