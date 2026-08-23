@@ -143,7 +143,7 @@ def compxsmm_generator_gemm_footer_kloop(
                 gemm_desc.ldb * gemm_desc.k * micro_kernel_config.datatype_size_in2
             )
         else:
-            b_offset = gemm_desc.ldb * micro_kernel_config.datatype_size_in2
+            b_offset = gemm_desc.k * micro_kernel_config.datatype_size_in2
 
         result.b = generated_code.insert(
             x86.ops.RI_SubOp(
