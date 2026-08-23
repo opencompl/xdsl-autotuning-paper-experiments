@@ -41,6 +41,10 @@ class MatmulNOp(IRDLOperation):
     ``n_blocking * ldb`` elements, and C advances by ``n_blocking * ldc``
     elements. The frame and stack pointers are passed through.
 
+    ``n_start`` is the logical lower bound of this N range. It does not affect
+    the pointer results, but allows ``xsmm-tile-n`` to preserve the absolute
+    loop bounds chosen by range-splitting transformations.
+
     Lowering this operation to ``xsmm.matmul_m`` must correct the M operation's
     pointer results: ``matmul_m`` advances A and C through M and leaves B fixed,
     whereas this operation exposes only the N advances of B and C.
@@ -61,6 +65,7 @@ class MatmulNOp(IRDLOperation):
     rsp_out = result_def(GeneralRegisterType)
 
     m = prop_def(IntegerAttr)
+    n_start = prop_def(IntegerAttr)
     n_blocking = prop_def(IntegerAttr)
     k = prop_def(IntegerAttr)
     lda = prop_def(IntegerAttr)
@@ -81,6 +86,7 @@ class MatmulNOp(IRDLOperation):
         rsp: SSAValue,
         *,
         m: int,
+        n_start: int,
         n_blocking: int,
         k: int,
         lda: int,
@@ -95,6 +101,7 @@ class MatmulNOp(IRDLOperation):
             result_types=(a.type, b.type, c.type, rbp.type, rsp.type),
             properties={
                 "m": IntegerAttr(m, i64),
+                "n_start": IntegerAttr(n_start, i64),
                 "n_blocking": IntegerAttr(n_blocking, i64),
                 "k": IntegerAttr(k, i64),
                 "lda": IntegerAttr(lda, i64),
@@ -107,6 +114,10 @@ class MatmulNOp(IRDLOperation):
         )
 
     def verify_(self) -> None:
+        n_start = self.n_start.value.data
+        if n_start < 0:
+            raise VerifyException(f"n_start must be non-negative, got {n_start}")
+
         integer_properties = {
             "m": self.m.value.data,
             "n_blocking": self.n_blocking.value.data,

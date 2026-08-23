@@ -6,7 +6,7 @@
 // CHECK-NEXT:    %c = "test.op"() : () -> !x86.reg64<rdx>
 // CHECK-NEXT:    %rbp = "test.op"() : () -> !x86.reg64<rbp>
 // CHECK-NEXT:    %rsp = "test.op"() : () -> !x86.reg64<rsp>
-// CHECK-NEXT:    %a_out, %b_out, %c_out, %rbp_out, %rsp_out = "xsmm.matmul_n"(%a, %b, %c, %rbp, %rsp) <{m = 17 : i64, n_blocking = 3 : i64, k = 2 : i64, lda = 17 : i64, ldb = 16 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+// CHECK-NEXT:    %a_out, %b_out, %c_out, %rbp_out, %rsp_out = "xsmm.matmul_n"(%a, %b, %c, %rbp, %rsp) <{m = 17 : i64, n_start = 4 : i64, n_blocking = 3 : i64, k = 2 : i64, lda = 17 : i64, ldb = 16 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
 // CHECK-NEXT:  }
 
 builtin.module {
@@ -15,7 +15,7 @@ builtin.module {
   %c = "test.op"() : () -> !x86.reg64<rdx>
   %rbp = "test.op"() : () -> !x86.reg64<rbp>
   %rsp = "test.op"() : () -> !x86.reg64<rsp>
-  %a_out, %b_out, %c_out, %rbp_out, %rsp_out = "xsmm.matmul_n"(%a, %b, %c, %rbp, %rsp) <{m = 17 : i64, n_blocking = 3 : i64, k = 2 : i64, lda = 17 : i64, ldb = 16 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+  %a_out, %b_out, %c_out, %rbp_out, %rsp_out = "xsmm.matmul_n"(%a, %b, %c, %rbp, %rsp) <{m = 17 : i64, n_start = 4 : i64, n_blocking = 3 : i64, k = 2 : i64, lda = 17 : i64, ldb = 16 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
 }
 
 // -----

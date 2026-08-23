@@ -1,9 +1,16 @@
 // RUN: xdsl-opt %s --verify-diagnostics --split-input-file | filecheck %s
 
 %a, %b, %c, %rbp, %rsp = "test.op"() : () -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
-%a_out, %b_out, %c_out, %rbp_out, %rsp_out = "xsmm.matmul_n"(%a, %b, %c, %rbp, %rsp) <{m = 0 : i64, n_blocking = 1 : i64, k = 4 : i64, lda = 8 : i64, ldb = 8 : i64, ldc = 8 : i64, datatype = f64, aligned_a = true, aligned_c = true}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+%a_out, %b_out, %c_out, %rbp_out, %rsp_out = "xsmm.matmul_n"(%a, %b, %c, %rbp, %rsp) <{m = 0 : i64, n_start = 0 : i64, n_blocking = 1 : i64, k = 4 : i64, lda = 8 : i64, ldb = 8 : i64, ldc = 8 : i64, datatype = f64, aligned_a = true, aligned_c = true}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
 
 // CHECK: Operation does not verify: m must be positive, got 0
+
+// -----
+
+%a, %b, %c, %rbp, %rsp = "test.op"() : () -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+%a_out, %b_out, %c_out, %rbp_out, %rsp_out = "xsmm.matmul_n"(%a, %b, %c, %rbp, %rsp) <{m = 8 : i64, n_start = -1 : i64, n_blocking = 1 : i64, k = 4 : i64, lda = 8 : i64, ldb = 8 : i64, ldc = 8 : i64, datatype = f64, aligned_a = true, aligned_c = true}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+
+// CHECK: Operation does not verify: n_start must be non-negative, got -1
 
 // -----
 

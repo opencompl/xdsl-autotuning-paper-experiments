@@ -21,10 +21,6 @@ from xdsl.dialects.x86_func import FuncOp
 from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 
-from autotuner.compxsmm_gemm.generator_gemm_common import (
-    compxsmm_generator_gemm_footer_nloop,
-    compxsmm_generator_gemm_header_nloop,
-)
 from autotuner.dialects.xsmm import MatmulNOp
 from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
@@ -45,7 +41,6 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import (
     GeneratedCode,
-    NLoopVals,
 )
 from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMDescriptor,
@@ -228,7 +223,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     )
 
     # Initialize n-blocking variables
-    n_count = 0  # array counter for blocking arrays
     n_done = 0  # progress tracker
     n_n = [0, 0]  # blocking sizes for blocks
     n_N = [0, 0]  # size of blocks
@@ -469,32 +463,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     ):
         raise NotImplementedError
 
-    # apply n_blocking
-    while n_done != desc.n:
-        n_blocking = n_n[n_count]
-
-        # open N loop
-        nloop_vals = compxsmm_generator_gemm_header_nloop(
-            generated_code,
-            gp_reg_mapping,
-            micro_kernel_config,
-            n_init=n_done,
-            n_blocking=n_blocking,
-            n_done=n_done + n_N[n_count],
-            vals=NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val),
-        )
-        a_val = nloop_vals.a
-        b_val = nloop_vals.b
-        c_val = nloop_vals.c
-        rbp_val = nloop_vals.rbp
-        rsp_val = nloop_vals.rsp
-
+    for n_range, n_blocking in zip(n_N, n_n, strict=True):
+        if not n_range:
+            continue
         if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
             raise NotImplementedError
-
-        # advance N
-        n_done += n_N[n_count]
-        n_count += 1
+        assert n_range % n_blocking == 0
 
         datatype = desc.datatype.ab
         assert datatype is not None
@@ -510,7 +484,8 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 rbp_val,
                 rsp_val,
                 m=desc.m,
-                n_blocking=n_blocking,
+                n_start=n_done,
+                n_blocking=n_range,
                 k=desc.k,
                 lda=desc.lda,
                 ldb=desc.ldb,
@@ -525,16 +500,9 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         c_val = matmul_n.c_out
         rbp_val = matmul_n.rbp_out
         rsp_val = matmul_n.rsp_out
+        n_done += n_range
 
-        nloop_result = compxsmm_generator_gemm_footer_nloop(
-            generated_code,
-            vals=NLoopVals(a_val, b_val, c_val, rbp_val, rsp_val),
-        )
-        a_val = nloop_result.a
-        b_val = nloop_result.b
-        c_val = nloop_result.c
-        rbp_val = nloop_result.rbp
-        rsp_val = nloop_result.rsp
+    assert n_done == desc.n
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:

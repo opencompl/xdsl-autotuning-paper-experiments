@@ -7,6 +7,7 @@ from autotuner.passes.xsmm_matmul_m_to_k import XsmmMatmulMToKPass
 from autotuner.passes.xsmm_matmul_n_to_m import XsmmMatmulNToMPass
 from autotuner.passes.xsmm_tile_k import XsmmTileKPass
 from autotuner.passes.xsmm_tile_m import XsmmTileMPass
+from autotuner.passes.xsmm_tile_n import XsmmTileNPass
 
 AUTOTUNER_UNIVERSE = Universe(
     all_dialects={
@@ -19,5 +20,6 @@ AUTOTUNER_UNIVERSE = Universe(
         "xsmm-matmul-n-to-m": lambda: XsmmMatmulNToMPass,
         "xsmm-tile-k": lambda: XsmmTileKPass,
         "xsmm-tile-m": lambda: XsmmTileMPass,
+        "xsmm-tile-n": lambda: XsmmTileNPass,
     },
 )
