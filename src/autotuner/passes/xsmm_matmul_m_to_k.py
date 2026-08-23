@@ -11,14 +11,13 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
     op_type_rewrite_pattern,
 )
+from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulKOp, MatmulMOp
-from autotuner.libxsmm_gemm.generator_common import GPRegMapping, MicroKernelConfig
+from autotuner.libxsmm_gemm.generator_common import MicroKernelConfig
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_init_micro_kernel_config,
-    libxsmm_generator_gemm_load_C,
-    libxsmm_generator_gemm_store_C,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
@@ -29,6 +28,7 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
     GEMMPrefetchType,
 )
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
+from autotuner.schedules import load_c, store_c
 
 
 @dataclass
@@ -82,7 +82,6 @@ class ConvertMatmulMToKPattern(RewritePattern):
             use_masking_a_c=op.mask is not None,
         )
         generated_code = GeneratedCode(rewriter, self.arch)
-        gp_reg_mapping = GPRegMapping()
 
         mask = (
             None
@@ -90,13 +89,18 @@ class ConvertMatmulMToKPattern(RewritePattern):
             else SSAValue.get(op.mask, type=AVX512MaskRegisterType)
         )
         c = SSAValue.get(op.c, type=GeneralRegisterType)
-        accumulators = libxsmm_generator_gemm_load_C(
-            generated_code,
-            gp_reg_mapping,
-            micro_kernel_config,
-            desc,
+        accumulators = load_c(
+            rewriter,
+            InsertPoint.before(op),
             m_blocking,
             n_blocking,
+            x86.registers.AVX512RegisterType,
+            op.datatype,
+            ldc=op.ldc.value.data,
+            vector_length=micro_kernel_config.vector_length,
+            vector_reg_count=micro_kernel_config.vector_reg_count,
+            use_masking_a_c=micro_kernel_config.use_masking_a_c,
+            aligned_c=bool(op.aligned_c),
             c_val=c,
             mask_k1=mask,
         )
@@ -128,13 +132,16 @@ class ConvertMatmulMToKPattern(RewritePattern):
             )
         ).register_out
 
-        libxsmm_generator_gemm_store_C(
-            generated_code,
-            gp_reg_mapping,
-            micro_kernel_config,
-            desc,
+        store_c(
+            rewriter,
+            InsertPoint.before(op),
             m_blocking,
             n_blocking,
+            op.datatype,
+            ldc=op.ldc.value.data,
+            vector_length=micro_kernel_config.vector_length,
+            use_masking_a_c=micro_kernel_config.use_masking_a_c,
+            aligned_c=bool(op.aligned_c),
             c_val=SSAValue.get(matmul_k.c_out, type=GeneralRegisterType),
             acc_vectors=tuple(matmul_k.accumulator_outs),
             mask_k1=(
