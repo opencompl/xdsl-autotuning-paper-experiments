@@ -52,6 +52,12 @@ class ConvertMatmulMToKPattern(RewritePattern):
         n_blocking = op.n_blocking.value.data
         k = op.k.value.data
         lda = op.lda.value.data
+        vector_length = 512 // op.datatype.bitwidth
+        if m_blocking % vector_length and op.mask is None:
+            raise PassFailedException(
+                "xsmm-matmul-m-to-k requires a mask for a partial M vector; "
+                "run xsmm-tile-m first"
+            )
         flags = GEMMFlag.NONE
         if op.aligned_a.value.data:
             flags |= GEMMFlag.ALIGN_A

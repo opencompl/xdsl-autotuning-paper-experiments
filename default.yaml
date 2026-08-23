@@ -23,6 +23,7 @@ libxsmm-gemm-passes:
   - x86-prologue-epilogue-insertion
 
 compxsmm-gemm-passes:
+  - xsmm-tile-m{disable-regalloc=true}
   - xsmm-matmul-m-to-k
   - xsmm-tile-k{disable-regalloc=true}
   - convert-xsmm-to-x86{disable-regalloc=true}

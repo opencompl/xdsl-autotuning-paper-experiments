@@ -11,44 +11,22 @@
 // CHECK-NEXT:    %9 = x86.rs.and %7, %8 : (!x86.reg64<rsp>, !x86.reg64<r10>) -> !x86.reg64<rsp>
 // CHECK-NEXT:    %10 = x86.di.mov 0 : () -> !x86.reg64<r11>
 // CHECK-NEXT:    %11, %12, %13, %14, %15, %16 = x86_scf.for %17 : !x86.reg64<r11>  = %10 to 18 : si32 step 6 : si32 iter_args(%18 = %0, %19 = %1, %20 = %2, %21 = %6, %22 = %9) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
-// CHECK-NEXT:      %23 = x86.di.mov 0 : () -> !x86.reg64<r10>
-// CHECK-NEXT:      %24, %25, %26, %27, %28, %29 = x86_scf.for %30 : !x86.reg64<r10>  = %23 to 64 : si32 step 64 : si32 iter_args(%31 = %18, %32 = %19, %33 = %20, %34 = %21, %35 = %22) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
-// CHECK-NEXT:        %36, %37, %38, %39, %40 = "xsmm.matmul_m"(%31, %32, %33, %34, %35) <{m_blocking = 64 : i64, n_blocking = 6 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
-// CHECK-NEXT:        x86_scf.yield %36, %37, %38, %39, %40 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
-// CHECK-NEXT:      }
-// CHECK-NEXT:      %41 = x86.di.mov 63 : () -> !x86.reg64<r15>
-// CHECK-NEXT:      %42 = x86.ks.kmovw %41 : (!x86.reg64<r15>) -> !x86.avx512maskreg<k1>
-// CHECK-NEXT:      %43 = x86.di.mov 64 : () -> !x86.reg64<r10>
-// CHECK-NEXT:      %44, %45, %46, %47, %48, %49, %50 = x86_scf.for %51 : !x86.reg64<r10>  = %43 to 70 : si32 step 6 : si32 iter_args(%52 = %25, %53 = %26, %54 = %27, %55 = %28, %56 = %29, %57 = %42) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>) {
-// CHECK-NEXT:        %58, %59, %60, %61, %62, %63 = "xsmm.matmul_m"(%52, %53, %54, %55, %56, %57) <{m_blocking = 6 : i64, n_blocking = 6 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>)
-// CHECK-NEXT:        x86_scf.yield %58, %59, %60, %61, %62, %63 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>
-// CHECK-NEXT:      }
-// CHECK-NEXT:      %64 = x86.ri.add %47, 1400 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:      %65 = x86.ri.add %46, 3072 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:      %66 = x86.ri.sub %45, 280 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:      x86_scf.yield %66, %65, %64, %48, %49 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
+// CHECK-NEXT:      %23, %24, %25, %26, %27 = "xsmm.matmul_m"(%18, %19, %20, %21, %22) <{m_blocking = 70 : i64, n_blocking = 6 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+// CHECK-NEXT:      %28 = x86.ri.add %25, 1400 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:      %29 = x86.ri.add %24, 3072 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:      %30 = x86.ri.sub %23, 280 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:      x86_scf.yield %30, %29, %28, %26, %27 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
 // CHECK-NEXT:    }
-// CHECK-NEXT:    %67 = x86.di.mov 18 : () -> !x86.reg64<r11>
-// CHECK-NEXT:    %68, %69, %70, %71, %72, %73 = x86_scf.for %74 : !x86.reg64<r11>  = %67 to 38 : si32 step 5 : si32 iter_args(%75 = %12, %76 = %13, %77 = %14, %78 = %15, %79 = %16) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
-// CHECK-NEXT:      %80 = x86.di.mov 0 : () -> !x86.reg64<r10>
-// CHECK-NEXT:      %81, %82, %83, %84, %85, %86 = x86_scf.for %87 : !x86.reg64<r10>  = %80 to 64 : si32 step 64 : si32 iter_args(%88 = %75, %89 = %76, %90 = %77, %91 = %78, %92 = %79) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
-// CHECK-NEXT:        %93, %94, %95, %96, %97 = "xsmm.matmul_m"(%88, %89, %90, %91, %92) <{m_blocking = 64 : i64, n_blocking = 5 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
-// CHECK-NEXT:        x86_scf.yield %93, %94, %95, %96, %97 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
-// CHECK-NEXT:      }
-// CHECK-NEXT:      %98 = x86.di.mov 63 : () -> !x86.reg64<r15>
-// CHECK-NEXT:      %99 = x86.ks.kmovw %98 : (!x86.reg64<r15>) -> !x86.avx512maskreg<k1>
-// CHECK-NEXT:      %100 = x86.di.mov 64 : () -> !x86.reg64<r10>
-// CHECK-NEXT:      %101, %102, %103, %104, %105, %106, %107 = x86_scf.for %108 : !x86.reg64<r10>  = %100 to 70 : si32 step 6 : si32 iter_args(%109 = %82, %110 = %83, %111 = %84, %112 = %85, %113 = %86, %114 = %99) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>) {
-// CHECK-NEXT:        %115, %116, %117, %118, %119, %120 = "xsmm.matmul_m"(%109, %110, %111, %112, %113, %114) <{m_blocking = 6 : i64, n_blocking = 5 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>)
-// CHECK-NEXT:        x86_scf.yield %115, %116, %117, %118, %119, %120 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>
-// CHECK-NEXT:      }
-// CHECK-NEXT:      %121 = x86.ri.add %104, 1120 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:      %122 = x86.ri.add %103, 2560 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:      %123 = x86.ri.sub %102, 280 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:      x86_scf.yield %123, %122, %121, %105, %106 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
+// CHECK-NEXT:    %31 = x86.di.mov 18 : () -> !x86.reg64<r11>
+// CHECK-NEXT:    %32, %33, %34, %35, %36, %37 = x86_scf.for %38 : !x86.reg64<r11>  = %31 to 38 : si32 step 5 : si32 iter_args(%39 = %12, %40 = %13, %41 = %14, %42 = %15, %43 = %16) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
+// CHECK-NEXT:      %44, %45, %46, %47, %48 = "xsmm.matmul_m"(%39, %40, %41, %42, %43) <{m_blocking = 70 : i64, n_blocking = 5 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+// CHECK-NEXT:      %49 = x86.ri.add %46, 1120 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:      %50 = x86.ri.add %45, 2560 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:      %51 = x86.ri.sub %44, 280 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:      x86_scf.yield %51, %50, %49, %47, %48 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
 // CHECK-NEXT:    }
-// CHECK-NEXT:    %124 = x86.ds.mov %72 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %125, %126 = x86.d.pop %124 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
+// CHECK-NEXT:    %52 = x86.ds.mov %36 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
+// CHECK-NEXT:    %53, %54 = x86.d.pop %52 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
 // CHECK-NEXT:    x86_func.ret
 // CHECK-NEXT:  }
 

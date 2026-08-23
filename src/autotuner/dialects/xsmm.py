@@ -40,6 +40,10 @@ class MatmulMOp(IRDLOperation):
     this advances A and C by ``m_blocking`` elements and leaves B unchanged. The
     frame and stack pointers and optional mask are passed through.
 
+    An unmasked operation may represent an untiled M extent that is not a whole
+    number of vectors. ``xsmm-tile-m`` chooses physical M blocks and supplies a
+    mask only to a generated block whose final vector is partial.
+
     Lowering this operation to ``xsmm.matmul_k`` must correct the K operation's
     pointer results: ``matmul_k`` advances A and B through K, whereas this
     operation exposes only the M advance of A and no advance of B.
@@ -136,9 +140,9 @@ class MatmulMOp(IRDLOperation):
         vector_length = 512 // self.datatype.bitwidth
         m_blocking = self.m_blocking.value.data
         needs_mask = m_blocking % vector_length != 0
-        if bool(self.mask) != needs_mask:
+        if self.mask is not None and not needs_mask:
             raise VerifyException(
-                "expected a mask exactly when m_blocking is not a multiple of the "
+                "a mask is only valid when m_blocking is not a multiple of the "
                 "vector length"
             )
         if bool(self.mask_out) != bool(self.mask):

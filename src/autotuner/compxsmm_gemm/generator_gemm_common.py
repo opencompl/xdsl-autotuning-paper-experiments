@@ -14,11 +14,9 @@ from autotuner.libxsmm_gemm.generator_gemm_common import (
 )
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
 from autotuner.libxsmm_gemm.libxsmm_generator import (
-    MLoopVals,
     NLoopVals,
 )
 from xdsl.dialects.x86.registers import (
-    AVX512MaskRegisterType,
     GeneralRegisterType,
 )
 
@@ -39,12 +37,6 @@ def _gpr(value: SSAValue) -> SSAValue[GeneralRegisterType]:
 def _nloop_from_args(args: tuple[SSAValue, ...]) -> NLoopVals:
     a, b, c, rbp, rsp = args
     return NLoopVals(_gpr(a), _gpr(b), _gpr(c), _gpr(rbp), _gpr(rsp))
-
-
-def _mloop_from_args(args: tuple[SSAValue, ...], has_mask: bool) -> MLoopVals:
-    a, b, c, rbp, rsp, *rest = args
-    mask = SSAValue.get(rest[0], type=AVX512MaskRegisterType) if has_mask else None
-    return MLoopVals(_gpr(a), _gpr(b), _gpr(c), _gpr(rbp), _gpr(rsp), mask)
 
 
 def compxsmm_generator_gemm_header_nloop(
@@ -255,59 +247,3 @@ def compxsmm_generator_gemm_footer_nloop(
 
     generated_code.builder.insertion_point = InsertPoint.after(nloop_op)
     return _nloop_from_args(tuple(nloop_op.results[1:]))
-
-
-def compxsmm_generator_gemm_header_mloop(
-    generated_code: GeneratedCode,
-    gp_reg_mapping: GPRegMapping,
-    micro_kernel_config: MicroKernelConfig,
-    *,
-    m_init: int,
-    m_blocking: int,
-    m_done: int,
-    vals: MLoopVals,
-) -> MLoopVals:
-    """
-    In original, adds three lines of assembly: set counter to m_init, add label, add m_blocking to loop counter.
-    We create the same ops, but also create a block to hold the body of the loop, and set the insertion point at end of the new block.
-    """
-    m_arg_reg = gp_reg_mapping.gp_reg_mloop
-    generated_code.insert(m_init_op := x86.ops.DI_MovOp(m_init, destination=m_arg_reg))
-
-    existing_block = m_init_op.parent
-    assert existing_block is not None
-    parent_region = existing_block.parent
-    assert parent_region is not None
-
-    # m is passed as lb, so no need to include in iter_args
-    # n loop is currently accidentally included in the args even though it's not used in the loop, exclude it for now
-    args = vals.vals
-
-    mloop_op = generated_code.builder.insert(
-        x86_scf.ForOp(
-            m_init_op.destination,
-            IntegerAttr(m_done, si32),
-            IntegerAttr(m_blocking, si32),
-            args,
-        )
-    )
-
-    body_block = mloop_op.body.block
-
-    generated_code.builder.insertion_point = InsertPoint.at_start(body_block)
-    return _mloop_from_args(tuple(body_block.args[1:]), vals.mask_k1 is not None)
-
-
-def compxsmm_generator_gemm_footer_mloop(
-    generated_code: GeneratedCode,
-    *,
-    vals: MLoopVals,
-) -> MLoopVals:
-    """Close the structured M loop after its body has materialized M semantics."""
-    body_block = generated_code.builder.insertion_point.block
-    generated_code.insert(x86_scf.YieldOp(*vals.vals))
-
-    mloop_op = body_block.parent_op()
-    assert isinstance(mloop_op, x86_scf.ForOp)
-    generated_code.builder.insertion_point = InsertPoint.after(mloop_op)
-    return _mloop_from_args(tuple(mloop_op.results[1:]), vals.mask_k1 is not None)

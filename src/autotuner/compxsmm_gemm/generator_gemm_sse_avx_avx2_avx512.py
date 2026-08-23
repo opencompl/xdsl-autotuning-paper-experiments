@@ -1,7 +1,6 @@
 import os
 
 from xdsl.builder import Builder
-from xdsl.dialects import x86
 from xdsl.dialects.x86.registers import (
     R10,
     R11,
@@ -23,20 +22,14 @@ from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 
 from autotuner.compxsmm_gemm.generator_gemm_common import (
-    compxsmm_generator_gemm_footer_mloop,
     compxsmm_generator_gemm_footer_nloop,
-    compxsmm_generator_gemm_header_mloop,
     compxsmm_generator_gemm_header_nloop,
 )
 from autotuner.dialects.xsmm import MatmulMOp
 from autotuner.libxsmm_gemm.generator_common import (
-    LIBXSMM_X86_AVX512_MASK_REG,
     GPRegMapping,
     MicroKernelConfig,
     libxsmm_compute_equalized_blocking,
-)
-from autotuner.libxsmm_gemm.generator_common_x86 import (
-    libxsmm_generator_initialize_avx512_mask,
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_destroy_stack_frame,
@@ -44,7 +37,6 @@ from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_setup_stack_frame,
 )
 from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
-    libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking,
     libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
@@ -369,9 +361,12 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         micro_kernel_config, desc, generated_code.arch
     )
     if max_n_blocking > 3:
-        init_m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
-            micro_kernel_config, desc, generated_code.arch, 0
-        )
+        if desc.datatype.ab == Datatype.F32:
+            init_m_blocking = min(desc.m, 64)
+        elif desc.datatype.ab == Datatype.F64:
+            init_m_blocking = min(desc.m, 32)
+        else:
+            raise NotImplementedError
         init_m_blocks = (
             init_m_blocking + micro_kernel_config.vector_length - 1
         ) // micro_kernel_config.vector_length
@@ -489,9 +484,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     # apply n_blocking
     while n_done != desc.n:
         n_blocking = n_n[n_count]
-        m_done = 0
-        m_done_old = 0
-        m_blocking = 0
 
         # open N loop
         nloop_vals = compxsmm_generator_gemm_header_nloop(
@@ -516,266 +508,34 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         n_done += n_N[n_count]
         n_count += 1
 
-        # define the micro kernel code gen properties, especially m-blocking affects the vector instruction length
-        m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
-            micro_kernel_config, desc, generated_code.arch, 0
-        )
-        micro_kernel_config.m_bitmask_advance = 0  # @TODO: FOR SSE ONLY and relumask
-
-        # apply m_blocking
-        while m_done != desc.m:
-            assert m_blocking
-
-            m_done_old = m_done
-            micro_kernel_config.current_m = m_done_old
-            assert m_blocking
-
-            # coverity[divide_by_zero]
-            m_done = m_done + (desc.m - m_done_old) // m_blocking * m_blocking
-            micro_kernel_config.m_bitmask_advance += (
-                m_done - m_done_old
-            ) // 8  # @TODO: FOR SSE ONLY and relumask
-
-            if (m_done != m_done_old) and (m_done > 0):
-                mask_k1_val = None
-                # when on AVX512, load mask, if needed
-                if (
-                    micro_kernel_config.use_masking_a_c
-                    and Arch.LIBXSMM_X86_AVX512_VL256_SKX
-                    <= generated_code.arch
-                    <= Arch.LIBXSMM_X86_ALLFEAT
-                ):
-                    # compute the mask count, depends on vlen as block in M
-                    corrected_vlen = micro_kernel_config.vector_length
-                    mask_count = corrected_vlen - (m_blocking % corrected_vlen)
-
-                    if (
-                        (
-                            (Datatype.F16 == desc.datatype.ab)
-                            and (Datatype.F16 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.F16 == desc.datatype.ab)
-                            and (Datatype.F32 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.BF16 == desc.datatype.ab)
-                            and (Datatype.BF16 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.I8 == desc.datatype.ab)
-                            and (Datatype.I8 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.BF8 == desc.datatype.ab)
-                            and (Datatype.BF8 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.F32 == desc.datatype.ab)
-                            and (Datatype.BF8 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.BF16 == desc.datatype.ab)
-                            and (Datatype.BF8 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.HF8 == desc.datatype.ab)
-                            and (Datatype.HF8 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.BF16 == desc.datatype.ab)
-                            and (Datatype.HF8 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.BF8 == desc.datatype.a)
-                            and (Datatype.F16 == desc.datatype.b)
-                            and (Datatype.F16 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.BF8 == desc.datatype.a)
-                            and (Datatype.F16 == desc.datatype.b)
-                            and (Datatype.F32 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.I8 == desc.datatype.a)
-                            and (Datatype.F16 == desc.datatype.b)
-                            and (Datatype.F16 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.I8 == desc.datatype.a)
-                            and (Datatype.F16 == desc.datatype.b)
-                            and (Datatype.F32 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.I8 == desc.datatype.a)
-                            and (Datatype.BF16 == desc.datatype.b)
-                            and (Datatype.BF16 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.I8 == desc.datatype.a)
-                            and (Datatype.BF16 == desc.datatype.b)
-                            and (Datatype.F32 == desc.datatype.c)
-                        )
-                        or (
-                            (Datatype.F32 == desc.datatype.ab)
-                            and (Datatype.HF8 == desc.datatype.c)
-                        )
-                    ):
-                        is_Ai8_Bf16_gemm = (Datatype.I8 == desc.datatype.a) and (
-                            Datatype.F16 == desc.datatype.b
-                        )
-                        is_Abf8_Bf16_gemm = (Datatype.BF8 == desc.datatype.a) and (
-                            Datatype.F16 == desc.datatype.b
-                        )
-                        is_Af16_Bf16_gemm = (Datatype.F16 == desc.datatype.a) and (
-                            Datatype.F16 == desc.datatype.b
-                        )
-                        is_compute_f16_gemm = (
-                            is_Ai8_Bf16_gemm or is_Abf8_Bf16_gemm or is_Af16_Bf16_gemm
-                        ) and (
-                            Datatype.F16 == desc.datatype.comp
-                            and (generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SPR)
-                        )
-                        mask_k1_val = libxsmm_generator_initialize_avx512_mask(
-                            generated_code,
-                            gp_reg_mapping.gp_reg_help_1,
-                            LIBXSMM_X86_AVX512_MASK_REG,
-                            mask_count,
-                            Datatype.F16 if is_compute_f16_gemm else Datatype.I32,
-                        )
-                        if is_compute_f16_gemm and Datatype.F32 == desc.datatype.c:
-                            # Adjust mask for C handling
-                            c_vlen_adjusted = (
-                                corrected_vlen // 2
-                                if is_compute_f16_gemm
-                                else corrected_vlen
-                            )
-                            libxsmm_generator_initialize_avx512_mask(
-                                generated_code,
-                                gp_reg_mapping.gp_reg_help_1,
-                                x86.registers.AVX512MaskRegisterType.from_index(2),
-                                0
-                                if m_blocking % corrected_vlen >= c_vlen_adjusted
-                                else c_vlen_adjusted - (m_blocking % c_vlen_adjusted),
-                                Datatype.I32,
-                            )
-                            libxsmm_generator_initialize_avx512_mask(
-                                generated_code,
-                                gp_reg_mapping.gp_reg_help_1,
-                                x86.registers.AVX512MaskRegisterType.from_index(3),
-                                c_vlen_adjusted - (m_blocking % c_vlen_adjusted)
-                                if m_blocking % corrected_vlen >= c_vlen_adjusted
-                                else c_vlen_adjusted,
-                                Datatype.I32,
-                            )
-                        else:
-                            # we have to adjust mask count as for now we are using ymm for 16bit and xmm for 8bit
-                            if (
-                                generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX
-                            ) and (generated_code.arch < Arch.LIBXSMM_X86_AVX512_SKX):
-                                mask_count = (
-                                    mask_count + 8
-                                    if (
-                                        (
-                                            (Datatype.BF16 == desc.datatype.ab)
-                                            and (Datatype.HF8 != desc.datatype.c)
-                                            and (Datatype.BF8 != desc.datatype.c)
-                                        )
-                                        or (is_Ai8_Bbf16_gemm)
-                                    )
-                                    else mask_count + 24
-                                )
-                            else:
-                                mask_count = (
-                                    mask_count + 16
-                                    if (
-                                        (
-                                            (Datatype.BF16 == desc.datatype.ab)
-                                            and (Datatype.HF8 != desc.datatype.c)
-                                            and (Datatype.BF8 != desc.datatype.c)
-                                        )
-                                        or (is_Ai8_Bbf16_gemm)
-                                    )
-                                    else mask_count + 48
-                                )
-
-                        libxsmm_generator_initialize_avx512_mask(
-                            generated_code,
-                            gp_reg_mapping.gp_reg_help_1,
-                            x86.registers.AVX512MaskRegisterType.from_index(2),
-                            mask_count,
-                            desc.datatype.c,
-                        )
-                    else:
-                        mask_k1_val = libxsmm_generator_initialize_avx512_mask(
-                            generated_code,
-                            gp_reg_mapping.gp_reg_help_1,
-                            LIBXSMM_X86_AVX512_MASK_REG,
-                            mask_count,
-                            desc.datatype.c,
-                        )
-                elif (
-                    micro_kernel_config.use_masking_a_c
-                    and Arch.LIBXSMM_X86_AVX
-                    <= generated_code.arch
-                    < Arch.LIBXSMM_X86_AVX512_VL256_SKX
-                ):
-                    raise NotImplementedError
-
-                mloop_vals = compxsmm_generator_gemm_header_mloop(
-                    generated_code,
-                    gp_reg_mapping,
-                    micro_kernel_config,
-                    m_init=m_done_old,
-                    m_blocking=m_blocking,
-                    m_done=m_done,
-                    vals=MLoopVals(a_val, b_val, c_val, rbp_val, rsp_val, mask_k1_val),
+        datatype = desc.datatype.ab
+        assert datatype is not None
+        matmul_m_vals = _mloop_vals_from_matmul_m(
+            generated_code.insert(
+                MatmulMOp(
+                    a_val,
+                    b_val,
+                    c_val,
+                    rbp_val,
+                    rsp_val,
+                    None,
+                    m_blocking=desc.m,
+                    n_blocking=n_blocking,
+                    k=desc.k,
+                    lda=desc.lda,
+                    ldb=desc.ldb,
+                    ldc=desc.ldc,
+                    datatype=datatype.builtin_type,
+                    aligned_a=GEMMFlag.ALIGN_A in desc.flags,
+                    aligned_c=GEMMFlag.ALIGN_C in desc.flags,
                 )
-                a_val = mloop_vals.a
-                b_val = mloop_vals.b
-                c_val = mloop_vals.c
-                rbp_val = mloop_vals.rbp
-                rsp_val = mloop_vals.rsp
-                mask_k1_val = mloop_vals.mask_k1
-
-                datatype = desc.datatype.ab
-                assert datatype is not None
-                matmul_m_vals = _mloop_vals_from_matmul_m(
-                    generated_code.insert(
-                        MatmulMOp(
-                            a_val,
-                            b_val,
-                            c_val,
-                            rbp_val,
-                            rsp_val,
-                            mask_k1_val,
-                            m_blocking=m_blocking,
-                            n_blocking=n_blocking,
-                            k=desc.k,
-                            lda=desc.lda,
-                            ldb=desc.ldb,
-                            ldc=desc.ldc,
-                            datatype=datatype.builtin_type,
-                            aligned_a=GEMMFlag.ALIGN_A in desc.flags,
-                            aligned_c=GEMMFlag.ALIGN_C in desc.flags,
-                        )
-                    )
-                )
-                mloop_result = compxsmm_generator_gemm_footer_mloop(
-                    generated_code,
-                    vals=matmul_m_vals,
-                )
-                a_val = mloop_result.a
-                b_val = mloop_result.b
-                c_val = mloop_result.c
-                rbp_val = mloop_result.rbp
-                rsp_val = mloop_result.rsp
-                mask_k1_val = mloop_result.mask_k1
-
-            # switch to next smaller m_blocking
-            m_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
-                micro_kernel_config, desc, generated_code.arch, m_blocking
             )
+        )
+        a_val = matmul_m_vals.a
+        b_val = matmul_m_vals.b
+        c_val = matmul_m_vals.c
+        rbp_val = matmul_m_vals.rbp
+        rsp_val = matmul_m_vals.rsp
 
         nloop_result = compxsmm_generator_gemm_footer_nloop(
             generated_code,
