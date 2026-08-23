@@ -25,15 +25,11 @@ from autotuner.dialects.xsmm import MatmulNOp
 from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
     MicroKernelConfig,
-    libxsmm_compute_equalized_blocking,
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_destroy_stack_frame,
     libxsmm_generator_gemm_init_micro_kernel_config,
     libxsmm_generator_gemm_setup_stack_frame,
-)
-from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
-    libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
@@ -222,14 +218,8 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and (Datatype.BF16 == desc.datatype.ab)
     )
 
-    # Initialize n-blocking variables
-    n_done = 0  # progress tracker
-    n_n = [0, 0]  # blocking sizes for blocks
-    n_N = [0, 0]  # size of blocks
-
     _adjust_A_pf_ptrs = 0
     _adjust_B_pf_ptrs = 0
-    max_n_blocking = 0
 
     is_Ai8_Bbf16_gemm = (
         (Datatype.I8 == desc.datatype.a and not is_Amxfp4_Bbf16_gemm)
@@ -338,64 +328,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         desc.ldb = desc.k
         micro_kernel_config.atvnni_btrans_gemm_stack_alloc_tensors = True
 
-    # Block according to the number of available registers or given limits
-    max_n_blocking = libxsmm_generator_gemm_sse_avx_avx2_avx512_get_max_n_blocking(
-        micro_kernel_config, desc, generated_code.arch
-    )
-    if max_n_blocking > 3:
-        if desc.datatype.ab == Datatype.F32:
-            init_m_blocking = min(desc.m, 64)
-        elif desc.datatype.ab == Datatype.F64:
-            init_m_blocking = min(desc.m, 32)
-        else:
-            raise NotImplementedError
-        init_m_blocks = (
-            init_m_blocking + micro_kernel_config.vector_length - 1
-        ) // micro_kernel_config.vector_length
-        is_Ai8_Bf16_gemm = (
-            desc.datatype.a == Datatype.I8
-            and desc.datatype.b == Datatype.F16
-            and (desc.datatype.c in (Datatype.F16, Datatype.F32))
-        )
-
-        if is_Ai8_Bf16_gemm:
-            raise NotImplementedError
-        elif is_Ai8_Bbf16_gemm:
-            raise NotImplementedError
-        elif is_Ai4_Bi8_gemm:
-            print(is_Ai4_Bi8_gemm, desc)
-            raise NotImplementedError
-        elif is_Ai2_Bi8_gemm:
-            raise NotImplementedError
-        elif is_Ai1_Bi8_gemm:
-            raise NotImplementedError
-        else:
-            if (
-                Arch.LIBXSMM_X86_AVX2_SRF
-                <= generated_code.arch
-                < Arch.LIBXSMM_X86_AVX512_SKX
-            ):
-                while (
-                    init_m_blocks * max_n_blocking + max_n_blocking + 1
-                ) > micro_kernel_config.vector_reg_count:
-                    max_n_blocking -= 1
-            else:
-                while (
-                    init_m_blocks * max_n_blocking + init_m_blocks + 1
-                ) > micro_kernel_config.vector_reg_count:
-                    max_n_blocking -= 1
-
-    assert max_n_blocking
-
-    blocking = libxsmm_compute_equalized_blocking(desc.n, max_n_blocking)
-    n_N[0] = blocking.range_1
-    n_n[0] = blocking.block_1
-    n_N[1] = blocking.range_2
-    n_n[1] = blocking.block_2
-
-    # check that l_n_N1 is non-zero
-    assert n_N[0]
-
     # implementing load from struct
     if GEMMFlag.USE_XGEMM_ABI in desc.flags or GEMMFlag.USE_XGEMM_EXT_ABI in desc.flags:
         raise NotImplementedError
@@ -463,46 +395,38 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     ):
         raise NotImplementedError
 
-    for n_range, n_blocking in zip(n_N, n_n, strict=True):
-        if not n_range:
-            continue
-        if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
-            raise NotImplementedError
-        assert n_range % n_blocking == 0
-
-        datatype = desc.datatype.ab
-        assert datatype is not None
-        if datatype not in (Datatype.F32, Datatype.F64):
-            raise NotImplementedError
-        if desc.prefetch == GEMMPrefetchType.AL2:
-            raise NotImplementedError
-        matmul_n = generated_code.insert(
-            MatmulNOp(
-                a_val,
-                b_val,
-                c_val,
-                rbp_val,
-                rsp_val,
-                m=desc.m,
-                n_start=n_done,
-                n_blocking=n_range,
-                k=desc.k,
-                lda=desc.lda,
-                ldb=desc.ldb,
-                ldc=desc.ldc,
-                datatype=datatype.builtin_type,
-                aligned_a=GEMMFlag.ALIGN_A in desc.flags,
-                aligned_c=GEMMFlag.ALIGN_C in desc.flags,
-            )
+    if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
+        raise NotImplementedError
+    datatype = desc.datatype.ab
+    assert datatype is not None
+    if datatype not in (Datatype.F32, Datatype.F64):
+        raise NotImplementedError
+    if desc.prefetch == GEMMPrefetchType.AL2:
+        raise NotImplementedError
+    matmul_n = generated_code.insert(
+        MatmulNOp(
+            a_val,
+            b_val,
+            c_val,
+            rbp_val,
+            rsp_val,
+            m=desc.m,
+            n_start=0,
+            n_blocking=desc.n,
+            k=desc.k,
+            lda=desc.lda,
+            ldb=desc.ldb,
+            ldc=desc.ldc,
+            datatype=datatype.builtin_type,
+            aligned_a=GEMMFlag.ALIGN_A in desc.flags,
+            aligned_c=GEMMFlag.ALIGN_C in desc.flags,
         )
-        a_val = matmul_n.a_out
-        b_val = matmul_n.b_out
-        c_val = matmul_n.c_out
-        rbp_val = matmul_n.rbp_out
-        rsp_val = matmul_n.rsp_out
-        n_done += n_range
-
-    assert n_done == desc.n
+    )
+    a_val = matmul_n.a_out
+    b_val = matmul_n.b_out
+    c_val = matmul_n.c_out
+    rbp_val = matmul_n.rbp_out
+    rsp_val = matmul_n.rsp_out
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:

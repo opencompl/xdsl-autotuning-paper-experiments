@@ -9,10 +9,9 @@
 // CHECK-NEXT:    %7 = x86.ri.sub %5, 192 : (!x86.reg64<rsp>) -> !x86.reg64<rsp>
 // CHECK-NEXT:    %8 = x86.di.mov -64 : () -> !x86.reg64<r10>
 // CHECK-NEXT:    %9 = x86.rs.and %7, %8 : (!x86.reg64<rsp>, !x86.reg64<r10>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %10, %11, %12, %13, %14 = "xsmm.matmul_n"(%0, %1, %2, %6, %9) <{m = 128 : i64, n_start = 0 : i64, n_blocking = 18 : i64, k = 128 : i64, lda = 128 : i64, ldb = 128 : i64, ldc = 128 : i64, datatype = f32, aligned_a = true, aligned_c = true}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
-// CHECK-NEXT:    %15, %16, %17, %18, %19 = "xsmm.matmul_n"(%10, %11, %12, %13, %14) <{m = 128 : i64, n_start = 18 : i64, n_blocking = 20 : i64, k = 128 : i64, lda = 128 : i64, ldb = 128 : i64, ldc = 128 : i64, datatype = f32, aligned_a = true, aligned_c = true}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
-// CHECK-NEXT:    %20 = x86.ds.mov %18 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %21, %22 = x86.d.pop %20 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
+// CHECK-NEXT:    %10, %11, %12, %13, %14 = "xsmm.matmul_n"(%0, %1, %2, %6, %9) <{m = 128 : i64, n_start = 0 : i64, n_blocking = 38 : i64, k = 128 : i64, lda = 128 : i64, ldb = 128 : i64, ldc = 128 : i64, datatype = f32, aligned_a = true, aligned_c = true}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+// CHECK-NEXT:    %15 = x86.ds.mov %13 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
+// CHECK-NEXT:    %16, %17 = x86.d.pop %15 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
 // CHECK-NEXT:    x86_func.ret
 // CHECK-NEXT:  }
 
