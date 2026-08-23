@@ -673,22 +673,40 @@ TESTSET_CI = [
     ),
 ]
 
+# Functional coverage for the Python XSMM generators.
+KERNELS_XSMM_AVX = [
+    Kernel3D("matmul_rowmaj", 5, 34, 16),  # fully unrolled K, multiple M tiles
+    Kernel3D("matmul_rowmaj", 29, 16, 16),  # fully unrolled K, multiple N blocks
+    Kernel3D("matmul_rowmaj", 5, 34, 24),  # exact tiled K loop
+    Kernel3D("matmul_rowmaj", 5, 34, 25),  # tiled K loop plus remainder
+]
+
 # For targets that can execute AVX instructions
-TESTSET_AVX = expand(
-    target_ll_file(
-        kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f64",
-        target=THIS_TARGET,
-        ext="test.log",
+TESTSET_AVX = [
+    *expand(
+        target_ll_file(
+            kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f64",
+            target=THIS_TARGET,
+            ext="test.log",
+        ),
+        variant=[
+            "transform_xdsl",
+            "llvm_intrinsics",
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm",
+            "mkl",
+        ],
     ),
-    variant=[
-        "transform_xdsl",
-        "llvm_intrinsics",
-        "libxsmm",
-        "xdsl_libxsmm",
-        "compxsmm",
-        "mkl",
-    ]
-)
+    # Exercise the Python generators across M/N blocking and all K-loop strategies.
+    *expand(
+        "build/"
+        + THIS_TARGET
+        + "/{case.kernel}/{case.m}x{case.n}x{case.k}/{variant}.f64.test.log",
+        case=KERNELS_XSMM_AVX,
+        variant=["xdsl_libxsmm", "compxsmm"],
+    ),
+]
 
 TESTSET = {
     "neon": TESTSET_MAC,

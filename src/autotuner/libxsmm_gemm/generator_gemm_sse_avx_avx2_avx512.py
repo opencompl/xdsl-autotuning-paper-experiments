@@ -1078,19 +1078,19 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
                 kloop_vals,
             )
 
-            # Reset B pointer
-            if GEMMFlag.TRANS_B in desc.flags:
-                b_offset = desc.ldb * desc.k * micro_kernel_config.datatype_size_in2
-            else:
-                b_offset = desc.k * micro_kernel_config.datatype_size_in2
+        # Reset B pointer
+        if GEMMFlag.TRANS_B in desc.flags:
+            b_offset = desc.ldb * desc.k * micro_kernel_config.datatype_size_in2
+        else:
+            b_offset = desc.k * micro_kernel_config.datatype_size_in2
 
-            kloop_vals.b = generated_code.insert(
-                x86.ops.RI_SubOp(
-                    kloop_vals.b,
-                    b_offset,
-                    register_out=gp_reg_mapping.gp_reg_b,
-                )
-            ).register_out
+        kloop_vals.b = generated_code.insert(
+            x86.ops.RI_SubOp(
+                kloop_vals.b,
+                b_offset,
+                register_out=gp_reg_mapping.gp_reg_b,
+            )
+        ).register_out
 
     if is_Ai8_Bbf16_gemm and not is_Ai8_Bbf16_gemm_bf16fma:
         raise NotImplementedError
