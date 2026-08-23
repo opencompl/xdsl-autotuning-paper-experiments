@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import cast
 from xdsl import ir
 from xdsl.dialects import builtin, x86, x86_scf
@@ -264,6 +265,90 @@ def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulMOp) -> MatmulKOp:
         ),
     )
     return matmul_k
+
+
+def _matmul_k_with_inputs(
+    op: MatmulKOp, inputs: Sequence[ir.SSAValue], k_blocking: int
+) -> MatmulKOp:
+    a, b, c, rbp, rsp, *rest = inputs
+    if op.mask is None:
+        mask = None
+        accumulators = rest
+    else:
+        mask, *accumulators = rest
+
+    return MatmulKOp(
+        a,
+        b,
+        c,
+        rbp,
+        rsp,
+        mask,
+        accumulators,
+        m_blocking=op.m_blocking.value.data,
+        n_blocking=op.n_blocking.value.data,
+        k_blocking=k_blocking,
+        lda=op.lda.value.data,
+        ldb=op.ldb.value.data,
+        datatype=op.datatype,
+        aligned_a=bool(op.aligned_a),
+    )
+
+
+def tile_k(
+    rewriter: PatternRewriter,
+    op: MatmulKOp,
+    k_tile: int,
+    kloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
+) -> tuple[MatmulKOp, MatmulKOp | None]:
+    """Tile K, inserting an exact loop and an optional remainder matmul.
+
+    Each tiled body advances A and B through its portion of K. The loop-carried
+    results therefore already have the same pointer values as the original op;
+    neither pointer is reset after the loop.
+
+    Returns the matmul in the loop body and the optional remainder matmul.
+    """
+    k = op.k_blocking.value.data
+    assert 0 < k_tile <= k, f"Invalid K tile {k_tile} for K extent {k}"
+
+    insert_point = InsertPoint.before(op)
+    blocked_end = k // k_tile * k_tile
+    k_init = rewriter.insert(
+        x86.ops.DI_MovOp(0, destination=kloop_register),
+        insertion_point=insert_point,
+    )
+
+    inputs = tuple(op.operands)
+    body = ir.Block(
+        arg_types=(k_init.destination.type, *(value.type for value in inputs))
+    )
+    tiled_matmul = _matmul_k_with_inputs(op, body.args[1:], k_tile)
+    body.add_ops((tiled_matmul, x86_scf.YieldOp(*tiled_matmul.results)))
+    kloop = rewriter.insert(
+        x86_scf.ForOp(
+            k_init.destination,
+            builtin.IntegerAttr(blocked_end, x86.ops.si32),
+            builtin.IntegerAttr(k_tile, x86.ops.si32),
+            inputs,
+            body,
+        ),
+        insertion_point=insert_point,
+    )
+
+    loop_results = tuple(kloop.results[1:])
+    if remainder := k % k_tile:
+        remainder_matmul = rewriter.insert(
+            _matmul_k_with_inputs(op, loop_results, remainder),
+            insertion_point=insert_point,
+        )
+        results = tuple(remainder_matmul.results)
+    else:
+        remainder_matmul = None
+        results = loop_results
+
+    rewriter.replace(op, [], results)
+    return tiled_matmul, remainder_matmul
 
 
 def _insert_m_loop(
