@@ -4,8 +4,7 @@ from xdsl.dialects import builtin, x86, x86_scf
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 
-from autotuner.dialects.xsmm import MatmulMOp, MatmulNOp
-from autotuner.libxsmm_gemm.libxsmm_generator import AVX512RegisterType
+from autotuner.dialects.xsmm import MatmulKOp, MatmulMOp, MatmulNOp
 
 
 def split_n(
@@ -154,6 +153,117 @@ def matmul_n_to_m(rewriter: PatternRewriter, op: MatmulNOp) -> MatmulMOp:
         ),
     )
     return matmul_m
+
+
+def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulMOp) -> MatmulKOp:
+    m_blocking = op.m_blocking.value.data
+    n_blocking = op.n_blocking.value.data
+    k = op.k.value.data
+    lda = op.lda.value.data
+    vector_length = 512 // op.datatype.bitwidth
+    insert_point = InsertPoint.before(op)
+
+    mask = (
+        None
+        if op.mask is None
+        else ir.SSAValue.get(op.mask, type=x86.registers.AVX512MaskRegisterType)
+    )
+    accumulators = load_c(
+        rewriter,
+        insert_point,
+        m_blocking,
+        n_blocking,
+        x86.registers.AVX512RegisterType,
+        op.datatype,
+        ldc=op.ldc.value.data,
+        vector_length=vector_length,
+        vector_reg_count=32,
+        use_masking_a_c=mask is not None,
+        aligned_c=bool(op.aligned_c),
+        c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
+        mask_k1=mask,
+    )
+    matmul_k = rewriter.insert(
+        MatmulKOp(
+            op.a,
+            op.b,
+            op.c,
+            op.rbp,
+            op.rsp,
+            op.mask,
+            accumulators,
+            m_blocking=m_blocking,
+            n_blocking=n_blocking,
+            k_blocking=k,
+            lda=lda,
+            ldb=op.ldb.value.data,
+            datatype=op.datatype,
+            aligned_a=bool(op.aligned_a),
+        ),
+        insertion_point=insert_point,
+    )
+
+    element_size = op.datatype.size
+    b_out = rewriter.insert(
+        x86.ops.RI_SubOp(
+            matmul_k.b_out,
+            k * element_size,
+            register_out=op.b_out.type,
+        ),
+        insertion_point=insert_point,
+    ).register_out
+
+    store_c(
+        rewriter,
+        insert_point,
+        m_blocking,
+        n_blocking,
+        op.datatype,
+        ldc=op.ldc.value.data,
+        vector_length=vector_length,
+        use_masking_a_c=mask is not None,
+        aligned_c=bool(op.aligned_c),
+        c_val=ir.SSAValue.get(matmul_k.c_out, type=x86.registers.GeneralRegisterType),
+        acc_vectors=tuple(matmul_k.accumulator_outs),
+        mask_k1=(
+            None
+            if matmul_k.mask_out is None
+            else ir.SSAValue.get(
+                matmul_k.mask_out, type=x86.registers.AVX512MaskRegisterType
+            )
+        ),
+    )
+
+    c_out = rewriter.insert(
+        x86.ops.RI_AddOp(
+            matmul_k.c_out,
+            m_blocking * element_size,
+            register_out=op.c_out.type,
+        ),
+        insertion_point=insert_point,
+    ).register_out
+    a_out = rewriter.insert(
+        x86.ops.RI_SubOp(
+            matmul_k.a_out,
+            (k * lda - m_blocking) * element_size,
+            register_out=op.a_out.type,
+        ),
+        insertion_point=insert_point,
+    ).register_out
+
+    rewriter.replace(
+        op,
+        [],
+        (
+            a_out,
+            b_out,
+            c_out,
+            matmul_k.rbp_out,
+            matmul_k.rsp_out,
+            *((matmul_k.mask_out,) if matmul_k.mask_out is not None else ()),
+        ),
+    )
+    return matmul_k
 
 
 def _insert_m_loop(
@@ -315,7 +425,7 @@ def tile_m(
     return tiled_matmul, remainder_matmul
 
 
-AccVals = tuple[ir.SSAValue[AVX512RegisterType], ...]
+AccVals = tuple[ir.SSAValue[x86.registers.AVX512RegisterType], ...]
 
 
 def load_c(
@@ -323,7 +433,7 @@ def load_c(
     insert_point: InsertPoint,
     m_blocking: int,
     n_blocking: int,
-    dest_type: type[AVX512RegisterType],
+    dest_type: type[x86.registers.AVX512RegisterType],
     datatype: builtin.Float32Type | builtin.Float64Type,
     *,
     ldc: int,
@@ -333,8 +443,8 @@ def load_c(
     aligned_c: bool,
     c_val: ir.SSAValue[x86.registers.GeneralRegisterType],
     mask_k1: ir.SSAValue[x86.registers.AVX512MaskRegisterType] | None = None,
-) -> tuple[ir.SSAValue[AVX512RegisterType], ...]:
-    result: list[ir.SSAValue[AVX512RegisterType]] = []
+) -> tuple[ir.SSAValue[x86.registers.AVX512RegisterType], ...]:
+    result: list[ir.SSAValue[x86.registers.AVX512RegisterType]] = []
     # register blocking counter in n
     n = 0
     # register blocking counter in m
@@ -407,7 +517,7 @@ def load_c(
                     ),
                     insertion_point=insert_point,
                 ).destination
-                res_vec = cast(ir.SSAValue[AVX512RegisterType], res_vec)
+                res_vec = cast(ir.SSAValue[x86.registers.AVX512RegisterType], res_vec)
 
             result.append(res_vec)
 
@@ -426,7 +536,7 @@ def store_c(
     use_masking_a_c: bool,
     aligned_c: bool,
     c_val: ir.SSAValue[x86.registers.GeneralRegisterType],
-    acc_vectors: tuple[ir.SSAValue[AVX512RegisterType], ...],
+    acc_vectors: tuple[ir.SSAValue[x86.registers.AVX512RegisterType], ...],
     mask_k1: ir.SSAValue[x86.registers.AVX512MaskRegisterType] | None = None,
 ) -> None:
     datatype_size_out = datatype.size
