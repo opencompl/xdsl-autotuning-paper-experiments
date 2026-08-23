@@ -474,7 +474,7 @@ def libxsmm_generator_gemm_footer_kloop(
         if GEMMFlag.TRANS_B in desc.flags:
             b_offset = desc.ldb * desc.k * micro_kernel_config.datatype_size_in2
         else:
-            b_offset = desc.ldb * micro_kernel_config.datatype_size_in2
+            b_offset = desc.k * micro_kernel_config.datatype_size_in2
 
         result.b = generated_code.insert(
             x86.ops.RI_SubOp(
