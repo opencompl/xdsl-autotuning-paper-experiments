@@ -27,8 +27,152 @@ from xdsl.irdl import (
     var_operand_def,
     var_result_def,
 )
-from xdsl.traits import MemoryReadEffect
+from xdsl.traits import MemoryReadEffect, MemoryWriteEffect
 from xdsl.utils.exceptions import VerifyException
+
+
+@irdl_op_definition
+class MatmulMOp(IRDLOperation):
+    """A blocked matrix multiplication M body.
+
+    The operation computes one ``m_blocking`` by ``n_blocking`` output block over
+    the complete K extent. For the currently supported non-transposed inputs,
+    this advances A and C by ``m_blocking`` elements and leaves B unchanged. The
+    frame and stack pointers and optional mask are passed through.
+
+    Lowering this operation to ``xsmm.matmul_k`` must correct the K operation's
+    pointer results: ``matmul_k`` advances A and B through K, whereas this
+    operation exposes only the M advance of A and no advance of B.
+    """
+
+    name = "xsmm.matmul_m"
+
+    a = operand_def(GeneralRegisterType)
+    b = operand_def(GeneralRegisterType)
+    c = operand_def(GeneralRegisterType)
+    rbp = operand_def(GeneralRegisterType)
+    rsp = operand_def(GeneralRegisterType)
+    mask = opt_operand_def(AVX512MaskRegisterType)
+
+    a_out = result_def(GeneralRegisterType)
+    b_out = result_def(GeneralRegisterType)
+    c_out = result_def(GeneralRegisterType)
+    rbp_out = result_def(GeneralRegisterType)
+    rsp_out = result_def(GeneralRegisterType)
+    mask_out = opt_result_def(AVX512MaskRegisterType)
+
+    m_blocking = prop_def(IntegerAttr)
+    n_blocking = prop_def(IntegerAttr)
+    k = prop_def(IntegerAttr)
+    lda = prop_def(IntegerAttr)
+    ldb = prop_def(IntegerAttr)
+    ldc = prop_def(IntegerAttr)
+    datatype = prop_def(Float32Type | Float64Type)
+    aligned_a = prop_def(BoolAttr)
+    aligned_c = prop_def(BoolAttr)
+
+    irdl_options = (
+        AttrSizedOperandSegments(as_property=True),
+        AttrSizedResultSegments(as_property=True),
+    )
+
+    traits = traits_def(MemoryReadEffect(), MemoryWriteEffect())
+
+    def __init__(
+        self,
+        a: SSAValue,
+        b: SSAValue,
+        c: SSAValue,
+        rbp: SSAValue,
+        rsp: SSAValue,
+        mask: SSAValue | None,
+        *,
+        m_blocking: int,
+        n_blocking: int,
+        k: int,
+        lda: int,
+        ldb: int,
+        ldc: int,
+        datatype: Float32Type | Float64Type,
+        aligned_a: bool,
+        aligned_c: bool,
+    ):
+        super().__init__(
+            operands=(a, b, c, rbp, rsp, mask),
+            result_types=(
+                a.type,
+                b.type,
+                c.type,
+                rbp.type,
+                rsp.type,
+                None if mask is None else mask.type,
+            ),
+            properties={
+                "m_blocking": IntegerAttr(m_blocking, i64),
+                "n_blocking": IntegerAttr(n_blocking, i64),
+                "k": IntegerAttr(k, i64),
+                "lda": IntegerAttr(lda, i64),
+                "ldb": IntegerAttr(ldb, i64),
+                "ldc": IntegerAttr(ldc, i64),
+                "datatype": datatype,
+                "aligned_a": BoolAttr.from_bool(aligned_a),
+                "aligned_c": BoolAttr.from_bool(aligned_c),
+            },
+        )
+
+    def verify_(self) -> None:
+        integer_properties = {
+            "m_blocking": self.m_blocking.value.data,
+            "n_blocking": self.n_blocking.value.data,
+            "k": self.k.value.data,
+            "lda": self.lda.value.data,
+            "ldb": self.ldb.value.data,
+            "ldc": self.ldc.value.data,
+        }
+        for name, value in integer_properties.items():
+            if value <= 0:
+                raise VerifyException(f"{name} must be positive, got {value}")
+
+        vector_length = 512 // self.datatype.bitwidth
+        m_blocking = self.m_blocking.value.data
+        needs_mask = m_blocking % vector_length != 0
+        if bool(self.mask) != needs_mask:
+            raise VerifyException(
+                "expected a mask exactly when m_blocking is not a multiple of the "
+                "vector length"
+            )
+        if bool(self.mask_out) != bool(self.mask):
+            raise VerifyException("mask operand and result presence must match")
+
+        if self.aligned_a.value.data and self.lda.value.data % vector_length:
+            raise VerifyException(
+                "aligned A requires lda to be a multiple of the vector length"
+            )
+        if self.aligned_c.value.data and self.ldc.value.data % vector_length:
+            raise VerifyException(
+                "aligned C requires ldc to be a multiple of the vector length"
+            )
+
+        inputs = (
+            self.a,
+            self.b,
+            self.c,
+            self.rbp,
+            self.rsp,
+            *((self.mask,) if self.mask is not None else ()),
+        )
+        outputs = (
+            self.a_out,
+            self.b_out,
+            self.c_out,
+            self.rbp_out,
+            self.rsp_out,
+            *((self.mask_out,) if self.mask_out is not None else ()),
+        )
+        if tuple(value.type for value in inputs) != tuple(
+            value.type for value in outputs
+        ):
+            raise VerifyException("operand and result types must match pairwise")
 
 
 @irdl_op_definition
@@ -187,6 +331,6 @@ class MatmulKOp(IRDLOperation):
 
 XSMM = Dialect(
     "xsmm",
-    [MatmulKOp],
+    [MatmulMOp, MatmulKOp],
     [],
 )

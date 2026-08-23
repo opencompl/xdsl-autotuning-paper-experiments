@@ -28,7 +28,7 @@ from autotuner.compxsmm_gemm.generator_gemm_common import (
     compxsmm_generator_gemm_header_mloop,
     compxsmm_generator_gemm_header_nloop,
 )
-from autotuner.dialects.xsmm import MatmulKOp
+from autotuner.dialects.xsmm import MatmulMOp
 from autotuner.libxsmm_gemm.generator_common import (
     LIBXSMM_X86_AVX512_MASK_REG,
     GPRegMapping,
@@ -41,9 +41,7 @@ from autotuner.libxsmm_gemm.generator_common_x86 import (
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_destroy_stack_frame,
     libxsmm_generator_gemm_init_micro_kernel_config,
-    libxsmm_generator_gemm_load_C,
     libxsmm_generator_gemm_setup_stack_frame,
-    libxsmm_generator_gemm_store_C,
 )
 from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
     libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking,
@@ -55,7 +53,6 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import (
     GeneratedCode,
-    KLoopVals,
     MLoopVals,
     NLoopVals,
 )
@@ -67,15 +64,14 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def _kloop_vals_from_matmul_k(op: MatmulKOp) -> KLoopVals:
-    return KLoopVals(
+def _mloop_vals_from_matmul_m(op: MatmulMOp) -> MLoopVals:
+    return MLoopVals(
         op.a_out,
         op.b_out,
         op.c_out,
         op.rbp_out,
         op.rsp_out,
         op.mask_out,
-        tuple(op.accumulator_outs),
     )
 
 
@@ -742,97 +738,32 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
                 rsp_val = mloop_vals.rsp
                 mask_k1_val = mloop_vals.mask_k1
 
-                acc_vals = libxsmm_generator_gemm_load_C(
-                    generated_code,
-                    gp_reg_mapping,
-                    micro_kernel_config,
-                    desc,
-                    m_blocking,
-                    n_blocking,
-                    c_val=c_val,
-                    mask_k1=mask_k1_val,
-                )
-
-                if (
-                    GEMMFlag.BATCH_REDUCE_ADDRESS in desc.flags
-                    or GEMMFlag.BATCH_REDUCE_OFFSET in desc.flags
-                    or GEMMFlag.BATCH_REDUCE_STRIDE in desc.flags
-                ):
-                    raise NotImplementedError
-
                 datatype = desc.datatype.ab
                 assert datatype is not None
-                kloop_vals = _kloop_vals_from_matmul_k(
+                matmul_m_vals = _mloop_vals_from_matmul_m(
                     generated_code.insert(
-                        MatmulKOp(
+                        MatmulMOp(
                             a_val,
                             b_val,
                             c_val,
                             rbp_val,
                             rsp_val,
                             mask_k1_val,
-                            acc_vals,
                             m_blocking=m_blocking,
                             n_blocking=n_blocking,
-                            k_blocking=desc.k,
+                            k=desc.k,
                             lda=desc.lda,
                             ldb=desc.ldb,
+                            ldc=desc.ldc,
                             datatype=datatype.builtin_type,
                             aligned_a=GEMMFlag.ALIGN_A in desc.flags,
+                            aligned_c=GEMMFlag.ALIGN_C in desc.flags,
                         )
                     )
                 )
-
-                # matmul_k advances B through K, while the surrounding M body
-                # keeps B fixed. Keep this correction independent of whether a
-                # later transform tiles K.
-                kloop_vals.b = generated_code.insert(
-                    x86.ops.RI_SubOp(
-                        kloop_vals.b,
-                        desc.k * micro_kernel_config.datatype_size_in2,
-                        register_out=gp_reg_mapping.gp_reg_b,
-                    )
-                ).register_out
-
-                a_val = kloop_vals.a
-                b_val = kloop_vals.b
-                c_val = kloop_vals.c
-                rbp_val = kloop_vals.rbp
-                rsp_val = kloop_vals.rsp
-                mask_k1_val = kloop_vals.mask_k1
-
-                if (
-                    GEMMFlag.BATCH_REDUCE_ADDRESS in desc.flags
-                    or GEMMFlag.BATCH_REDUCE_OFFSET in desc.flags
-                    or GEMMFlag.BATCH_REDUCE_STRIDE in desc.flags
-                ):
-                    raise NotImplementedError
-
-                libxsmm_generator_gemm_store_C(
-                    generated_code,
-                    gp_reg_mapping,
-                    micro_kernel_config,
-                    desc,
-                    m_blocking,
-                    n_blocking,
-                    c_val=c_val,
-                    acc_vectors=kloop_vals.acc_vectors,
-                    mask_k1=mask_k1_val,
-                )
                 mloop_result = compxsmm_generator_gemm_footer_mloop(
                     generated_code,
-                    gp_reg_mapping,
-                    micro_kernel_config,
-                    desc,
-                    m_blocking=m_blocking,
-                    vals=MLoopVals(
-                        a_val,
-                        b_val,
-                        c_val,
-                        rbp_val,
-                        rsp_val,
-                        mask_k1_val,
-                    ),
+                    vals=matmul_m_vals,
                 )
                 a_val = mloop_result.a
                 b_val = mloop_result.b
