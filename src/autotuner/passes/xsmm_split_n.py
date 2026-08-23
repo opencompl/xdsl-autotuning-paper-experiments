@@ -15,6 +15,7 @@ from autotuner.dialects.xsmm import MatmulNOp
 from autotuner.libxsmm_gemm.generator_common import libxsmm_compute_equalized_blocking
 from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
 from autotuner.passes.xsmm_n_blocking import get_max_n_blocking_for_matmul_n
+from autotuner.schedules import split_n
 
 
 @dataclass
@@ -34,33 +35,9 @@ class SplitMatmulNPattern(RewritePattern):
             op.n_blocking.value.data,
             get_max_n_blocking_for_matmul_n(op, self.arch),
         )
-        assert blocking.ret == 0
-        if blocking.range_2 == 0:
-            return
-
-        common_properties = {
-            "m": op.m.value.data,
-            "k": op.k.value.data,
-            "lda": op.lda.value.data,
-            "ldb": op.ldb.value.data,
-            "ldc": op.ldc.value.data,
-            "datatype": op.datatype,
-            "aligned_a": op.aligned_a.value.data,
-            "aligned_c": op.aligned_c.value.data,
-        }
-        first = MatmulNOp(
-            *op.operands,
-            n_start=op.n_start.value.data,
-            n_blocking=blocking.range_1,
-            **common_properties,
-        )
-        second = MatmulNOp(
-            *first.results,
-            n_start=op.n_start.value.data + blocking.range_1,
-            n_blocking=blocking.range_2,
-            **common_properties,
-        )
-        rewriter.replace(op, (first, second), tuple(second.results))
+        assert blocking.ret == 0, "Error computing blocking"
+        if blocking.range_2:
+            split_n(rewriter, op, blocking.range_1)
 
 
 @dataclass(frozen=True)
