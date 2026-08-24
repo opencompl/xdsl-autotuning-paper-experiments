@@ -31,6 +31,7 @@ plot-ttile = "autotuner.plot_ttile:main"
 plot-ttile-squares = "autotuner.plot_ttile_squares:main"
 plot-ttile-combined = "autotuner.plot_ttile_combined:main"
 plot-heatmap = "autotuner.plot_heatmap:main"
+plot-nano-kernel-heatmap = "autotuner.plot_nano_kernel_heatmap:main"
 libxsmm-gemm = "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver:main"
 compxsmm-gemm = "autotuner.compxsmm_gemm.compxsmm_generator_gemm_driver:main"
 

@@ -70,6 +70,13 @@ PLOTS += plots/pinocchio/f64.ttile_squares.png
 PLOTS += plots/pinocchio/f64.ttile_combined.png
 PLOTS += plots/pinocchio/f64.heatmap.png
 
+NANO_KERNEL_PLOT_TARGETS = tower pinocchio
+NANO_KERNEL_PLOT_DTYPES = f32 f64
+NANO_KERNELS = libxsmm skx-fsdbcst skx-nofsdbcst
+NANO_KERNEL_PLOTS = $(foreach target,$(NANO_KERNEL_PLOT_TARGETS),$(foreach dtype,$(NANO_KERNEL_PLOT_DTYPES),$(foreach nano_kernel,$(NANO_KERNELS),plots/$(target)/$(dtype).nano-kernel.$(nano_kernel).png)))
+
+PLOTS += $(NANO_KERNEL_PLOTS)
+
 PLOTS += plots/ttile.pdf
 
 # `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
@@ -87,6 +94,13 @@ plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile
 
 plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 	uv run plot-heatmap $< --output $@
+
+define NANO_KERNEL_PLOT_RULE
+plots/$(1)/$(2).nano-kernel.$(3).png: data/$(1)/$(2).nano-kernel.$(3).jsonl src/autotuner/plot_nano_kernel_heatmap.py
+	uv run plot-nano-kernel-heatmap $$< --output $$@
+endef
+
+$(foreach target,$(NANO_KERNEL_PLOT_TARGETS),$(foreach dtype,$(NANO_KERNEL_PLOT_DTYPES),$(foreach nano_kernel,$(NANO_KERNELS),$(eval $(call NANO_KERNEL_PLOT_RULE,$(target),$(dtype),$(nano_kernel))))))
 
 .PHONY: plots
 plots: $(PLOTS)

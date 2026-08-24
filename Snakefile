@@ -4,6 +4,18 @@ import glob
 import os
 import shutil
 
+from xdsl.dialects import builtin
+
+from autotuner.skx_nano_kernel import (
+    SKX_NANO_KERNELS,
+    SkxTargetInfo,
+    get_skx_nano_kernel,
+)
+
+# Use the steady-state K tile from larger GEMMs for the 2D nano-kernel plots.
+# This is a benchmarking convention, not a nano-kernel correctness limit.
+NANO_KERNEL_BENCHMARK_K = 4
+
 ########################################################################################
 # Build
 ########################################################################################
@@ -120,6 +132,17 @@ COMPXSMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
     glob.glob("src/autotuner/compxsmm_gemm/**/*.py", recursive=True)
 )
 
+NANO_KERNEL_SOURCES = sorted(
+    glob.glob("src/autotuner/**/*.py", recursive=True)
+)
+NANO_KERNEL_NAMES = tuple(sorted(SKX_NANO_KERNELS))
+NANO_KERNEL_PATTERN = "|".join(NANO_KERNEL_NAMES)
+VARIANT_PATTERN = (
+    "naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|"
+    "libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|"
+    f"compxsmm-({NANO_KERNEL_PATTERN})"
+)
+
 # Rules
 
 wildcard_constraints:
@@ -127,7 +150,8 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     target="neon|ci|tower|pinocchio",
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm"
+    variant=VARIANT_PATTERN,
+    nano_kernel=NANO_KERNEL_PATTERN
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -363,6 +387,35 @@ rule compxsmm_s:
         xdsl-opt {input.mlir} -p {params.passes} -t x86-asm -o {output}
         """
 
+# Expand exactly one requested nano-kernel shape. Unlike the normal CompXSMM
+# pipeline, this deliberately does not tile N or K: K=4 represents the
+# steady-state K tile used inside larger GEMMs, and is a benchmark convention
+# rather than a correctness limit of the nano-kernel implementation.
+rule compxsmm_nano_kernel_s:
+    wildcard_constraints:
+        k=str(NANO_KERNEL_BENCHMARK_K)
+    input:
+        mlir=target_ll_file(kernel='matmul_rowmaj',variant='compxsmm',ext='compxsmm.mlir'),
+        sources=["pyproject.toml"] + NANO_KERNEL_SOURCES,
+    output: target_ll_file(kernel='matmul_rowmaj',variant='compxsmm-{nano_kernel}',ext='S')
+    params:
+        passes=lambda wildcards: ",".join((
+            "xsmm-matmul-n-to-m",
+            "xsmm-tile-m{disable-regalloc=true}",
+            "xsmm-matmul-m-to-k",
+            "convert-xsmm-to-x86{"
+            f"nano-kernel={wildcards.nano_kernel} disable-regalloc=true"
+            "}",
+            "x86-regalloc-verify-liveness",
+            "x86-allocate-registers",
+            "convert-x86-scf-to-x86",
+            "x86-prologue-epilogue-insertion",
+        ))
+    shell:
+        """
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
+        """
+
 rule mkl_rowmaj_s:
     output: target_ll_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -547,6 +600,80 @@ DATASET_BASES = {
     )
 }
 
+
+def nano_kernel_sample_bases(target, dtype, nano_kernel_name):
+    """Return one benchmark base path per supported M/N tile."""
+    datatype = {"f32": builtin.f32, "f64": builtin.f64}[dtype]
+    nano_kernel = get_skx_nano_kernel(nano_kernel_name)
+    supported_tiles = nano_kernel.supported_tile_sizes(datatype, SkxTargetInfo())
+    return [
+        target_file(
+            target=target,
+            kernel="matmul_rowmaj",
+            # The row-major wrapper swaps A/B and the GEMM M/N dimensions
+            # before entering the column-major generator. Reverse them in the
+            # build path so the generated MatmulK has exactly (tile.m, tile.n).
+            m=str(tile.n),
+            n=str(tile.m),
+            k=str(NANO_KERNEL_BENCHMARK_K),
+            variant=f"compxsmm-{nano_kernel_name}",
+            dtype=dtype,
+            ext="",
+        )
+        for tile in sorted(supported_tiles)
+    ]
+
+
+def nano_kernel_dataset_inputs(wildcards):
+    """Derive all datapoints from the requested dataset filename."""
+    return [
+        base + "json"
+        for base in nano_kernel_sample_bases(
+            wildcards.target,
+            wildcards.dtype,
+            wildcards.nano_kernel,
+        )
+    ]
+
+
+NANO_KERNEL_DATASET_TARGETS = ("tower", "pinocchio")
+NANO_KERNEL_DATASET_OUTPUTS = (
+    expand(
+        "data/{target}/{dtype}.nano-kernel.{nano_kernel}.jsonl",
+        target=THIS_TARGET,
+        dtype=("f32", "f64"),
+        nano_kernel=NANO_KERNEL_NAMES,
+    )
+    if THIS_TARGET in NANO_KERNEL_DATASET_TARGETS
+    else []
+)
+NANO_KERNEL_SAMPLE_BASES = (
+    [
+        base
+        for dtype in ("f32", "f64")
+        for nano_kernel in NANO_KERNEL_NAMES
+        for base in nano_kernel_sample_bases(THIS_TARGET, dtype, nano_kernel)
+    ]
+    if THIS_TARGET in NANO_KERNEL_DATASET_TARGETS
+    else []
+)
+ALL_DATASET_SAMPLE_BASES = (
+    *flatten(DATASET_BASES.values()),
+    *NANO_KERNEL_SAMPLE_BASES,
+)
+DATASET_CODE_INPUTS = [p + "time.o" for p in ALL_DATASET_SAMPLE_BASES]
+DATASET_VALIDATION_INPUTS = [p + "test.log" for p in ALL_DATASET_SAMPLE_BASES]
+DATASET_OUTPUTS = [
+    *expand(
+        "data/{target}/{dataset}.jsonl",
+        target=THIS_TARGET,
+        dataset=tuple(
+            dataset for dataset, samples in DATASET_BASES.items() if samples
+        ),
+    ),
+    *NANO_KERNEL_DATASET_OUTPUTS,
+]
+
 # If a dataset has no samples skip it here and in the dataset rule below
 for dataset, samples in DATASET_BASES.items():
     if samples:
@@ -555,23 +682,21 @@ for dataset, samples in DATASET_BASES.items():
             output: f"data/{THIS_TARGET}/{dataset}.jsonl"
             shell: "cat {input} > {output}"
 
+rule nano_kernel_dataset:
+    wildcard_constraints:
+        target="tower|pinocchio",
+    input: nano_kernel_dataset_inputs
+    output: "data/{target}/{dtype}.nano-kernel.{nano_kernel}.jsonl"
+    shell: "cat {input} > {output}"
+
 rule dataset_code:
-    input: [p + "time.o" for p in flatten(DATASET_BASES.values())]
+    input: DATASET_CODE_INPUTS
 
 rule dataset_validate:
-    input: [p + "test.log" for p in flatten(DATASET_BASES.values())]
+    input: DATASET_VALIDATION_INPUTS
 
 rule dataset:
-    input:
-        expand(
-            "data/{target}/{dataset}.jsonl",
-            target=THIS_TARGET,
-            dataset=tuple(
-                dataset
-                for dataset, samples in DATASET_BASES.items()
-                if samples
-            ),
-        )
+    input: DATASET_OUTPUTS
 
 ########################################################################################
 # CI
