@@ -13,7 +13,6 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulMOp, MatmulNOp
-from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE
 from autotuner.nano_kernel import GemmDescriptor, NanoKernel, TargetInfo
 from autotuner.schedules import matmul_n_to_m, split_n, tile_m, tile_n
 from autotuner.skx_nano_kernel import SkxNanoKernel, SkxTargetInfo
@@ -123,14 +122,8 @@ class XsmmTileNMPass(ModulePass):
     disable_regalloc: bool = False
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
-        try:
-            arch = ARCH_BY_CODE[self.arch]
-        except KeyError as error:
-            raise PassFailedException(
-                f"unknown architecture code '{self.arch}'"
-            ) from error
         target = SkxTargetInfo()
-        if arch != target.arch:
+        if self.arch != target.arch:
             raise PassFailedException("xsmm-tile-n-m currently supports SKX only")
 
         PatternRewriteWalker(

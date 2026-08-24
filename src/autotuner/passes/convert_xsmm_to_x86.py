@@ -12,7 +12,6 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulKOp
-from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE
 from autotuner.nano_kernel import NanoKernel, TargetInfo
 from autotuner.skx_nano_kernel import SkxNanoKernel, SkxTargetInfo
 
@@ -43,14 +42,8 @@ class ConvertXsmmToX86Pass(ModulePass):
     disable_regalloc: bool = False
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
-        try:
-            arch = ARCH_BY_CODE[self.arch]
-        except KeyError as error:
-            raise PassFailedException(
-                f"unknown architecture code '{self.arch}'"
-            ) from error
         target = SkxTargetInfo()
-        if arch != target.arch:
+        if self.arch != target.arch:
             raise PassFailedException("convert-xsmm-to-x86 currently supports SKX only")
 
         PatternRewriteWalker(

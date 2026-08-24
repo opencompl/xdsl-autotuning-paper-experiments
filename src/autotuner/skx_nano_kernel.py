@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 
 from xdsl.dialects import builtin
 from xdsl.dialects.x86.registers import (
@@ -18,7 +19,8 @@ from autotuner.libxsmm_gemm.generator_common import GPRegMapping, MicroKernelCon
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_init_micro_kernel_config,
 )
-from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
+from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE
+
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode, KLoopVals
 from autotuner.libxsmm_gemm.libxsmm_main import (
     DescDatatype,
@@ -42,8 +44,8 @@ class SkxTargetInfo(TargetInfo):
     """The register file and vector widths used by the SKX generator."""
 
     @property
-    def arch(self) -> Arch:
-        return Arch.LIBXSMM_X86_AVX512_SKX
+    def arch(self) -> Literal["skx"]:
+        return "skx"
 
     @property
     def register_capacity(self) -> RegisterCount:
@@ -144,15 +146,16 @@ class SkxNanoKernel(NanoKernel):
             flags=flags,
             prefetch=GEMMPrefetchType.NONE,
         )
+        arch = ARCH_BY_CODE[target.arch]
         micro_kernel_config = libxsmm_generator_gemm_init_micro_kernel_config(
             MicroKernelConfig(),
-            target.arch,
+            arch,
             desc,
             use_masking_a_c=op.mask is not None,
         )
 
         vals = compxsmm_generator_gemm_avx512_kloop_kernel(
-            GeneratedCode(rewriter, target.arch),
+            GeneratedCode(rewriter, arch),
             GPRegMapping(),
             micro_kernel_config,
             desc,
