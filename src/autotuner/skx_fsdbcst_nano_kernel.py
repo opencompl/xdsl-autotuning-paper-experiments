@@ -5,9 +5,11 @@ from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulKOp
 from autotuner.nano_kernel import (
+    FloatingPointType,
     GemmDescriptor,
     NanoKernel,
     RegisterCount,
+    SupportedTile,
     TargetInfo,
     TileSizes,
 )
@@ -33,6 +35,18 @@ class SkxFsdbcstNanoKernel(NanoKernel):
     @property
     def name(self) -> str:
         return "skx-fsdbcst"
+
+    def supported_tile_sizes(
+        self,
+        datatype: FloatingPointType,
+        target: TargetInfo,
+    ) -> frozenset[SupportedTile]:
+        vector_length = target.vector_length(datatype)
+        return frozenset(
+            SupportedTile(m, n)
+            for m in range(1, vector_length + 1)
+            for n in range(1, 29)
+        )
 
     @staticmethod
     def _accumulator_sets(tile: TileSizes) -> int:

@@ -12,6 +12,7 @@ from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
     RegisterCount,
+    SupportedTile,
     TargetInfo,
     TileSizes,
 )
@@ -54,6 +55,15 @@ class SkxNanoKernel(NanoKernel):
     @property
     def name(self) -> str:
         return "libxsmm"
+
+    def supported_tile_sizes(
+        self,
+        datatype: FloatingPointType,
+        target: TargetInfo,
+    ) -> frozenset[SupportedTile]:
+        return self._fsdbcst.supported_tile_sizes(
+            datatype, target
+        ) | self._nofsdbcst.supported_tile_sizes(datatype, target)
 
     def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
         return supports_skx(descriptor, target)
