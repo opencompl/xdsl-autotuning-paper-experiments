@@ -54,42 +54,68 @@ PLOTS =
 
 PLOTS += plots/neon/f32.ttile.png
 PLOTS += plots/neon/f64.ttile.png
-# PLOTS += plots/neon/f64.ttile_squares.png
+# PLOTS += plots/neon/f64.squares.png
 # PLOTS += plots/neon/f64.ttile_combined.png
 # PLOTS += plots/neon/f64.heatmap.png
 
 PLOTS += plots/tower/f32.ttile.png
 PLOTS += plots/tower/f64.ttile.png
-PLOTS += plots/tower/f64.ttile_squares.png
+PLOTS += plots/tower/f64.squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
 
 PLOTS += plots/pinocchio/f32.ttile.png
 PLOTS += plots/pinocchio/f64.ttile.png
-PLOTS += plots/pinocchio/f64.ttile_squares.png
+PLOTS += plots/pinocchio/f64.squares.png
 PLOTS += plots/pinocchio/f64.ttile_combined.png
 PLOTS += plots/pinocchio/f64.heatmap.png
 
 PLOTS += plots/ttile.pdf
 
+# Paper figures: single-column PDFs, no title in the image.
+PAPER_PLOTS =
+PAPER_PLOTS += plots/tower/f64.mn_sweep.pdf
+PAPER_PLOTS += plots/tower/f64.n_sweep.pdf
+PAPER_PLOTS += plots/tower/f64.mk_sweep.pdf
+
+PLOTS += $(PAPER_PLOTS)
+
+# Every figure shares the single-column paper style
+PLOT_STYLE = src/autotuner/plot_style.py
+
 # `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
-plots/%.ttile.png: data/%.ttile.jsonl src/autotuner/plot_ttile.py
+plots/%.ttile.png: data/%.ttile.jsonl src/autotuner/plot_ttile.py $(PLOT_STYLE)
 	uv run plot-ttile $< --output $@
 
-plots/ttile.pdf: data/tower/f32.ttile.jsonl data/tower/f64.ttile.jsonl data/pinocchio/f32.ttile.jsonl data/pinocchio/f64.ttile.jsonl src/autotuner/plot_ttile.py
+plots/ttile.pdf: data/tower/f32.ttile.jsonl data/tower/f64.ttile.jsonl data/pinocchio/f32.ttile.jsonl data/pinocchio/f64.ttile.jsonl src/autotuner/plot_ttile.py $(PLOT_STYLE)
 	uv run plot-ttile --output $@
 
-plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_squares.py
-	uv run plot-ttile-squares $< --output $@
+plots/%.squares.png: data/%.small_matrices.jsonl src/autotuner/plot_sweep.py $(PLOT_STYLE)
+	uv run plot-sweep $< --x mn --output $@
 
-plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_combined.py
+# Square kernels, M = N from 4 to 64 at fixed K
+plots/%.mn_sweep.pdf: data/%.mn_sweep.jsonl src/autotuner/plot_sweep.py $(PLOT_STYLE)
+	uv run plot-sweep $< --x mn --output $@
+
+# Sweep over N at fixed M = K
+plots/%.n_sweep.pdf: data/%.n_sweep.jsonl src/autotuner/plot_sweep.py $(PLOT_STYLE)
+	uv run plot-sweep $< --x N --output $@
+
+# One heatmap per variant over M and K at fixed N
+plots/%.mk_sweep.pdf: data/%.mk_sweep.jsonl src/autotuner/plot_heatmap.py $(PLOT_STYLE)
+	uv run plot-heatmap $< --output $@
+
+plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_combined.py $(PLOT_STYLE)
 	uv run plot-ttile-combined $< --output $@
 
-plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
+plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py $(PLOT_STYLE)
 	uv run plot-heatmap $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)
+
+.PHONY: paper-plots
+paper-plots: $(PAPER_PLOTS)
 
 # set up all precommit hooks
 .PHONY: precommit-install

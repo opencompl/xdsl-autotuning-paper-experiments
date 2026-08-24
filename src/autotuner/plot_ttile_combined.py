@@ -1,41 +1,40 @@
 # uv run src/plot_ttile_combined.py data/small_matrices.f64.tower.jsonl
 
-import os
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from pathlib import Path
 
-from autotuner.plot_ttile import TARGET_NAME, plot_axis_throughput
+from autotuner.plot_ttile import plot_axis_throughput
+from autotuner.plot_style import column_figure, save
+
+
+# Two panels per row keeps each panel legible in one paper column.
+NCOLS = 2
 
 
 def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> None:
-    """One 4×4 figure per target: all variants on each subplot, M = 1..16 vs N."""
+    """One panel per M in a single-column grid: all variants, M = 1..16 vs N."""
     if df.empty:
         return
 
     targets = set(df["target"])
     dtypes = set(df["dtype"])
     assert len(targets) == len(dtypes) == 1
-    (target,) = targets
-    (dtype,) = dtypes
-    target_pretty = TARGET_NAME.get(target, target)
 
-    fig, axes = plt.subplots(4, 4, figsize=(14, 14), sharex=True, sharey=True)
-    fig.suptitle(
-        f"{dtype}, {target_pretty} — K = 64, 1 ≤ N ≤ 16 (all variants)",
-        fontsize=14,
+    nrows = -(-16 // NCOLS)
+    fig, axes = column_figure(
+        aspect=0.5, nrows=nrows, ncols=NCOLS, sharex=True, sharey=True
     )
 
     legend_handles: list | None = None
     legend_labels: list[str] | None = None
 
     for m in range(1, 17):
-        row, col = (m - 1) // 4, (m - 1) % 4
+        row, col = (m - 1) // NCOLS, (m - 1) % NCOLS
         ax = axes[row, col]
         sub = df[df["M"] == m]
         assert isinstance(sub, pd.DataFrame)
-        show_xlabel = row == 3
+        show_xlabel = row == nrows - 1
         show_ylabel = col == 0
         if sub.empty or not (sub["time"] > 0).any():
             ax.text(
@@ -45,6 +44,7 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
                 transform=ax.transAxes,
                 ha="center",
                 va="center",
+                fontsize=6,
             )
         else:
             plot_axis_throughput(
@@ -58,27 +58,21 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
                 h, lbls = ax.get_legend_handles_labels()
                 if h:
                     legend_handles, legend_labels = list(h), list(lbls)
-        ax.set_title(f"M = {m}", fontsize=9)
+        ax.set_title(f"M = {m}", fontsize=6, pad=1.5)
 
+    # No suptitle: the caption belongs in the LaTeX figure, not in the image.
     if legend_handles is not None and legend_labels is not None:
-        ncol = min(4, len(legend_labels))
         fig.legend(
             legend_handles,
             legend_labels,
-            loc="lower center",
-            bbox_to_anchor=(0.5, 0.0),
-            ncol=ncol,
-            fontsize=8,
-            title="Variant / ref.",
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.015),
+            ncol=min(3, len(legend_labels)),
         )
 
-    plt.tight_layout(rect=(0, 0.06, 1, 0.96))
+    fig.tight_layout(pad=0.1, rect=(0, 0.025, 1, 1))
 
-    if output_path:
-        os.makedirs(output_path.parent, exist_ok=True)
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+    save(fig, output_path)
 
 
 def main():

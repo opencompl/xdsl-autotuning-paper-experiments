@@ -4,14 +4,31 @@ from collections.abc import Collection, Iterable
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from pathlib import Path
+
+from autotuner.plot_style import (
+    INK_MUTED,
+    column_figure,
+    legend_below,
+    integer_ticks,
+    save,
+    sorted_variants,
+    tidy_axes,
+    variant_style,
+)
 
 TARGET_NAME = {
     "tower": "AMD Zen 5",
     "pinocchio": "Intel Skylake",
     "neon": "Apple M2 Max",
+}
+
+AXIS_LABEL = {
+    "M": "M",
+    "N": "N",
+    "K": "K",
+    "M,N": "M = N",
 }
 
 
@@ -23,7 +40,7 @@ def plot_axis_throughput(
     show_xlabel: bool = True,
     show_ylabel: bool = True,
 ):
-    # Get peak performance if available
+    """Draw one throughput-versus-size axis, styled for a single column."""
 
     # Filter out invalid time values (negative or zero)
     valid_data = df[df["time"] > 0].copy()
@@ -46,45 +63,44 @@ def plot_axis_throughput(
     if peak is not None:
         # Convert throughput to percentage of peak
         df["throughput_percent"] = (df["throughput"] / peak) * 100
-        ax.axhline(100, linestyle="--", linewidth=1, label="Peak perf (100%)")
+        ax.axhline(
+            100,
+            linestyle=(0, (4, 2)),
+            linewidth=0.6,
+            color=INK_MUTED,
+            label="peak",
+            zorder=1,
+        )
         y_col = "throughput_percent"
     else:
         y_col = "throughput"
 
-    # Assign a color and marker for each variant
-    import itertools
-
-    colors = itertools.cycle(["b", "g", "r", "c", "m", "y", "k"])
-    markers = itertools.cycle(["o", "s", "D", "^", "v", ">", "<", "p", "*", "h", "x"])
-
-    for (variant, group), color, marker in zip(df.groupby("variant"), colors, markers):
+    for variant in sorted_variants(df["variant"]):
+        group = df[df["variant"] == variant]
         assert isinstance(group, pd.DataFrame)
         group = group.sort_values(x_row)
         ax.plot(
             group[x_row],
             group[y_col],
-            label=variant,
-            color=color,
-            marker=marker,
-            linewidth=2,
-            markersize=6,
+            zorder=2,
+            **variant_style(variant),
         )
 
     if peak is not None:
         if show_ylabel:
-            ax.set_ylabel("% of Peak Performance")
-        ax.set_ylim(0, 110.0)
+            ax.set_ylabel("% of peak")
+        ax.set_ylim(0, 112.0)
+        ax.set_yticks([0, 25, 50, 75, 100])
     else:
         if show_ylabel:
-            ax.set_ylabel("Throughput (FLOPs per Time)")
-        ax.set_ylim(bottom=1e-2)  # Avoid log(0); adjust as needed for your data
+            ax.set_ylabel("throughput (FLOP/cycle)")
+        ax.set_ylim(bottom=0.0)
 
     if show_xlabel:
-        ax.set_xlabel(x_row)
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(0, df[x_row].max() + 2)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+        ax.set_xlabel(AXIS_LABEL.get(x_row, x_row))
+    ax.set_xticks(integer_ticks(df[x_row]))
+    ax.set_xlim(0, df[x_row].max() * 1.04)
+    tidy_axes(ax)
 
 
 def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
@@ -93,39 +109,30 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     ns = set(df.N)
     ks = set(df.K)
     dtypes = set(df["dtype"])
-    targets = set(df["target"])
     assert len(ns) == len(ks) == len(dtypes) == 1
     (n,) = ns
     (k,) = ks
     assert n == k
-    (dtype,) = dtypes
-    (target,) = targets
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = column_figure()
+    assert isinstance(ax, Axes)
 
     plot_axis_throughput(df, ax, x_row="M")
 
-    ax.set_title(f"N = K = {n}, {dtype}, {TARGET_NAME[target]}")
-    ax.legend(title="Variant")
-    plt.tight_layout()
+    # No title: the caption belongs in the LaTeX figure, not in the image.
+    legend_below(fig, ax)
 
-    if output_file:
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_file, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+    save(fig, output_file)
 
 
 def plot_combined(output_file: Path | None):
-    """
-    Plot a combined 2x2 subplot of the four ttile data files, matching axis scales and sharing a legend.
-    """
+    """Combined 2x2 subplot of the four ttile datasets, sharing axes and legend."""
     # Hardcode input files
     input_files = [
-        ("data/tower/f32.ttile.jsonl", "(a) "),
-        ("data/tower/f64.ttile.jsonl", "(b) "),
-        ("data/pinocchio/f32.ttile.jsonl", "(c) "),
-        ("data/pinocchio/f64.ttile.jsonl", "(d) "),
+        ("data/tower/f32.ttile.jsonl", "(a)"),
+        ("data/tower/f64.ttile.jsonl", "(b)"),
+        ("data/pinocchio/f32.ttile.jsonl", "(c)"),
+        ("data/pinocchio/f64.ttile.jsonl", "(d)"),
     ]
 
     dfs = []
@@ -133,11 +140,8 @@ def plot_combined(output_file: Path | None):
         df = pd.read_json(path, lines=True)
         dfs.append(df)
 
-    # Determine consistent axis labels, titles, and variant names
-    titles = []
-    targets = []
-    nks = []
-    dtypes = []
+    # Short panel labels; the full description belongs in the LaTeX caption.
+    labels = []
     for df, (_, prefix) in zip(dfs, input_files):
         ns = set(df.N)
         ks = set(df.K)
@@ -145,68 +149,41 @@ def plot_combined(output_file: Path | None):
         tgs = set(df["target"])
         assert len(ns) == len(ks) == len(dts) == len(tgs) == 1
         (n,) = ns
-        (k,) = ks
         (dtype,) = dts
         (target,) = tgs
-        nks.append((n, k))
-        dtypes.append(dtype)
-        targets.append(target)
-        titles.append(f"{prefix}N = K = {n}, {dtype}, {TARGET_NAME[target]}")
+        labels.append(f"{prefix} {dtype}, N = K = {n}, {TARGET_NAME[target]}")
 
-    fig, axs = plt.subplots(2, 2, figsize=(7, 7), sharex=True, sharey=True)
-    plt.subplots_adjust(hspace=0.35)
+    fig, axs = column_figure(aspect=0.78, nrows=2, ncols=2, sharex=True, sharey=True)
     axs = axs.flatten()
 
     # For legend
     handles_labels: tuple[Iterable[Artist], Collection[str]] | None = None
-    for idx, (df, ax, title) in enumerate(zip(dfs, axs, titles)):
+    for idx, (df, ax, label) in enumerate(zip(dfs, axs, labels)):
         plot_axis_throughput(
             df,
             ax,
             x_row="M",
-            show_xlabel=bool(idx // 2),
-            show_ylabel=False,  # We'll add a custom label above the axis
+            show_xlabel=idx >= 2,
+            show_ylabel=idx % 2 == 0,
         )
-        # Add horizontal Y-axis label above the axis for top-left plot only
-        if idx == 0:
-            ax.set_ylabel("% of Peak", rotation=0, ha="left", va="bottom")
-            ax.yaxis.set_label_coords(-0.12, 1.02)
-        # Place label below the chart
-        ax.text(
-            0.5,
-            -0.18,
-            title,
-            transform=ax.transAxes,
-            ha="center",
-            va="top",
-            fontsize=10,
-        )
+        ax.set_title(label, fontsize=6, pad=2)
         # Only gather legend once
         if handles_labels is None:
             handles_labels = ax.get_legend_handles_labels()
 
-    # Hide legends for all axes
-    for ax in axs:
-        ax.legend_.remove() if ax.get_legend() else None
-
-    # Place one shared legend in the bottom right
+    # One shared legend below the grid
     assert handles_labels is not None
-    handles, labels = handles_labels
+    handles, labels_ = handles_labels
     fig.legend(
         handles,
-        labels,
-        title="Variant",
-        loc="lower right",
-        ncol=2,
-        bbox_to_anchor=(0.98, 0.12),
+        labels_,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.02),
+        ncol=3,
     )
-    plt.tight_layout()
+    fig.tight_layout(pad=0.1, rect=(0, 0.04, 1, 1))
 
-    if output_file:
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_file, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+    save(fig, output_file)
 
 
 def main():

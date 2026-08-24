@@ -69,6 +69,22 @@ Generate the data for the host platform by running `make dataset`. JSONL outputs
 
 Plot data using `make plots`, this command will fail if all the data necessary to generate the plots is not present, instead of running the data generation. PNGs are written under `plots/<machine>/` for each platform that has JSONL inputs in the repo (for example `neon`, `tower`, `pinocchio`); plotting does not depend on your current `TARGET`.
 
+#### Paper figures
+
+`make paper-plots` builds only the figures used in the paper, as PDFs:
+
+| Figure | Data | Content |
+| --- | --- | --- |
+| `plots/tower/f64.mn_sweep.pdf` | `data/tower/f64.mn_sweep.jsonl` | square kernels, M = N from 4 to 64, K = 16 |
+| `plots/tower/f64.n_sweep.pdf` | `data/tower/f64.n_sweep.jsonl` | sweep over N with M = K = 16 |
+| `plots/tower/f64.mk_sweep.pdf` | `data/tower/f64.mk_sweep.jsonl` | one heatmap per variant over M and K, N = 16 |
+
+`src/autotuner/plot_style.py` holds the style every plotting script shares: figures are at
+most one column wide (`COLUMN_WIDTH`, 3.335 in) so they can be included at their natural
+size, text is 7-8 pt in a Times-alike serif, and a variant keeps the same color, marker and
+dash pattern across figures. No figure draws a title — the description belongs in the LaTeX
+`\caption`.
+
 ## Building The Docker Container
 
 Run `make docker-build`.

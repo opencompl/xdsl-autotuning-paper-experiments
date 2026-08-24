@@ -491,20 +491,28 @@ DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        # The x86 xsmm generators do not run here.
+        "f64.sweeps": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
         "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm"],
+        "f64.sweeps": ["libxsmm", "xdsl_libxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.sweeps": ["libxsmm", "xdsl_libxsmm"],
     },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.sweeps": [],
     },
 }[THIS_TARGET]
+
+# Matrix sizes swept by the paper figures.
+SWEEP_SIZES = [4, 8, 12, 16, 24, 32, 48, 64]
 
 # Values are missing the extension
 # The extension is added in the dataset rules below
@@ -544,7 +552,46 @@ DATASET_BASES = {
         m=range(1, 17),
         n=range(1, 17),
         variant=DATASET_VARIANTS["f64.small_matrices"]
-    )
+    ),
+    # Square M = N kernels at fixed K (paper figure: M = N sweep).
+    "f64.mn_sweep": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            k="16",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        m=SWEEP_SIZES,
+        n=SWEEP_SIZES,
+        variant=DATASET_VARIANTS["f64.sweeps"],
+    ),
+    # M by K at fixed N (paper figure: heatmaps).
+    "f64.mk_sweep": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            n="16",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        m=SWEEP_SIZES,
+        k=SWEEP_SIZES,
+        variant=DATASET_VARIANTS["f64.sweeps"],
+    ),
+    # Every N at fixed M = K = 16 (paper figure: continuous N sweep).
+    "f64.n_sweep": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            m="16",
+            k="16",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        n=range(4, 33),
+        variant=DATASET_VARIANTS["f64.sweeps"],
+    ),
 }
 
 # If a dataset has no samples skip it here and in the dataset rule below
