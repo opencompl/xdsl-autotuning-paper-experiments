@@ -23,6 +23,10 @@ from autotuner.skx_nano_kernel_utils import (
 class SkxNofsdbcstNanoKernel(NanoKernel):
     """The SKX multiple-M-vector register-broadcast nano-kernel."""
 
+    @property
+    def name(self) -> str:
+        return "libxsmm-skx-nofsdbcst"
+
     def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
         return target.arch == "skx" and isinstance(
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type

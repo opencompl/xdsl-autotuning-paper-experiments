@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -48,6 +49,10 @@ class SkxNanoKernel(NanoKernel):
 
     _fsdbcst = SkxFsdbcstNanoKernel()
     _nofsdbcst = SkxNofsdbcstNanoKernel()
+
+    @property
+    def name(self) -> str:
+        return "libxsmm-skx"
 
     def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
         return target.arch == "skx" and isinstance(
@@ -114,3 +119,24 @@ class SkxNanoKernel(NanoKernel):
             target,
             disable_regalloc=disable_regalloc,
         )
+
+
+SKX_NANO_KERNELS: Mapping[str, NanoKernel] = {
+    nano_kernel.name: nano_kernel
+    for nano_kernel in (
+        SkxNanoKernel(),
+        SkxFsdbcstNanoKernel(),
+        SkxNofsdbcstNanoKernel(),
+    )
+}
+
+
+def get_skx_nano_kernel(name: str) -> NanoKernel:
+    """Return the named SKX nano-kernel implementation."""
+    try:
+        return SKX_NANO_KERNELS[name]
+    except KeyError as error:
+        choices = ", ".join(sorted(SKX_NANO_KERNELS))
+        raise ValueError(
+            f"unknown SKX nano-kernel '{name}'; expected one of: {choices}"
+        ) from error
