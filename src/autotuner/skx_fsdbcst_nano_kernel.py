@@ -30,6 +30,10 @@ from autotuner.skx_nano_kernel_utils import (
 class SkxFsdbcstNanoKernel(NanoKernel):
     """The SKX one-M-vector memory-broadcast nano-kernel."""
 
+    @property
+    def name(self) -> str:
+        return "skx-fsdbcst"
+
     @staticmethod
     def _accumulator_sets(tile: TileSizes) -> int:
         if tile.n >= 12:

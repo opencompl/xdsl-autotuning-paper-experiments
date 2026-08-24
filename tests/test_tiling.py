@@ -2,7 +2,12 @@ from xdsl.dialects import builtin
 
 from autotuner.nano_kernel import GemmDescriptor, RegisterCount, TileSizes
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
-from autotuner.skx_nano_kernel import SkxNanoKernel, SkxTargetInfo
+from autotuner.skx_nano_kernel import (
+    SKX_NANO_KERNELS,
+    SkxNanoKernel,
+    SkxTargetInfo,
+    get_skx_nano_kernel,
+)
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 from autotuner.tiling import BlockingRange, TilingStrategy, compute_tiling_strategy
 
@@ -31,6 +36,29 @@ def test_register_count_fits() -> None:
 
 def test_skx_target_arch() -> None:
     assert SkxTargetInfo().arch == "skx"
+
+
+def test_skx_nano_kernel_names() -> None:
+    assert set(SKX_NANO_KERNELS) == {
+        "libxsmm",
+        "skx-fsdbcst",
+        "skx-nofsdbcst",
+    }
+    for name, nano_kernel in SKX_NANO_KERNELS.items():
+        assert nano_kernel.name == name
+        assert get_skx_nano_kernel(name) is nano_kernel
+
+
+def test_unknown_skx_nano_kernel() -> None:
+    try:
+        get_skx_nano_kernel("unknown")
+    except ValueError as error:
+        assert str(error) == (
+            "unknown SKX nano-kernel 'unknown'; expected one of: "
+            "libxsmm, skx-fsdbcst, skx-nofsdbcst"
+        )
+    else:
+        raise AssertionError("expected an unknown nano-kernel to be rejected")
 
 
 def test_skx_register_usage() -> None:

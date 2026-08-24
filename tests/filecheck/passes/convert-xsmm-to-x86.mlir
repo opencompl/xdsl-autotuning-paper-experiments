@@ -1,4 +1,5 @@
 // RUN: xdsl-opt %s --split-input-file -p convert-xsmm-to-x86 | filecheck %s
+// RUN: xdsl-opt %s --split-input-file -p 'convert-xsmm-to-x86{nano-kernel=libxsmm}' | filecheck %s
 
 // CHECK:       builtin.module {
 // CHECK-NEXT:    x86_func.func @matmul_k_fsdbcst(%a: !x86.reg64<rdi>, %b: !x86.reg64<rsi>, %c: !x86.reg64<rdx>, %rbp: !x86.reg64<rbp>, %rsp: !x86.reg64<rsp>, %acc0: !x86.avx512reg<zmm30>, %acc1: !x86.avx512reg<zmm31>) {

@@ -74,6 +74,11 @@ class TargetInfo(ABC):
 class NanoKernel(ABC):
     """A parametric register-resident kernel and its planning contract."""
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Stable name used to select and benchmark this nano-kernel."""
+
     @abstractmethod
     def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
         """Return whether this kernel supports the GEMM configuration."""
