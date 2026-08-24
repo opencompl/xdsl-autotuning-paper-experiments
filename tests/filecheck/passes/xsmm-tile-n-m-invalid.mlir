@@ -2,4 +2,4 @@
 
 builtin.module {}
 
-// CHECK: xsmm-tile-n-m currently supports AVX-512 architectures only
+// CHECK: xsmm-tile-n-m currently supports SKX only
