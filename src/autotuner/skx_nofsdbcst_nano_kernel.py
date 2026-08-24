@@ -1,10 +1,8 @@
 from xdsl.pattern_rewriter import PatternRewriter
+from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulKOp
-from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
-    libxsmm_generator_gemm_avx512_microkernel_nofsdbcst,
-)
 from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
@@ -13,10 +11,16 @@ from autotuner.nano_kernel import (
     TileSizes,
 )
 from autotuner.skx_nano_kernel_utils import (
-    create_matmul_k_context,
+    MatmulKValues,
+    advance_pointer,
+    broadcast_scalar,
     descriptor_from_op,
+    load_vector,
+    multiply_add_registers,
     supports_skx,
     tile_sizes_from_op,
+    values_from_op,
+    vector_register,
 )
 
 
@@ -90,17 +94,69 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         if not self.supports_tile(descriptor, tile, target):
             raise PassFailedException("unsupported SKX nofsdbcst nano-kernel tile")
 
-        context = create_matmul_k_context(rewriter, op, target)
-        values = context.values
+        insert_point = InsertPoint.before(op)
+        values = values_from_op(op)
+        vector_length = target.vector_length(op.datatype)
+        m_vectors = (tile.m + vector_length - 1) // vector_length
+        element_size = op.datatype.size
+        accumulators = list(values.accumulators)
+        a = values.a
+        b = values.b
+
         for _ in range(tile.k):
-            values = libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
-                context.generated_code,
-                context.gp_reg_mapping,
-                context.micro_kernel_config,
-                context.descriptor,
-                tile.m,
-                tile.n,
-                values,
-                disable_regalloc=disable_regalloc,
+            a_vectors = tuple(
+                load_vector(
+                    rewriter,
+                    insert_point,
+                    op.datatype,
+                    a,
+                    m * vector_length * element_size,
+                    vector_register(1 + m, disable_regalloc=disable_regalloc),
+                    aligned=bool(op.aligned_a.value.data),
+                    mask=values.mask if m == m_vectors - 1 else None,
+                )
+                for m in range(m_vectors)
             )
-        rewriter.replace(op, [], values.vals)
+
+            for n in range(tile.n):
+                b_vector = broadcast_scalar(
+                    rewriter,
+                    insert_point,
+                    op.datatype,
+                    b,
+                    op.ldb.value.data * n * element_size,
+                    vector_register(0, disable_regalloc=disable_regalloc),
+                )
+
+                if n == tile.n - 1:
+                    b = advance_pointer(rewriter, insert_point, b, element_size)
+
+                for m in range(m_vectors):
+                    if m == 0 and n == tile.n - 1:
+                        a = advance_pointer(
+                            rewriter,
+                            insert_point,
+                            a,
+                            op.lda.value.data * element_size,
+                        )
+
+                    accumulator_index = m + m_vectors * n
+                    accumulators[accumulator_index] = multiply_add_registers(
+                        rewriter,
+                        insert_point,
+                        op.datatype,
+                        accumulators[accumulator_index],
+                        a_vectors[m],
+                        b_vector,
+                    )
+
+        result = MatmulKValues(
+            a,
+            b,
+            values.c,
+            values.rbp,
+            values.rsp,
+            values.mask,
+            tuple(accumulators),
+        )
+        rewriter.replace(op, [], result.vals)
