@@ -1,6 +1,5 @@
 from xdsl.dialects import builtin
 
-from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.nano_kernel import GemmDescriptor, RegisterCount, TileSizes
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel import SkxNanoKernel, SkxTargetInfo
@@ -31,7 +30,7 @@ def test_register_count_fits() -> None:
 
 
 def test_skx_target_arch() -> None:
-    assert SkxTargetInfo().arch == Arch.LIBXSMM_X86_AVX512_SKX
+    assert SkxTargetInfo().arch == "skx"
 
 
 def test_skx_register_usage() -> None:

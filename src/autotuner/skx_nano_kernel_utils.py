@@ -28,7 +28,7 @@ from autotuner.nano_kernel import GemmDescriptor, TargetInfo, TileSizes
 
 
 def supports_skx(descriptor: GemmDescriptor, target: TargetInfo) -> bool:
-    return target.arch == Arch.LIBXSMM_X86_AVX512_SKX and isinstance(
+    return target.arch == "skx" and isinstance(
         descriptor.datatype, builtin.Float32Type | builtin.Float64Type
     )
 
@@ -67,7 +67,7 @@ class SkxMatmulKContext:
 def create_matmul_k_context(
     rewriter: PatternRewriter, op: MatmulKOp, target: TargetInfo
 ) -> SkxMatmulKContext:
-    if target.arch != Arch.LIBXSMM_X86_AVX512_SKX:
+    if target.arch != "skx":
         raise ValueError("SKX nano-kernels require an SKX target")
 
     if isinstance(op.datatype, builtin.Float32Type):

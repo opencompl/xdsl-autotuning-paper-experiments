@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TypeAlias
+from typing import Literal, TypeAlias
 
 from xdsl.dialects import builtin
 from xdsl.pattern_rewriter import PatternRewriter
@@ -58,7 +58,7 @@ class TargetInfo(ABC):
 
     @property
     @abstractmethod
-    def arch(self) -> object:
+    def arch(self) -> Literal["skx"]:
         """Architecture identifier used by target-specific lowering."""
 
     @property

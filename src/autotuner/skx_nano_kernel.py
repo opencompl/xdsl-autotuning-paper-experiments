@@ -1,11 +1,11 @@
 from dataclasses import dataclass
+from typing import Literal
 
 from xdsl.dialects import builtin
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulKOp
-from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.nano_kernel import (
     FloatingPointType,
     GemmDescriptor,
@@ -28,8 +28,8 @@ class SkxTargetInfo(TargetInfo):
     """The register file and vector widths used by the SKX generator."""
 
     @property
-    def arch(self) -> Arch:
-        return Arch.LIBXSMM_X86_AVX512_SKX
+    def arch(self) -> Literal["skx"]:
+        return "skx"
 
     @property
     def register_capacity(self) -> RegisterCount:
