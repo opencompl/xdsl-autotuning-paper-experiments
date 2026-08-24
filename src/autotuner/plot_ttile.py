@@ -75,6 +75,10 @@ def plot_axis_throughput(
     else:
         y_col = "throughput"
 
+    # A dense sweep gets fewer markers, otherwise they merge into a band.
+    points = df[x_row].nunique()
+    markevery = max(1, -(-points // 32))
+
     for variant in sorted_variants(df["variant"]):
         group = df[df["variant"] == variant]
         assert isinstance(group, pd.DataFrame)
@@ -82,6 +86,7 @@ def plot_axis_throughput(
         ax.plot(
             group[x_row],
             group[y_col],
+            markevery=markevery,
             zorder=2,
             **variant_style(variant),
         )

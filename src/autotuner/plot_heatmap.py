@@ -67,7 +67,7 @@ def plot_axis_heatmap(
                     ax.text(
                         j,
                         i,
-                        f"{val:.0f}",
+                        f"{val:.1f}",
                         ha="center",
                         va="center",
                         color="white" if val >= vmin + 0.6 * (100 - vmin) else INK,

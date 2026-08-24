@@ -511,7 +511,9 @@ DATASET_VARIANTS = {
     },
 }[THIS_TARGET]
 
-# Matrix sizes swept by the paper figures.
+# Matrix sizes swept by the paper figures: every size for the 1D sweeps, a
+# coarser grid for the 2D sweep, which is quadratic in the number of sizes.
+SWEEP_SIZES_CONTINUOUS = range(4, 65)
 SWEEP_SIZES = [4, 8, 12, 16, 24, 32, 48, 64]
 
 # Values are missing the extension
@@ -553,19 +555,22 @@ DATASET_BASES = {
         n=range(1, 17),
         variant=DATASET_VARIANTS["f64.small_matrices"]
     ),
-    # Square M = N kernels at fixed K (paper figure: M = N sweep).
-    "f64.mn_sweep": expand(
+    # Square M = N kernels at fixed K (paper figure: M = N sweep).  Only the
+    # diagonal is measured, so every size fits in a linear number of kernels.
+    "f64.mn_sweep": [
         target_file(
             kernel="matmul_rowmaj",
+            m=str(size),
+            n=str(size),
             k="16",
             dtype="f64",
+            variant=variant,
             ext="",
             target=THIS_TARGET,
-        ),
-        m=SWEEP_SIZES,
-        n=SWEEP_SIZES,
-        variant=DATASET_VARIANTS["f64.sweeps"],
-    ),
+        )
+        for size in SWEEP_SIZES_CONTINUOUS
+        for variant in DATASET_VARIANTS["f64.sweeps"]
+    ],
     # M by K at fixed N (paper figure: heatmaps).
     "f64.mk_sweep": expand(
         target_file(
@@ -579,7 +584,7 @@ DATASET_BASES = {
         k=SWEEP_SIZES,
         variant=DATASET_VARIANTS["f64.sweeps"],
     ),
-    # Every N at fixed M = K = 16 (paper figure: continuous N sweep).
+    # Every N at fixed M = K = 16 (paper figure: N sweep).
     "f64.n_sweep": expand(
         target_file(
             kernel="matmul_rowmaj",

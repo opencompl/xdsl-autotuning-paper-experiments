@@ -91,18 +91,18 @@ def use_paper_style() -> None:
     """Apply the rcParams shared by every figure."""
     mpl.rcParams.update(
         {
-            # Times-alike serif to match the paper body text.  TrueType faces
-            # come first: they embed cleanly as the Type 42 fonts that paper
-            # templates expect.
-            "font.family": "serif",
-            "font.serif": [
-                "Times New Roman",
-                "Tinos",
-                "Liberation Serif",
-                "Nimbus Roman",
-                "DejaVu Serif",
+            # Helvetica, with metric-compatible fallbacks.  TrueType faces come
+            # before the URW OpenType clones: they embed cleanly as the Type 42
+            # fonts that paper templates expect.
+            "font.family": "sans-serif",
+            "font.sans-serif": [
+                "Helvetica",
+                "Arimo",
+                "Liberation Sans",
+                "Nimbus Sans",
+                "DejaVu Sans",
             ],
-            "mathtext.fontset": "stix",
+            "mathtext.fontset": "stixsans",
             "font.size": 8,
             "axes.labelsize": 8,
             "axes.titlesize": 8,
