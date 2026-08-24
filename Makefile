@@ -80,6 +80,18 @@ PAPER_PLOTS += plots/tower/f64.mk_sweep.pdf
 
 PLOTS += $(PAPER_PLOTS)
 
+# Figures for the rapper target.  Not in PLOTS: the data is measured locally and
+# is not checked in, so `make plots` would fail on other machines.
+RAPPER_PLOTS =
+RAPPER_PLOTS += plots/rapper/f32.ttile.png
+RAPPER_PLOTS += plots/rapper/f64.ttile.png
+RAPPER_PLOTS += plots/rapper/f64.squares.png
+RAPPER_PLOTS += plots/rapper/f64.ttile_combined.png
+RAPPER_PLOTS += plots/rapper/f64.heatmap.png
+RAPPER_PLOTS += plots/rapper/f64.mn_sweep.pdf
+RAPPER_PLOTS += plots/rapper/f64.n_sweep.pdf
+RAPPER_PLOTS += plots/rapper/f64.mk_sweep.pdf
+
 # Every figure shares the single-column paper style
 PLOT_STYLE = src/autotuner/plot_style.py
 
@@ -116,6 +128,9 @@ plots: $(PLOTS)
 
 .PHONY: paper-plots
 paper-plots: $(PAPER_PLOTS)
+
+.PHONY: rapper-plots
+rapper-plots: $(RAPPER_PLOTS)
 
 # set up all precommit hooks
 .PHONY: precommit-install

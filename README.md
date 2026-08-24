@@ -39,6 +39,28 @@ TARGET=your_target_name_here
 
 Then add a specification of the machine to the `targets` field in [[default.yaml]], and populate the `TESTSET` and `DATASET_VARIANTS` in the Snakefile.
 
+A target that lists `papi` in `libs` counts cycles with the hardware counter, which needs
+`kernel.perf_event_paranoid <= 2`; its `freq` (in GHz) is then unused.  Without PAPI the
+harness converts wall-clock time to cycles with `freq`, so the cores have to be pinned to
+exactly that frequency — see [Configuring Machines](#configuring-machines).
+
+#### rapper (AMD Ryzen Threadripper PRO 7985WX, Zen 4)
+
+Two 256-bit FMA pipes, so `peak_f32: 32` (16 f64 FLOP/cycle).  Before measuring:
+
+```sh
+sudo sysctl -w kernel.perf_event_paranoid=0   # PAPI needs <= 2
+```
+
+then apply the frequency and interrupt settings from [Configuring Machines](#configuring-machines)
+(`freq: 3.2` matches the base clock, and only matters if PAPI is unavailable).  Measure and
+plot with:
+
+```sh
+make dataset TARGET=rapper
+make rapper-plots
+```
+
 ### Running Tests
 
 We use two kinds of tests in this repository:

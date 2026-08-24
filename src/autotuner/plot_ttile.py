@@ -22,6 +22,7 @@ from autotuner.plot_style import (
 
 TARGET_NAME = {
     "tower": "AMD Zen 5",
+    "rapper": "AMD Zen 4",
     "pinocchio": "Intel Skylake",
     "neon": "Apple M2 Max",
 }

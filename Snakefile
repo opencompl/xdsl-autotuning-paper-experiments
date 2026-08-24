@@ -19,6 +19,13 @@ else:
     MKL_CFLAGS = ""
     MKL_LIBS = ""
 
+# PAPI include path (discovered via pkg-config when available).  The Docker image
+# has it on C_INCLUDE_PATH, a native checkout does not.
+if shutil.which("pkg-config") and os.system("pkg-config --exists papi") == 0:
+    PAPI_CFLAGS = shell("pkg-config --cflags papi", read=True).strip()
+else:
+    PAPI_CFLAGS = ""
+
 # Target-specific parameters
 
 CC_ASM = config.get("cc_asm", config["cc"])
@@ -52,7 +59,7 @@ def target_peak_flops(wildcards):
 
 def target_use_papi(wildcards):
     if 'papi' in T[wildcards.target]['libs']:
-        return '-DUSE_PAPI'
+        return f'-DUSE_PAPI {PAPI_CFLAGS}'
     return ''
 
 def target_env(wildcards):
@@ -126,7 +133,7 @@ wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
-    target="neon|ci|tower|pinocchio",
+    target="neon|ci|tower|pinocchio|rapper",
     variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
@@ -504,6 +511,11 @@ DATASET_VARIANTS = {
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
         "f64.sweeps": ["libxsmm", "xdsl_libxsmm"],
     },
+    "rapper": {
+        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
+        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm"],
+        "f64.sweeps": ["libxsmm", "xdsl_libxsmm"],
+    },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
@@ -765,6 +777,7 @@ TESTSET = {
     "ci": TESTSET_CI,
     "tower": TESTSET_CI + TESTSET_AVX,
     "pinocchio": TESTSET_CI + TESTSET_AVX,
+    "rapper": TESTSET_CI + TESTSET_AVX,
 }[THIS_TARGET]
 
 rule tests:
