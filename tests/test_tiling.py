@@ -1,7 +1,9 @@
 from xdsl.dialects import builtin
 
 from autotuner.nano_kernel import GemmDescriptor, RegisterCount, TileSizes
+from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel import SkxNanoKernel, SkxTargetInfo
+from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 from autotuner.tiling import BlockingRange, TilingStrategy, compute_tiling_strategy
 
 
@@ -44,6 +46,45 @@ def test_skx_register_usage() -> None:
     assert kernel.register_usage(f32, TileSizes(17, 1, 2), target) == RegisterCount(
         general=5, vector=5, mask=1
     )
+
+
+def test_skx_fsdbcst_supported_tiles() -> None:
+    target = SkxTargetInfo()
+    kernel = SkxFsdbcstNanoKernel()
+    descriptor = _descriptor(m=8, n=31, k=2, datatype=builtin.f64)
+
+    assert kernel.supports_tile(descriptor, TileSizes(8, 28, 2), target)
+    assert kernel.register_usage(
+        descriptor, TileSizes(8, 30, 2), target
+    ) == RegisterCount(general=5, vector=32, mask=0)
+    assert not kernel.supports_tile(descriptor, TileSizes(8, 30, 2), target)
+    assert not kernel.supports_tile(descriptor, TileSizes(8, 31, 2), target)
+    assert not kernel.supports_tile(descriptor, TileSizes(16, 1, 2), target)
+
+
+def test_skx_nofsdbcst_supported_tiles() -> None:
+    target = SkxTargetInfo()
+    kernel = SkxNofsdbcstNanoKernel()
+    descriptor = _descriptor(m=40, n=6, k=2, datatype=builtin.f64)
+
+    assert kernel.supports_tile(descriptor, TileSizes(32, 6, 2), target)
+    assert kernel.register_usage(
+        descriptor, TileSizes(40, 5, 2), target
+    ) == RegisterCount(general=5, vector=31, mask=0)
+    assert not kernel.supports_tile(descriptor, TileSizes(40, 5, 2), target)
+    assert not kernel.supports_tile(descriptor, TileSizes(40, 6, 2), target)
+    assert not kernel.supports_tile(descriptor, TileSizes(8, 1, 2), target)
+
+
+def test_skx_composite_retains_libxsmm_tiling_heuristics() -> None:
+    target = SkxTargetInfo()
+    kernel = SkxNanoKernel()
+    f64 = _descriptor(m=40, n=29, k=2, datatype=builtin.f64)
+
+    assert not SkxFsdbcstNanoKernel().supports_tile(f64, TileSizes(8, 29, 2), target)
+    assert not kernel.supports_tile(f64, TileSizes(8, 29, 2), target)
+    assert not SkxNofsdbcstNanoKernel().supports_tile(f64, TileSizes(40, 5, 2), target)
+    assert not kernel.supports_tile(f64, TileSizes(40, 5, 2), target)
 
 
 def test_single_n_range_tiling_strategy() -> None:
