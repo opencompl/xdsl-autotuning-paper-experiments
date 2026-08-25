@@ -70,7 +70,7 @@ PLOTS += plots/pinocchio/f64.ttile_squares.png
 PLOTS += plots/pinocchio/f64.ttile_combined.png
 PLOTS += plots/pinocchio/f64.heatmap.png
 
-NANO_KERNEL_PLOT_TARGETS = tower pinocchio
+NANO_KERNEL_PLOT_TARGETS = tower
 NANO_KERNEL_PLOT_DTYPES = f32 f64
 NANO_KERNELS = libxsmm skx-fsdbcst skx-nofsdbcst
 NANO_KERNEL_PLOTS = $(foreach target,$(NANO_KERNEL_PLOT_TARGETS),$(foreach dtype,$(NANO_KERNEL_PLOT_DTYPES),$(foreach nano_kernel,$(NANO_KERNELS),plots/$(target)/$(dtype).nano-kernel.$(nano_kernel).png)))
