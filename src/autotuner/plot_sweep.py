@@ -12,10 +12,15 @@ from matplotlib.axes import Axes
 
 from pathlib import Path
 
-from autotuner.plot_ttile import plot_axis_throughput
-from autotuner.plot_style import column_figure, legend_below, save
+from autotuner.plot_ttile import Y_TOP, plot_axis_throughput
+from autotuner.plot_style import column_figure, legend_inside, save
 
 AXES = ("M", "N", "K")
+
+# Panel aspect when the y axis spans the whole 0..Y_TOP range.  A raised floor
+# scales it down from here, so one inch of panel always holds the same number
+# of percentage points and two sweeps stay comparable side by side.
+FULL_ASPECT = 0.52
 
 
 def sweep_column(df: pd.DataFrame, axis: str) -> tuple[pd.DataFrame, str]:
@@ -54,18 +59,22 @@ def plot_sweep(
     df: pd.DataFrame,
     *,
     axis: str = "auto",
+    ymin: float = 0.0,
     output_path: Path | None = None,
 ) -> None:
     """Plot one throughput sweep, sized for a single paper column."""
     df, x_row = sweep_column(df, axis)
 
-    fig, ax = column_figure()
+    # Shorter than a square panel: the curves live in the top half, so the
+    # extra height was empty anyway.  Raising ``ymin`` crops the empty band off
+    # the bottom of the axis and takes the panel height with it.
+    fig, ax = column_figure(aspect=FULL_ASPECT * (Y_TOP - ymin) / Y_TOP)
     assert isinstance(ax, Axes)
 
-    plot_axis_throughput(df, ax, x_row=x_row)
+    plot_axis_throughput(df, ax, x_row=x_row, ymin=ymin)
 
     # No title: the caption belongs in the LaTeX figure, not in the image.
-    legend_below(fig, ax, ncol=min(3, df["variant"].nunique() + 1))
+    legend_inside(fig, ax)
 
     save(fig, output_path)
 
@@ -84,6 +93,12 @@ def main():
         help="Dimension on the x axis ('mn' plots the square M = N diagonal)",
     )
     parser.add_argument(
+        "--ymin",
+        type=float,
+        default=0.0,
+        help="Bottom of the %% of peak axis; the panel is shortened to match",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -92,7 +107,7 @@ def main():
     args = parser.parse_args()
 
     df = pd.read_json(args.input, lines=True)
-    plot_sweep(df, axis=args.x, output_path=args.output)
+    plot_sweep(df, axis=args.x, ymin=args.ymin, output_path=args.output)
 
 
 if __name__ == "__main__":

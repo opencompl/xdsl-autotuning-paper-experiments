@@ -8,7 +8,9 @@ import pandas as pd
 from pathlib import Path
 
 from autotuner.plot_style import (
+    BASELINE,
     INK_MUTED,
+    OURS,
     column_figure,
     legend_below,
     integer_ticks,
@@ -24,6 +26,14 @@ TARGET_NAME = {
     "neon": "Apple M2 Max",
 }
 
+# Top of the % of peak axis
+Y_TOP = 112.0
+
+# Markers on our curve: their size, and the gap between the two head-to-head
+# curves that earns one, both in typographic points.
+MARKER_SIZE = 2.0
+MARKER_MIN_GAP = 2.5
+
 AXIS_LABEL = {
     "M": "M",
     "N": "N",
@@ -37,6 +47,7 @@ def plot_axis_throughput(
     ax: Axes,
     *,
     x_row: str,
+    ymin: float = 0.0,
     show_xlabel: bool = True,
     show_ylabel: bool = True,
 ):
@@ -68,44 +79,72 @@ def plot_axis_throughput(
             linestyle=(0, (4, 2)),
             linewidth=0.6,
             color=INK_MUTED,
-            label="peak",
             zorder=1,
         )
         y_col = "throughput_percent"
     else:
         y_col = "throughput"
 
-    # A dense sweep gets fewer markers, otherwise they merge into a band.
-    points = df[x_row].nunique()
-    markevery = max(1, -(-points // 32))
-
-    for variant in sorted_variants(df["variant"]):
-        group = df[df["variant"] == variant]
-        assert isinstance(group, pd.DataFrame)
-        group = group.sort_values(x_row)
-        ax.plot(
-            group[x_row],
-            group[y_col],
-            markevery=markevery,
-            zorder=2,
-            **variant_style(variant),
-        )
-
+    # Axes and ticks before the curves: the divergence test below measures a
+    # distance in points, which needs the final data-to-display transform.
     if peak is not None:
         if show_ylabel:
             ax.set_ylabel("% of peak")
-        ax.set_ylim(0, 112.0)
-        ax.set_yticks([0, 25, 50, 75, 100])
+        ax.set_ylim(ymin, Y_TOP)
+        # The round quarter-peak ticks above the floor, plus the floor itself so
+        # the bottom of the axis is labelled rather than left to be inferred.
+        ax.set_yticks([ymin, *(t for t in (25, 50, 75, 100) if t > ymin)])
     else:
         if show_ylabel:
             ax.set_ylabel("throughput (FLOP/cycle)")
-        ax.set_ylim(bottom=0.0)
+        ax.set_ylim(bottom=ymin)
 
     if show_xlabel:
         ax.set_xlabel(AXIS_LABEL.get(x_row, x_row))
     ax.set_xticks(integer_ticks(df[x_row]))
     ax.set_xlim(0, df[x_row].max() * 1.04)
     tidy_axes(ax)
+
+    # A dense sweep gets fewer markers, otherwise they merge into a band.
+    points = df[x_row].nunique()
+    markevery = max(1, -(-points // 32))
+    apart = divergent_points(ax, df, x_row=x_row, y_col=y_col)
+
+    for variant in sorted_variants(df["variant"]):
+        group = df[df["variant"] == variant]
+        assert isinstance(group, pd.DataFrame)
+        group = group.sort_values(x_row)
+        style = variant_style(variant)
+        if variant == OURS and apart:
+            # On the labelled line rather than on an artist of their own, so
+            # the legend preview shows the marker along with the line.
+            style |= {"marker": "o", "markersize": MARKER_SIZE}
+            every = [i for i, x in enumerate(group[x_row]) if x in apart]
+        else:
+            every = markevery
+        ax.plot(group[x_row], group[y_col], markevery=every, zorder=2, **style)
+
+
+def divergent_points(
+    ax: Axes, df: pd.DataFrame, *, x_row: str, y_col: str
+) -> set[float]:
+    """The x positions where our curve visibly parts from the baseline."""
+    if not {OURS, BASELINE} <= set(df["variant"]):
+        return set()
+
+    # pivot_table aligns the two curves on x and tolerates repeated samples.
+    curves = df.pivot_table(index=x_row, columns="variant", values=y_col)
+    gap = (curves[OURS] - curves[BASELINE]).abs()
+
+    figure = ax.get_figure()
+    assert figure is not None
+    to_data = ax.transData.inverted()
+    pixels = MARKER_MIN_GAP * figure.dpi / 72
+    threshold = abs(
+        to_data.transform((0.0, pixels))[1] - to_data.transform((0.0, 0.0))[1]
+    )
+
+    return set(gap[gap >= threshold].index)
 
 
 def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
