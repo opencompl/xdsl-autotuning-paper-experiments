@@ -95,15 +95,15 @@ plots/%.squares.png: data/%.small_matrices.jsonl src/autotuner/plot_sweep.py $(P
 
 # Square kernels, M = N from 4 to 64 at fixed K
 plots/%.mn_sweep.pdf: data/%.mn_sweep.jsonl src/autotuner/plot_sweep.py $(PLOT_STYLE)
-	uv run plot-sweep $< --x mn --output $@
+	uv run plot-sweep $< --x mn --ymin 10 --output $@
 
 # Sweep over N at fixed M = K
 plots/%.n_sweep.pdf: data/%.n_sweep.jsonl src/autotuner/plot_sweep.py $(PLOT_STYLE)
-	uv run plot-sweep $< --x N --output $@
+	uv run plot-sweep $< --x N --ymin 25 --output $@
 
-# One heatmap per variant over M and K at fixed N
+# Ours minus LIBXSMM over M and K at fixed N, as a single signed heatmap
 plots/%.mk_sweep.pdf: data/%.mk_sweep.jsonl src/autotuner/plot_heatmap.py $(PLOT_STYLE)
-	uv run plot-heatmap $< --output $@
+	uv run plot-heatmap $< --mode diff --output $@
 
 plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_combined.py $(PLOT_STYLE)
 	uv run plot-ttile-combined $< --output $@
