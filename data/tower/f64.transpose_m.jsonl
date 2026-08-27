@@ -1,0 +1,8 @@
+{"M":8,"N":2,"K":64,"peak":32.0,"flops":2048,"time":218.847889,"variant":"asm_transpose_m_1acc","target":"tower","dtype":"f64"}
+{"M":8,"N":2,"K":64,"peak":32.0,"flops":2048,"time":142.412006,"variant":"asm_transpose_m_multiacc","target":"tower","dtype":"f64"}
+{"M":8,"N":4,"K":64,"peak":32.0,"flops":4096,"time":307.027008,"variant":"asm_transpose_m_1acc","target":"tower","dtype":"f64"}
+{"M":8,"N":4,"K":64,"peak":32.0,"flops":4096,"time":247.427544,"variant":"asm_transpose_m_multiacc","target":"tower","dtype":"f64"}
+{"M":16,"N":2,"K":64,"peak":32.0,"flops":4096,"time":436.739082,"variant":"asm_transpose_m_1acc","target":"tower","dtype":"f64"}
+{"M":16,"N":2,"K":64,"peak":32.0,"flops":4096,"time":288.754623,"variant":"asm_transpose_m_multiacc","target":"tower","dtype":"f64"}
+{"M":16,"N":4,"K":64,"peak":32.0,"flops":8192,"time":610.624466,"variant":"asm_transpose_m_1acc","target":"tower","dtype":"f64"}
+{"M":16,"N":4,"K":64,"peak":32.0,"flops":8192,"time":490.471542,"variant":"asm_transpose_m_multiacc","target":"tower","dtype":"f64"}
