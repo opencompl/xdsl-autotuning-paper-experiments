@@ -1,0 +1,8 @@
+{"M":8,"N":2,"K":64,"peak":32.0,"flops":2048,"time":1035.473766,"variant":"asm_gather_m_1acc","target":"tower","dtype":"f64"}
+{"M":8,"N":2,"K":64,"peak":32.0,"flops":2048,"time":544.627087,"variant":"asm_gather_m_multiacc","target":"tower","dtype":"f64"}
+{"M":8,"N":4,"K":64,"peak":32.0,"flops":4096,"time":1063.297668,"variant":"asm_gather_m_1acc","target":"tower","dtype":"f64"}
+{"M":8,"N":4,"K":64,"peak":32.0,"flops":4096,"time":586.393166,"variant":"asm_gather_m_multiacc","target":"tower","dtype":"f64"}
+{"M":16,"N":2,"K":64,"peak":32.0,"flops":4096,"time":2058.112167,"variant":"asm_gather_m_1acc","target":"tower","dtype":"f64"}
+{"M":16,"N":2,"K":64,"peak":32.0,"flops":4096,"time":1088.720657,"variant":"asm_gather_m_multiacc","target":"tower","dtype":"f64"}
+{"M":16,"N":4,"K":64,"peak":32.0,"flops":8192,"time":2125.653824,"variant":"asm_gather_m_1acc","target":"tower","dtype":"f64"}
+{"M":16,"N":4,"K":64,"peak":32.0,"flops":8192,"time":1171.510025,"variant":"asm_gather_m_multiacc","target":"tower","dtype":"f64"}
