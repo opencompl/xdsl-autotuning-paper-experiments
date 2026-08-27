@@ -420,7 +420,9 @@ rule libxsmm_s:
         "{params.cc} -O3 -DNDEBUG {input} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
 
 rule executable:
-    input: target_ll_file(ext='S')
+    input:
+        assembly=target_ll_file(ext='S'),
+        harness="kernels/{kernel}/{executable}.c",
     output: target_ll_file(ext='{executable}.o')
     params:
         target_triple=target_triple,
@@ -433,7 +435,7 @@ rule executable:
         mkl_libs=lambda wc: MKL_LIBS if wc.variant == "mkl" else "",
         linker_flag=target_linker_flag,
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.linker_flag}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} {input.harness} {input.assembly} {params.target_libs_opts} {params.mkl_libs} {params.linker_flag}"
 
 rule validation:
     input:  target_ll_file(ext='test.o')

@@ -44,6 +44,12 @@ dataset_validate:
 dataset: dataset_code
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 dataset $(if $(TARGET),--config target=$(TARGET),)
 
+# Fast measurements deliberately trade accuracy for turnaround time.
+NUM_ITERATIONS ?= 5
+.PHONY: dataset_fast
+dataset_fast: dataset_code
+	NUM_ITERATIONS=$(NUM_ITERATIONS) uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset $(if $(TARGET),--config target=$(TARGET),) --forcerun time
+
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl

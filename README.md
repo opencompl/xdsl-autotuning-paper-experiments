@@ -63,6 +63,21 @@ will not be executed.
 
 Generate the data for the host platform by running `make dataset`. JSONL outputs are written under `data/<TARGET>/` (with `TARGET` from `.env` or `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example `f32.ttile.jsonl`). Build artifacts go under `build/<TARGET>/`.
 
+For quicker feedback while changing the evaluation, run `make dataset_fast`. This runs
+independent, single-threaded benchmarks concurrently on all available cores and uses
+five timed iterations per benchmark instead of the normal shape-dependent iteration
+count. Override the iteration count with `NUM_ITERATIONS` when needed:
+
+```sh
+make dataset_fast NUM_ITERATIONS=1
+```
+
+Fast mode deliberately writes the same build artifacts and JSONL paths as `make
+dataset`, so plotting and the rest of the evaluation infrastructure work unchanged.
+These measurements are less stable and can be slower because benchmark processes
+contend for shared resources. Do not commit them as paper results; run `make clean`
+followed by `make dataset` before committing measurement data.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting
