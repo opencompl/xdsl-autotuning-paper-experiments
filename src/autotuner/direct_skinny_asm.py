@@ -6,7 +6,13 @@ import argparse
 from pathlib import Path
 from typing import Literal
 
-Strategy = Literal["segmented-single", "segmented-multi", "outer-vl"]
+Strategy = Literal[
+    "segmented-single",
+    "segmented-multi",
+    "n3-narrow-single",
+    "n3-narrow-multi",
+    "outer-vl",
+]
 
 F64_BYTES = 8
 ZMM_F64S = 8
@@ -58,13 +64,17 @@ def _repeat_indices(n: int) -> tuple[int, ...]:
     return active_indices + (0,) * (ZMM_F64S - len(active_indices))
 
 
-def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
+def generate_segmented_asm(
+    *, m: int, n: int, k: int, multi: bool, n3_narrow: bool = False
+) -> str:
     """Vectorize several K rows together and segment-reduce N outputs."""
 
     if m <= 0:
         raise ValueError("M must be positive")
     if n not in (2, 3, 4):
         raise ValueError("segmented K reduction currently requires N=2, N=3, or N=4")
+    if n3_narrow and n != 3:
+        raise ValueError("the narrow epilogue is specific to N=3")
 
     k_values_per_group = ZMM_F64S // n
     if k <= 0 or k % k_values_per_group:
@@ -101,15 +111,14 @@ def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
         ),
         *_function_start(
             f"segmented K reduction: M={m}, N={n}, K={k}, "
-            f"accumulator_sets={accumulator_sets}"
+            f"accumulator_sets={accumulator_sets}, n3_narrow={n3_narrow}"
         ),
         "\tvmovdqa64\t.Lrepeat_indices(%rip), %zmm31",
         *(
             [
                 "\tmovl\t$63, %eax",
                 "\tkmovw\t%eax, %k1",
-                "\tmovl\t$7, %eax",
-                "\tkmovw\t%eax, %k2",
+                *(["\tmovl\t$7, %eax", "\tkmovw\t%eax, %k2"] if not n3_narrow else []),
             ]
             if n == 3
             else []
@@ -120,7 +129,9 @@ def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
         accumulator_set = group % accumulator_sets
         active_lanes = k_values_per_group * n
         b_displacement = group * active_lanes * F64_BYTES
-        b_mask = " {%k1}{z}" if n == 3 else ""
+        b_mask = (
+            " {%k1}{z}" if n == 3 and (not n3_narrow or group == groups - 1) else ""
+        )
         lines.append(f"\tvmovupd\t{_memory(b_displacement, 'rsi')}, %zmm0{b_mask}")
 
         for row in range(m):
@@ -153,11 +164,29 @@ def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
                 [
                     f"\tvpermpd\t%zmm{accumulator}, %zmm31, %zmm0",
                     f"\tvaddpd\t%zmm{accumulator}, %zmm0, %zmm0",
-                    f"\tvmovupd\t{_memory(c_displacement, 'rdx')}, %zmm1 {{%k2}}{{z}}",
-                    "\tvaddpd\t%zmm1, %zmm0, %zmm0",
-                    f"\tvmovupd\t%zmm0, {_memory(c_displacement, 'rdx')} {{%k2}}",
                 ]
             )
+            if n3_narrow:
+                lines.extend(
+                    [
+                        "\tvextractf128\t$1, %ymm0, %xmm1",
+                        f"\tvaddpd\t{_memory(c_displacement, 'rdx')}, %xmm0, %xmm0",
+                        f"\tvaddsd\t{_memory(c_displacement + 2 * F64_BYTES, 'rdx')}, "
+                        "%xmm1, %xmm1",
+                        f"\tvmovupd\t%xmm0, {_memory(c_displacement, 'rdx')}",
+                        f"\tvmovsd\t%xmm1, "
+                        f"{_memory(c_displacement + 2 * F64_BYTES, 'rdx')}",
+                    ]
+                )
+            else:
+                lines.extend(
+                    [
+                        f"\tvmovupd\t{_memory(c_displacement, 'rdx')}, "
+                        "%zmm1 {%k2}{z}",
+                        "\tvaddpd\t%zmm1, %zmm0, %zmm0",
+                        f"\tvmovupd\t%zmm0, {_memory(c_displacement, 'rdx')} {{%k2}}",
+                    ]
+                )
             continue
 
         lines.extend(
@@ -263,7 +292,13 @@ def generate_skinny_asm(*, m: int, n: int, k: int, strategy: Strategy) -> str:
         return generate_segmented_asm(m=m, n=n, k=k, multi=False)
     if strategy == "segmented-multi":
         return generate_segmented_asm(m=m, n=n, k=k, multi=True)
-    return generate_outer_vl_asm(m=m, n=n, k=k)
+    if strategy == "n3-narrow-single":
+        return generate_segmented_asm(m=m, n=n, k=k, multi=False, n3_narrow=True)
+    if strategy == "n3-narrow-multi":
+        return generate_segmented_asm(m=m, n=n, k=k, multi=True, n3_narrow=True)
+    if strategy == "outer-vl":
+        return generate_outer_vl_asm(m=m, n=n, k=k)
+    raise ValueError(f"unknown strategy: {strategy}")
 
 
 def main() -> None:
@@ -275,7 +310,13 @@ def main() -> None:
     parser.add_argument("--dtype", choices=("f64",), required=True)
     parser.add_argument(
         "--strategy",
-        choices=("segmented-single", "segmented-multi", "outer-vl"),
+        choices=(
+            "segmented-single",
+            "segmented-multi",
+            "n3-narrow-single",
+            "n3-narrow-multi",
+            "outer-vl",
+        ),
         required=True,
     )
     args = parser.parse_args()

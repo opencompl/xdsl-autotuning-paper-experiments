@@ -124,6 +124,16 @@ make benchmark-skinny-n3
 This measures M=1/2/4/8/16 against LLVM and LIBXSMM and writes
 `data/<TARGET>/f64.skinny_n3.jsonl`.
 
+To isolate the cost of masking, the narrow N=3 follow-up uses overlapping full
+B loads except at the allocation boundary and updates C as two doubles plus one
+scalar:
+
+```sh
+make benchmark-skinny-n3-narrow
+```
+
+It writes `data/<TARGET>/f64.skinny_n3_narrow.jsonl`.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting

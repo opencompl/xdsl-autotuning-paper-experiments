@@ -139,7 +139,7 @@ NANO_KERNEL_NAMES = tuple(sorted(SKX_NANO_KERNELS))
 NANO_KERNEL_PATTERN = "|".join(NANO_KERNEL_NAMES)
 VARIANT_PATTERN = (
     "naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|"
-    "libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|asm_kdot_1acc|asm_kdot_multiacc|asm_segmented_1acc|asm_segmented_multiacc|asm_outer_vl|asm_gather_m_1acc|asm_gather_m_multiacc|asm_transpose_m_1acc|asm_transpose_m_multiacc|"
+    "libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|asm_kdot_1acc|asm_kdot_multiacc|asm_segmented_1acc|asm_segmented_multiacc|asm_outer_vl|asm_gather_m_1acc|asm_gather_m_multiacc|asm_transpose_m_1acc|asm_transpose_m_multiacc|asm_n3_narrow_1acc|asm_n3_narrow_multiacc|"
     f"compxsmm-({NANO_KERNEL_PATTERN})"
 )
 
@@ -301,7 +301,7 @@ rule direct_kdot_s:
 
 rule direct_skinny_s:
     wildcard_constraints:
-        variant="asm_segmented_1acc|asm_segmented_multiacc|asm_outer_vl"
+        variant="asm_segmented_1acc|asm_segmented_multiacc|asm_outer_vl|asm_n3_narrow_1acc|asm_n3_narrow_multiacc"
     input: "src/autotuner/direct_skinny_asm.py"
     output: target_ll_file(kernel="matmul_rowmaj", ext="S")
     params:
@@ -309,6 +309,8 @@ rule direct_skinny_s:
             "asm_segmented_1acc": "segmented-single",
             "asm_segmented_multiacc": "segmented-multi",
             "asm_outer_vl": "outer-vl",
+            "asm_n3_narrow_1acc": "n3-narrow-single",
+            "asm_n3_narrow_multiacc": "n3-narrow-multi",
         }[wildcards.variant]
     shell:
         "python -m autotuner.direct_skinny_asm --output {output} "
@@ -610,6 +612,7 @@ DATASET_VARIANTS = {
         "f64.gather_m": [],
         "f64.transpose_m": [],
         "f64.skinny_n3": [],
+        "f64.skinny_n3_narrow": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
@@ -619,6 +622,7 @@ DATASET_VARIANTS = {
         "f64.gather_m": ["asm_gather_m_1acc", "asm_gather_m_multiacc"],
         "f64.transpose_m": ["asm_transpose_m_1acc", "asm_transpose_m_multiacc"],
         "f64.skinny_n3": ["libxsmm", "llvm_intrinsics", "asm_segmented_1acc", "asm_segmented_multiacc"],
+        "f64.skinny_n3_narrow": ["asm_n3_narrow_1acc", "asm_n3_narrow_multiacc"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
@@ -628,6 +632,7 @@ DATASET_VARIANTS = {
         "f64.gather_m": ["asm_gather_m_1acc", "asm_gather_m_multiacc"],
         "f64.transpose_m": ["asm_transpose_m_1acc", "asm_transpose_m_multiacc"],
         "f64.skinny_n3": ["libxsmm", "llvm_intrinsics", "asm_segmented_1acc", "asm_segmented_multiacc"],
+        "f64.skinny_n3_narrow": ["asm_n3_narrow_1acc", "asm_n3_narrow_multiacc"],
     },
     "ci": {
         "ttile": ["naive_c"],
@@ -637,6 +642,7 @@ DATASET_VARIANTS = {
         "f64.gather_m": [],
         "f64.transpose_m": [],
         "f64.skinny_n3": [],
+        "f64.skinny_n3_narrow": [],
     },
 }[THIS_TARGET]
 
@@ -738,6 +744,18 @@ DATASET_BASES = {
         ),
         m=(1, 2, 4, 8, 16),
         variant=DATASET_VARIANTS["f64.skinny_n3"],
+    ),
+    "f64.skinny_n3_narrow": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            n="3",
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        m=(1, 2, 4, 8, 16),
+        variant=DATASET_VARIANTS["f64.skinny_n3_narrow"],
     ),
 }
 
@@ -850,6 +868,9 @@ rule transpose_m_validate:
 
 rule skinny_n3_validate:
     input: [p + "test.log" for p in DATASET_BASES["f64.skinny_n3"]]
+
+rule skinny_n3_narrow_validate:
+    input: [p + "test.log" for p in DATASET_BASES["f64.skinny_n3_narrow"]]
 
 rule dataset:
     input: DATASET_OUTPUTS

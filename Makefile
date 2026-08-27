@@ -75,6 +75,12 @@ benchmark-skinny-n3:
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall skinny_n3_validate $(if $(TARGET),--config target=$(TARGET),)
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.skinny_n3.jsonl $(if $(TARGET),--config target=$(TARGET),)
 
+# Test an exact-width N=3 epilogue and only one safety-masked B load.
+.PHONY: benchmark-skinny-n3-narrow
+benchmark-skinny-n3-narrow:
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall skinny_n3_narrow_validate $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.skinny_n3_narrow.jsonl $(if $(TARGET),--config target=$(TARGET),)
+
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl

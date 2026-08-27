@@ -36,6 +36,18 @@ def test_segmented_n3_packs_two_k_rows_into_six_lanes() -> None:
     assert "1536(%rsi)" not in assembly
 
 
+def test_n3_narrow_avoids_masked_output_and_overlapping_loads() -> None:
+    assembly = generate_skinny_asm(m=1, n=3, k=64, strategy="n3-narrow-multi")
+
+    assert "n3_narrow=True" in assembly
+    assert assembly.count("{%k1}{z}") == 1
+    assert "%k2" not in assembly
+    assert "vextractf128" in assembly
+    assert "vaddsd" in assembly
+    assert "vmovsd" in assembly
+    assert assembly.index("vextractf128") < assembly.index("vaddpd\t(%rdx), %xmm0")
+
+
 @pytest.mark.parametrize(("n", "register_name"), [(2, "xmm"), (4, "ymm")])
 def test_outer_kernel_matches_output_width(n: int, register_name: str) -> None:
     assembly = generate_skinny_asm(m=1, n=n, k=64, strategy="outer-vl")
