@@ -63,6 +63,12 @@ benchmark-gather-m:
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall gather_m_validate $(if $(TARGET),--config target=$(TARGET),)
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.gather_m.jsonl $(if $(TARGET),--config target=$(TARGET),)
 
+# Replace M-vectorized gathers with contiguous 8x8 loads and register transposes.
+.PHONY: benchmark-transpose-m
+benchmark-transpose-m:
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall transpose_m_validate $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.transpose_m.jsonl $(if $(TARGET),--config target=$(TARGET),)
+
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl

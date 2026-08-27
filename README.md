@@ -105,6 +105,16 @@ This measures a serial gather/accumulator form and a form with four independent
 gather streams plus multiple accumulators. It writes the eight results to
 `data/<TARGET>/f64.gather_m.jsonl`.
 
+The gather-free M-vectorized control loads 8x8 A tiles contiguously and
+transposes them in registers. Run it with:
+
+```sh
+make benchmark-transpose-m
+```
+
+It measures the same M=8/16 and N=2/4 shapes and writes
+`data/<TARGET>/f64.transpose_m.jsonl`.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting
