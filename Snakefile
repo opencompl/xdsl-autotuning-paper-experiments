@@ -547,7 +547,7 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
-        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm"],
+        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm", "llvm_intrinsics"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
