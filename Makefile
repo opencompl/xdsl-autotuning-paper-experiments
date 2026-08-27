@@ -44,6 +44,13 @@ dataset_validate:
 dataset: dataset_code
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 dataset $(if $(TARGET),--config target=$(TARGET),)
 
+# Validate and freshly measure the direct N=1, K=64 assembly experiments.
+# This target is currently available for the AVX-512 tower and pinocchio targets.
+.PHONY: benchmark-kdot
+benchmark-kdot:
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall kdot_validate $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.kdot_n1.jsonl $(if $(TARGET),--config target=$(TARGET),)
+
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl

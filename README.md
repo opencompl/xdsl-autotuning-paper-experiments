@@ -63,6 +63,27 @@ will not be executed.
 
 Generate the data for the host platform by running `make dataset`. JSONL outputs are written under `data/<TARGET>/` (with `TARGET` from `.env` or `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example `f32.ttile.jsonl`). Build artifacts go under `build/<TARGET>/`.
 
+### Direct K-dot assembly experiment
+
+Before integrating alternative schedules into the compiler, the repository can
+generate, validate, and measure two hand-written AVX-512 kernels for row-major
+`M x 1 x 64` f64 multiplication. `asm_kdot_1acc` follows LLVM's reduction-
+vectorized approach with one accumulator per output row;
+`asm_kdot_multiacc` uses up to four independent accumulator chains when the
+register file permits it. Both keep B resident across rows and add C only after
+the horizontal reduction.
+
+On an AVX-512 target configured in `.env` (currently `tower` or `pinocchio`), run:
+
+```sh
+make benchmark-kdot
+```
+
+The command first validates every kernel against the reference implementation,
+then measures the variants serially and writes
+`data/<TARGET>/f64.kdot_n1.jsonl`. It uses `--forceall`, so every invocation is a
+fresh measurement.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting

@@ -139,7 +139,7 @@ NANO_KERNEL_NAMES = tuple(sorted(SKX_NANO_KERNELS))
 NANO_KERNEL_PATTERN = "|".join(NANO_KERNEL_NAMES)
 VARIANT_PATTERN = (
     "naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|"
-    "libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|"
+    "libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|asm_kdot_1acc|asm_kdot_multiacc|"
     f"compxsmm-({NANO_KERNEL_PATTERN})"
 )
 
@@ -283,6 +283,21 @@ rule asm_c:
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
         "{params.cc} -O3 -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.target_arch} -o {output} {input}"
+
+rule direct_kdot_s:
+    wildcard_constraints:
+        variant="asm_kdot_1acc|asm_kdot_multiacc"
+    input: "src/autotuner/direct_kdot_asm.py"
+    output: target_ll_file(kernel="matmul_rowmaj", ext="S")
+    params:
+        strategy=lambda wildcards: {
+            "asm_kdot_1acc": "single",
+            "asm_kdot_multiacc": "multi",
+        }[wildcards.variant]
+    shell:
+        "python -m autotuner.direct_kdot_asm --output {output} "
+        "--m {wildcards.m} --n {wildcards.n} --k {wildcards.k} "
+        "--dtype {wildcards.dtype} --strategy {params.strategy}"
 
 rule libxsmm_colmaj_c:
     output: target_ll_file(kernel='matmul_colmaj',variant='libxsmm',ext='c')
@@ -544,18 +559,22 @@ DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.kdot_n1": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
         "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm", "llvm_intrinsics"],
+        "f64.kdot_n1": ["libxsmm", "llvm_intrinsics", "asm_kdot_1acc", "asm_kdot_multiacc"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.kdot_n1": ["libxsmm", "llvm_intrinsics", "asm_kdot_1acc", "asm_kdot_multiacc"],
     },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.kdot_n1": [],
     },
 }[THIS_TARGET]
 
@@ -597,7 +616,19 @@ DATASET_BASES = {
         m=range(1, 17),
         n=range(1, 17),
         variant=DATASET_VARIANTS["f64.small_matrices"]
-    )
+    ),
+    "f64.kdot_n1": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            n="1",
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        m=(1, 2, 4, 8, 16),
+        variant=DATASET_VARIANTS["f64.kdot_n1"],
+    ),
 }
 
 
@@ -694,6 +725,9 @@ rule dataset_code:
 
 rule dataset_validate:
     input: DATASET_VALIDATION_INPUTS
+
+rule kdot_validate:
+    input: [p + "test.log" for p in DATASET_BASES["f64.kdot_n1"]]
 
 rule dataset:
     input: DATASET_OUTPUTS
