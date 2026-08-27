@@ -72,5 +72,14 @@ targets:
     linker_flag: "-fuse-ld=lld",
     env: {}
   }
+  rapper: {
+    triple: "x86_64-unknown-linux-gnu",
+    arch: "znver4",
+    freq: 3.2,
+    peak_f32: 32,
+    libs: ["papi"],
+    linker_flag: "-fuse-ld=lld",
+    env: {}
+  }
 
-xsmm_map: {cascadelake: clx, znver5: skx, default: noarch}
+xsmm_map: {cascadelake: clx, znver4: skx, znver5: skx, default: noarch}

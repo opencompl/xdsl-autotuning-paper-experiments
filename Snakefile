@@ -126,7 +126,7 @@ wildcard_constraints:
     dtype = "f32|f64",
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
-    target="neon|ci|tower|pinocchio",
+    target="neon|ci|tower|pinocchio|rapper",
     variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
@@ -500,6 +500,10 @@ DATASET_VARIANTS = {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
     },
+    "rapper": {
+        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
+        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm"],
+    },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
@@ -713,6 +717,7 @@ TESTSET = {
     "ci": TESTSET_CI,
     "tower": TESTSET_CI + TESTSET_AVX,
     "pinocchio": TESTSET_CI + TESTSET_AVX,
+    "rapper": TESTSET_CI + TESTSET_AVX,
 }[THIS_TARGET]
 
 rule tests:
