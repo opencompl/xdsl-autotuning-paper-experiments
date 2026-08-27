@@ -94,6 +94,17 @@ This compares one- and multi-accumulator segmented-K kernels with a persistent-
 accumulator outer-product kernel whose vector width exactly matches N. Results
 are written to `data/<TARGET>/f64.skinny_n2_n4.jsonl`.
 
+To test vectorizing across M with AVX-512 gathers for only M=8/16 and N=2/4,
+run:
+
+```sh
+make benchmark-gather-m
+```
+
+This measures a serial gather/accumulator form and a form with four independent
+gather streams plus multiple accumulators. It writes the eight results to
+`data/<TARGET>/f64.gather_m.jsonl`.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting

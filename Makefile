@@ -57,6 +57,12 @@ benchmark-skinny:
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall skinny_validate $(if $(TARGET),--config target=$(TARGET),)
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.skinny_n2_n4.jsonl $(if $(TARGET),--config target=$(TARGET),)
 
+# Test whether AVX-512 gathers make vectorizing across M competitive for M=8/16.
+.PHONY: benchmark-gather-m
+benchmark-gather-m:
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall gather_m_validate $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.gather_m.jsonl $(if $(TARGET),--config target=$(TARGET),)
+
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl

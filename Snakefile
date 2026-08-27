@@ -139,7 +139,7 @@ NANO_KERNEL_NAMES = tuple(sorted(SKX_NANO_KERNELS))
 NANO_KERNEL_PATTERN = "|".join(NANO_KERNEL_NAMES)
 VARIANT_PATTERN = (
     "naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|"
-    "libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|asm_kdot_1acc|asm_kdot_multiacc|asm_segmented_1acc|asm_segmented_multiacc|asm_outer_vl|"
+    "libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|asm_kdot_1acc|asm_kdot_multiacc|asm_segmented_1acc|asm_segmented_multiacc|asm_outer_vl|asm_gather_m_1acc|asm_gather_m_multiacc|"
     f"compxsmm-({NANO_KERNEL_PATTERN})"
 )
 
@@ -312,6 +312,21 @@ rule direct_skinny_s:
         }[wildcards.variant]
     shell:
         "python -m autotuner.direct_skinny_asm --output {output} "
+        "--m {wildcards.m} --n {wildcards.n} --k {wildcards.k} "
+        "--dtype {wildcards.dtype} --strategy {params.strategy}"
+
+rule direct_gather_m_s:
+    wildcard_constraints:
+        variant="asm_gather_m_1acc|asm_gather_m_multiacc"
+    input: "src/autotuner/direct_gather_asm.py"
+    output: target_ll_file(kernel="matmul_rowmaj", ext="S")
+    params:
+        strategy=lambda wildcards: {
+            "asm_gather_m_1acc": "single",
+            "asm_gather_m_multiacc": "multi",
+        }[wildcards.variant]
+    shell:
+        "python -m autotuner.direct_gather_asm --output {output} "
         "--m {wildcards.m} --n {wildcards.n} --k {wildcards.k} "
         "--dtype {wildcards.dtype} --strategy {params.strategy}"
 
@@ -577,24 +592,28 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
         "f64.kdot_n1": [],
         "f64.skinny_n2_n4": [],
+        "f64.gather_m": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
         "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm", "llvm_intrinsics"],
         "f64.kdot_n1": ["libxsmm", "llvm_intrinsics", "asm_kdot_1acc", "asm_kdot_multiacc"],
         "f64.skinny_n2_n4": ["libxsmm", "llvm_intrinsics", "asm_segmented_1acc", "asm_segmented_multiacc", "asm_outer_vl"],
+        "f64.gather_m": ["asm_gather_m_1acc", "asm_gather_m_multiacc"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
         "f64.kdot_n1": ["libxsmm", "llvm_intrinsics", "asm_kdot_1acc", "asm_kdot_multiacc"],
         "f64.skinny_n2_n4": ["libxsmm", "llvm_intrinsics", "asm_segmented_1acc", "asm_segmented_multiacc", "asm_outer_vl"],
+        "f64.gather_m": ["asm_gather_m_1acc", "asm_gather_m_multiacc"],
     },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
         "f64.kdot_n1": [],
         "f64.skinny_n2_n4": [],
+        "f64.gather_m": [],
     },
 }[THIS_TARGET]
 
@@ -660,6 +679,18 @@ DATASET_BASES = {
         m=(1, 2, 4, 8, 16),
         n=(2, 4),
         variant=DATASET_VARIANTS["f64.skinny_n2_n4"],
+    ),
+    "f64.gather_m": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        m=(8, 16),
+        n=(2, 4),
+        variant=DATASET_VARIANTS["f64.gather_m"],
     ),
 }
 
@@ -763,6 +794,9 @@ rule kdot_validate:
 
 rule skinny_validate:
     input: [p + "test.log" for p in DATASET_BASES["f64.skinny_n2_n4"]]
+
+rule gather_m_validate:
+    input: [p + "test.log" for p in DATASET_BASES["f64.gather_m"]]
 
 rule dataset:
     input: DATASET_OUTPUTS
