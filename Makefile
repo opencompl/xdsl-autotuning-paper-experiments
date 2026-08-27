@@ -81,6 +81,12 @@ benchmark-skinny-n3-narrow:
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall skinny_n3_narrow_validate $(if $(TARGET),--config target=$(TARGET),)
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.skinny_n3_narrow.jsonl $(if $(TARGET),--config target=$(TARGET),)
 
+# Map the M=16 direct-kernel crossover over K=8/16/32/64/128 and N=1/2/3/4.
+.PHONY: benchmark-k-sweep
+benchmark-k-sweep:
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall k_sweep_m16_validate $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.k_sweep_m16.jsonl $(if $(TARGET),--config target=$(TARGET),)
+
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl

@@ -646,6 +646,9 @@ DATASET_VARIANTS = {
     },
 }[THIS_TARGET]
 
+DIRECT_EXPERIMENTS_ENABLED = bool(DATASET_VARIANTS["f64.kdot_n1"])
+K_SWEEP_VALUES = (8, 16, 32, 64, 128)
+
 # Values are missing the extension
 # The extension is added in the dataset rules below
 DATASET_BASES = {
@@ -756,6 +759,56 @@ DATASET_BASES = {
         ),
         m=(1, 2, 4, 8, 16),
         variant=DATASET_VARIANTS["f64.skinny_n3_narrow"],
+    ),
+    "f64.k_sweep_m16": (
+        expand(
+            target_file(
+                kernel="matmul_rowmaj",
+                m="16",
+                n="1",
+                dtype="f64",
+                ext="",
+                target=THIS_TARGET,
+            ),
+            k=K_SWEEP_VALUES,
+            variant=(
+                ["libxsmm", "asm_kdot_1acc", "asm_kdot_multiacc"]
+                if DIRECT_EXPERIMENTS_ENABLED
+                else []
+            ),
+        )
+        + expand(
+            target_file(
+                kernel="matmul_rowmaj",
+                m="16",
+                dtype="f64",
+                ext="",
+                target=THIS_TARGET,
+            ),
+            n=(2, 4),
+            k=K_SWEEP_VALUES,
+            variant=(
+                ["libxsmm", "asm_segmented_1acc", "asm_segmented_multiacc"]
+                if DIRECT_EXPERIMENTS_ENABLED
+                else []
+            ),
+        )
+        + expand(
+            target_file(
+                kernel="matmul_rowmaj",
+                m="16",
+                n="3",
+                dtype="f64",
+                ext="",
+                target=THIS_TARGET,
+            ),
+            k=K_SWEEP_VALUES,
+            variant=(
+                ["libxsmm", "asm_n3_narrow_1acc", "asm_n3_narrow_multiacc"]
+                if DIRECT_EXPERIMENTS_ENABLED
+                else []
+            ),
+        )
     ),
 }
 
@@ -871,6 +924,9 @@ rule skinny_n3_validate:
 
 rule skinny_n3_narrow_validate:
     input: [p + "test.log" for p in DATASET_BASES["f64.skinny_n3_narrow"]]
+
+rule k_sweep_m16_validate:
+    input: [p + "test.log" for p in DATASET_BASES["f64.k_sweep_m16"]]
 
 rule dataset:
     input: DATASET_OUTPUTS

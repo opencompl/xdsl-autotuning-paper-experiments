@@ -134,6 +134,16 @@ make benchmark-skinny-n3-narrow
 
 It writes `data/<TARGET>/f64.skinny_n3_narrow.jsonl`.
 
+To map where the direct schedules remain profitable as K grows, run the M=16,
+N=1/2/3/4, K=8/16/32/64/128 sweep:
+
+```sh
+make benchmark-k-sweep
+```
+
+It compares LIBXSMM with the one- and multi-chain direct kernels and writes
+`data/<TARGET>/f64.k_sweep_m16.jsonl`.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting
