@@ -131,6 +131,15 @@ docker-run:
 		nice -n -15 taskset -c 2 docker run -e IN_DOCKER=1 --platform linux/amd64 --cap-add=SYS_ADMIN --cap-add=PERFMON --security-opt seccomp=unconfined --security-opt apparmor=unconfined --pid=host -v .:/src -ti xdsl-autotuner; \
 	fi
 
+# Run the image without CPU pinning for faster, contention-tolerant data.
+.PHONY: docker-run-fast
+docker-run-fast:
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		docker run --platform linux/amd64 -v .:/src -ti xdsl-autotuner; \
+	else \
+		nice -n -15 docker run -e IN_DOCKER=1 --platform linux/amd64 --cap-add=SYS_ADMIN --cap-add=PERFMON --security-opt seccomp=unconfined --security-opt apparmor=unconfined --pid=host -v .:/src -ti xdsl-autotuner; \
+	fi
+
 .PHONY: clean-ours
 clean-ours:
 	find build -name 'xdsl_libxsmm.*' -exec rm -f {} + 2>/dev/null || true

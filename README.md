@@ -103,6 +103,9 @@ The aim is for this project to run both natively on the host and in Docker.
 
 When you change the image or dependencies, rebuild the image (`make docker-build`) or pull a published CI image; you do not need a separate `venv_docker` directory on the host.
 
+Use `make docker-run` for accurate measurements pinned to core 2. Use `make
+docker-run-fast` for approximate debugging measurements without CPU pinning.
+
 ## Configuring Machines
 
 ### Disabling Frequency Switching
