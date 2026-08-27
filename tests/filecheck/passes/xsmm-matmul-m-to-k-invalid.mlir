@@ -11,4 +11,4 @@ x86_func.func @missing_mask(
   x86_func.ret
 }
 
-// CHECK: Exception: xsmm-matmul-m-to-k requires a mask for a partial M vector; run xsmm-tile-m first
+// CHECK: Exception: xsmm-matmul-m-to-k requires a mask for a partial M vector; run tile_m first

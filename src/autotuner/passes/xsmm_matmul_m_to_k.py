@@ -27,7 +27,7 @@ class ConvertMatmulMToKPattern(RewritePattern):
         if m_blocking % vector_length and op.mask is None:
             raise PassFailedException(
                 "xsmm-matmul-m-to-k requires a mask for a partial M vector; "
-                "run xsmm-tile-m first"
+                "run tile_m first"
             )
         matmul_m_to_k(rewriter, op)
 
