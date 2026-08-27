@@ -12,6 +12,7 @@ TARGET_NAME = {
     "tower": "AMD Zen 5",
     "pinocchio": "Intel Skylake",
     "neon": "Apple M2 Max",
+    "rapper": "AMD Zen 4",
 }
 
 
@@ -105,7 +106,7 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
 
     plot_axis_throughput(df, ax, x_row="M")
 
-    ax.set_title(f"N = K = {n}, {dtype}, {TARGET_NAME[target]}")
+    ax.set_title(f"N = K = {n}, {dtype}, {TARGET_NAME.get(target, target)}")
     ax.legend(title="Variant")
     plt.tight_layout()
 
@@ -151,7 +152,9 @@ def plot_combined(output_file: Path | None):
         nks.append((n, k))
         dtypes.append(dtype)
         targets.append(target)
-        titles.append(f"{prefix}N = K = {n}, {dtype}, {TARGET_NAME[target]}")
+        titles.append(
+            f"{prefix}N = K = {n}, {dtype}, {TARGET_NAME.get(target, target)}"
+        )
 
     fig, axs = plt.subplots(2, 2, figsize=(7, 7), sharex=True, sharey=True)
     plt.subplots_adjust(hspace=0.35)
