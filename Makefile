@@ -51,6 +51,12 @@ benchmark-kdot:
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall kdot_validate $(if $(TARGET),--config target=$(TARGET),)
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.kdot_n1.jsonl $(if $(TARGET),--config target=$(TARGET),)
 
+# Compare segmented-K and width-matched outer-product schedules for N=2 and N=4.
+.PHONY: benchmark-skinny
+benchmark-skinny:
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall skinny_validate $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.skinny_n2_n4.jsonl $(if $(TARGET),--config target=$(TARGET),)
+
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl

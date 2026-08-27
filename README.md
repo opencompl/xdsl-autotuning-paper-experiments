@@ -84,6 +84,16 @@ then measures the variants serially and writes
 `data/<TARGET>/f64.kdot_n1.jsonl`. It uses `--forceall`, so every invocation is a
 fresh measurement.
 
+For the follow-up `N=2` and `N=4` sweep, run:
+
+```sh
+make benchmark-skinny
+```
+
+This compares one- and multi-accumulator segmented-K kernels with a persistent-
+accumulator outer-product kernel whose vector width exactly matches N. Results
+are written to `data/<TARGET>/f64.skinny_n2_n4.jsonl`.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting
