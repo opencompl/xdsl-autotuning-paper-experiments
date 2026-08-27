@@ -63,6 +63,18 @@ targets:
     linker_flag: "-fuse-ld=lld",
     env: {"LIBPFM_FORCE_PMU":"amd64"}
   }
+  # AMD Ryzen Threadripper PRO 7985WX (Zen 4).  Two 256-bit FMA pipes, so
+  # 32 f32 FLOP/cycle; `freq` is the pinned base clock and is only used when
+  # PAPI cannot read the cycle counter.
+  rapper: {
+    triple: "x86_64-unknown-linux-gnu",
+    arch: "znver4",
+    freq: 3.2,
+    peak_f32: 32,
+    libs: ["papi"],
+    linker_flag: "-fuse-ld=lld",
+    env: {"LIBPFM_FORCE_PMU":"amd64"}
+  }
   pinocchio: {
     triple: "x86_64-unknown-linux-gnu",
     arch: "cascadelake",

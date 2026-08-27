@@ -19,6 +19,13 @@ else:
     MKL_CFLAGS = ""
     MKL_LIBS = ""
 
+# PAPI include path (discovered via pkg-config when available).  The Docker image
+# has it on C_INCLUDE_PATH, a native checkout does not.
+if shutil.which("pkg-config") and os.system("pkg-config --exists papi") == 0:
+    PAPI_CFLAGS = shell("pkg-config --cflags papi", read=True).strip()
+else:
+    PAPI_CFLAGS = ""
+
 # Target-specific parameters
 
 CC_ASM = config.get("cc_asm", config["cc"])
@@ -52,7 +59,7 @@ def target_peak_flops(wildcards):
 
 def target_use_papi(wildcards):
     if 'papi' in T[wildcards.target]['libs']:
-        return '-DUSE_PAPI'
+        return f'-DUSE_PAPI {PAPI_CFLAGS}'
     return ''
 
 def target_env(wildcards):
@@ -491,14 +498,23 @@ DATASET_VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        # The x86 xsmm generators do not run here.
+        "f64.sweeps": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
         "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm"],
+        "f64.sweeps": ["libxsmm", "xdsl_libxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
+        "f64.sweeps": ["libxsmm", "xdsl_libxsmm"],
+    },
+    "rapper": {
+        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
+        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm"],
+        "f64.sweeps": ["libxsmm", "xdsl_libxsmm"],
     },
     "rapper": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
@@ -507,8 +523,14 @@ DATASET_VARIANTS = {
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.sweeps": [],
     },
 }[THIS_TARGET]
+
+# Matrix sizes swept by the paper figures: every size for the 1D sweeps, a
+# coarser grid for the 2D sweep, which is quadratic in the number of sizes.
+SWEEP_SIZES_CONTINUOUS = range(4, 65)
+SWEEP_SIZES = [4, 8, 12, 16, 24, 32, 48, 64]
 
 # Values are missing the extension
 # The extension is added in the dataset rules below
@@ -548,7 +570,49 @@ DATASET_BASES = {
         m=range(1, 17),
         n=range(1, 17),
         variant=DATASET_VARIANTS["f64.small_matrices"]
-    )
+    ),
+    # Square M = N kernels at fixed K (paper figure: M = N sweep).  Only the
+    # diagonal is measured, so every size fits in a linear number of kernels.
+    "f64.mn_sweep": [
+        target_file(
+            kernel="matmul_rowmaj",
+            m=str(size),
+            n=str(size),
+            k="16",
+            dtype="f64",
+            variant=variant,
+            ext="",
+            target=THIS_TARGET,
+        )
+        for size in SWEEP_SIZES_CONTINUOUS
+        for variant in DATASET_VARIANTS["f64.sweeps"]
+    ],
+    # M by K at fixed N (paper figure: heatmaps).
+    "f64.mk_sweep": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            n="16",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        m=SWEEP_SIZES,
+        k=SWEEP_SIZES,
+        variant=DATASET_VARIANTS["f64.sweeps"],
+    ),
+    # Every N at fixed M = K = 16 (paper figure: N sweep).
+    "f64.n_sweep": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            m="16",
+            k="16",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        n=range(4, 33),
+        variant=DATASET_VARIANTS["f64.sweeps"],
+    ),
 }
 
 # If a dataset has no samples skip it here and in the dataset rule below

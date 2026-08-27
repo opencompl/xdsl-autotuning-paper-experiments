@@ -39,6 +39,28 @@ TARGET=your_target_name_here
 
 Then add a specification of the machine to the `targets` field in [[default.yaml]], and populate the `TESTSET` and `DATASET_VARIANTS` in the Snakefile.
 
+A target that lists `papi` in `libs` counts cycles with the hardware counter, which needs
+`kernel.perf_event_paranoid <= 2`; its `freq` (in GHz) is then unused.  Without PAPI the
+harness converts wall-clock time to cycles with `freq`, so the cores have to be pinned to
+exactly that frequency — see [Configuring Machines](#configuring-machines).
+
+#### rapper (AMD Ryzen Threadripper PRO 7985WX, Zen 4)
+
+Two 256-bit FMA pipes, so `peak_f32: 32` (16 f64 FLOP/cycle).  Before measuring:
+
+```sh
+sudo sysctl -w kernel.perf_event_paranoid=0   # PAPI needs <= 2
+```
+
+then apply the frequency and interrupt settings from [Configuring Machines](#configuring-machines)
+(`freq: 3.2` matches the base clock, and only matters if PAPI is unavailable).  Measure and
+plot with:
+
+```sh
+make dataset TARGET=rapper
+make rapper-plots
+```
+
 ### Running Tests
 
 We use two kinds of tests in this repository:
@@ -68,6 +90,22 @@ Generate the data for the host platform by running `make dataset`. JSONL outputs
 ### Plotting
 
 Plot data using `make plots`, this command will fail if all the data necessary to generate the plots is not present, instead of running the data generation. PNGs are written under `plots/<machine>/` for each platform that has JSONL inputs in the repo (for example `neon`, `tower`, `pinocchio`); plotting does not depend on your current `TARGET`.
+
+#### Paper figures
+
+`make paper-plots` builds only the figures used in the paper, as PDFs:
+
+| Figure | Data | Content |
+| --- | --- | --- |
+| `plots/tower/f64.mn_sweep.pdf` | `data/tower/f64.mn_sweep.jsonl` | square kernels, every M = N from 4 to 64, K = 16 |
+| `plots/tower/f64.n_sweep.pdf` | `data/tower/f64.n_sweep.jsonl` | every N from 4 to 32 with M = K = 16 |
+| `plots/tower/f64.mk_sweep.pdf` | `data/tower/f64.mk_sweep.jsonl` | one heatmap per variant over M and K, N = 16 |
+
+`src/autotuner/plot_style.py` holds the style every plotting script shares: figures are at
+most one column wide (`COLUMN_WIDTH`, 3.335 in) so they can be included at their natural
+size, text is 7-8 pt in Helvetica, and a variant keeps the same color, marker and
+dash pattern across figures. No figure draws a title — the description belongs in the LaTeX
+`\caption`.
 
 ## Building The Docker Container
 
