@@ -115,6 +115,15 @@ make benchmark-transpose-m
 It measures the same M=8/16 and N=2/4 shapes and writes
 `data/<TARGET>/f64.transpose_m.jsonl`.
 
+The masked N=3 nano-kernel packs two K rows into six active ZMM lanes. Run:
+
+```sh
+make benchmark-skinny-n3
+```
+
+This measures M=1/2/4/8/16 against LLVM and LIBXSMM and writes
+`data/<TARGET>/f64.skinny_n3.jsonl`.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### Plotting

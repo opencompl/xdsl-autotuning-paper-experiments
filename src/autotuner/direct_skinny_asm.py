@@ -52,7 +52,10 @@ def _segmented_accumulator_sets(m: int, groups: int, multi: bool) -> int:
 
 def _repeat_indices(n: int) -> tuple[int, ...]:
     k_values_per_group = ZMM_F64S // n
-    return tuple(k_value for k_value in range(k_values_per_group) for _ in range(n))
+    active_indices = tuple(
+        k_value for k_value in range(k_values_per_group) for _ in range(n)
+    )
+    return active_indices + (0,) * (ZMM_F64S - len(active_indices))
 
 
 def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
@@ -60,8 +63,8 @@ def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
 
     if m <= 0:
         raise ValueError("M must be positive")
-    if n not in (2, 4):
-        raise ValueError("segmented K reduction currently requires N=2 or N=4")
+    if n not in (2, 3, 4):
+        raise ValueError("segmented K reduction currently requires N=2, N=3, or N=4")
 
     k_values_per_group = ZMM_F64S // n
     if k <= 0 or k % k_values_per_group:
@@ -80,17 +83,45 @@ def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
         "\t.p2align\t6",
         ".Lrepeat_indices:",
         *(f"\t.quad\t{index}" for index in _repeat_indices(n)),
+        *(
+            [
+                "\t.p2align\t6",
+                ".Lreduce_indices:",
+                "\t.quad\t3",
+                "\t.quad\t4",
+                "\t.quad\t5",
+                "\t.quad\t0",
+                "\t.quad\t0",
+                "\t.quad\t0",
+                "\t.quad\t0",
+                "\t.quad\t0",
+            ]
+            if n == 3
+            else []
+        ),
         *_function_start(
             f"segmented K reduction: M={m}, N={n}, K={k}, "
             f"accumulator_sets={accumulator_sets}"
         ),
         "\tvmovdqa64\t.Lrepeat_indices(%rip), %zmm31",
+        *(
+            [
+                "\tmovl\t$63, %eax",
+                "\tkmovw\t%eax, %k1",
+                "\tmovl\t$7, %eax",
+                "\tkmovw\t%eax, %k2",
+            ]
+            if n == 3
+            else []
+        ),
     ]
 
     for group in range(groups):
         accumulator_set = group % accumulator_sets
-        b_displacement = group * ZMM_F64S * F64_BYTES
-        lines.append(f"\tvmovupd\t{_memory(b_displacement, 'rsi')}, %zmm0")
+        active_lanes = k_values_per_group * n
+        b_displacement = group * active_lanes * F64_BYTES
+        b_mask = " {%k1}{z}" if n == 3 else ""
+        lines.append(f"\tvmovupd\t{_memory(b_displacement, 'rsi')}, %zmm0{b_mask}")
 
         for row in range(m):
             a_displacement = (row * k + group * k_values_per_group) * F64_BYTES
@@ -105,6 +136,9 @@ def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
             instruction = "vmulpd" if group < accumulator_sets else "vfmadd231pd"
             lines.append(f"\t{instruction}\t%zmm0, %zmm1, %zmm{accumulator}")
 
+    if n == 3:
+        lines.append("\tvmovdqa64\t.Lreduce_indices(%rip), %zmm31")
+
     for row in range(m):
         accumulator = accumulator_register(row, 0)
         for accumulator_set in range(1, accumulator_sets):
@@ -114,6 +148,18 @@ def generate_segmented_asm(*, m: int, n: int, k: int, multi: bool) -> str:
             )
 
         c_displacement = row * n * F64_BYTES
+        if n == 3:
+            lines.extend(
+                [
+                    f"\tvpermpd\t%zmm{accumulator}, %zmm31, %zmm0",
+                    f"\tvaddpd\t%zmm{accumulator}, %zmm0, %zmm0",
+                    f"\tvmovupd\t{_memory(c_displacement, 'rdx')}, %zmm1 {{%k2}}{{z}}",
+                    "\tvaddpd\t%zmm1, %zmm0, %zmm0",
+                    f"\tvmovupd\t%zmm0, {_memory(c_displacement, 'rdx')} {{%k2}}",
+                ]
+            )
+            continue
+
         lines.extend(
             [
                 f"\tvextractf64x4\t$1, %zmm{accumulator}, %ymm0",

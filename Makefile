@@ -69,6 +69,12 @@ benchmark-transpose-m:
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall transpose_m_validate $(if $(TARGET),--config target=$(TARGET),)
 	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.transpose_m.jsonl $(if $(TARGET),--config target=$(TARGET),)
 
+# Pack two N=3 K rows into six active ZMM lanes.
+.PHONY: benchmark-skinny-n3
+benchmark-skinny-n3:
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all --forceall skinny_n3_validate $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 --forceall data/$(TARGET)/f64.skinny_n3.jsonl $(if $(TARGET),--config target=$(TARGET),)
+
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(TARGET)/f64.bars.jsonl

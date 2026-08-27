@@ -609,6 +609,7 @@ DATASET_VARIANTS = {
         "f64.skinny_n2_n4": [],
         "f64.gather_m": [],
         "f64.transpose_m": [],
+        "f64.skinny_n3": [],
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm"],
@@ -617,6 +618,7 @@ DATASET_VARIANTS = {
         "f64.skinny_n2_n4": ["libxsmm", "llvm_intrinsics", "asm_segmented_1acc", "asm_segmented_multiacc", "asm_outer_vl"],
         "f64.gather_m": ["asm_gather_m_1acc", "asm_gather_m_multiacc"],
         "f64.transpose_m": ["asm_transpose_m_1acc", "asm_transpose_m_multiacc"],
+        "f64.skinny_n3": ["libxsmm", "llvm_intrinsics", "asm_segmented_1acc", "asm_segmented_multiacc"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl"],
@@ -625,6 +627,7 @@ DATASET_VARIANTS = {
         "f64.skinny_n2_n4": ["libxsmm", "llvm_intrinsics", "asm_segmented_1acc", "asm_segmented_multiacc", "asm_outer_vl"],
         "f64.gather_m": ["asm_gather_m_1acc", "asm_gather_m_multiacc"],
         "f64.transpose_m": ["asm_transpose_m_1acc", "asm_transpose_m_multiacc"],
+        "f64.skinny_n3": ["libxsmm", "llvm_intrinsics", "asm_segmented_1acc", "asm_segmented_multiacc"],
     },
     "ci": {
         "ttile": ["naive_c"],
@@ -633,6 +636,7 @@ DATASET_VARIANTS = {
         "f64.skinny_n2_n4": [],
         "f64.gather_m": [],
         "f64.transpose_m": [],
+        "f64.skinny_n3": [],
     },
 }[THIS_TARGET]
 
@@ -722,6 +726,18 @@ DATASET_BASES = {
         m=(8, 16),
         n=(2, 4),
         variant=DATASET_VARIANTS["f64.transpose_m"],
+    ),
+    "f64.skinny_n3": expand(
+        target_file(
+            kernel="matmul_rowmaj",
+            n="3",
+            k="64",
+            dtype="f64",
+            ext="",
+            target=THIS_TARGET,
+        ),
+        m=(1, 2, 4, 8, 16),
+        variant=DATASET_VARIANTS["f64.skinny_n3"],
     ),
 }
 
@@ -831,6 +847,9 @@ rule gather_m_validate:
 
 rule transpose_m_validate:
     input: [p + "test.log" for p in DATASET_BASES["f64.transpose_m"]]
+
+rule skinny_n3_validate:
+    input: [p + "test.log" for p in DATASET_BASES["f64.skinny_n3"]]
 
 rule dataset:
     input: DATASET_OUTPUTS
