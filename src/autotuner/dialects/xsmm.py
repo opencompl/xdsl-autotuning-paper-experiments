@@ -42,7 +42,7 @@ class MatmulNOp(IRDLOperation):
     elements. The frame and stack pointers are passed through.
 
     ``n_start`` is the logical lower bound of this N range. It does not affect
-    the pointer results, but allows ``xsmm-tile-n`` to preserve the absolute
+    the pointer results, but allows ``tile_n`` to preserve the absolute
     loop bounds chosen by range-splitting transformations.
 
     Lowering this operation to ``xsmm.matmul_m`` must correct the M operation's
@@ -164,7 +164,7 @@ class MatmulMOp(IRDLOperation):
     frame and stack pointers and optional mask are passed through.
 
     An unmasked operation may represent an untiled M extent that is not a whole
-    number of vectors. ``xsmm-tile-m`` chooses physical M blocks and supplies a
+    number of vectors. ``tile_m`` chooses physical M blocks and supplies a
     mask only to a generated block whose final vector is partial.
 
     Lowering this operation to ``xsmm.matmul_k`` must correct the K operation's

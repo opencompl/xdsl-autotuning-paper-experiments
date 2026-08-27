@@ -1,10 +1,4 @@
 // RUN: xdsl-opt %s --split-input-file -p xsmm-tile-n-m | filecheck %s
-// RUN: xdsl-opt %s --split-input-file -p xsmm-tile-n-m > %t.combined
-// RUN: xdsl-opt %s --split-input-file -p xsmm-split-n,xsmm-tile-n,xsmm-matmul-n-to-m,xsmm-tile-m > %t.staged
-// RUN: diff %t.combined %t.staged
-// RUN: xdsl-opt %s --split-input-file -p 'xsmm-tile-n-m{disable-regalloc=true}' > %t.combined-unallocated
-// RUN: xdsl-opt %s --split-input-file -p xsmm-split-n,'xsmm-tile-n{disable-regalloc=true}',xsmm-matmul-n-to-m,'xsmm-tile-m{disable-regalloc=true}' > %t.staged-unallocated
-// RUN: diff %t.combined-unallocated %t.staged-unallocated
 
 x86_func.func @single_n_range(
   %a: !x86.reg64<rdi>,
