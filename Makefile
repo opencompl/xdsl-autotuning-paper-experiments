@@ -70,6 +70,12 @@ PLOTS += plots/pinocchio/f64.ttile_squares.png
 PLOTS += plots/pinocchio/f64.ttile_combined.png
 PLOTS += plots/pinocchio/f64.heatmap.png
 
+PLOTS += plots/rapper/f32.ttile.png
+PLOTS += plots/rapper/f64.ttile.png
+PLOTS += plots/rapper/f64.ttile_squares.png
+PLOTS += plots/rapper/f64.ttile_combined.png
+PLOTS += plots/rapper/f64.heatmap.png
+
 PLOTS += plots/ttile.pdf
 
 # `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
