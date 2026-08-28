@@ -7,7 +7,7 @@ from typing import Literal, TypeAlias
 from xdsl.dialects import builtin
 from xdsl.pattern_rewriter import PatternRewriter
 
-from autotuner.dialects.xsmm import MatmulKOp
+from autotuner.dialects.xsmm import MatmulRegOp
 
 FloatingPointType: TypeAlias = builtin.Float32Type | builtin.Float64Type
 
@@ -105,7 +105,7 @@ class NanoKernel(ABC):
     def rewrite(
         self,
         rewriter: PatternRewriter,
-        op: MatmulKOp,
+        op: MatmulRegOp,
         isa_info: ISAInfo,
         *,
         disable_regalloc: bool,

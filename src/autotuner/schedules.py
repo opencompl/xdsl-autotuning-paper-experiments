@@ -5,7 +5,12 @@ from xdsl.dialects import builtin, x86, x86_scf
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 
-from autotuner.dialects.xsmm import MatmulIterator, MatmulKOp, MatmulOp
+from autotuner.dialects.xsmm import (
+    MatmulIterator,
+    MatmulOp,
+    MatmulRegOp,
+    matmul_reg_pointer_offsets,
+)
 
 
 def split_n(
@@ -135,6 +140,12 @@ def _matmul_pointer_offsets_abc(
                 n * op.ldb.value.data * element_size,
                 n * op.ldc.value.data * element_size,
             )
+        case MatmulIterator.K:
+            return (
+                op.k.value.data * op.lda.value.data * element_size,
+                op.k.value.data * element_size,
+                0,
+            )
 
 
 def set_matmul_iterator(
@@ -204,10 +215,10 @@ def set_matmul_iterator(
     return matmul
 
 
-def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulOp) -> MatmulKOp:
+def matmul_m_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
     assert op.iterator.data == MatmulIterator.M
-    assert not op.ins, "matmul_m_to_k does not yet support ins"
-    assert len(op.outs) <= 1, "matmul_m_to_k supports at most one mask out"
+    assert not op.ins, "matmul_m_to_reg does not yet support ins"
+    assert len(op.outs) <= 1, "matmul_m_to_reg supports at most one mask out"
     m_blocking = op.m.value.data
     n_blocking = op.n.value.data
     k = op.k.value.data
@@ -235,36 +246,27 @@ def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulOp) -> MatmulKOp:
         c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
         mask_k1=mask,
     )
-    matmul_k = rewriter.insert(
-        MatmulKOp(
+    matmul_reg = rewriter.insert(
+        MatmulRegOp(
             op.a,
             op.b,
-            op.c,
             op.rbp,
             op.rsp,
-            mask,
+            () if mask is None else (mask,),
             accumulators,
-            m_blocking=m_blocking,
-            n_blocking=n_blocking,
-            k_blocking=k,
+            m=m_blocking,
+            n=n_blocking,
+            k=k,
             lda=lda,
             ldb=op.ldb.value.data,
             datatype=op.datatype,
             aligned_a=bool(op.aligned_a),
+            iterator=MatmulIterator(op.iterator.data),
         ),
         insertion_point=insert_point,
     )
 
     element_size = op.datatype.size
-    b_out = rewriter.insert(
-        x86.ops.RI_SubOp(
-            matmul_k.b_out,
-            k * element_size,
-            register_out=op.b_out.type,
-        ),
-        insertion_point=insert_point,
-    ).register_out
-
     store_c(
         rewriter,
         insert_point,
@@ -275,92 +277,92 @@ def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulOp) -> MatmulKOp:
         vector_length=vector_length,
         use_masking_a_c=mask is not None,
         aligned_c=bool(op.aligned_c),
-        c_val=ir.SSAValue.get(matmul_k.c_out, type=x86.registers.GeneralRegisterType),
-        acc_vectors=tuple(matmul_k.accumulator_outs),
-        mask_k1=(
-            None
-            if matmul_k.mask_out is None
-            else ir.SSAValue.get(
-                matmul_k.mask_out, type=x86.registers.AVX512MaskRegisterType
-            )
+        c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
+        acc_vectors=tuple(
+            ir.SSAValue.get(accumulator, type=x86.registers.AVX512RegisterType)
+            for accumulator in matmul_reg.out_results
         ),
+        mask_k1=mask,
     )
 
     c_out = rewriter.insert(
         x86.ops.RI_AddOp(
-            matmul_k.c_out,
+            op.c,
             m_blocking * element_size,
             register_out=op.c_out.type,
         ),
         insertion_point=insert_point,
     ).register_out
-    a_out = rewriter.insert(
-        x86.ops.RI_SubOp(
-            matmul_k.a_out,
-            (k * lda - m_blocking) * element_size,
-            register_out=op.a_out.type,
-        ),
-        insertion_point=insert_point,
-    ).register_out
-
     rewriter.replace(
         op,
         [],
         (
-            a_out,
-            b_out,
+            matmul_reg.a_out,
+            matmul_reg.b_out,
             c_out,
-            matmul_k.rbp_out,
-            matmul_k.rsp_out,
-            *((matmul_k.mask_out,) if matmul_k.mask_out is not None else ()),
+            matmul_reg.rbp_out,
+            matmul_reg.rsp_out,
+            *op.outs,
         ),
     )
-    return matmul_k
+    return matmul_reg
 
 
-def _matmul_k_with_inputs(
-    op: MatmulKOp, inputs: Sequence[ir.SSAValue], k_blocking: int
-) -> MatmulKOp:
-    a, b, c, rbp, rsp, *rest = inputs
-    if op.mask is None:
-        mask = None
-        accumulators = rest
-    else:
-        mask, *accumulators = rest
-
-    return MatmulKOp(
+def _matmul_reg_with_inputs(
+    op: MatmulRegOp, inputs: Sequence[ir.SSAValue], k: int
+) -> MatmulRegOp:
+    a, b, rbp, rsp, *outs = inputs
+    return MatmulRegOp(
         a,
         b,
-        c,
         rbp,
         rsp,
-        mask,
-        accumulators,
-        m_blocking=op.m_blocking.value.data,
-        n_blocking=op.n_blocking.value.data,
-        k_blocking=k_blocking,
+        op.ins,
+        outs,
+        m=op.m.value.data,
+        n=op.n.value.data,
+        k=k,
         lda=op.lda.value.data,
         ldb=op.ldb.value.data,
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a),
+        iterator=MatmulIterator.K,
     )
+
+
+def _offset_pointer(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    pointer: ir.SSAValue,
+    byte_offset: int,
+    *,
+    emit_zero_sub: bool = False,
+) -> ir.SSAValue[x86.registers.GeneralRegisterType]:
+    pointer = ir.SSAValue.get(pointer, type=x86.registers.GeneralRegisterType)
+    if byte_offset == 0 and not emit_zero_sub:
+        return pointer
+    op_type = x86.ops.RI_SubOp if byte_offset <= 0 else x86.ops.RI_AddOp
+    return rewriter.insert(
+        op_type(pointer, abs(byte_offset)),
+        insertion_point=insert_point,
+    ).register_out
 
 
 def tile_k(
     rewriter: PatternRewriter,
-    op: MatmulKOp,
+    op: MatmulRegOp,
     k_tile: int,
     kloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
-) -> tuple[MatmulKOp, MatmulKOp | None]:
+) -> tuple[MatmulRegOp, MatmulRegOp | None]:
     """Tile K, inserting an exact loop and an optional remainder matmul.
 
-    Each tiled body advances A and B through its portion of K. The loop-carried
-    results therefore already have the same pointer values as the original op;
-    neither pointer is reset after the loop.
+    Each tiled body uses the K iterator to advance through its reduction slice.
+    The combined K pointer results are normalized once after the loop to the
+    original operation's iterator contract.
 
     Returns the matmul in the loop body and the optional remainder matmul.
     """
-    k = op.k_blocking.value.data
+    k = op.k.value.data
     assert 0 < k_tile <= k, f"Invalid K tile {k_tile} for K extent {k}"
 
     insert_point = InsertPoint.before(op)
@@ -370,11 +372,11 @@ def tile_k(
         insertion_point=insert_point,
     )
 
-    inputs = tuple(op.operands)
+    inputs = (op.a, op.b, op.rbp, op.rsp, *op.outs)
     body = ir.Block(
         arg_types=(k_init.destination.type, *(value.type for value in inputs))
     )
-    tiled_matmul = _matmul_k_with_inputs(op, body.args[1:], k_tile)
+    tiled_matmul = _matmul_reg_with_inputs(op, body.args[1:], k_tile)
     body.add_ops((tiled_matmul, x86_scf.YieldOp(*tiled_matmul.results)))
     kloop = rewriter.insert(
         x86_scf.ForOp(
@@ -390,7 +392,7 @@ def tile_k(
     loop_results = tuple(kloop.results[1:])
     if remainder := k % k_tile:
         remainder_matmul = rewriter.insert(
-            _matmul_k_with_inputs(op, loop_results, remainder),
+            _matmul_reg_with_inputs(op, loop_results, remainder),
             insertion_point=insert_point,
         )
         results = tuple(remainder_matmul.results)
@@ -398,7 +400,27 @@ def tile_k(
         remainder_matmul = None
         results = loop_results
 
-    rewriter.replace(op, [], results)
+    desired_a_offset, desired_b_offset = matmul_reg_pointer_offsets(op)
+    k_a_offset, k_b_offset = matmul_reg_pointer_offsets(op, MatmulIterator.K)
+    a, b, *rest = results
+    # Keep the B-before-A adjustment order used by the existing schedule.
+    b = _offset_pointer(rewriter, insert_point, b, desired_b_offset - k_b_offset)
+    # Delay the independent A normalization until its first same-block use so
+    # intervening C stores retain their established instruction order.
+    a_insert_point = insert_point
+    if (
+        a_user := op.a_out.get_user_of_unique_use()
+    ) is not None and a_user.parent_block() is op.parent_block():
+        a_insert_point = InsertPoint.before(a_user)
+    a = _offset_pointer(
+        rewriter,
+        a_insert_point,
+        a,
+        desired_a_offset - k_a_offset,
+        emit_zero_sub=op.iterator.data == MatmulIterator.M,
+    )
+
+    rewriter.replace(op, [], (a, b, *rest))
     return tiled_matmul, remainder_matmul
 
 

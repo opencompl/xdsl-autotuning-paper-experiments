@@ -11,7 +11,7 @@ from xdsl.pattern_rewriter import (
     op_type_rewrite_pattern,
 )
 
-from autotuner.dialects.xsmm import MatmulKOp
+from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.schedules import tile_k
 
 K_BLOCKING = 4
@@ -19,19 +19,19 @@ K_THRESHOLD = 23
 
 
 @dataclass
-class TileMatmulKPattern(RewritePattern):
-    """Tile a matmul_k without changing its pointer results.
+class TileMatmulRegKPattern(RewritePattern):
+    """Tile a matmul_reg along K without changing its pointer results.
 
-    Each tiled body advances A and B through its portion of K. The loop-carried
-    results therefore already have the same pointer values as the original op;
-    the transformation must not reset either pointer after the loop.
+    Each tiled body uses the K iterator to advance through its reduction slice.
+    After the loop, the combined K traversal is normalized once to the original
+    operation's iterator.
     """
 
     disable_regalloc: bool
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: MatmulKOp, rewriter: PatternRewriter, /) -> None:
-        k = op.k_blocking.value.data
+    def match_and_rewrite(self, op: MatmulRegOp, rewriter: PatternRewriter, /) -> None:
+        k = op.k.value.data
         if k <= K_THRESHOLD:
             return
 
@@ -43,11 +43,10 @@ class TileMatmulKPattern(RewritePattern):
 
 @dataclass(frozen=True)
 class XsmmTileKPass(ModulePass):
-    """Tile large xsmm.matmul_k operations while preserving pointer results.
+    """Tile large xsmm.matmul_reg operations along K.
 
-    This applies the current LIBXSMM K policy, but the chosen representation does
-    not change the operation semantics: in particular, ``b_out`` advances by the
-    full K extent for both tiled and untiled operations.
+    This applies the current LIBXSMM K policy without changing the operation's
+    declared iterator contract.
     """
 
     name = "xsmm-tile-k"
@@ -56,6 +55,6 @@ class XsmmTileKPass(ModulePass):
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
         PatternRewriteWalker(
-            TileMatmulKPattern(self.disable_regalloc),
+            TileMatmulRegKPattern(self.disable_regalloc),
             apply_recursively=False,
         ).rewrite_module(op)

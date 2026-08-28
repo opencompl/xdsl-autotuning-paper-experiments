@@ -1,4 +1,4 @@
-// RUN: not xdsl-opt %s -p xsmm-matmul-m-to-k 2>&1 | filecheck %s
+// RUN: not xdsl-opt %s -p xsmm-matmul-m-to-reg 2>&1 | filecheck %s
 
 x86_func.func @missing_mask(
   %a: !x86.reg64<rdi>,
@@ -11,4 +11,4 @@ x86_func.func @missing_mask(
   x86_func.ret
 }
 
-// CHECK: Exception: xsmm-matmul-m-to-k requires a mask for a partial M vector; run tile_m first
+// CHECK: Exception: xsmm-matmul-m-to-reg requires a mask for a partial M vector; run tile_m first
