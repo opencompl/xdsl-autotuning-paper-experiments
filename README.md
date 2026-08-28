@@ -24,20 +24,49 @@ There are two kinds of actions to perform in this repository: running tests (to 
 check that the code in this repo is correct), and compute the data and charts for the
 paper.
 
-### Setting up a new target
+### Machines, models, and ISAs
 
-The scripts in this repository refer to the machine that the code is run on as the "target".
+The configuration keeps four related concepts separate:
+
+- **Machine:** a named execution environment, such as `tower`, `pinocchio`, or
+  `rapper`. This selects measurement settings and names output directories.
+- **Family:** the processor family in that machine, such as `zen5` or
+  `cascadelake`.
+- **ISA:** the instructions that generated code may use, such as `avx512` or
+  `neon`.
+- **Compiler configuration:** the compiler's target triple, `-march`, and
+  `-mtune` values. These use compiler-specific spellings such as `znver5`.
+
+The libxsmm generator deliberately retains libxsmm's own `arch` terminology and
+codes such as `skx` and `clx`. A non-Intel machine may therefore have
+`isa: avx512` and `libxsmm_arch: skx`: the latter is passed to libxsmm and does
+not claim that the physical CPU is Skylake. The CompXSMM reimplementation uses
+a separate `strategy` option, currently `libxsmm-skx`, to select the scheduling
+and nano-kernel policy reproduced from libxsmm. This makes room for future
+non-libxsmm strategies without confusing a policy with the machine's ISA.
+Likewise, the llvm-mca analyzer exposes `arch` and `cpu`, matching llvm-mca's
+`-march` and `-mcpu` options; those names are local to that tool boundary.
+
+### Setting up a new machine
 
 When running on a new machine, please create a `.env` file with the format:
 
 ```sh
-TARGET=your_target_name_here
+MACHINE=your_machine_name_here
 # Optional. Omit to use Snakemake's default ILP scheduler.
 # On Apple Silicon, set greedy — PuLP's bundled CBC is x86_64-only.
 # SNAKEMAKE_SCHEDULER=greedy
 ```
 
-Then add a specification of the machine to the `targets` field in [[default.yaml]], and populate the `TESTSET` and `DATASET_VARIANTS` in the Snakefile.
+Then add the machine to
+[`src/autotuner/machines.py`](src/autotuner/machines.py). Specify its family,
+ISA, compiler settings, and—when libxsmm variants are supported—the
+corresponding `libxsmm_arch`. Finally, populate `TESTSET` and
+`DATASET_VARIANTS` in the Snakefile.
+
+`neon` is retained as the historical machine identifier for the Apple M2 Max;
+its `isa` field, rather than its name, is the authoritative ISA metadata. `ci`
+is a synthetic generic x86-64 machine profile.
 
 ### Running Tests
 
@@ -61,7 +90,11 @@ will not be executed.
 
 ### Computing Data
 
-Generate the data for the host platform by running `make dataset`. JSONL outputs are written under `data/<TARGET>/` (with `TARGET` from `.env` or `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example `f32.ttile.jsonl`). Build artifacts go under `build/<TARGET>/`.
+Generate data for the selected machine by running `make dataset`. JSONL outputs
+are written under `data/<MACHINE>/` (with `MACHINE` from `.env` or the `machine`
+setting in `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example
+`f32.ttile.jsonl`). Build artifacts go under `build/<MACHINE>/`. Each new result
+records its machine, family, ISA, compiler `march`, and libxsmm architecture.
 
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
@@ -93,7 +126,13 @@ tower dataset and `make dataset TARGET=tower` collects its measurements.
 
 ### Plotting
 
-Plot data using `make plots`, this command will fail if all the data necessary to generate the plots is not present, instead of running the data generation. PNGs are written under `plots/<machine>/` for each platform that has JSONL inputs in the repo (for example `neon`, `tower`, `pinocchio`); plotting does not depend on your current `TARGET`.
+Plot data using `make plots`; this command fails when required input data is
+missing rather than starting measurements. PNGs are written under
+`plots/<machine>/` for each machine with JSONL inputs (for example `neon`,
+`tower`, or `pinocchio`). Plotting does not depend on the currently selected
+`MACHINE`. Plot titles resolve each machine's `display_name` from
+`src/autotuner/machines.py`; result files must use the current `machine` field
+rather than the legacy `target` field.
 
 ## Building The Docker Container
 
@@ -118,7 +157,7 @@ When you change the image or dependencies, rebuild the image (`make docker-build
 
 ### Disabling Frequency Switching
 
-It's important for the cores to have predictable frequencies for a given target.
+It's important for the cores to have predictable frequencies for a given machine.
 
 On the tower (ASUS BIOS, AMD Ryzen 9 9950X):
 
@@ -219,11 +258,14 @@ cat /proc/cpuinfo | grep "cpu MHz"
 
 ### Integrate within the measurement harness
 
-Every new hardware target requires an entry in the default.yaml file.
+Every new machine requires an entry in `src/autotuner/machines.py`.
 
-The `triple` and `arch` keys must be filled with the CPU manufacturer’s information.
+Fill in `family`, `isa`, `display_name`, `target_triple`, `march`, and `mtune`.
+The compiler fields must be accepted by the selected compiler. Set
+`libxsmm_arch` only when the machine can run the corresponding
+libxsmm-generated instructions.
 
-For a Linux computer, we offer the possibility to access hardware counters (which are more precise than the monotonic clock) through the PAPI library. It is necessary to first install PAPI (on Ubuntu: `sudo apt install papi-tools libpapi-dev`), then configure the system to grant access to the counters with `sudo sysctl -w kernel.perf_event_paranoid=-1`. Finally, verify that the `PAPI_TOT_CYC` event is available using the command `papi_avail`. If it is, add 'papi' to the 'lib' key in default.yaml. If this value is too restrictive on the host (for example `4`), PAPI-based timers can fail with errors like `Event does not exist`, including when running inside Docker.
+For a Linux computer, we offer the possibility to access hardware counters (which are more precise than the monotonic clock) through the PAPI library. It is necessary to first install PAPI (on Ubuntu: `sudo apt install papi-tools libpapi-dev`), then configure the system to grant access to the counters with `sudo sysctl -w kernel.perf_event_paranoid=-1`. Finally, verify that the `PAPI_TOT_CYC` event is available using the command `papi_avail`. If it is, add `papi` to the machine's `libs` in `src/autotuner/machines.py`. If this value is too restrictive on the host (for example `4`), PAPI-based timers can fail with errors like `Event does not exist`, including when running inside Docker.
 
 To obtain the `freq` and `peak_f32` keys, use the information generated by this script: <https://gitlab.inria.fr/CORSE/perf-fma>
 

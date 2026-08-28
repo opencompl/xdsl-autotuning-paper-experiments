@@ -6,24 +6,25 @@ import matplotlib.pyplot as plt
 
 from pathlib import Path
 
-from autotuner.plot_ttile import TARGET_NAME, plot_axis_throughput
+from autotuner.plot_ttile import (
+    plot_axis_throughput,
+    result_machine_label,
+)
 
 
 def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> None:
-    """One 4×4 figure per target: all variants on each subplot, M = 1..16 vs N."""
+    """One 4×4 figure per machine: all variants on each subplot, M = 1..16 vs N."""
     if df.empty:
         return
 
-    targets = set(df["target"])
     dtypes = set(df["dtype"])
-    assert len(targets) == len(dtypes) == 1
-    (target,) = targets
+    assert len(dtypes) == 1
     (dtype,) = dtypes
-    target_pretty = TARGET_NAME.get(target, target)
+    _, machine_label = result_machine_label(df)
 
     fig, axes = plt.subplots(4, 4, figsize=(14, 14), sharex=True, sharey=True)
     fig.suptitle(
-        f"{dtype}, {target_pretty} — K = 64, 1 ≤ N ≤ 16 (all variants)",
+        f"{dtype}, {machine_label} — K = 64, 1 ≤ N ≤ 16 (all variants)",
         fontsize=14,
     )
 
