@@ -15,7 +15,7 @@ from xdsl.utils.exceptions import PassFailedException
 from autotuner.dialects.xsmm import MatmulMOp, MatmulNOp
 from autotuner.nano_kernel import GemmDescriptor, NanoKernel, TargetInfo
 from autotuner.schedules import matmul_n_to_m, split_n, tile_m, tile_n
-from autotuner.skx_nano_kernel import SkxNanoKernel, SkxTargetInfo
+from autotuner.strategy import get_xsmm_strategy
 from autotuner.tiling import TilingStrategy, compute_tiling_strategy
 
 
@@ -118,15 +118,20 @@ class XsmmTileNMPass(ModulePass):
 
     name = "xsmm-tile-n-m"
 
-    arch: str = "skx"
+    strategy: str = "libxsmm-skx"
     disable_regalloc: bool = False
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
-        target = SkxTargetInfo()
-        if self.arch != target.arch:
-            raise PassFailedException("xsmm-tile-n-m currently supports SKX only")
+        try:
+            strategy = get_xsmm_strategy(self.strategy)
+        except ValueError as error:
+            raise PassFailedException(str(error)) from error
 
         PatternRewriteWalker(
-            TileMatmulNMPattern(target, SkxNanoKernel(), self.disable_regalloc),
+            TileMatmulNMPattern(
+                strategy.isa_info,
+                strategy.nano_kernel,
+                self.disable_regalloc,
+            ),
             apply_recursively=False,
         ).rewrite_module(op)

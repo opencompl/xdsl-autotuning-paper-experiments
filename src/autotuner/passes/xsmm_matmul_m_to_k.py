@@ -12,8 +12,8 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulMOp
-from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
 from autotuner.schedules import matmul_m_to_k
+from autotuner.strategy import get_xsmm_strategy
 
 
 @dataclass
@@ -43,19 +43,13 @@ class XsmmMatmulMToKPass(ModulePass):
 
     name = "xsmm-matmul-m-to-k"
 
-    arch: str = "skx"
+    strategy: str = "libxsmm-skx"
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
         try:
-            arch = ARCH_BY_CODE[self.arch]
-        except KeyError as error:
-            raise PassFailedException(
-                f"unknown architecture code '{self.arch}'"
-            ) from error
-        if not (Arch.LIBXSMM_X86_AVX512_SKX <= arch <= Arch.LIBXSMM_X86_ALLFEAT):
-            raise PassFailedException(
-                "xsmm-matmul-m-to-k currently supports AVX-512 architectures only"
-            )
+            get_xsmm_strategy(self.strategy)
+        except ValueError as error:
+            raise PassFailedException(str(error)) from error
 
         PatternRewriteWalker(
             ConvertMatmulMToKPattern(),

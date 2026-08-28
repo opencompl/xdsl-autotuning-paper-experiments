@@ -1,4 +1,4 @@
-// RUN: xdsl-opt %s -p 'convert-xsmm-to-x86{nano-kernel=libxsmm-skx-nofsdbcst}' | filecheck %s
+// RUN: xdsl-opt %s -p 'convert-xsmm-to-x86{strategy=libxsmm-skx-nofsdbcst}' | filecheck %s
 
 // CHECK:       builtin.module {
 // CHECK-NEXT:    x86_func.func @matmul_k_nofsdbcst(%a: !x86.reg64<rdi>, %b: !x86.reg64<rsi>, %c: !x86.reg64<rdx>, %rbp: !x86.reg64<rbp>, %rsp: !x86.reg64<rsp>, %mask: !x86.avx512maskreg<k1>, %acc0: !x86.avx512reg<zmm30>, %acc1: !x86.avx512reg<zmm31>) {
