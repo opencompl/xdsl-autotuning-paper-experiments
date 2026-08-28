@@ -398,11 +398,11 @@ rule aocl_rowmaj_s:
     output: machine_file(kernel='matmul_rowmaj',variant='aocl',ext='S')
     params:
         target_triple=target_triple,
-        target_arch=target_arch,
+        compiler_march=compiler_march,
         cc=config["cc"],
         dtype_flag=lambda w: "-DAOCL_DTYPE_IS_FLOAT=1" if w.dtype=="f32" else "-DAOCL_DTYPE_IS_DOUBLE=1",
     shell:
-        "{params.cc} -O3 kernels/matmul_rowmaj/aocl.c {AOCL_CFLAGS} -DAOCL_M={wildcards.m} -DAOCL_N={wildcards.n} -DAOCL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.target_arch} -o {output}"
+        "{params.cc} -O3 kernels/matmul_rowmaj/aocl.c {AOCL_CFLAGS} -DAOCL_M={wildcards.m} -DAOCL_N={wildcards.n} -DAOCL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
 rule llvm_intrinsics_rowmaj_s:
     output: machine_file(kernel='matmul_rowmaj',variant='llvm_intrinsics',ext='S')
@@ -466,7 +466,7 @@ rule executable:
         aocl_libs=lambda wc: AOCL_LIBS if wc.variant == "aocl" else "",
         linker_flag=machine_linker_flag,
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.target_arch} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.aocl_libs} {params.linker_flag}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.target_freq} {params.use_papi} -target {params.target_triple} -march={params.compiler_march} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.aocl_libs} {params.linker_flag}"
 
 rule validation:
     input:  machine_file(ext='test.o')
