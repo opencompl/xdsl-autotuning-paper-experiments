@@ -27,12 +27,6 @@ from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 from autotuner.nano_kernel import GemmDescriptor, TargetInfo, TileSizes
 
 
-def supports_skx(descriptor: GemmDescriptor, target: TargetInfo) -> bool:
-    return target.arch == "skx" and isinstance(
-        descriptor.datatype, builtin.Float32Type | builtin.Float64Type
-    )
-
-
 def tile_sizes_from_op(op: MatmulKOp) -> TileSizes:
     return TileSizes(
         op.m_blocking.value.data,

@@ -17,7 +17,6 @@ from autotuner.nano_kernel import (
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel_utils import (
     descriptor_from_op,
-    supports_skx,
     tile_sizes_from_op,
 )
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
@@ -51,7 +50,9 @@ class SkxNanoKernel(NanoKernel):
     _nofsdbcst = SkxNofsdbcstNanoKernel()
 
     def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
-        return supports_skx(descriptor, target)
+        return target.arch == "skx" and isinstance(
+            descriptor.datatype, builtin.Float32Type | builtin.Float64Type
+        )
 
     def _select_nano_kernel(
         self,

@@ -1,3 +1,4 @@
+from xdsl.dialects import builtin
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.exceptions import PassFailedException
 
@@ -15,7 +16,6 @@ from autotuner.nano_kernel import (
 from autotuner.skx_nano_kernel_utils import (
     create_matmul_k_context,
     descriptor_from_op,
-    supports_skx,
     tile_sizes_from_op,
 )
 
@@ -24,7 +24,9 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
     """The SKX multiple-M-vector register-broadcast nano-kernel."""
 
     def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
-        return supports_skx(descriptor, target)
+        return target.arch == "skx" and isinstance(
+            descriptor.datatype, builtin.Float32Type | builtin.Float64Type
+        )
 
     def _supports_tile_shape(
         self,
