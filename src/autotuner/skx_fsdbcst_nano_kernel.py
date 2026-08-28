@@ -23,6 +23,20 @@ from autotuner.skx_nano_kernel_utils import (
 class SkxFsdbcstNanoKernel(NanoKernel):
     """The SKX one-M-vector memory-broadcast nano-kernel."""
 
+    @property
+    def name(self) -> str:
+        return "libxsmm-skx-fsdbcst"
+
+    @staticmethod
+    def _accumulator_sets(tile: TileSizes) -> int:
+        if tile.n >= 12:
+            accumulator_sets = 1
+        elif tile.n >= 6:
+            accumulator_sets = 2
+        else:
+            accumulator_sets = 4
+        return min(accumulator_sets, tile.k)
+
     def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
         return target.arch == "skx" and isinstance(
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type

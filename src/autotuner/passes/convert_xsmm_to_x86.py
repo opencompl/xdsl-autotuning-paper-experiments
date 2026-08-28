@@ -13,7 +13,7 @@ from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulKOp
 from autotuner.nano_kernel import NanoKernel, TargetInfo
-from autotuner.skx_nano_kernel import SkxNanoKernel, SkxTargetInfo
+from autotuner.skx_nano_kernel import SkxTargetInfo, get_skx_nano_kernel
 
 
 @dataclass
@@ -34,11 +34,16 @@ class ConvertMatmulKPattern(RewritePattern):
 
 @dataclass(frozen=True)
 class ConvertXsmmToX86Pass(ModulePass):
-    """Lower XSMM scheduling operations to x86 instructions."""
+    """Lower XSMM scheduling operations to x86 instructions.
+
+    ``nano_kernel`` selects either an individual implementation or the default
+    ``libxsmm`` dispatcher, which preserves the existing selection heuristic.
+    """
 
     name = "convert-xsmm-to-x86"
 
     arch: str = "skx"
+    nano_kernel: str = "libxsmm-skx"
     disable_regalloc: bool = False
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
@@ -46,7 +51,12 @@ class ConvertXsmmToX86Pass(ModulePass):
         if self.arch != target.arch:
             raise PassFailedException("convert-xsmm-to-x86 currently supports SKX only")
 
+        try:
+            nano_kernel = get_skx_nano_kernel(self.nano_kernel)
+        except ValueError as error:
+            raise PassFailedException(str(error)) from error
+
         PatternRewriteWalker(
-            ConvertMatmulKPattern(target, SkxNanoKernel(), self.disable_regalloc),
+            ConvertMatmulKPattern(target, nano_kernel, self.disable_regalloc),
             apply_recursively=False,
         ).rewrite_module(op)
