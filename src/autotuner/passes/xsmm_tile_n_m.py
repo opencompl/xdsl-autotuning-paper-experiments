@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 
 from xdsl.context import Context
-from xdsl.dialects import builtin
-from xdsl.dialects import x86
+from xdsl.dialects import builtin, x86
 from xdsl.dialects.x86 import registers
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
@@ -14,34 +13,32 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulMOp, MatmulNOp
-from autotuner.libxsmm_gemm.generator_common import (
-    LIBXSMM_X86_AVX512_MASK_REG,
-    Blocking,
-    libxsmm_compute_equalized_blocking,
-)
-from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
-from autotuner.passes.xsmm_n_blocking import get_max_n_blocking_for_matmul_n
+from autotuner.nano_kernel import GemmDescriptor, NanoKernel, TargetInfo
 from autotuner.schedules import matmul_n_to_m, split_n, tile_m, tile_n
+from autotuner.skx_nano_kernel import SkxNanoKernel, SkxTargetInfo
+from autotuner.tiling import TilingStrategy, compute_tiling_strategy
 
 
 def tile_n_m(
     rewriter: PatternRewriter,
     op: MatmulNOp,
-    blocking: Blocking,
+    strategy: TilingStrategy,
     *,
-    max_m_blocking: int,
     nloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     mloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     mask_tmp_reg: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
+    mask_reg: x86.registers.AVX512MaskRegisterType = x86.registers.UNALLOCATED_AVX512_MASK,
 ) -> list[MatmulMOp]:
-    if blocking.range_2:
-        first, second = split_n(rewriter, op, blocking.range_1)
+    if len(strategy.n_ranges) == 2:
+        first_range, second_range = strategy.n_ranges
+        first, second = split_n(rewriter, op, first_range.extent)
         n_ranges = (
-            (first, blocking.block_1),
-            (second, blocking.block_2),
+            (first, first_range.tile_size),
+            (second, second_range.tile_size),
         )
     else:
-        n_ranges = ((op, blocking.block_1),)
+        assert len(strategy.n_ranges) == 1
+        n_ranges = ((op, strategy.n_ranges[0].tile_size),)
 
     res: list[MatmulMOp] = []
 
@@ -54,10 +51,10 @@ def tile_n_m(
         tiled, remainder = tile_m(
             rewriter,
             matmul_m,
-            m_blocking=min(matmul_m.m_blocking.value.data, max_m_blocking),
+            m_blocking=strategy.m_tile_size,
             mloop_register=mloop_register,
             mask_tmp_reg=mask_tmp_reg,
-            mask_reg=LIBXSMM_X86_AVX512_MASK_REG,
+            mask_reg=mask_reg,
         )
 
         res.append(tiled)
@@ -71,16 +68,29 @@ def tile_n_m(
 class TileMatmulNMPattern(RewritePattern):
     """Choose and materialize the current LIBXSMM N and M tiling."""
 
-    arch: Arch
+    target: TargetInfo
+    nano_kernel: NanoKernel
     disable_regalloc: bool
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: MatmulNOp, rewriter: PatternRewriter, /) -> None:
-        max_n_blocking = get_max_n_blocking_for_matmul_n(op, self.arch)
-        blocking = libxsmm_compute_equalized_blocking(
-            op.n_blocking.value.data, max_n_blocking
+        descriptor = GemmDescriptor(
+            m=op.m.value.data,
+            n=op.n_blocking.value.data,
+            k=op.k.value.data,
+            lda=op.lda.value.data,
+            ldb=op.ldb.value.data,
+            ldc=op.ldc.value.data,
+            datatype=op.datatype,
+            aligned_a=bool(op.aligned_a),
+            aligned_c=bool(op.aligned_c),
         )
-        assert blocking.ret == 0, "Error computing blocking"
+        try:
+            strategy = compute_tiling_strategy(
+                descriptor, self.target, self.nano_kernel
+            )
+        except ValueError as error:
+            raise PassFailedException(str(error)) from error
 
         if self.disable_regalloc:
             nloop_register = registers.UNALLOCATED_REG64
@@ -91,23 +101,14 @@ class TileMatmulNMPattern(RewritePattern):
             mloop_register = registers.R10
             mask_tmp_reg = registers.R15
 
-        if isinstance(op.datatype, builtin.Float32Type):
-            max_m_blocking = 64
-        elif isinstance(op.datatype, builtin.Float64Type):
-            max_m_blocking = 32
-        else:
-            raise PassFailedException(
-                f"unsupported xsmm.matmul_m datatype {op.datatype}"
-            )
-
         tile_n_m(
             rewriter,
             op,
-            blocking,
-            max_m_blocking=max_m_blocking,
+            strategy,
             nloop_register=nloop_register,
             mloop_register=mloop_register,
             mask_tmp_reg=mask_tmp_reg,
+            mask_reg=registers.K1,
         )
 
 
@@ -121,18 +122,11 @@ class XsmmTileNMPass(ModulePass):
     disable_regalloc: bool = False
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
-        try:
-            arch = ARCH_BY_CODE[self.arch]
-        except KeyError as error:
-            raise PassFailedException(
-                f"unknown architecture code '{self.arch}'"
-            ) from error
-        if not (Arch.LIBXSMM_X86_AVX512_SKX <= arch <= Arch.LIBXSMM_X86_ALLFEAT):
-            raise PassFailedException(
-                "xsmm-tile-n-m currently supports AVX-512 architectures only"
-            )
+        target = SkxTargetInfo()
+        if self.arch != target.arch:
+            raise PassFailedException("xsmm-tile-n-m currently supports SKX only")
 
         PatternRewriteWalker(
-            TileMatmulNMPattern(arch, self.disable_regalloc),
+            TileMatmulNMPattern(target, SkxNanoKernel(), self.disable_regalloc),
             apply_recursively=False,
         ).rewrite_module(op)
