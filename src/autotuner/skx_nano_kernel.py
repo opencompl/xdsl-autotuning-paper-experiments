@@ -2,33 +2,10 @@ from dataclasses import dataclass
 from typing import Literal
 
 from xdsl.dialects import builtin
-from xdsl.dialects.x86.registers import (
-    AVX512MaskRegisterType,
-    AVX512RegisterType,
-    GeneralRegisterType,
-)
-from xdsl.ir import SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.compxsmm_gemm.generator_gemm_avx512_microkernel import (
-    compxsmm_generator_gemm_avx512_kloop_kernel,
-)
 from autotuner.dialects.xsmm import MatmulKOp
-from autotuner.libxsmm_gemm.generator_common import GPRegMapping, MicroKernelConfig
-from autotuner.libxsmm_gemm.generator_gemm_common import (
-    libxsmm_generator_gemm_init_micro_kernel_config,
-)
-from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE
-
-from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode, KLoopVals
-from autotuner.libxsmm_gemm.libxsmm_main import (
-    DescDatatype,
-    GEMMDescriptor as LibxsmmGemmDescriptor,
-    GEMMFlag,
-    GEMMPrefetchType,
-)
-from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 from autotuner.nano_kernel import (
     FloatingPointType,
     GemmDescriptor,
@@ -37,6 +14,12 @@ from autotuner.nano_kernel import (
     TargetInfo,
     TileSizes,
 )
+from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
+from autotuner.skx_nano_kernel_utils import (
+    descriptor_from_op,
+    tile_sizes_from_op,
+)
+from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 
 
 @dataclass(frozen=True)
@@ -61,12 +44,25 @@ class SkxTargetInfo(TargetInfo):
 
 
 class SkxNanoKernel(NanoKernel):
-    """The current SKX fsdbcst/nofsdbcst nano-kernel family."""
+    """The LIBXSMM-compatible SKX nano-kernel selection heuristic."""
+
+    _fsdbcst = SkxFsdbcstNanoKernel()
+    _nofsdbcst = SkxNofsdbcstNanoKernel()
 
     def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
-        return isinstance(target, SkxTargetInfo) and isinstance(
+        return target.arch == "skx" and isinstance(
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type
         )
+
+    def _select_nano_kernel(
+        self,
+        descriptor: GemmDescriptor,
+        tile: TileSizes,
+        target: TargetInfo,
+    ) -> NanoKernel:
+        vector_length = target.vector_length(descriptor.datatype)
+        m_vectors = (tile.m + vector_length - 1) // vector_length
+        return self._fsdbcst if m_vectors == 1 else self._nofsdbcst
 
     def supports_tile(
         self,
@@ -80,7 +76,11 @@ class SkxNanoKernel(NanoKernel):
             return False
         vector_length = target.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
-        return m_vectors <= 4 and tile.n <= 28
+        if m_vectors > 4 or tile.n > 28:
+            return False
+        return self._select_nano_kernel(descriptor, tile, target).supports_tile(
+            descriptor, tile, target
+        )
 
     def register_usage(
         self,
@@ -90,25 +90,10 @@ class SkxNanoKernel(NanoKernel):
     ) -> RegisterCount:
         if not self.supports_tile(descriptor, tile, target):
             raise ValueError("unsupported SKX nano-kernel tile")
-
-        vector_length = target.vector_length(descriptor.datatype)
-        m_vectors = (tile.m + vector_length - 1) // vector_length
-        if m_vectors == 1:
-            if tile.n >= 12:
-                accumulator_sets = 1
-            elif tile.n >= 6:
-                accumulator_sets = 2
-            else:
-                accumulator_sets = 4
-            accumulator_sets = min(accumulator_sets, tile.k)
-            vector_registers = tile.n * accumulator_sets + min(tile.k, 2)
-        else:
-            vector_registers = m_vectors * tile.n + m_vectors + 1
-
-        return RegisterCount(
-            general=5,
-            vector=vector_registers,
-            mask=int(tile.m % vector_length != 0),
+        return self._select_nano_kernel(descriptor, tile, target).register_usage(
+            descriptor,
+            tile,
+            target,
         )
 
     def rewrite(
@@ -119,65 +104,13 @@ class SkxNanoKernel(NanoKernel):
         *,
         disable_regalloc: bool,
     ) -> None:
-        if not isinstance(target, SkxTargetInfo):
-            raise ValueError("SkxNanoKernel requires SkxTargetInfo")
-
-        if isinstance(op.datatype, builtin.Float32Type):
-            datatype = Datatype.F32
-        elif isinstance(op.datatype, builtin.Float64Type):
-            datatype = Datatype.F64
-        else:
-            raise PassFailedException(
-                f"unsupported xsmm.matmul_k datatype {op.datatype}"
-            )
-
-        m_blocking = op.m_blocking.value.data
-        n_blocking = op.n_blocking.value.data
-        k_blocking = op.k_blocking.value.data
-        flags = GEMMFlag.ALIGN_A if op.aligned_a.value.data else GEMMFlag.NONE
-        desc = LibxsmmGemmDescriptor(
-            m=m_blocking,
-            n=n_blocking,
-            k=k_blocking,
-            lda=op.lda.value.data,
-            ldb=op.ldb.value.data,
-            ldc=m_blocking,
-            datatype=DescDatatype(datatype, datatype, datatype, datatype),
-            flags=flags,
-            prefetch=GEMMPrefetchType.NONE,
-        )
-        arch = ARCH_BY_CODE[target.arch]
-        micro_kernel_config = libxsmm_generator_gemm_init_micro_kernel_config(
-            MicroKernelConfig(),
-            arch,
-            desc,
-            use_masking_a_c=op.mask is not None,
-        )
-
-        vals = compxsmm_generator_gemm_avx512_kloop_kernel(
-            GeneratedCode(rewriter, arch),
-            GPRegMapping(),
-            micro_kernel_config,
-            desc,
-            m_blocking,
-            n_blocking,
-            k_blocking,
-            KLoopVals(
-                SSAValue.get(op.a, type=GeneralRegisterType),
-                SSAValue.get(op.b, type=GeneralRegisterType),
-                SSAValue.get(op.c, type=GeneralRegisterType),
-                SSAValue.get(op.rbp, type=GeneralRegisterType),
-                SSAValue.get(op.rsp, type=GeneralRegisterType),
-                (
-                    None
-                    if op.mask is None
-                    else SSAValue.get(op.mask, type=AVX512MaskRegisterType)
-                ),
-                tuple(
-                    SSAValue.get(acc, type=AVX512RegisterType)
-                    for acc in op.accumulators
-                ),
-            ),
+        descriptor = descriptor_from_op(op)
+        tile = tile_sizes_from_op(op)
+        if not self.supports_tile(descriptor, tile, target):
+            raise PassFailedException("unsupported SKX nano-kernel tile")
+        self._select_nano_kernel(descriptor, tile, target).rewrite(
+            rewriter,
+            op,
+            target,
             disable_regalloc=disable_regalloc,
         )
-        rewriter.replace(op, [], vals.vals)
