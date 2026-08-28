@@ -12,7 +12,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.xsmm import MatmulMOp, MatmulNOp
+from autotuner.dialects.xsmm import MatmulIterator, MatmulOp
 from autotuner.nano_kernel import GemmDescriptor, NanoKernel, ISAInfo
 from autotuner.schedules import matmul_n_to_m, split_n, tile_m, tile_n
 from autotuner.strategy import get_xsmm_strategy
@@ -21,14 +21,14 @@ from autotuner.tiling import TilingStrategy, compute_tiling_strategy
 
 def tile_n_m(
     rewriter: PatternRewriter,
-    op: MatmulNOp,
+    op: MatmulOp,
     strategy: TilingStrategy,
     *,
     nloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     mloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     mask_tmp_reg: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     mask_reg: x86.registers.AVX512MaskRegisterType = x86.registers.UNALLOCATED_AVX512_MASK,
-) -> list[MatmulMOp]:
+) -> list[MatmulOp]:
     if len(strategy.n_ranges) == 2:
         first_range, second_range = strategy.n_ranges
         first, second = split_n(rewriter, op, first_range.extent)
@@ -40,7 +40,7 @@ def tile_n_m(
         assert len(strategy.n_ranges) == 1
         n_ranges = ((op, strategy.n_ranges[0].tile_size),)
 
-    res: list[MatmulMOp] = []
+    res: list[MatmulOp] = []
 
     for n_range, n_tile in n_ranges:
         tiled_matmul_n = tile_n(
@@ -73,10 +73,12 @@ class TileMatmulNMPattern(RewritePattern):
     disable_regalloc: bool
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: MatmulNOp, rewriter: PatternRewriter, /) -> None:
+    def match_and_rewrite(self, op: MatmulOp, rewriter: PatternRewriter, /) -> None:
+        if op.iterator.data != MatmulIterator.N:
+            return
         descriptor = GemmDescriptor(
             m=op.m.value.data,
-            n=op.n_blocking.value.data,
+            n=op.n.value.data,
             k=op.k.value.data,
             lda=op.lda.value.data,
             ldb=op.ldb.value.data,

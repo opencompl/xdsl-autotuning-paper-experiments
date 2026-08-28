@@ -21,7 +21,7 @@ from xdsl.dialects.x86_func import FuncOp
 from xdsl.ir import SSAValue
 from xdsl.rewriter import InsertPoint
 
-from autotuner.dialects.xsmm import MatmulNOp
+from autotuner.dialects.xsmm import MatmulIterator, MatmulOp
 from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
     MicroKernelConfig,
@@ -404,7 +404,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     if desc.prefetch == GEMMPrefetchType.AL2:
         raise NotImplementedError
     matmul_n = generated_code.insert(
-        MatmulNOp(
+        MatmulOp(
             a_val,
             b_val,
             c_val,
@@ -412,7 +412,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             rsp_val,
             m=desc.m,
             n_start=0,
-            n_blocking=desc.n,
+            n=desc.n,
             k=desc.k,
             lda=desc.lda,
             ldb=desc.ldb,
@@ -420,6 +420,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             datatype=datatype.builtin_type,
             aligned_a=GEMMFlag.ALIGN_A in desc.flags,
             aligned_c=GEMMFlag.ALIGN_C in desc.flags,
+            iterator=MatmulIterator.N,
         )
     )
     a_val = matmul_n.a_out
