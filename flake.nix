@@ -17,6 +17,7 @@
           clangUnwrapped = pkgs.writeShellScriptBin "clang-unwrapped" ''
             exec ${pkgs.llvmPackages_22.clang-unwrapped}/bin/clang "$@"
           '';
+          aoclBlas = pkgs.callPackage ./nix/aocl-blas.nix { };
           llvmToolchain = with pkgs; buildEnv {
             name = "llvm-toolchain";
             ignoreCollisions = true;
@@ -33,12 +34,20 @@
               mkl
               libxsmm
               papi
-            ] else [
-            ]);
+            ] ++ lib.optionals stdenv.hostPlatform.isx86_64 [
+              aoclBlas
+            ] else [ ]);
           };
         in
           {
-            packages.default = llvmToolchain;
+            packages = {
+              default = llvmToolchain;
+            } // pkgs.lib.optionalAttrs (
+              pkgs.stdenv.hostPlatform.isLinux
+              && pkgs.stdenv.hostPlatform.isx86_64
+            ) {
+              aocl-blas = aoclBlas;
+            };
 
             devShells.default = with pkgs; mkShellNoCC {
               LD_LIBRARY_PATH = lib.makeLibraryPath ([ stdenv.cc.cc.lib zlib llvmToolchain ]

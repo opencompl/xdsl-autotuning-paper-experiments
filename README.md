@@ -65,6 +65,32 @@ Generate the data for the host platform by running `make dataset`. JSONL outputs
 
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
+### AOCL-BLAS baseline
+
+On x86-64 Linux, the Nix toolchain builds the single-threaded CBLAS interface from
+AMD AOCL-BLAS 5.3.2. It uses the `amdzen` configuration so the same package contains
+the Zen 4 and Zen 5 AVX-512 kernels and selects the appropriate implementation at
+runtime. The Docker image receives the same package through the copied Nix closure.
+
+The `aocl` benchmark variant is enabled for the `tower`, `rapper`, and `pinocchio`
+targets. Before collecting data on a new machine, verify the package and the selected
+runtime code path:
+
+```sh
+pkg-config --modversion blis
+BLIS_ARCH_DEBUG=1 uv run snakemake --cores 1 --forceall \
+  build/tower/matmul_rowmaj/3x16x5/aocl.f64.test.log \
+  --config target=tower
+```
+
+The debug run should report an architecture-specific path rather than `generic`.
+Do not set `BLIS_ARCH_TYPE` for measured runs: it overrides AOCL's safety checks and
+can force unsupported instructions. Measurements set both `OMP_NUM_THREADS=1` and
+`BLIS_NUM_THREADS=1`; the packaged library itself is also built without threading.
+
+Once this smoke test passes, `make dataset_validate TARGET=tower` validates the full
+tower dataset and `make dataset TARGET=tower` collects its measurements.
+
 ### Plotting
 
 Plot data using `make plots`, this command will fail if all the data necessary to generate the plots is not present, instead of running the data generation. PNGs are written under `plots/<machine>/` for each platform that has JSONL inputs in the repo (for example `neon`, `tower`, `pinocchio`); plotting does not depend on your current `TARGET`.
