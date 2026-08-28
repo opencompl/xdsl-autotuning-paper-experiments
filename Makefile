@@ -146,6 +146,7 @@ clean-ours:
 	find build -name 'compxsmm_kdot.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'asm_kdot.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'asm_outer.*' -exec rm -f {} + 2>/dev/null || true
+	find build -name 'asm_hybrid.*' -exec rm -f {} + 2>/dev/null || true
 	rm -f data/$(MACHINE)/*
 
 .PHONY: clean

@@ -159,7 +159,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot|asm_kdot|asm_outer"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot|asm_kdot|asm_outer|asm_hybrid"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -447,6 +447,21 @@ rule asm_outer_s:
             --output {output}
         """
 
+rule asm_hybrid_s:
+    input:
+        fallback=machine_file(
+            kernel='matmul_rowmaj', variant='compxsmm_kdot', dtype='f64', ext='S'
+        ),
+        generator="kernels/matmul_rowmaj/generate_avx512_hybrid_asm.py",
+        kdot="kernels/matmul_rowmaj/generate_avx512_kdot_asm.py",
+        outer="kernels/matmul_rowmaj/generate_avx512_outer_asm.py",
+    output: machine_file(kernel='matmul_rowmaj', variant='asm_hybrid', dtype='f64', ext='S')
+    shell:
+        """
+        python3 {input.generator} --M {wildcards.m} --N {wildcards.n} \
+            --K {wildcards.k} --fallback {input.fallback} --output {output}
+        """
+
 rule mkl_rowmaj_s:
     output: machine_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -596,7 +611,7 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "compxsmm_kdot"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "compxsmm_kdot", "asm_hybrid"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
