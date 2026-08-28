@@ -26,7 +26,7 @@ from pathlib import Path
 import xtc.graphs.xtc.op as O
 from xdsl.dialects.linalg.ops import FillOp
 from xtc.backends.mlir import Backend
-from xtc.itf.schd import Scheduler
+from xtc.itf.schd.scheduler import Scheduler
 
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMDescriptor
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
@@ -93,7 +93,7 @@ def _schedule_leaf(
     # is a masked (partial) vector, so vectorize to a fixed width and let XTC
     # mask the remainder -- exactly what LIBXSMM does with its mask register.
     # A dict pins the vector width (masked); a bare list vectorizes to the tile.
-    m_lane = (
+    m_lane: list[str] | dict[str, int | None] = (
         {"m_lane": plan.vector_length}
         if m_range.tile_size % plan.vector_length
         else ["m_lane"]
