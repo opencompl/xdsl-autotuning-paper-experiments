@@ -11,19 +11,19 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.xsmm import MatmulKOp
+from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.nano_kernel import NanoKernel, ISAInfo
 from autotuner.strategy import get_xsmm_strategy
 
 
 @dataclass
-class ConvertMatmulKPattern(RewritePattern):
+class ConvertMatmulRegPattern(RewritePattern):
     isa_info: ISAInfo
     nano_kernel: NanoKernel
     disable_regalloc: bool
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: MatmulKOp, rewriter: PatternRewriter, /) -> None:
+    def match_and_rewrite(self, op: MatmulRegOp, rewriter: PatternRewriter, /) -> None:
         self.nano_kernel.rewrite(
             rewriter,
             op,
@@ -52,7 +52,7 @@ class ConvertXsmmToX86Pass(ModulePass):
             raise PassFailedException(str(error)) from error
 
         PatternRewriteWalker(
-            ConvertMatmulKPattern(
+            ConvertMatmulRegPattern(
                 strategy.isa_info,
                 strategy.nano_kernel,
                 self.disable_regalloc,

@@ -3,7 +3,7 @@ from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.xsmm import MatmulKOp
+from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
@@ -12,10 +12,11 @@ from autotuner.nano_kernel import (
     TileSizes,
 )
 from autotuner.skx_nano_kernel_utils import (
-    MatmulKValues,
+    MatmulRegValues,
     VectorValue,
     add_vectors,
     advance_pointer,
+    apply_matmul_reg_pointer_contract,
     descriptor_from_op,
     load_vector,
     multiply_add_memory,
@@ -99,7 +100,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
     def rewrite(
         self,
         rewriter: PatternRewriter,
-        op: MatmulKOp,
+        op: MatmulRegOp,
         isa_info: ISAInfo,
         *,
         disable_regalloc: bool,
@@ -213,10 +214,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     x86.registers.AVX512RegisterType.from_index(main_index),
                 )
 
-        result = MatmulKValues(
+        result = MatmulRegValues(
             a,
             b,
-            values.c,
             values.rbp,
             values.rsp,
             values.mask,
@@ -225,4 +225,5 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                 for n in range(tile.n)
             ),
         )
+        result = apply_matmul_reg_pointer_contract(rewriter, insert_point, op, result)
         rewriter.replace(op, [], result.vals)
