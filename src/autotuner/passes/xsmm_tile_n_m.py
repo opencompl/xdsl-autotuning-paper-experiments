@@ -14,7 +14,7 @@ from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulIterator, MatmulOp
 from autotuner.nano_kernel import GemmDescriptor, NanoKernel, ISAInfo
-from autotuner.schedules import matmul_n_to_m, split_n, tile_m, tile_n
+from autotuner.schedules import set_matmul_iterator, split_n, tile_m, tile_n
 from autotuner.strategy import get_xsmm_strategy
 from autotuner.tiling import TilingStrategy, compute_tiling_strategy
 
@@ -46,7 +46,7 @@ def tile_n_m(
         tiled_matmul_n = tile_n(
             rewriter, n_range, n_tile, nloop_register=nloop_register
         )
-        matmul_m = matmul_n_to_m(rewriter, tiled_matmul_n)
+        matmul_m = set_matmul_iterator(rewriter, tiled_matmul_n, MatmulIterator.M)
 
         tiled, remainder = tile_m(
             rewriter,
