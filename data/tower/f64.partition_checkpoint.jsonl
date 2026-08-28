@@ -1,0 +1,12 @@
+{"M":25,"N":2,"K":64,"peak":32.0,"flops":6400,"time":916.741745,"variant":"libxsmm","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":25,"N":2,"K":64,"peak":32.0,"flops":6400,"time":915.348688,"variant":"compxsmm_kdot","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":25,"N":2,"K":64,"peak":32.0,"flops":6400,"time":918.251043,"variant":"asm_partition_equalized","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":25,"N":2,"K":64,"peak":32.0,"flops":6400,"time":708.922419,"variant":"asm_partition_cost","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":26,"N":2,"K":64,"peak":32.0,"flops":6656,"time":954.029594,"variant":"libxsmm","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":26,"N":2,"K":64,"peak":32.0,"flops":6656,"time":951.339144,"variant":"compxsmm_kdot","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":26,"N":2,"K":64,"peak":32.0,"flops":6656,"time":916.005108,"variant":"asm_partition_equalized","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":26,"N":2,"K":64,"peak":32.0,"flops":6656,"time":747.549486,"variant":"asm_partition_cost","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":32,"N":1,"K":64,"peak":32.0,"flops":4096,"time":1219.631180,"variant":"libxsmm","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":32,"N":1,"K":64,"peak":32.0,"flops":4096,"time":232.876129,"variant":"compxsmm_kdot","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":32,"N":1,"K":64,"peak":32.0,"flops":4096,"time":197.901306,"variant":"asm_partition_equalized","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":32,"N":1,"K":64,"peak":32.0,"flops":4096,"time":186.945534,"variant":"asm_partition_cost","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
