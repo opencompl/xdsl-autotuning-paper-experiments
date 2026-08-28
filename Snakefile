@@ -23,21 +23,24 @@ else:
 
 CC_ASM = config.get("cc_asm", config["cc"])
 
-T = config["targets"]
+from autotuner import machines
+
+T = machines.TARGETS
+
 if os.environ.get("USE_PAPI") == "1":
-    T['ci']['libs'].append('papi')
+    T['ci'].libs.append('papi')
 
 def target_triple(wildcards):
-    return T[wildcards.target]['triple']
+    return T[wildcards.target].triple
 
 def target_freq(wildcards):
-    return T[wildcards.target]['freq']
+    return T[wildcards.target].freq
 
 def target_arch(wildcards):
-    return T[wildcards.target]['arch']
+    return T[wildcards.target].arch
 
 def target_linker_flag(wildcards):
-    return T[wildcards.target]['linker_flag']
+    return T[wildcards.target].linker_flag
 
 def target_peak_flops(wildcards):
     match wildcards.dtype:
@@ -47,23 +50,23 @@ def target_peak_flops(wildcards):
             factor = 2.0
         case _:
             assert False
-    flops_per_cycle = T[wildcards.target]['peak_f32'] / factor
+    flops_per_cycle = T[wildcards.target].peak_f32 / factor
     return flops_per_cycle
 
 def target_use_papi(wildcards):
-    if 'papi' in T[wildcards.target]['libs']:
+    if 'papi' in T[wildcards.target].libs:
         return '-DUSE_PAPI'
     return ''
 
 def target_env(wildcards):
-    return ' '.join([f"{k}={v}" for k,v in T[wildcards.target]['env'].items()])
+    return ' '.join([f"{k}={v}" for k,v in T[wildcards.target].env.items()])
 
 def target_xsmm(wildcards):
     arch = target_arch(wildcards)
     return config['xsmm_map'][arch]
 
 def target_libs_opts(wildcards):
-    return " ".join(f"-l{x}" for x in T[wildcards.target]['libs'])
+    return " ".join(f"-l{x}" for x in T[wildcards.target].libs)
 
 # Path management
 
