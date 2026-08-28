@@ -11,6 +11,14 @@ dependencies = [
     "snakemake>=8.30.0",
     "tvm==0.19.0.2025010903",
     "xdsl[dev]",
+    "xtc",
+]
+
+[project.optional-dependencies]
+xtc-runtime = [
+    "xtc-llvm-tools==22.1.8.2",
+    "xtc-mlir-extra-tools==22.1.8.7",
+    "xtc-mlir-python-bindings==22.1.8.3",
 ]
 
 [project.entry-points.'xdsl.universe']
@@ -21,7 +29,12 @@ name = "corse"
 url = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple"
 explicit = true
 
+[tool.uv]
+# xtc requires `xdsl~=0.57.1`; this project tracks a much newer xdsl revision.
+override-dependencies = ["xdsl[dev]"]
+
 [tool.uv.sources]
+xtc = { git = "https://github.com/xtc-tools/xtc.git", rev = "7ae6b3945f67d0bee42272de02d316e0d7b0e6f1" }
 xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "c8bdae0996431e9d8d43a51545619f48b3850202" }
 tvm = { index = "corse" }
 
