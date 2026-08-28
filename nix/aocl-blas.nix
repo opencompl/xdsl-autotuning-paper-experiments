@@ -3,6 +3,7 @@
   stdenv,
   fetchFromGitHub,
   cmake,
+  gfortran,
   python3,
 }:
 
@@ -19,6 +20,7 @@ stdenv.mkDerivation (finalAttrs: {
 
   nativeBuildInputs = [
     cmake
+    gfortran
     python3
   ];
 
