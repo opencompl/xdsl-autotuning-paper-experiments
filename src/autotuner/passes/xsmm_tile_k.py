@@ -10,12 +10,12 @@ from xdsl.pattern_rewriter import (
     RewritePattern,
     op_type_rewrite_pattern,
 )
+from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.schedules import tile_k
-
-K_BLOCKING = 4
-K_THRESHOLD = 23
+from autotuner.skx_nano_kernel_utils import descriptor_from_op, tile_sizes_from_op
+from autotuner.strategy import XsmmStrategy, get_xsmm_strategy
 
 
 @dataclass
@@ -27,18 +27,24 @@ class TileMatmulRegKPattern(RewritePattern):
     operation's iterator.
     """
 
+    strategy: XsmmStrategy
     disable_regalloc: bool
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: MatmulRegOp, rewriter: PatternRewriter, /) -> None:
-        k = op.k.value.data
-        if k <= K_THRESHOLD:
+        k_tile = self.strategy.k_tiling.tile_size(
+            descriptor_from_op(op),
+            tile_sizes_from_op(op),
+            self.strategy.isa_info,
+            self.strategy.nano_kernel,
+        )
+        if k_tile is None:
             return
 
         kloop_register = (
             registers.UNALLOCATED_REG64 if self.disable_regalloc else registers.R12
         )
-        tile_k(rewriter, op, K_BLOCKING, kloop_register)
+        tile_k(rewriter, op, k_tile, kloop_register)
 
 
 @dataclass(frozen=True)
@@ -51,10 +57,16 @@ class XsmmTileKPass(ModulePass):
 
     name = "xsmm-tile-k"
 
+    strategy: str = "libxsmm-skx"
     disable_regalloc: bool = False
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
+        try:
+            strategy = get_xsmm_strategy(self.strategy)
+        except ValueError as error:
+            raise PassFailedException(str(error)) from error
+
         PatternRewriteWalker(
-            TileMatmulRegKPattern(self.disable_regalloc),
+            TileMatmulRegKPattern(strategy, self.disable_regalloc),
             apply_recursively=False,
         ).rewrite_module(op)

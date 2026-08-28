@@ -143,6 +143,7 @@ docker-run-fast:
 clean-ours:
 	find build -name 'xdsl_libxsmm.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'compxsmm.*' -exec rm -f {} + 2>/dev/null || true
+	find build -name 'compxsmm_kdot.*' -exec rm -f {} + 2>/dev/null || true
 	rm -f data/$(MACHINE)/*
 
 .PHONY: clean

@@ -140,6 +140,18 @@ COMPXSMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
     glob.glob("src/autotuner/compxsmm_gemm/**/*.py", recursive=True)
 )
 
+COMPXSMM_LOWERING_SOURCES = sorted(
+    {
+        *glob.glob("src/autotuner/dialects/**/*.py", recursive=True),
+        *glob.glob("src/autotuner/passes/**/*.py", recursive=True),
+        *glob.glob("src/autotuner/*nano_kernel*.py"),
+        "src/autotuner/nano_kernel.py",
+        "src/autotuner/schedules.py",
+        "src/autotuner/strategy.py",
+        "src/autotuner/tiling.py",
+    }
+)
+
 # Rules
 
 wildcard_constraints:
@@ -147,7 +159,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -375,10 +387,43 @@ rule compxsmm_rowmaj_mlir:
 rule compxsmm_s:
     input:
         mlir=machine_file(variant='compxsmm',ext='compxsmm.mlir'),
-        sources=["pyproject.toml"] + COMPXSMM_GEMM_SOURCES,
+        sources=["pyproject.toml"] + COMPXSMM_LOWERING_SOURCES,
     output: machine_file(variant='compxsmm',ext='S')
     params:
         passes=lambda wc: ",".join(config["compxsmm-gemm-passes"][machine_isa(wc)])
+    shell:
+        """
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
+        """
+
+rule compxsmm_kdot_rowmaj_mlir:
+    input: ["pyproject.toml"] + COMPXSMM_GEMM_SOURCES
+    output: machine_file(kernel='matmul_rowmaj',variant='compxsmm_kdot',ext='compxsmm.mlir')
+    params:
+        libxsmm_arch=libxsmm_arch,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+    shell:
+        """
+        # Generate the same target-independent XSMM input as CompXSMM.  The
+        # alternative schedule is selected only in the lowering pipeline.
+        SWAP_A_B=1 compxsmm-gemm dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.libxsmm_arch} \
+            nopf \
+            {params.dtype} \
+            --disable-regalloc
+        """
+
+rule compxsmm_kdot_s:
+    input:
+        mlir=machine_file(variant='compxsmm_kdot',ext='compxsmm.mlir'),
+        sources=["pyproject.toml"] + COMPXSMM_LOWERING_SOURCES,
+    output: machine_file(variant='compxsmm_kdot',ext='S')
+    params:
+        passes=lambda wc: ",".join(config["compxsmm-kdot-gemm-passes"][machine_isa(wc)])
     shell:
         """
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
@@ -533,7 +578,7 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "compxsmm_kdot"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
@@ -589,6 +634,26 @@ DATASET_BASES = {
         variant=DATASET_VARIANTS["f64.small_matrices"]
     )
 }
+
+KDOT_CHECKPOINT_BASES = expand(
+    machine_file(
+        kernel="matmul_rowmaj",
+        n="1",
+        k="64",
+        dtype="f64",
+        ext="",
+        machine="tower",
+    ),
+    m=(1, 2, 4, 8, 16),
+    variant=("libxsmm", "compxsmm_kdot"),
+)
+
+rule kdot_checkpoint:
+    input:
+        json=[base + "json" for base in KDOT_CHECKPOINT_BASES],
+        tests=[base + "test.log" for base in KDOT_CHECKPOINT_BASES],
+    output: "data/tower/f64.kdot_checkpoint.jsonl"
+    shell: "cat {input.json} > {output}"
 
 # If a dataset has no samples skip it here and in the dataset rule below
 for dataset, samples in DATASET_BASES.items():

@@ -1,11 +1,15 @@
 from xdsl.dialects import builtin
 
+from autotuner.avx512_kdot_nano_kernel import (
+    Avx512KdotNanoKernel,
+    KdotWithSkxFallbackNanoKernel,
+)
 from autotuner.nano_kernel import GemmDescriptor, RegisterCount, TileSizes
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel import (
     SKX_NANO_KERNELS,
-    SkxNanoKernel,
     AVX512Info,
+    SkxNanoKernel,
     get_skx_nano_kernel,
 )
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
@@ -63,10 +67,13 @@ def test_unknown_skx_nano_kernel() -> None:
 
 
 def test_xsmm_strategies_wrap_isa_and_nano_kernel_policy() -> None:
-    assert set(XSMM_STRATEGIES) == set(SKX_NANO_KERNELS)
+    assert set(XSMM_STRATEGIES) == {*SKX_NANO_KERNELS, "zen5-kdot"}
     strategy = get_xsmm_strategy("libxsmm-skx")
     assert strategy.isa_info.isa == "avx512"
     assert strategy.nano_kernel is get_skx_nano_kernel("libxsmm-skx")
+
+    kdot_strategy = get_xsmm_strategy("zen5-kdot")
+    assert isinstance(kdot_strategy.nano_kernel, KdotWithSkxFallbackNanoKernel)
 
 
 def test_unknown_xsmm_strategy() -> None:
@@ -75,10 +82,72 @@ def test_unknown_xsmm_strategy() -> None:
     except ValueError as error:
         assert str(error) == (
             "unknown XSMM strategy 'unknown'; expected one of: "
-            "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst"
+            "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, "
+            "zen5-kdot"
         )
     else:
         raise AssertionError("expected an unknown strategy to be rejected")
+
+
+def test_avx512_kdot_support_and_register_usage() -> None:
+    isa_info = AVX512Info()
+    kernel = Avx512KdotNanoKernel()
+    descriptor = GemmDescriptor(
+        m=1,
+        n=16,
+        k=64,
+        lda=1,
+        ldb=64,
+        ldc=1,
+        datatype=builtin.f64,
+        aligned_a=False,
+        aligned_c=False,
+    )
+
+    tile = TileSizes(1, 16, 64)
+    assert kernel.supports_tile(descriptor, tile, isa_info)
+    assert kernel.register_usage(descriptor, tile, isa_info) == RegisterCount(
+        general=5, vector=24, mask=1
+    )
+    assert not kernel.supports_tile(descriptor, TileSizes(1, 25, 64), isa_info)
+
+    non_kdot_descriptor = _descriptor(m=2, n=16, k=64, datatype=builtin.f64)
+    assert not kernel.supports(non_kdot_descriptor, isa_info)
+
+
+def test_zen5_strategy_keeps_full_k_only_for_kdot_tiles() -> None:
+    strategy = get_xsmm_strategy("zen5-kdot")
+    kdot_descriptor = GemmDescriptor(
+        m=1,
+        n=16,
+        k=64,
+        lda=1,
+        ldb=64,
+        ldc=1,
+        datatype=builtin.f64,
+        aligned_a=False,
+        aligned_c=False,
+    )
+    assert (
+        strategy.k_tiling.tile_size(
+            kdot_descriptor,
+            TileSizes(1, 16, 64),
+            strategy.isa_info,
+            strategy.nano_kernel,
+        )
+        is None
+    )
+
+    fallback_descriptor = _descriptor(m=8, n=16, k=64, datatype=builtin.f64)
+    assert (
+        strategy.k_tiling.tile_size(
+            fallback_descriptor,
+            TileSizes(8, 16, 64),
+            strategy.isa_info,
+            strategy.nano_kernel,
+        )
+        == 4
+    )
 
 
 def test_skx_register_usage() -> None:
