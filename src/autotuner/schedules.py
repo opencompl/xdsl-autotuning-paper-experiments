@@ -5,24 +5,31 @@ from xdsl.dialects import builtin, x86, x86_scf
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 
-from autotuner.dialects.xsmm import MatmulKOp, MatmulMOp, MatmulNOp
+from autotuner.dialects.xsmm import MatmulIterator, MatmulKOp, MatmulOp
 
 
 def split_n(
-    rewriter: PatternRewriter, op: MatmulNOp, n_split: int
-) -> tuple[MatmulNOp, MatmulNOp]:
+    rewriter: PatternRewriter, op: MatmulOp, n_split: int
+) -> tuple[MatmulOp, MatmulOp]:
     """
     Split the matrix multiplication in two along the N dimension.
     Precondition: `0 < n_split < n_blocking`.
     """
-    n_blocking = op.n_blocking.value.data
+    assert op.iterator.data == MatmulIterator.N
+    n_blocking = op.n.value.data
     assert 0 < n_split < n_blocking, (
         f"Invalid n_split value {n_split} outside of n_blocking range {n_blocking}"
     )
-    first = MatmulNOp(
-        *op.operands,
+    first = MatmulOp(
+        op.a,
+        op.b,
+        op.c,
+        op.rbp,
+        op.rsp,
+        op.ins,
+        op.outs,
         n_start=op.n_start.value.data,
-        n_blocking=n_split,
+        n=n_split,
         m=op.m.value.data,
         k=op.k.value.data,
         lda=op.lda.value.data,
@@ -31,11 +38,18 @@ def split_n(
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a),
         aligned_c=bool(op.aligned_c),
+        iterator=MatmulIterator.N,
     )
-    second = MatmulNOp(
-        *first.results,
+    second = MatmulOp(
+        first.a_out,
+        first.b_out,
+        first.c_out,
+        first.rbp_out,
+        first.rsp_out,
+        op.ins,
+        first.out_results,
         n_start=op.n_start.value.data + n_split,
-        n_blocking=n_blocking - n_split,
+        n=n_blocking - n_split,
         m=op.m.value.data,
         k=op.k.value.data,
         lda=op.lda.value.data,
@@ -44,6 +58,7 @@ def split_n(
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a),
         aligned_c=bool(op.aligned_c),
+        iterator=MatmulIterator.N,
     )
     rewriter.replace(op, (first, second), second.results)
     return first, second
@@ -51,30 +66,33 @@ def split_n(
 
 def tile_n(
     rewriter: PatternRewriter,
-    op: MatmulNOp,
+    op: MatmulOp,
     n_tile: int,
     nloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
-) -> MatmulNOp:
-    n = op.n_blocking.value.data
+) -> MatmulOp:
+    assert op.iterator.data == MatmulIterator.N
+    n = op.n.value.data
     n_start = op.n_start.value.data
     n_init = rewriter.insert(
         x86.ops.DI_MovOp(n_start, destination=nloop_register),
         insertion_point=InsertPoint.before(op),
     )
-    inputs = tuple(op.operands)
+    inputs = (op.a, op.b, op.c, op.rbp, op.rsp, *op.outs)
     body = ir.Block(
         arg_types=(n_init.destination.type, *(value.type for value in inputs))
     )
-    a, b, c, rbp, rsp = body.args[1:]
-    tiled_matmul = MatmulNOp(
+    a, b, c, rbp, rsp, *outs = body.args[1:]
+    tiled_matmul = MatmulOp(
         a,
         b,
         c,
         rbp,
         rsp,
+        op.ins,
+        outs,
         m=op.m.value.data,
         n_start=n_start,
-        n_blocking=n_tile,
+        n=n_tile,
         k=op.k.value.data,
         lda=op.lda.value.data,
         ldb=op.ldb.value.data,
@@ -82,6 +100,7 @@ def tile_n(
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a),
         aligned_c=bool(op.aligned_c),
+        iterator=MatmulIterator.N,
     )
     body.add_ops((tiled_matmul, x86_scf.YieldOp(*tiled_matmul.results)))
     nloop = rewriter.insert(
@@ -98,22 +117,25 @@ def tile_n(
     return tiled_matmul
 
 
-def matmul_n_to_m(rewriter: PatternRewriter, op: MatmulNOp) -> MatmulMOp:
+def matmul_n_to_m(rewriter: PatternRewriter, op: MatmulOp) -> MatmulOp:
+    assert op.iterator.data == MatmulIterator.N
     m = op.m.value.data
-    n_blocking = op.n_blocking.value.data
+    n = op.n.value.data
     ldb = op.ldb.value.data
     ldc = op.ldc.value.data
     element_size = op.datatype.bitwidth // 8
 
-    matmul_m = MatmulMOp(
+    matmul_m = MatmulOp(
         op.a,
         op.b,
         op.c,
         op.rbp,
         op.rsp,
-        None,
-        m_blocking=m,
-        n_blocking=n_blocking,
+        op.ins,
+        op.outs,
+        m=m,
+        n_start=op.n_start.value.data,
+        n=n,
         k=op.k.value.data,
         lda=op.lda.value.data,
         ldb=ldb,
@@ -121,19 +143,20 @@ def matmul_n_to_m(rewriter: PatternRewriter, op: MatmulNOp) -> MatmulMOp:
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a),
         aligned_c=bool(op.aligned_c),
+        iterator=MatmulIterator.M,
     )
 
-    # MatmulNOp increments by n_blocking, and MatmulMOp increments by m_blocking
+    # The N iterator increments by n, and the M iterator increments by m.
     # Add ops to adjust A, B and C pointers as appropriate, so that the results at the
     # end of this transform have the expected values.
     c_out_op = x86.ops.RI_AddOp(
         matmul_m.c_out,
-        (n_blocking * ldc - m) * element_size,
+        (n * ldc - m) * element_size,
         register_out=matmul_m.c_out.type,
     )
     b_out_op = x86.ops.RI_AddOp(
         matmul_m.b_out,
-        n_blocking * ldb * element_size,
+        n * ldb * element_size,
         register_out=matmul_m.b_out.type,
     )
     a_out_op = x86.ops.RI_SubOp(
@@ -151,14 +174,18 @@ def matmul_n_to_m(rewriter: PatternRewriter, op: MatmulNOp) -> MatmulMOp:
             c_out_op.register_out,
             matmul_m.rbp_out,
             matmul_m.rsp_out,
+            *matmul_m.out_results,
         ),
     )
     return matmul_m
 
 
-def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulMOp) -> MatmulKOp:
-    m_blocking = op.m_blocking.value.data
-    n_blocking = op.n_blocking.value.data
+def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulOp) -> MatmulKOp:
+    assert op.iterator.data == MatmulIterator.M
+    assert not op.ins, "matmul_m_to_k does not yet support ins"
+    assert len(op.outs) <= 1, "matmul_m_to_k supports at most one mask out"
+    m_blocking = op.m.value.data
+    n_blocking = op.n.value.data
     k = op.k.value.data
     lda = op.lda.value.data
     vector_length = 512 // op.datatype.bitwidth
@@ -166,8 +193,8 @@ def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulMOp) -> MatmulKOp:
 
     mask = (
         None
-        if op.mask is None
-        else ir.SSAValue.get(op.mask, type=x86.registers.AVX512MaskRegisterType)
+        if not op.outs
+        else ir.SSAValue.get(op.outs[0], type=x86.registers.AVX512MaskRegisterType)
     )
     accumulators = load_c(
         rewriter,
@@ -191,7 +218,7 @@ def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulMOp) -> MatmulKOp:
             op.c,
             op.rbp,
             op.rsp,
-            op.mask,
+            mask,
             accumulators,
             m_blocking=m_blocking,
             n_blocking=n_blocking,
@@ -353,7 +380,7 @@ def tile_k(
 
 def _insert_m_loop(
     rewriter: PatternRewriter,
-    op: MatmulMOp,
+    op: MatmulOp,
     inputs: tuple[ir.SSAValue, ...],
     *,
     lower_bound: int,
@@ -361,7 +388,7 @@ def _insert_m_loop(
     m_blocking: int,
     mask: ir.SSAValue | None,
     mloop_register: x86.registers.GeneralRegisterType,
-) -> tuple[tuple[ir.SSAValue, ...], MatmulMOp]:
+) -> tuple[tuple[ir.SSAValue, ...], MatmulOp]:
     m_init = rewriter.insert(
         x86.ops.DI_MovOp(lower_bound, destination=mloop_register),
         insertion_point=InsertPoint.before(op),
@@ -371,15 +398,17 @@ def _insert_m_loop(
         arg_types=(m_init.destination.type, *(value.type for value in iter_args))
     )
     a, b, c, rbp, rsp, *rest = body.args[1:]
-    tiled_matmul = MatmulMOp(
+    tiled_matmul = MatmulOp(
         a,
         b,
         c,
         rbp,
         rsp,
-        rest[0] if rest else None,
-        m_blocking=m_blocking,
-        n_blocking=op.n_blocking.value.data,
+        (),
+        rest,
+        m=m_blocking,
+        n_start=op.n_start.value.data,
+        n=op.n.value.data,
         k=op.k.value.data,
         lda=op.lda.value.data,
         ldb=op.ldb.value.data,
@@ -387,6 +416,7 @@ def _insert_m_loop(
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a),
         aligned_c=bool(op.aligned_c),
+        iterator=MatmulIterator.M,
     )
     body.add_ops((tiled_matmul, x86_scf.YieldOp(*tiled_matmul.results)))
     mloop = rewriter.insert(
@@ -438,13 +468,13 @@ def _initialize_avx512_mask(
 
 def tile_m(
     rewriter: PatternRewriter,
-    op: MatmulMOp,
+    op: MatmulOp,
     *,
     m_blocking: int,
     mloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     mask_tmp_reg: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     mask_reg: x86.registers.AVX512MaskRegisterType,
-) -> tuple[MatmulMOp, MatmulMOp | None]:
+) -> tuple[MatmulOp, MatmulOp | None]:
     """
     Tiles M, inserting a for loop and an optional remainder matmul.
     Returns the new tiled matmul and optional remainder matmul.
@@ -455,7 +485,9 @@ def tile_m(
         case builtin.Float32Type():
             vector_length = 16
 
-    m = op.m_blocking.value.data
+    assert op.iterator.data == MatmulIterator.M
+    assert not op.ins and not op.outs
+    m = op.m.value.data
     blocked_end = m // m_blocking * m_blocking
     inputs = tuple(op.operands[:5])
 
