@@ -19,6 +19,16 @@ else:
     MKL_CFLAGS = ""
     MKL_LIBS = ""
 
+# AOCL-BLAS paths. The Nix package installs AMD's BLIS fork as the `blis`
+# pkg-config module.
+
+if shutil.which("pkg-config") and os.system("pkg-config --exists blis") == 0:
+    AOCL_CFLAGS = shell("pkg-config --cflags blis", read=True).strip()
+    AOCL_LIBS   = shell("pkg-config --libs blis", read=True).strip()
+else:
+    AOCL_CFLAGS = ""
+    AOCL_LIBS = ""
+
 # Machine-specific parameters
 
 CC_ASM = config.get("cc_asm", config["cc"])
@@ -151,7 +161,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|libxtcmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|libxtcmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -453,6 +463,16 @@ rule mkl_rowmaj_s:
     shell:
         "{params.cc} -O3 kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
+rule aocl_rowmaj_s:
+    output: machine_file(kernel='matmul_rowmaj',variant='aocl',ext='S')
+    params:
+        target_triple=target_triple,
+        compiler_march=compiler_march,
+        cc=config["cc"],
+        dtype_flag=lambda w: "-DAOCL_DTYPE_IS_FLOAT=1" if w.dtype=="f32" else "-DAOCL_DTYPE_IS_DOUBLE=1",
+    shell:
+        "{params.cc} -O3 kernels/matmul_rowmaj/aocl.c {AOCL_CFLAGS} -DAOCL_M={wildcards.m} -DAOCL_N={wildcards.n} -DAOCL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
+
 rule llvm_intrinsics_rowmaj_s:
     output: machine_file(kernel='matmul_rowmaj',variant='llvm_intrinsics',ext='S')
     params:
@@ -512,9 +532,10 @@ rule executable:
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
         use_papi=machine_use_papi,
         mkl_libs=lambda wc: MKL_LIBS if wc.variant == "mkl" else "",
+        aocl_libs=lambda wc: AOCL_LIBS if wc.variant == "aocl" else "",
         linker_flag=machine_linker_flag,
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.machine_freq} {params.use_papi} -target {params.target_triple} -march={params.compiler_march} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.machine_libs_opts} {params.mkl_libs} {params.linker_flag}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.machine_freq} {params.use_papi} -target {params.target_triple} -march={params.compiler_march} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.machine_libs_opts} {params.mkl_libs} {params.aocl_libs} {params.linker_flag}"
 
 rule validation:
     input:  machine_file(ext='test.o')
@@ -529,7 +550,7 @@ rule time:
     input: machine_file(ext="time.o")
     output: machine_file(ext="time.txt")
     params: machine_env=machine_env,
-    shell: 'OMP_NUM_THREADS=1  {params.machine_env} {input} > {output}'
+    shell: 'OMP_NUM_THREADS=1 BLIS_NUM_THREADS=1 {params.machine_env} {input} > {output}'
 
 rule flops:
     input: "kernels/{kernel}/flops.sh"
@@ -580,16 +601,16 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
-        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
     },
     "pinocchio": {
-        "ttile": ["naive_c", "libxsmm", "mkl"],
-        "f64.small_matrices": ["llvm_intrinsics", "libxsmm","mkl"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
+        "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
     },
     "rapper": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
-        "f64.small_matrices": ["libxsmm", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
     },
     "ci": {
         "ttile": ["naive_c"],
@@ -787,6 +808,7 @@ TESTSET_AVX512 = [
             "xdsl_libxsmm",
             "compxsmm",
             "mkl",
+            "aocl",
         ],
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
