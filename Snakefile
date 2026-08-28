@@ -159,7 +159,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot|asm_kdot"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot|asm_kdot|asm_outer"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -438,6 +438,15 @@ rule asm_kdot_s:
             --output {output}
         """
 
+rule asm_outer_s:
+    input: "kernels/matmul_rowmaj/generate_avx512_outer_asm.py"
+    output: machine_file(kernel='matmul_rowmaj', variant='asm_outer', dtype='f64', ext='S')
+    shell:
+        """
+        python3 {input} --M {wildcards.m} --N {wildcards.n} --K {wildcards.k} \
+            --output {output}
+        """
+
 rule mkl_rowmaj_s:
     output: machine_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -682,6 +691,26 @@ rule asm_kdot_checkpoint:
         json=[base + "json" for base in ASM_KDOT_CHECKPOINT_BASES],
         tests=[base + "test.log" for base in ASM_KDOT_CHECKPOINT_BASES],
     output: "data/tower/f64.asm_kdot_checkpoint.jsonl"
+    shell: "cat {input.json} > {output}"
+
+ASM_OUTER_CHECKPOINT_BASES = expand(
+    machine_file(
+        kernel="matmul_rowmaj",
+        k="64",
+        dtype="f64",
+        ext="",
+        machine="tower",
+    ),
+    m=(1, 4, 8, 16),
+    n=(2, 3, 4),
+    variant=("libxsmm", "compxsmm_kdot", "asm_kdot", "asm_outer"),
+)
+
+rule asm_outer_checkpoint:
+    input:
+        json=[base + "json" for base in ASM_OUTER_CHECKPOINT_BASES],
+        tests=[base + "test.log" for base in ASM_OUTER_CHECKPOINT_BASES],
+    output: "data/tower/f64.asm_outer_checkpoint.jsonl"
     shell: "cat {input.json} > {output}"
 
 # If a dataset has no samples skip it here and in the dataset rule below
