@@ -1,11 +1,9 @@
-from xdsl.dialects import builtin
+from xdsl.dialects import builtin, x86
 from xdsl.pattern_rewriter import PatternRewriter
+from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulKOp
-from autotuner.libxsmm_gemm.generator_gemm_avx512_microkernel import (
-    libxsmm_generator_gemm_avx512_microkernel_fsdbcst,
-)
 from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
@@ -14,9 +12,17 @@ from autotuner.nano_kernel import (
     TileSizes,
 )
 from autotuner.skx_nano_kernel_utils import (
-    create_matmul_k_context,
+    MatmulKValues,
+    VectorValue,
+    add_vectors,
+    advance_pointer,
     descriptor_from_op,
+    load_vector,
+    multiply_add_memory,
     tile_sizes_from_op,
+    values_from_op,
+    vector_register,
+    zero_vector,
 )
 
 
@@ -82,13 +88,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         if not self._supports_tile_shape(descriptor, tile, target):
             raise ValueError("unsupported SKX fsdbcst nano-kernel tile")
 
-        if tile.n >= 12:
-            accumulator_sets = 1
-        elif tile.n >= 6:
-            accumulator_sets = 2
-        else:
-            accumulator_sets = 4
-        accumulator_sets = min(accumulator_sets, tile.k)
+        accumulator_sets = self._accumulator_sets(tile)
 
         return RegisterCount(
             general=5,
@@ -109,15 +109,120 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         if not self.supports_tile(descriptor, tile, target):
             raise PassFailedException("unsupported SKX fsdbcst nano-kernel tile")
 
-        context = create_matmul_k_context(rewriter, op, target)
-        values = libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
-            context.generated_code,
-            context.gp_reg_mapping,
-            context.micro_kernel_config,
-            context.descriptor,
-            tile.n,
-            tile.k,
-            context.values,
-            disable_regalloc=disable_regalloc,
+        insert_point = InsertPoint.before(op)
+        values = values_from_op(op)
+        vector_reg_count = target.register_capacity.vector
+        element_size = op.datatype.size
+
+        accumulator_sets = self._accumulator_sets(tile)
+
+        accumulators_by_index = {
+            vector_reg_count - tile.n + n: accumulator
+            for n, accumulator in enumerate(values.accumulators)
+        }
+        for accumulator_set in range(1, accumulator_sets):
+            for n in range(tile.n):
+                register_index = vector_reg_count - tile.n * (accumulator_set + 1) + n
+                register = x86.registers.AVX512RegisterType.from_index(register_index)
+                accumulators_by_index[register_index] = zero_vector(
+                    rewriter, insert_point, register
+                )
+
+        a_vectors: dict[int, VectorValue] = {}
+        a = values.a
+        for k in range(tile.k):
+            if k == 0:
+                register_index = 0
+                a_vectors[register_index] = load_vector(
+                    rewriter,
+                    insert_point,
+                    op.datatype,
+                    a,
+                    0,
+                    vector_register(register_index, disable_regalloc=disable_regalloc),
+                    aligned=bool(op.aligned_a.value.data),
+                    mask=values.mask,
+                )
+                if tile.k > 1:
+                    register_index = 1
+                    a_vectors[register_index] = load_vector(
+                        rewriter,
+                        insert_point,
+                        op.datatype,
+                        a,
+                        op.lda.value.data * element_size,
+                        vector_register(
+                            register_index, disable_regalloc=disable_regalloc
+                        ),
+                        aligned=bool(op.aligned_a.value.data),
+                        mask=values.mask,
+                    )
+            elif k < tile.k - 1:
+                register_index = (k + 1) % 2
+                a_vectors[register_index] = load_vector(
+                    rewriter,
+                    insert_point,
+                    op.datatype,
+                    a,
+                    op.lda.value.data * (k + 1) * element_size,
+                    vector_register(register_index, disable_regalloc=disable_regalloc),
+                    aligned=bool(op.aligned_a.value.data),
+                    mask=values.mask,
+                )
+
+            if k == tile.k - 1:
+                a = advance_pointer(
+                    rewriter,
+                    insert_point,
+                    a,
+                    tile.k * op.lda.value.data * element_size,
+                )
+
+            for n in range(tile.n):
+                a_register_index = k % 2
+                accumulator_index = (
+                    vector_reg_count - tile.n * ((k % accumulator_sets) + 1) + n
+                )
+                accumulators_by_index[accumulator_index] = multiply_add_memory(
+                    rewriter,
+                    insert_point,
+                    op.datatype,
+                    accumulators_by_index[accumulator_index],
+                    a_vectors[a_register_index],
+                    values.b,
+                    (k + n * op.ldb.value.data) * element_size,
+                )
+
+        b = advance_pointer(
+            rewriter,
+            insert_point,
+            values.b,
+            tile.k * element_size,
         )
-        rewriter.replace(op, [], values.vals)
+
+        for accumulator_set in range(1, accumulator_sets):
+            for n in range(tile.n):
+                source_index = vector_reg_count - tile.n * (accumulator_set + 1) + n
+                main_index = vector_reg_count - tile.n + n
+                accumulators_by_index[main_index] = add_vectors(
+                    rewriter,
+                    insert_point,
+                    op.datatype,
+                    accumulators_by_index[source_index],
+                    accumulators_by_index[main_index],
+                    x86.registers.AVX512RegisterType.from_index(main_index),
+                )
+
+        result = MatmulKValues(
+            a,
+            b,
+            values.c,
+            values.rbp,
+            values.rsp,
+            values.mask,
+            tuple(
+                accumulators_by_index[vector_reg_count - tile.n + n]
+                for n in range(tile.n)
+            ),
+        )
+        rewriter.replace(op, [], result.vals)
