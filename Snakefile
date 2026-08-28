@@ -33,6 +33,15 @@ else:
 
 CC_ASM = config.get("cc_asm", config["cc"])
 
+# XTC-installed MLIR/LLVM tools, used to lower libxtcmm's transform-dialect IR
+# (its emitter runs in the same environment, so xtc is importable here).
+try:
+    from xtc.utils.tools import get_mlir_prefix, get_llvm_prefix
+    XTC_MLIR_BIN = f"{get_mlir_prefix(None)}/bin"
+    XTC_LLVM_BIN = f"{get_llvm_prefix(None)}/bin"
+except Exception:
+    XTC_MLIR_BIN = XTC_LLVM_BIN = ""
+
 from autotuner.machines import MACHINES
 
 def machine_config(wildcards):
@@ -140,6 +149,11 @@ COMPXSMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
     glob.glob("src/autotuner/compxsmm_gemm/**/*.py", recursive=True)
 )
 
+# libxtcmm reuses libxsmm_gemm's scheduling decisions plus its own emitter
+LIBXTCMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
+    glob.glob("src/autotuner/libxtcmm_gemm/**/*.py", recursive=True)
+)
+
 # Rules
 
 wildcard_constraints:
@@ -147,7 +161,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|libxtcmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -384,6 +398,61 @@ rule compxsmm_s:
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
+rule libxtcmm_rowmaj_mlir:
+    input: ["pyproject.toml"] + LIBXTCMM_GEMM_SOURCES
+    output: machine_file(kernel='matmul_rowmaj',variant='libxtcmm',ext='xtcmm.mlir')
+    params:
+        libxsmm_arch=libxsmm_arch,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        # Emits `void matmul(A, B, C)` with the direct row-major ABI, so it links
+        # into the timing/validation drivers exactly like the other variants.
+        libxtcmm-gemm dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.libxsmm_arch} \
+            nopf \
+            {params.dtype}
+        """
+
+rule libxtcmm_s:
+    input:
+        mlir=machine_file(variant='libxtcmm',ext='xtcmm.mlir'),
+        sources=["pyproject.toml"] + LIBXTCMM_GEMM_SOURCES,
+    output: machine_file(variant='libxtcmm',ext='S')
+    params:
+        passes=lambda wc: ",".join(config["libxtcmm-gemm-passes"][machine_isa(wc)]),
+        triple=target_triple,
+        march=compiler_march,
+        mlir_bin=XTC_MLIR_BIN,
+        llvm_bin=XTC_LLVM_BIN,
+    shell:
+        """
+        # libxtcmm lowers with xtc's bundled mlir-opt/mlir-translate/opt/llc, whose
+        # paths are resolved from the xtc install when the Snakefile loads. If xtc
+        # was not importable those paths fall back to empty -- fail clearly here
+        # instead of running a broken "/mlir-opt".
+        if [ -z "{params.mlir_bin}" ] || [ -z "{params.llvm_bin}" ]; then
+            echo "error: xtc not found in this environment; libxtcmm needs xtc installed" >&2
+            echo "       (its emitter and the mlir/llvm tools it lowers with come from xtc)" >&2
+            exit 1
+        fi
+        # Replay XTC's own lowering here: apply the transform + lower to the llvm
+        # dialect (mlir-opt), then mlir-translate/opt/llc with XTC's options.
+        {params.mlir_bin}/mlir-opt {input.mlir} \
+            -pass-pipeline="builtin.module({params.passes})" -o {output}.llvm.mlir
+        {params.mlir_bin}/mlir-translate --mlir-to-llvmir {output}.llvm.mlir -o {output}.ll
+        {params.llvm_bin}/opt -O2 --fp-contract=fast \
+            -mtriple={params.triple} -mcpu={params.march} {output}.ll -o {output}.bc
+        {params.llvm_bin}/llc -O2 -filetype=asm \
+            -mtriple={params.triple} -mcpu={params.march} {output}.bc -o {output}
+        """
+
 rule mkl_rowmaj_s:
     output: machine_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -532,16 +601,16 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
     },
     "rapper": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
     },
     "ci": {
         "ttile": ["naive_c"],
