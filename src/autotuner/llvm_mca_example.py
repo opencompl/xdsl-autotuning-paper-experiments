@@ -33,7 +33,7 @@ def build_basic_block():
 
 def main():
     bb = build_basic_block()
-    analyzer = LLVM_MCA(arch="x86-64", microarch="skylake")
+    analyzer = LLVM_MCA(arch="x86-64", cpu="skylake")
     cost = analyzer.consistently_evaluate(bb)
     print(cost)
 
