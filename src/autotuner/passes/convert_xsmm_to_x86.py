@@ -12,13 +12,13 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulKOp
-from autotuner.nano_kernel import NanoKernel, TargetInfo
+from autotuner.nano_kernel import NanoKernel, ISAInfo
 from autotuner.strategy import get_xsmm_strategy
 
 
 @dataclass
 class ConvertMatmulKPattern(RewritePattern):
-    target: TargetInfo
+    isa_info: ISAInfo
     nano_kernel: NanoKernel
     disable_regalloc: bool
 
@@ -27,7 +27,7 @@ class ConvertMatmulKPattern(RewritePattern):
         self.nano_kernel.rewrite(
             rewriter,
             op,
-            self.target,
+            self.isa_info,
             disable_regalloc=self.disable_regalloc,
         )
 

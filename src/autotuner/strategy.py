@@ -1,20 +1,20 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from autotuner.nano_kernel import TargetInfo, NanoKernel
-from autotuner.skx_nano_kernel import SkxTargetInfo, SKX_NANO_KERNELS
+from autotuner.nano_kernel import ISAInfo, NanoKernel
+from autotuner.skx_nano_kernel import AVX512Info, SKX_NANO_KERNELS
 
 
 @dataclass(frozen=True)
 class XsmmStrategy:
     """A named policy shared by XSMM scheduling and lowering passes."""
 
-    isa_info: TargetInfo
+    isa_info: ISAInfo
     nano_kernel: NanoKernel
 
 
 XSMM_STRATEGIES: Mapping[str, XsmmStrategy] = {
-    name: XsmmStrategy(SkxTargetInfo(), nano_kernel)
+    name: XsmmStrategy(AVX512Info(), nano_kernel)
     for name, nano_kernel in SKX_NANO_KERNELS.items()
 }
 

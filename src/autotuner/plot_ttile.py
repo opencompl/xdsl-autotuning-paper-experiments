@@ -1,19 +1,38 @@
 # uv run plot-ttile data/neon/f32.ttile.jsonl
 
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Mapping
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 import pandas as pd
-import matplotlib.pyplot as plt
 
-from pathlib import Path
+from autotuner.machines import MACHINES, Machine
 
-TARGET_NAME = {
-    "tower": "AMD Zen 5",
-    "pinocchio": "Intel Skylake",
-    "neon": "Apple M2 Max",
-    "rapper": "AMD Zen 4",
-}
+
+def machine_display_names(
+    machine_configs: Mapping[str, Machine] = MACHINES,
+) -> dict[str, str]:
+    """Return display names from the shared machine configuration."""
+    return {
+        machine_name: machine.display_name
+        for machine_name, machine in machine_configs.items()
+    }
+
+
+def result_machine_label(
+    df: pd.DataFrame, machine_configs: Mapping[str, Machine] = MACHINES
+) -> tuple[str, str]:
+    """Return the single machine identifier and display label in a result set."""
+    machines = set(df["machine"])
+    assert len(machines) == 1
+    machine = str(next(iter(machines)))
+    try:
+        display_name = machine_configs[machine].display_name
+    except KeyError as error:
+        raise ValueError(f"machine '{machine}' is not configured") from error
+    return machine, display_name
 
 
 def plot_axis_throughput(
@@ -94,19 +113,18 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     ns = set(df.N)
     ks = set(df.K)
     dtypes = set(df["dtype"])
-    targets = set(df["target"])
     assert len(ns) == len(ks) == len(dtypes) == 1
     (n,) = ns
     (k,) = ks
     assert n == k
     (dtype,) = dtypes
-    (target,) = targets
+    _, machine_label = result_machine_label(df)
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
     plot_axis_throughput(df, ax, x_row="M")
 
-    ax.set_title(f"N = K = {n}, {dtype}, {TARGET_NAME.get(target, target)}")
+    ax.set_title(f"N = K = {n}, {dtype}, {machine_label}")
     ax.legend(title="Variant")
     plt.tight_layout()
 
@@ -136,25 +154,20 @@ def plot_combined(output_file: Path | None):
 
     # Determine consistent axis labels, titles, and variant names
     titles = []
-    targets = []
     nks = []
     dtypes = []
     for df, (_, prefix) in zip(dfs, input_files):
         ns = set(df.N)
         ks = set(df.K)
         dts = set(df["dtype"])
-        tgs = set(df["target"])
-        assert len(ns) == len(ks) == len(dts) == len(tgs) == 1
+        assert len(ns) == len(ks) == len(dts) == 1
         (n,) = ns
         (k,) = ks
         (dtype,) = dts
-        (target,) = tgs
+        _, machine_label = result_machine_label(df)
         nks.append((n, k))
         dtypes.append(dtype)
-        targets.append(target)
-        titles.append(
-            f"{prefix}N = K = {n}, {dtype}, {TARGET_NAME.get(target, target)}"
-        )
+        titles.append(f"{prefix}N = K = {n}, {dtype}, {machine_label}")
 
     fig, axs = plt.subplots(2, 2, figsize=(7, 7), sharex=True, sharey=True)
     plt.subplots_adjust(hspace=0.35)

@@ -1,6 +1,6 @@
-# On macs, the default target is "neon"
+# On macs, the default machine is "neon"
 ifeq ($(shell uname -s),Darwin)
-TARGET := neon
+MACHINE := neon
 endif
 
 ifneq ("$(wildcard .env)","")
@@ -22,7 +22,7 @@ filecheck:
 
 .PHONY: snakemake
 snakemake:
-	uv run snakemake $(SCHEDULER_FLAG) --quiet all --cores all tests --forceall $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake tests $(SCHEDULER_FLAG) --quiet all --cores all --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
 
 .PHONY: tests
 tests: pytest filecheck snakemake
@@ -31,24 +31,24 @@ tests: pytest filecheck snakemake
 
 .PHONY: dataset_code
 dataset_code:
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_code $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_code $(if $(MACHINE),--config machine=$(MACHINE),)
 
 .PHONY: dataset_validate
 dataset_validate:
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_validate --forceall $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_validate --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
 
 # --cores 1 to avoid contention issues when measuring performance.
 # Run `make clean` to re-measure everything.
 # Run `make clean-ours` to re-measure just our code.
 .PHONY: dataset
 dataset: dataset_code
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 dataset $(if $(TARGET),--config target=$(TARGET),)
+	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 dataset $(if $(MACHINE),--config machine=$(MACHINE),)
 
 
 # Prevent Make from deleting this intermediate file
-.PRECIOUS: data/$(TARGET)/f64.bars.jsonl
-data/$(TARGET)/f64.bars.jsonl:
-	uv run snakemake $(SCHEDULER_FLAG) --cores 1 $@ --config target=$(TARGET)
+.PRECIOUS: data/$(MACHINE)/f64.bars.jsonl
+data/$(MACHINE)/f64.bars.jsonl:
+	uv run snakemake $(SCHEDULER_FLAG) --cores 1 $@ --config machine=$(MACHINE)
 
 PLOTS =
 
@@ -143,10 +143,10 @@ docker-run-fast:
 clean-ours:
 	find build -name 'xdsl_libxsmm.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'compxsmm.*' -exec rm -f {} + 2>/dev/null || true
-	rm -f data/$(TARGET)/*
+	rm -f data/$(MACHINE)/*
 
 .PHONY: clean
 clean:
 	find tests/filecheck -type d -name "Output" -exec rm -rf {} \; 2>/dev/null || true
 	rm -rf build 2>/dev/null || true
-	rm -f data/$(TARGET)/*
+	rm -f data/$(MACHINE)/*

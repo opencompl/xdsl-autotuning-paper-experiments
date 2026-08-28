@@ -53,13 +53,13 @@ class RegisterCount:
         )
 
 
-class TargetInfo(ABC):
-    """Target properties needed by nano-kernel selection and tiling."""
+class ISAInfo(ABC):
+    """ISA properties needed by nano-kernel selection and tiling."""
 
     @property
     @abstractmethod
-    def arch(self) -> Literal["skx"]:
-        """Architecture identifier used by target-specific lowering."""
+    def isa(self) -> Literal["avx512"]:
+        """Instruction-set identifier used by ISA-specific lowering."""
 
     @property
     @abstractmethod
@@ -80,7 +80,7 @@ class NanoKernel(ABC):
         """Stable name used to select and benchmark this nano-kernel."""
 
     @abstractmethod
-    def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
+    def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
         """Return whether this kernel supports the GEMM configuration."""
 
     @abstractmethod
@@ -88,7 +88,7 @@ class NanoKernel(ABC):
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> bool:
         """Return whether this kernel can expand the proposed tile."""
 
@@ -97,7 +97,7 @@ class NanoKernel(ABC):
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> RegisterCount:
         """Return the peak register demand of the proposed tile."""
 
@@ -106,8 +106,8 @@ class NanoKernel(ABC):
         self,
         rewriter: PatternRewriter,
         op: MatmulKOp,
-        target: TargetInfo,
+        isa_info: ISAInfo,
         *,
         disable_regalloc: bool,
     ) -> None:
-        """Replace ``op`` with the target instructions for this nano-kernel."""
+        """Replace ``op`` with this nano-kernel's ISA-specific instructions."""

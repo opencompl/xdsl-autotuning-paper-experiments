@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
-    TargetInfo,
+    ISAInfo,
     TileSizes,
 )
 
@@ -48,26 +48,28 @@ def _compute_equalized_n_ranges(n: int, max_n_tile: int) -> tuple[BlockingRange,
 
 def compute_tiling_strategy(
     descriptor: GemmDescriptor,
-    target: TargetInfo,
+    isa_info: ISAInfo,
     nano_kernel: NanoKernel,
 ) -> TilingStrategy:
     """Choose the current LIBXSMM M tile and equalized N decomposition."""
-    if not nano_kernel.supports(descriptor, target):
+    if not nano_kernel.supports(descriptor, isa_info):
         raise ValueError("nano-kernel does not support the GEMM descriptor")
 
-    vector_length = target.vector_length(descriptor.datatype)
-    max_m_candidate = min(descriptor.m, target.register_capacity.vector * vector_length)
+    vector_length = isa_info.vector_length(descriptor.datatype)
+    max_m_candidate = min(
+        descriptor.m, isa_info.register_capacity.vector * vector_length
+    )
     m_tile_size = next(
         (
             m
             for m in range(max_m_candidate, 0, -1)
             if (
                 nano_kernel.supports_tile(
-                    descriptor, TileSizes(m, 1, descriptor.k), target
+                    descriptor, TileSizes(m, 1, descriptor.k), isa_info
                 )
                 and nano_kernel.register_usage(
-                    descriptor, TileSizes(m, 1, descriptor.k), target
-                ).fits(target.register_capacity)
+                    descriptor, TileSizes(m, 1, descriptor.k), isa_info
+                ).fits(isa_info.register_capacity)
             )
         ),
         None,
@@ -75,20 +77,20 @@ def compute_tiling_strategy(
     if m_tile_size is None:
         raise ValueError("could not find a legal M tile")
 
-    max_n_candidate = min(descriptor.n, target.register_capacity.vector)
+    max_n_candidate = min(descriptor.n, isa_info.register_capacity.vector)
     max_n_tile = next(
         (
             n
             for n in range(max_n_candidate, 0, -1)
             if (
                 nano_kernel.supports_tile(
-                    descriptor, TileSizes(m_tile_size, n, descriptor.k), target
+                    descriptor, TileSizes(m_tile_size, n, descriptor.k), isa_info
                 )
                 and nano_kernel.register_usage(
                     descriptor,
                     TileSizes(m_tile_size, n, descriptor.k),
-                    target,
-                ).fits(target.register_capacity)
+                    isa_info,
+                ).fits(isa_info.register_capacity)
             )
         ),
         None,

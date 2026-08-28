@@ -8,7 +8,7 @@ from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
     RegisterCount,
-    TargetInfo,
+    ISAInfo,
     TileSizes,
 )
 from autotuner.skx_nano_kernel_utils import (
@@ -43,8 +43,8 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             accumulator_sets = 4
         return min(accumulator_sets, tile.k)
 
-    def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
-        return target.arch == "skx" and isinstance(
+    def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
+        return isa_info.isa == "avx512" and isinstance(
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type
         )
 
@@ -52,13 +52,13 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> bool:
-        if not self.supports(descriptor, target):
+        if not self.supports(descriptor, isa_info):
             return False
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
-        vector_length = target.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return m_vectors == 1
 
@@ -66,26 +66,26 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> bool:
-        if not self._supports_tile_shape(descriptor, tile, target):
+        if not self._supports_tile_shape(descriptor, tile, isa_info):
             return False
         # TODO: The translated LIBXSMM implementation currently asserts n <= 28.
         # Once that implementation restriction is removed, use only register pressure:
-        # return self.register_usage(descriptor, tile, target).fits(
-        #     target.register_capacity
+        # return self.register_usage(descriptor, tile, isa_info).fits(
+        #     isa_info.register_capacity
         # )
-        return tile.n <= 28 and self.register_usage(descriptor, tile, target).fits(
-            target.register_capacity,
+        return tile.n <= 28 and self.register_usage(descriptor, tile, isa_info).fits(
+            isa_info.register_capacity,
         )
 
     def register_usage(
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> RegisterCount:
-        if not self._supports_tile_shape(descriptor, tile, target):
+        if not self._supports_tile_shape(descriptor, tile, isa_info):
             raise ValueError("unsupported SKX fsdbcst nano-kernel tile")
 
         accumulator_sets = self._accumulator_sets(tile)
@@ -93,25 +93,25 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         return RegisterCount(
             general=5,
             vector=tile.n * accumulator_sets + min(tile.k, 2),
-            mask=int(tile.m % target.vector_length(descriptor.datatype) != 0),
+            mask=int(tile.m % isa_info.vector_length(descriptor.datatype) != 0),
         )
 
     def rewrite(
         self,
         rewriter: PatternRewriter,
         op: MatmulKOp,
-        target: TargetInfo,
+        isa_info: ISAInfo,
         *,
         disable_regalloc: bool,
     ) -> None:
         descriptor = descriptor_from_op(op)
         tile = tile_sizes_from_op(op)
-        if not self.supports_tile(descriptor, tile, target):
+        if not self.supports_tile(descriptor, tile, isa_info):
             raise PassFailedException("unsupported SKX fsdbcst nano-kernel tile")
 
         insert_point = InsertPoint.before(op)
         values = values_from_op(op)
-        vector_reg_count = target.register_capacity.vector
+        vector_reg_count = isa_info.register_capacity.vector
         element_size = op.datatype.size
 
         accumulator_sets = self._accumulator_sets(tile)
