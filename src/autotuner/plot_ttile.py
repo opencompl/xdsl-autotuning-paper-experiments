@@ -143,8 +143,8 @@ def plot_combined(output_file: Path | None):
     input_files = [
         ("data/tower/f32.ttile.jsonl", "(a) "),
         ("data/tower/f64.ttile.jsonl", "(b) "),
-        ("data/pinocchio/f32.ttile.jsonl", "(c) "),
-        ("data/pinocchio/f64.ttile.jsonl", "(d) "),
+        ("data/rapper/f32.ttile.jsonl", "(c) "),
+        ("data/rapper/f64.ttile.jsonl", "(d) "),
     ]
 
     dfs = []
