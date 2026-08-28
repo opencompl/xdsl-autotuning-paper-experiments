@@ -13,7 +13,7 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulMOp, MatmulNOp
-from autotuner.nano_kernel import GemmDescriptor, NanoKernel, TargetInfo
+from autotuner.nano_kernel import GemmDescriptor, NanoKernel, ISAInfo
 from autotuner.schedules import matmul_n_to_m, split_n, tile_m, tile_n
 from autotuner.strategy import get_xsmm_strategy
 from autotuner.tiling import TilingStrategy, compute_tiling_strategy
@@ -68,7 +68,7 @@ def tile_n_m(
 class TileMatmulNMPattern(RewritePattern):
     """Choose and materialize the current LIBXSMM N and M tiling."""
 
-    target: TargetInfo
+    isa_info: ISAInfo
     nano_kernel: NanoKernel
     disable_regalloc: bool
 
@@ -87,7 +87,7 @@ class TileMatmulNMPattern(RewritePattern):
         )
         try:
             strategy = compute_tiling_strategy(
-                descriptor, self.target, self.nano_kernel
+                descriptor, self.isa_info, self.nano_kernel
             )
         except ValueError as error:
             raise PassFailedException(str(error)) from error

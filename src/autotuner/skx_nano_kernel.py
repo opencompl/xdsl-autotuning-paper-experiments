@@ -12,7 +12,7 @@ from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
     RegisterCount,
-    TargetInfo,
+    ISAInfo,
     TileSizes,
 )
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
@@ -24,12 +24,12 @@ from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 
 
 @dataclass(frozen=True)
-class SkxTargetInfo(TargetInfo):
-    """The register file and vector widths used by the SKX generator."""
+class AVX512Info(ISAInfo):
+    """The architectural register file and vector widths for AVX-512."""
 
     @property
-    def arch(self) -> Literal["skx"]:
-        return "skx"
+    def isa(self) -> Literal["avx512"]:
+        return "avx512"
 
     @property
     def register_capacity(self) -> RegisterCount:
@@ -41,7 +41,7 @@ class SkxTargetInfo(TargetInfo):
                 return 16
             case builtin.Float64Type():
                 return 8
-        raise ValueError(f"unsupported SKX datatype {datatype}")
+        raise ValueError(f"unsupported AVX-512 datatype {datatype}")
 
 
 class SkxNanoKernel(NanoKernel):
@@ -54,8 +54,8 @@ class SkxNanoKernel(NanoKernel):
     def name(self) -> str:
         return "libxsmm-skx"
 
-    def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
-        return target.arch == "skx" and isinstance(
+    def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
+        return isa_info.isa == "avx512" and isinstance(
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type
         )
 
@@ -63,9 +63,9 @@ class SkxNanoKernel(NanoKernel):
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> NanoKernel:
-        vector_length = target.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return self._fsdbcst if m_vectors == 1 else self._nofsdbcst
 
@@ -73,50 +73,50 @@ class SkxNanoKernel(NanoKernel):
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> bool:
-        if not self.supports(descriptor, target):
+        if not self.supports(descriptor, isa_info):
             return False
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
-        vector_length = target.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         if m_vectors > 4 or tile.n > 28:
             return False
-        return self._select_nano_kernel(descriptor, tile, target).supports_tile(
-            descriptor, tile, target
+        return self._select_nano_kernel(descriptor, tile, isa_info).supports_tile(
+            descriptor, tile, isa_info
         )
 
     def register_usage(
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> RegisterCount:
-        if not self.supports_tile(descriptor, tile, target):
+        if not self.supports_tile(descriptor, tile, isa_info):
             raise ValueError("unsupported SKX nano-kernel tile")
-        return self._select_nano_kernel(descriptor, tile, target).register_usage(
+        return self._select_nano_kernel(descriptor, tile, isa_info).register_usage(
             descriptor,
             tile,
-            target,
+            isa_info,
         )
 
     def rewrite(
         self,
         rewriter: PatternRewriter,
         op: MatmulKOp,
-        target: TargetInfo,
+        isa_info: ISAInfo,
         *,
         disable_regalloc: bool,
     ) -> None:
         descriptor = descriptor_from_op(op)
         tile = tile_sizes_from_op(op)
-        if not self.supports_tile(descriptor, tile, target):
+        if not self.supports_tile(descriptor, tile, isa_info):
             raise PassFailedException("unsupported SKX nano-kernel tile")
-        self._select_nano_kernel(descriptor, tile, target).rewrite(
+        self._select_nano_kernel(descriptor, tile, isa_info).rewrite(
             rewriter,
             op,
-            target,
+            isa_info,
             disable_regalloc=disable_regalloc,
         )
 

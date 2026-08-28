@@ -8,7 +8,7 @@ from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
     RegisterCount,
-    TargetInfo,
+    ISAInfo,
     TileSizes,
 )
 from autotuner.skx_nano_kernel_utils import (
@@ -31,8 +31,8 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
     def name(self) -> str:
         return "libxsmm-skx-nofsdbcst"
 
-    def supports(self, descriptor: GemmDescriptor, target: TargetInfo) -> bool:
-        return target.arch == "skx" and isinstance(
+    def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
+        return isa_info.isa == "avx512" and isinstance(
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type
         )
 
@@ -40,13 +40,13 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> bool:
-        if not self.supports(descriptor, target):
+        if not self.supports(descriptor, isa_info):
             return False
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
-        vector_length = target.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return m_vectors >= 2
 
@@ -54,32 +54,32 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> bool:
-        if not self._supports_tile_shape(descriptor, tile, target):
+        if not self._supports_tile_shape(descriptor, tile, isa_info):
             return False
-        vector_length = target.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         # TODO: The translated LIBXSMM implementation currently asserts at most four
         # M vectors. Once that implementation restriction is removed, use only register
         # pressure:
-        # return self.register_usage(descriptor, tile, target).fits(
-        #     target.register_capacity
+        # return self.register_usage(descriptor, tile, isa_info).fits(
+        #     isa_info.register_capacity
         # )
-        return m_vectors <= 4 and self.register_usage(descriptor, tile, target).fits(
-            target.register_capacity,
+        return m_vectors <= 4 and self.register_usage(descriptor, tile, isa_info).fits(
+            isa_info.register_capacity,
         )
 
     def register_usage(
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
-        target: TargetInfo,
+        isa_info: ISAInfo,
     ) -> RegisterCount:
-        if not self._supports_tile_shape(descriptor, tile, target):
+        if not self._supports_tile_shape(descriptor, tile, isa_info):
             raise ValueError("unsupported SKX nofsdbcst nano-kernel tile")
 
-        vector_length = target.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return RegisterCount(
             general=5,
@@ -91,18 +91,18 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         self,
         rewriter: PatternRewriter,
         op: MatmulKOp,
-        target: TargetInfo,
+        isa_info: ISAInfo,
         *,
         disable_regalloc: bool,
     ) -> None:
         descriptor = descriptor_from_op(op)
         tile = tile_sizes_from_op(op)
-        if not self.supports_tile(descriptor, tile, target):
+        if not self.supports_tile(descriptor, tile, isa_info):
             raise PassFailedException("unsupported SKX nofsdbcst nano-kernel tile")
 
         insert_point = InsertPoint.before(op)
         values = values_from_op(op)
-        vector_length = target.vector_length(op.datatype)
+        vector_length = isa_info.vector_length(op.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         element_size = op.datatype.size
         accumulators = list(values.accumulators)
