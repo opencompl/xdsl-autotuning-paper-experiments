@@ -159,7 +159,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot|asm_kdot|asm_outer|asm_hybrid|asm_partition_equalized|asm_partition_cost"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot|compxsmm_kdot_greedy|asm_kdot|asm_outer|asm_hybrid|asm_partition_equalized|asm_partition_cost"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -429,6 +429,39 @@ rule compxsmm_kdot_s:
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
+rule compxsmm_kdot_greedy_rowmaj_mlir:
+    input: ["pyproject.toml"] + COMPXSMM_GEMM_SOURCES
+    output: machine_file(kernel='matmul_rowmaj',variant='compxsmm_kdot_greedy',ext='compxsmm.mlir')
+    params:
+        libxsmm_arch=libxsmm_arch,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+    shell:
+        """
+        # Reuse the target-independent CompXSMM input.  Only the lowering
+        # strategy differs from compxsmm_kdot.
+        SWAP_A_B=1 compxsmm-gemm dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.libxsmm_arch} \
+            nopf \
+            {params.dtype} \
+            --disable-regalloc
+        """
+
+rule compxsmm_kdot_greedy_s:
+    input:
+        mlir=machine_file(variant='compxsmm_kdot_greedy',ext='compxsmm.mlir'),
+        sources=["pyproject.toml"] + COMPXSMM_LOWERING_SOURCES,
+    output: machine_file(variant='compxsmm_kdot_greedy',ext='S')
+    params:
+        passes=lambda wc: ",".join(config["compxsmm-kdot-greedy-gemm-passes"][machine_isa(wc)])
+    shell:
+        """
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
+        """
+
 rule asm_kdot_s:
     input: "kernels/matmul_rowmaj/generate_avx512_kdot_asm.py"
     output: machine_file(kernel='matmul_rowmaj', variant='asm_kdot', dtype='f64', ext='S')
@@ -622,7 +655,7 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "compxsmm_kdot", "asm_hybrid"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "compxsmm_kdot", "compxsmm_kdot_greedy", "asm_hybrid"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
@@ -765,6 +798,33 @@ rule partition_checkpoint:
         tests=[base + "test.log" for base in PARTITION_CHECKPOINT_BASES],
     output: "data/tower/f64.partition_checkpoint.jsonl"
     shell: "cat {input.json} > {output}"
+
+KDOT_TILING_BASES = expand(
+    machine_file(
+        kernel="matmul_rowmaj",
+        n="1",
+        k="64",
+        dtype="f64",
+        ext="",
+        machine="tower",
+    ),
+    m=range(1, 65),
+    variant=("libxsmm", "compxsmm_kdot", "compxsmm_kdot_greedy"),
+)
+
+rule kdot_tiling_dataset:
+    input:
+        json=[base + "json" for base in KDOT_TILING_BASES],
+        tests=[base + "test.log" for base in KDOT_TILING_BASES],
+    output: "data/tower/f64.kdot_tiling.jsonl"
+    shell: "cat {input.json} > {output}"
+
+rule kdot_tiling_plot:
+    input:
+        data="data/tower/f64.kdot_tiling.jsonl",
+        plotter="src/autotuner/plot_ttile.py",
+    output: "plots/tower/f64.kdot_tiling.png"
+    shell: "python3 {input.plotter} {input.data} --output {output}"
 
 # If a dataset has no samples skip it here and in the dataset rule below
 for dataset, samples in DATASET_BASES.items():

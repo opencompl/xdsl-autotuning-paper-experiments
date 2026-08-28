@@ -67,7 +67,11 @@ def test_unknown_skx_nano_kernel() -> None:
 
 
 def test_xsmm_strategies_wrap_isa_and_nano_kernel_policy() -> None:
-    assert set(XSMM_STRATEGIES) == {*SKX_NANO_KERNELS, "zen5-kdot"}
+    assert set(XSMM_STRATEGIES) == {
+        *SKX_NANO_KERNELS,
+        "zen5-kdot",
+        "zen5-kdot-greedy",
+    }
     strategy = get_xsmm_strategy("libxsmm-skx")
     assert strategy.isa_info.isa == "avx512"
     assert strategy.nano_kernel is get_skx_nano_kernel("libxsmm-skx")
@@ -83,7 +87,7 @@ def test_unknown_xsmm_strategy() -> None:
         assert str(error) == (
             "unknown XSMM strategy 'unknown'; expected one of: "
             "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, "
-            "zen5-kdot"
+            "zen5-kdot, zen5-kdot-greedy"
         )
     else:
         raise AssertionError("expected an unknown strategy to be rejected")
@@ -231,3 +235,44 @@ def test_two_n_ranges_and_m_remainder_tiling_strategy() -> None:
             BlockingRange(extent=20, tile_size=5),
         ),
     )
+
+
+def test_zen5_kdot_greedy_n_tiling_strategy() -> None:
+    named_strategy = get_xsmm_strategy("zen5-kdot-greedy")
+    descriptor = _descriptor(m=1, n=25, k=64, datatype=builtin.f64)
+
+    strategy = compute_tiling_strategy(
+        descriptor,
+        named_strategy.isa_info,
+        named_strategy.nano_kernel,
+        named_strategy.n_tiling,
+    )
+
+    assert strategy == TilingStrategy(
+        m_tile_size=1,
+        n_ranges=(
+            BlockingRange(extent=24, tile_size=8),
+            BlockingRange(extent=1, tile_size=1),
+        ),
+    )
+
+
+def test_zen5_kdot_greedy_preserves_equalized_fallback() -> None:
+    baseline = get_xsmm_strategy("zen5-kdot")
+    greedy = get_xsmm_strategy("zen5-kdot-greedy")
+    descriptor = _descriptor(m=2, n=25, k=64, datatype=builtin.f64)
+
+    baseline_tiling = compute_tiling_strategy(
+        descriptor,
+        baseline.isa_info,
+        baseline.nano_kernel,
+        baseline.n_tiling,
+    )
+    greedy_tiling = compute_tiling_strategy(
+        descriptor,
+        greedy.isa_info,
+        greedy.nano_kernel,
+        greedy.n_tiling,
+    )
+
+    assert greedy_tiling == baseline_tiling

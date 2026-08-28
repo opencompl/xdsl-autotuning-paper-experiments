@@ -63,6 +63,7 @@ PLOTS += plots/tower/f64.ttile.png
 PLOTS += plots/tower/f64.ttile_squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
+PLOTS += plots/tower/f64.kdot_tiling.png
 
 # PLOTS += plots/pinocchio/f32.ttile.png
 # PLOTS += plots/pinocchio/f64.ttile.png
@@ -144,6 +145,7 @@ clean-ours:
 	find build -name 'xdsl_libxsmm.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'compxsmm.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'compxsmm_kdot.*' -exec rm -f {} + 2>/dev/null || true
+	find build -name 'compxsmm_kdot_greedy.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'asm_kdot.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'asm_outer.*' -exec rm -f {} + 2>/dev/null || true
 	find build -name 'asm_hybrid.*' -exec rm -f {} + 2>/dev/null || true

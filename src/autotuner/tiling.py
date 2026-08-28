@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+from typing import Protocol
 
 from autotuner.nano_kernel import (
     GemmDescriptor,
-    NanoKernel,
     ISAInfo,
+    NanoKernel,
     TileSizes,
 )
 
@@ -28,7 +29,20 @@ class TilingStrategy:
     n_ranges: tuple[BlockingRange, ...]
 
 
-def _compute_equalized_n_ranges(n: int, max_n_tile: int) -> tuple[BlockingRange, ...]:
+class NTilePolicy(Protocol):
+    """Choose the high-level decomposition of the N iteration space."""
+
+    def n_ranges(
+        self,
+        descriptor: GemmDescriptor,
+        m_tile_size: int,
+        max_n_tile: int,
+        isa_info: ISAInfo,
+        nano_kernel: NanoKernel,
+    ) -> tuple[BlockingRange, ...]: ...
+
+
+def compute_equalized_n_ranges(n: int, max_n_tile: int) -> tuple[BlockingRange, ...]:
     """Reproduce LIBXSMM's equalized one- or two-range N decomposition."""
     number_of_chunks = (n - 1) // max_n_tile + 1
     larger_chunk_count = n % number_of_chunks
@@ -46,12 +60,43 @@ def _compute_equalized_n_ranges(n: int, max_n_tile: int) -> tuple[BlockingRange,
     return tuple(ranges)
 
 
+def compute_greedy_n_ranges(n: int, n_tile: int) -> tuple[BlockingRange, ...]:
+    """Cover N with full tiles followed by one remainder range."""
+    blocked_extent = n // n_tile * n_tile
+    remainder = n - blocked_extent
+    ranges: list[BlockingRange] = []
+    if blocked_extent:
+        ranges.append(BlockingRange(blocked_extent, n_tile))
+    if remainder:
+        ranges.append(BlockingRange(remainder, remainder))
+    return tuple(ranges)
+
+
+@dataclass(frozen=True)
+class EqualizedNTilePolicy:
+    """Use LIBXSMM's equalized one- or two-range decomposition."""
+
+    def n_ranges(
+        self,
+        descriptor: GemmDescriptor,
+        m_tile_size: int,
+        max_n_tile: int,
+        isa_info: ISAInfo,
+        nano_kernel: NanoKernel,
+    ) -> tuple[BlockingRange, ...]:
+        return compute_equalized_n_ranges(descriptor.n, max_n_tile)
+
+
+EQUALIZED_N_TILING = EqualizedNTilePolicy()
+
+
 def compute_tiling_strategy(
     descriptor: GemmDescriptor,
     isa_info: ISAInfo,
     nano_kernel: NanoKernel,
+    n_tiling: NTilePolicy | None = None,
 ) -> TilingStrategy:
-    """Choose the current LIBXSMM M tile and equalized N decomposition."""
+    """Choose legal M blocking and apply the selected N-range policy."""
     if not nano_kernel.supports(descriptor, isa_info):
         raise ValueError("nano-kernel does not support the GEMM descriptor")
 
@@ -98,7 +143,14 @@ def compute_tiling_strategy(
     if max_n_tile is None:
         raise ValueError("could not find a legal N tile")
 
+    n_tiling = EQUALIZED_N_TILING if n_tiling is None else n_tiling
     return TilingStrategy(
         m_tile_size,
-        _compute_equalized_n_ranges(descriptor.n, max_n_tile),
+        n_tiling.n_ranges(
+            descriptor,
+            m_tile_size,
+            max_n_tile,
+            isa_info,
+            nano_kernel,
+        ),
     )

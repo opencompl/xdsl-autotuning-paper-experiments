@@ -4,9 +4,9 @@ from collections.abc import Collection, Iterable, Mapping
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import pandas as pd
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
-import pandas as pd
 
 from autotuner.machines import MACHINES, Machine
 
@@ -116,15 +116,15 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     assert len(ns) == len(ks) == len(dtypes) == 1
     (n,) = ns
     (k,) = ks
-    assert n == k
     (dtype,) = dtypes
     _, machine_label = result_machine_label(df)
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    _, ax = plt.subplots(figsize=(8, 6))
 
     plot_axis_throughput(df, ax, x_row="M")
 
-    ax.set_title(f"N = K = {n}, {dtype}, {machine_label}")
+    dimensions = f"N = K = {n}" if n == k else f"N = {n}, K = {k}"
+    ax.set_title(f"{dimensions}, {dtype}, {machine_label}")
     ax.legend(title="Variant")
     plt.tight_layout()
 

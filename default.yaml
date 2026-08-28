@@ -44,3 +44,14 @@ compxsmm-kdot-gemm-passes:
     - x86-allocate-registers
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
+
+compxsmm-kdot-greedy-gemm-passes:
+  avx512:
+    - xsmm-tile-n-m{strategy=zen5-kdot-greedy disable-regalloc=true}
+    - xsmm-matmul-m-to-reg{strategy=zen5-kdot-greedy}
+    - xsmm-tile-k{strategy=zen5-kdot-greedy disable-regalloc=true}
+    - convert-xsmm-to-x86{strategy=zen5-kdot-greedy disable-regalloc=true}
+    - x86-regalloc-verify-liveness
+    - x86-allocate-registers
+    - convert-x86-scf-to-x86
+    - x86-prologue-epilogue-insertion

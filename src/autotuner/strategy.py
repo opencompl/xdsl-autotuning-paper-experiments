@@ -4,6 +4,13 @@ from dataclasses import dataclass
 from autotuner.avx512_kdot_nano_kernel import KdotWithSkxFallbackNanoKernel
 from autotuner.nano_kernel import GemmDescriptor, ISAInfo, NanoKernel, TileSizes
 from autotuner.skx_nano_kernel import SKX_NANO_KERNELS, AVX512Info
+from autotuner.tiling import (
+    EQUALIZED_N_TILING,
+    BlockingRange,
+    NTilePolicy,
+    compute_equalized_n_ranges,
+    compute_greedy_n_ranges,
+)
 
 
 @dataclass(frozen=True)
@@ -44,12 +51,39 @@ class KdotKTilePolicy(KTilePolicy):
 
 
 @dataclass(frozen=True)
+class KdotGreedyNTilePolicy:
+    """Use measured eight-output K-dot tiles and equalized fallback tiling."""
+
+    blocking: int = 8
+
+    def n_ranges(
+        self,
+        descriptor: GemmDescriptor,
+        m_tile_size: int,
+        max_n_tile: int,
+        isa_info: ISAInfo,
+        nano_kernel: NanoKernel,
+    ) -> tuple[BlockingRange, ...]:
+        n_tile = min(self.blocking, max_n_tile, descriptor.n)
+        if isinstance(nano_kernel, KdotWithSkxFallbackNanoKernel) and (
+            nano_kernel.uses_kdot(
+                descriptor,
+                TileSizes(m_tile_size, n_tile, descriptor.k),
+                isa_info,
+            )
+        ):
+            return compute_greedy_n_ranges(descriptor.n, n_tile)
+        return compute_equalized_n_ranges(descriptor.n, max_n_tile)
+
+
+@dataclass(frozen=True)
 class XsmmStrategy:
     """A named policy shared by XSMM scheduling and lowering passes."""
 
     isa_info: ISAInfo
     nano_kernel: NanoKernel
     k_tiling: KTilePolicy = KTilePolicy()
+    n_tiling: NTilePolicy = EQUALIZED_N_TILING
 
 
 XSMM_STRATEGIES: Mapping[str, XsmmStrategy] = {
@@ -61,6 +95,12 @@ XSMM_STRATEGIES: Mapping[str, XsmmStrategy] = {
         AVX512Info(),
         KdotWithSkxFallbackNanoKernel(SKX_NANO_KERNELS["libxsmm-skx"]),
         KdotKTilePolicy(),
+    ),
+    "zen5-kdot-greedy": XsmmStrategy(
+        AVX512Info(),
+        KdotWithSkxFallbackNanoKernel(SKX_NANO_KERNELS["libxsmm-skx"]),
+        KdotKTilePolicy(),
+        KdotGreedyNTilePolicy(),
     ),
 }
 
