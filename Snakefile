@@ -466,7 +466,7 @@ rule executable:
         aocl_libs=lambda wc: AOCL_LIBS if wc.variant == "aocl" else "",
         linker_flag=machine_linker_flag,
     shell:
-        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.machine_freq} {params.use_papi} -target {params.target_triple} -march={params.compiler_march} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.target_libs_opts} {params.mkl_libs} {params.aocl_libs} {params.linker_flag}"
+        "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.machine_freq} {params.use_papi} -target {params.target_triple} -march={params.compiler_march} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.machine_libs_opts} {params.mkl_libs} {params.aocl_libs} {params.linker_flag}"
 
 rule validation:
     input:  machine_file(ext='test.o')
