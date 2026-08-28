@@ -64,11 +64,11 @@ PLOTS += plots/tower/f64.ttile_squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
 
-PLOTS += plots/pinocchio/f32.ttile.png
-PLOTS += plots/pinocchio/f64.ttile.png
-PLOTS += plots/pinocchio/f64.ttile_squares.png
-PLOTS += plots/pinocchio/f64.ttile_combined.png
-PLOTS += plots/pinocchio/f64.heatmap.png
+# PLOTS += plots/pinocchio/f32.ttile.png
+# PLOTS += plots/pinocchio/f64.ttile.png
+# PLOTS += plots/pinocchio/f64.ttile_squares.png
+# PLOTS += plots/pinocchio/f64.ttile_combined.png
+# PLOTS += plots/pinocchio/f64.heatmap.png
 
 PLOTS += plots/rapper/f32.ttile.png
 PLOTS += plots/rapper/f64.ttile.png
