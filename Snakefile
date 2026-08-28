@@ -159,7 +159,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot|asm_kdot|asm_outer|asm_hybrid"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_kdot|asm_kdot|asm_outer|asm_hybrid|asm_partition_equalized|asm_partition_cost"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -462,6 +462,17 @@ rule asm_hybrid_s:
             --K {wildcards.k} --fallback {input.fallback} --output {output}
         """
 
+rule asm_partition_s:
+    wildcard_constraints:
+        strategy="equalized|cost"
+    input: "kernels/matmul_rowmaj/generate_avx512_partitioned_asm.py"
+    output: machine_file(kernel='matmul_rowmaj', variant='asm_partition_{strategy}', dtype='f64', ext='S')
+    shell:
+        """
+        python3 {input} --M {wildcards.m} --N {wildcards.n} --K {wildcards.k} \
+            --strategy {wildcards.strategy} --output {output}
+        """
+
 rule mkl_rowmaj_s:
     output: machine_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -726,6 +737,33 @@ rule asm_outer_checkpoint:
         json=[base + "json" for base in ASM_OUTER_CHECKPOINT_BASES],
         tests=[base + "test.log" for base in ASM_OUTER_CHECKPOINT_BASES],
     output: "data/tower/f64.asm_outer_checkpoint.jsonl"
+    shell: "cat {input.json} > {output}"
+
+PARTITION_CHECKPOINT_BASES = [
+    machine_file(
+        kernel="matmul_rowmaj",
+        m=m,
+        n=n,
+        k="64",
+        variant=variant,
+        dtype="f64",
+        ext="",
+        machine="tower",
+    )
+    for m, n in ((25, 2), (26, 2), (32, 1))
+    for variant in (
+        "libxsmm",
+        "compxsmm_kdot",
+        "asm_partition_equalized",
+        "asm_partition_cost",
+    )
+]
+
+rule partition_checkpoint:
+    input:
+        json=[base + "json" for base in PARTITION_CHECKPOINT_BASES],
+        tests=[base + "test.log" for base in PARTITION_CHECKPOINT_BASES],
+    output: "data/tower/f64.partition_checkpoint.jsonl"
     shell: "cat {input.json} > {output}"
 
 # If a dataset has no samples skip it here and in the dataset rule below
