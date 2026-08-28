@@ -201,7 +201,7 @@ rule backend_xdsl:
     params:
         passes=lambda wc: ",".join(config["xdsl-opt-backend-passes"][machine_isa(wc)])
     shell:
-        """xdsl-opt -p {params.passes} -t x86-asm {input.program} -o {output}"""
+        """xdsl-opt -p '{params.passes}' -t x86-asm {input.program} -o {output}"""
 
 rule memref_mlir:
     input: machine_file(variant='tensor',ext='mlir')
@@ -337,7 +337,7 @@ rule xdsl_libxsmm_s:
         passes=",".join(config["libxsmm-gemm-passes"])
     shell:
         """
-        xdsl-opt {input.mlir} -p {params.passes} -t x86-asm -o {output}
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
 rule compxsmm_rowmaj_mlir:
@@ -371,7 +371,7 @@ rule compxsmm_s:
         passes=lambda wc: ",".join(config["compxsmm-gemm-passes"][machine_isa(wc)])
     shell:
         """
-        xdsl-opt {input.mlir} -p {params.passes} -t x86-asm -o {output}
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
 rule mkl_rowmaj_s:
