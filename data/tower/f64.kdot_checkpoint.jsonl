@@ -1,0 +1,10 @@
+{"M":1,"N":1,"K":64,"peak":32.0,"flops":128,"time":199.317203,"variant":"libxsmm","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":1,"N":1,"K":64,"peak":32.0,"flops":128,"time":67.129063,"variant":"compxsmm_kdot","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":2,"N":1,"K":64,"peak":32.0,"flops":256,"time":203.308511,"variant":"libxsmm","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":2,"N":1,"K":64,"peak":32.0,"flops":256,"time":69.568980,"variant":"compxsmm_kdot","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":4,"N":1,"K":64,"peak":32.0,"flops":512,"time":211.324696,"variant":"libxsmm","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":4,"N":1,"K":64,"peak":32.0,"flops":512,"time":77.739867,"variant":"compxsmm_kdot","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":8,"N":1,"K":64,"peak":32.0,"flops":1024,"time":347.571890,"variant":"libxsmm","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":8,"N":1,"K":64,"peak":32.0,"flops":1024,"time":99.608509,"variant":"compxsmm_kdot","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":16,"N":1,"K":64,"peak":32.0,"flops":2048,"time":628.428768,"variant":"libxsmm","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
+{"M":16,"N":1,"K":64,"peak":32.0,"flops":2048,"time":142.666512,"variant":"compxsmm_kdot","machine":"tower","family":"zen5","isa":"avx512","compiler_march":"znver5","libxsmm_arch":"skx","dtype":"f64"}
