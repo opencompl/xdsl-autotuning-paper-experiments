@@ -395,7 +395,7 @@ rule mkl_rowmaj_s:
         "{params.cc} -O3 kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
 rule aocl_rowmaj_s:
-    output: target_ll_file(kernel='matmul_rowmaj',variant='aocl',ext='S')
+    output: machine_file(kernel='matmul_rowmaj',variant='aocl',ext='S')
     params:
         target_triple=target_triple,
         target_arch=target_arch,
