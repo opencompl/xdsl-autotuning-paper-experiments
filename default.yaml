@@ -33,3 +33,51 @@ compxsmm-gemm-passes:
     - x86-allocate-registers
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
+
+# libxtcmm emits the linalg payload + transform-dialect schedule; this replays
+# XTC's own lowering (the same passes MlirLLVMTarget runs in-process) via
+# mlir-opt: apply the transform (transform-interpreter) and erase the schedule
+# (symbol-privatize keeps the `matmul` entry, symbol-dce drops @__transform_main),
+# then XTC's memref->llvm pipeline. Run as `mlir-opt -pass-pipeline=builtin.module(...)`.
+libxtcmm-gemm-passes:
+  avx512:
+    - "transform-interpreter"
+    - "symbol-privatize{exclude=matmul}"
+    - "symbol-dce"
+    - "canonicalize"
+    - "cse"
+    - "sccp"
+    - "math-uplift-to-fma"
+    - "expand-strided-metadata"
+    - "convert-linalg-to-loops"
+    - "lower-affine"
+    - "func.func(lower-vector-mask)"
+    - "convert-vector-to-scf{full-unroll=true}"
+    - "scf-forall-to-parallel"
+    - "convert-scf-to-openmp"
+    - "canonicalize"
+    - "cse"
+    - "sccp"
+    - "convert-scf-to-cf"
+    - "canonicalize"
+    - "cse"
+    - "sccp"
+    - "buffer-results-to-out-params"
+    - "convert-func-to-llvm{use-bare-ptr-memref-call-conv=true}"
+    - "finalize-memref-to-llvm"
+    - "canonicalize"
+    - "cse"
+    - "sccp"
+    - "convert-math-to-llvm"
+    - "convert-vector-to-llvm{enable-x86vector=true}"
+    - "convert-index-to-llvm"
+    - "convert-arith-to-llvm"
+    - "convert-ub-to-llvm"
+    - "canonicalize"
+    - "cse"
+    - "sccp"
+    - "convert-cf-to-llvm"
+    - "convert-openmp-to-llvm"
+    - "canonicalize"
+    - "cse"
+    - "sccp"
