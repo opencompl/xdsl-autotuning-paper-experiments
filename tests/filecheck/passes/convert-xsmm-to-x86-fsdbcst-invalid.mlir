@@ -1,4 +1,4 @@
-// RUN: xdsl-opt %s --split-input-file --verify-diagnostics -p 'convert-xsmm-to-x86{nano-kernel=libxsmm-skx-fsdbcst}' | filecheck %s
+// RUN: xdsl-opt %s --split-input-file --verify-diagnostics -p 'convert-xsmm-to-x86{strategy=libxsmm-skx-fsdbcst}' | filecheck %s
 
 x86_func.func @multiple_m_vectors_are_not_fsdbcst(
   %a: !x86.reg64<rdi>,

@@ -1,5 +1,5 @@
-// RUN: xdsl-opt %s --split-input-file --verify-diagnostics -p 'xsmm-tile-n-m{arch=hsw}' | filecheck %s
+// RUN: xdsl-opt %s --split-input-file --verify-diagnostics -p 'xsmm-tile-n-m{strategy=unknown}' | filecheck %s
 
 builtin.module {}
 
-// CHECK: xsmm-tile-n-m currently supports SKX only
+// CHECK: unknown XSMM strategy 'unknown'; expected one of: libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst
