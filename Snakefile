@@ -809,7 +809,11 @@ KDOT_TILING_BASES = expand(
         machine="tower",
     ),
     m=range(1, 65),
-    variant=("libxsmm", "compxsmm_kdot", "compxsmm_kdot_greedy"),
+    # The pre-existing equalized K-dot schedule starts selecting fallback SKX
+    # tiles above M=48 and can exhaust the register allocator.  Keep this
+    # focused sweep on the comparison it is intended to answer: the new
+    # high-level tiling policy against LIBXSMM.
+    variant=("libxsmm", "compxsmm_kdot_greedy"),
 )
 
 rule kdot_tiling_dataset:
