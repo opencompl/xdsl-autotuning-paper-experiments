@@ -59,6 +59,15 @@ def main():
             "(XTC does its own register allocation)."
         ),
     )
+    parser.add_argument(
+        "--mask-tail",
+        dest="mask_tail",
+        action="store_true",
+        help=(
+            "Vectorize a sub-vector-length tail as a masked full-width vector "
+            "instead of the default narrow unmasked vector."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -99,7 +108,9 @@ def main():
         )
 
     plan = compute_plan(descriptor, arch)
-    emit_mlir(plan, descriptor, args.filename, args.routine_name)
+    emit_mlir(
+        plan, descriptor, args.filename, args.routine_name, mask_tail=args.mask_tail
+    )
 
 
 if __name__ == "__main__":

@@ -68,6 +68,7 @@ def _schedule_leaf(
     m_range: BlockingRange,
     k_range: BlockingRange,
     plan: XtcGemmPlan,
+    mask_tail: bool,
 ) -> None:
     """Schedule one (N tier, M tier, K tier) leaf as the register-blocked microkernel."""
     scheduler.tile("N", {"n_col": n_range.tile_size}, root=root)  # N columns
@@ -89,13 +90,12 @@ def _schedule_leaf(
     scheduler.interchange(
         ["N", "M", "K", "n_col", "m_reg", "k_step", "m_lane"], root=root
     )
-    # When the block width is not a multiple of the vector length its tail lane
-    # is a masked (partial) vector, so vectorize to a fixed width and let XTC
-    # mask the remainder -- exactly what LIBXSMM does with its mask register.
-    # A dict pins the vector width (masked); a bare list vectorizes to the tile.
+    # Vectorize the contiguous lane. A sub-vector-length tail is either a narrow
+    # unmasked vector (list -> vector<6>, no reduction `select`) or, with
+    # mask_tail, a masked full-width vector pinned to the vector length.
     m_lane: list[str] | dict[str, int | None] = (
         {"m_lane": plan.vector_length}
-        if m_range.tile_size % plan.vector_length
+        if mask_tail and m_range.tile_size % plan.vector_length
         else ["m_lane"]
     )
     scheduler.vectorize(m_lane, root=root)
@@ -109,7 +109,11 @@ def _schedule_leaf(
 
 
 def emit_mlir(
-    plan: XtcGemmPlan, desc: GEMMDescriptor, output: Path, routine_name: str = "matmul"
+    plan: XtcGemmPlan,
+    desc: GEMMDescriptor,
+    output: Path,
+    routine_name: str = "matmul",
+    mask_tail: bool = False,
 ) -> None:
     """Build the matmul, apply ``plan``, and write the XTC source IR.
 
@@ -138,7 +142,9 @@ def emit_mlir(
     for n_root, n_range in _split_tiers(scheduler, ".", "N", plan.n_ranges):
         for m_root, m_range in _split_tiers(scheduler, n_root, "M", plan.m_ranges):
             for k_root, k_range in _split_tiers(scheduler, m_root, "K", plan.k_ranges):
-                _schedule_leaf(scheduler, k_root, n_range, m_range, k_range, plan)
+                _schedule_leaf(
+                    scheduler, k_root, n_range, m_range, k_range, plan, mask_tail
+                )
     scheduler.get_loop_nest().check()
 
     source_ir = backend.get_compiler().get_source_ir(scheduler.schedule())
