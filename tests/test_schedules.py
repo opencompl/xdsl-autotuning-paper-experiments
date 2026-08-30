@@ -29,7 +29,6 @@ def make_matmul(
         (input_value,),
         (output_value,),
         m=8,
-        n_start=0,
         n=3,
         k=4,
         lda=8,

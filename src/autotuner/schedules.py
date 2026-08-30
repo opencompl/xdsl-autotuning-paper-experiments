@@ -25,7 +25,6 @@ def _matmul_like(
     ins: Sequence[ir.SSAValue] | None = None,
     outs: Sequence[ir.SSAValue] | None = None,
     m: int | None = None,
-    n_start: int | None = None,
     n: int | None = None,
     k: int | None = None,
     aligned_a: bool | None = None,
@@ -42,7 +41,6 @@ def _matmul_like(
         op.ins if ins is None else ins,
         op.outs if outs is None else outs,
         m=op.m.value.data if m is None else m,
-        n_start=op.n_start.value.data if n_start is None else n_start,
         n=op.n.value.data if n is None else n,
         k=op.k.value.data if k is None else k,
         lda=op.lda.value.data,
@@ -248,11 +246,6 @@ def split_matmul(
         rsp=first.rsp_out,
         outs=first.out_results,
         m=extent - first_size if dimension == MatmulIterator.M else None,
-        n_start=(
-            op.n_start.value.data + first_size
-            if dimension == MatmulIterator.N
-            else None
-        ),
         n=extent - first_size if dimension == MatmulIterator.N else None,
         aligned_a=second_aligned_a,
         aligned_c=second_aligned_c,
@@ -278,7 +271,7 @@ def loop_matmul(
     assert 0 < tile_size <= extent and extent % tile_size == 0
 
     if lower_bound is None:
-        lower_bound = op.n_start.value.data if dimension == MatmulIterator.N else 0
+        lower_bound = 0
     init = x86.ops.DI_MovOp(lower_bound, destination=loop_register)
     inputs = (op.a, op.b, op.c, op.rbp, op.rsp, *op.outs)
     body = ir.Block(arg_types=(init.destination.type, *(v.type for v in inputs)))
