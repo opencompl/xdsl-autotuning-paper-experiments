@@ -411,7 +411,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             rbp_val,
             rsp_val,
             m=desc.m,
-            n_start=0,
             n=desc.n,
             k=desc.k,
             lda=desc.lda,

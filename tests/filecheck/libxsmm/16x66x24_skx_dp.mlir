@@ -277,7 +277,8 @@
 // CHECK-COMPXSMM-NEXT:    add rdx, 1664
 // CHECK-MANUAL-NEXT:      cmp r11, 14
 // CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY_0]]
-// CHECK-MANUAL-NEXT:      mov r11, 14
+// CHECK-LIBXSMM-NEXT:     mov r11, 14
+// CHECK-COMPXSMM-NEXT:    mov r11, 0
 // CHECK-MANUAL-NEXT:  [[SCF_N_BODY_1:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r11, 13
 // CHECK-MANUAL-NEXT:      mov r10, 0
@@ -523,7 +524,8 @@
 // CHECK-MANUAL-NEXT:      add rsi, 2496
 // CHECK-LIBXSMM-NEXT:     sub rdi, 128
 // CHECK-COMPXSMM-NEXT:    add rdx, 1536
-// CHECK-MANUAL-NEXT:      cmp r11, 66
+// CHECK-LIBXSMM-NEXT:     cmp r11, 66
+// CHECK-COMPXSMM-NEXT:    cmp r11, 52
 // CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY_1]]
 // CHECK-MANUAL-NEXT:      mov rsp, rbp
 // CHECK-MANUAL-NEXT:      pop rbp

@@ -230,7 +230,8 @@
 // CHECK-COMPXSMM-NEXT:    add rdx, 2560
 // CHECK-MANUAL-NEXT:      cmp r11, 18
 // CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY_0]]
-// CHECK-MANUAL-NEXT:      mov r11, 18
+// CHECK-LIBXSMM-NEXT:     mov r11, 18
+// CHECK-COMPXSMM-NEXT:    mov r11, 0
 // CHECK-MANUAL-NEXT:  [[SCF_N_BODY_1:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r11, 5
 // CHECK-MANUAL-NEXT:      mov r10, 0
@@ -416,7 +417,8 @@
 // CHECK-MANUAL-NEXT:      add rsi, 2560
 // CHECK-LIBXSMM-NEXT:     sub rdi, 512
 // CHECK-COMPXSMM-NEXT:    add rdx, 2048
-// CHECK-MANUAL-NEXT:      cmp r11, 38
+// CHECK-LIBXSMM-NEXT:     cmp r11, 38
+// CHECK-COMPXSMM-NEXT:    cmp r11, 20
 // CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY_1]]
 // CHECK-MANUAL-NEXT:      mov rsp, rbp
 // CHECK-MANUAL-NEXT:      pop rbp
@@ -1080,7 +1082,7 @@
 // CHECK-REGALLOC-NEXT:      add rdx, 2560
 // CHECK-REGALLOC-NEXT:      cmp rax, 18
 // CHECK-REGALLOC-NEXT:      jl scf_body_2_for
-// CHECK-REGALLOC-NEXT:      mov rax, 18
+// CHECK-REGALLOC-NEXT:      mov rax, 0
 // CHECK-REGALLOC-NEXT:  scf_body_5_for:
 // CHECK-REGALLOC-NEXT:      add rax, 5
 // CHECK-REGALLOC-NEXT:      mov rcx, 0
@@ -1263,7 +1265,7 @@
 // CHECK-REGALLOC-NEXT:      sub rdi, 512
 // CHECK-REGALLOC-NEXT:      add rsi, 2560
 // CHECK-REGALLOC-NEXT:      add rdx, 2048
-// CHECK-REGALLOC-NEXT:      cmp rax, 38
+// CHECK-REGALLOC-NEXT:      cmp rax, 20
 // CHECK-REGALLOC-NEXT:      jl scf_body_5_for
 // CHECK-REGALLOC-NEXT:      mov rsp, rbp
 // CHECK-REGALLOC-NEXT:      pop rbp

@@ -51,9 +51,6 @@ class MatmulOp(IRDLOperation):
       unchanged;
     - ``none`` passes all three matrix pointers through unchanged.
 
-    ``n_start`` is the logical lower bound of the N range. It does not affect
-    pointer results, but lets N range splitting preserve absolute loop bounds.
-
     ``ins`` are additional read-only registers. ``outs`` are additional
     loop-carried registers and have pairwise matching ``out_results``. The
     current schedule uses an ``in`` for an optional AVX-512 mask.
@@ -77,7 +74,6 @@ class MatmulOp(IRDLOperation):
     out_results = var_result_def(X86RegisterType)
 
     m = prop_def(IntegerAttr)
-    n_start = prop_def(IntegerAttr)
     n = prop_def(IntegerAttr)
     k = prop_def(IntegerAttr)
     lda = prop_def(IntegerAttr)
@@ -106,7 +102,6 @@ class MatmulOp(IRDLOperation):
         outs: Sequence[SSAValue] = (),
         *,
         m: int,
-        n_start: int,
         n: int,
         k: int,
         lda: int,
@@ -129,7 +124,6 @@ class MatmulOp(IRDLOperation):
             ),
             properties={
                 "m": IntegerAttr(m, i64),
-                "n_start": IntegerAttr(n_start, i64),
                 "n": IntegerAttr(n, i64),
                 "k": IntegerAttr(k, i64),
                 "lda": IntegerAttr(lda, i64),
@@ -150,10 +144,6 @@ class MatmulOp(IRDLOperation):
             raise VerifyException(
                 f"iterator must be one of {allowed}, got {self.iterator.data}"
             ) from error
-
-        n_start = self.n_start.value.data
-        if n_start < 0:
-            raise VerifyException(f"n_start must be non-negative, got {n_start}")
 
         integer_properties = {
             "m": self.m.value.data,
