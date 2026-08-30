@@ -10,8 +10,6 @@ from xdsl.dialects.builtin import (
     i64,
 )
 from xdsl.dialects.x86.registers import (
-    AVX512MaskRegisterType,
-    AVX512RegisterType,
     GeneralRegisterType,
     X86RegisterType,
 )
@@ -22,8 +20,6 @@ from xdsl.irdl import (
     IRDLOperation,
     irdl_op_definition,
     operand_def,
-    opt_operand_def,
-    opt_result_def,
     prop_def,
     result_def,
     traits_def,
@@ -38,6 +34,7 @@ class MatmulIterator(StrEnum):
     NONE = "none"
     M = "m"
     N = "n"
+    K = "k"
 
 
 @irdl_op_definition
@@ -50,6 +47,8 @@ class MatmulOp(IRDLOperation):
     - ``n`` leaves A unchanged and advances B by ``n * ldb`` and C by
       ``n * ldc`` elements;
     - ``m`` advances A and C by ``m`` elements and leaves B unchanged;
+    - ``k`` advances A by ``k * lda`` and B by ``k`` elements and leaves C
+      unchanged;
     - ``none`` passes all three matrix pointers through unchanged.
 
     ``n_start`` is the logical lower bound of the N range. It does not affect
@@ -201,44 +200,49 @@ class MatmulOp(IRDLOperation):
 
 
 @irdl_op_definition
-class MatmulKOp(IRDLOperation):
-    """A blocked, register-resident matrix multiplication K body.
+class MatmulRegOp(IRDLOperation):
+    """A blocked, register-resident matrix multiplication body.
 
-    The operation performs ``k_blocking`` K steps. For the currently supported
-    non-transposed inputs, this advances A by ``k_blocking * lda`` elements and B
-    by ``k_blocking`` elements. The corresponding output operands expose those
-    advanced pointers; C and the frame and stack pointers are passed through.
+    The operation performs ``k`` K steps. ``iterator`` describes the
+    pointer-result contract for the currently supported non-transposed inputs:
 
-    Transformations that tile this operation must preserve these pointer results.
-    In particular, whether K is represented by one operation or by a loop of
-    smaller operations must not affect ``b_out``.
+    - ``m`` advances A by ``m`` elements and leaves B unchanged;
+    - ``n`` leaves A unchanged and advances B by ``n * ldb`` elements;
+    - ``k`` advances A by ``k * lda`` and B by ``k`` elements;
+    - ``none`` passes both matrix pointers through unchanged.
+
+    The frame and stack pointers are passed through. C is register-resident and
+    represented by ``outs``, so this operation does not carry a C pointer.
+
+    ``ins`` are additional read-only registers. ``outs`` are additional
+    loop-carried registers and have pairwise matching ``out_results``. The
+    current schedule uses ``ins`` for an optional mask and ``outs`` for C
+    accumulators.
     """
 
-    name = "xsmm.matmul_k"
+    name = "xsmm.matmul_reg"
 
     a = operand_def(GeneralRegisterType)
     b = operand_def(GeneralRegisterType)
-    c = operand_def(GeneralRegisterType)
     rbp = operand_def(GeneralRegisterType)
     rsp = operand_def(GeneralRegisterType)
-    mask = opt_operand_def(AVX512MaskRegisterType)
-    accumulators = var_operand_def(AVX512RegisterType)
+    ins = var_operand_def(X86RegisterType)
+    outs = var_operand_def(X86RegisterType)
 
     a_out = result_def(GeneralRegisterType)
     b_out = result_def(GeneralRegisterType)
-    c_out = result_def(GeneralRegisterType)
     rbp_out = result_def(GeneralRegisterType)
     rsp_out = result_def(GeneralRegisterType)
-    mask_out = opt_result_def(AVX512MaskRegisterType)
-    accumulator_outs = var_result_def(AVX512RegisterType)
+    out_results = var_result_def(X86RegisterType)
 
-    m_blocking = prop_def(IntegerAttr)
-    n_blocking = prop_def(IntegerAttr)
-    k_blocking = prop_def(IntegerAttr)
+    m = prop_def(IntegerAttr)
+    n = prop_def(IntegerAttr)
+    k = prop_def(IntegerAttr)
     lda = prop_def(IntegerAttr)
     ldb = prop_def(IntegerAttr)
     datatype = prop_def(Float32Type | Float64Type)
     aligned_a = prop_def(BoolAttr)
+    iterator = prop_def(StringAttr)
 
     irdl_options = (
         AttrSizedOperandSegments(as_property=True),
@@ -251,47 +255,54 @@ class MatmulKOp(IRDLOperation):
         self,
         a: SSAValue,
         b: SSAValue,
-        c: SSAValue,
         rbp: SSAValue,
         rsp: SSAValue,
-        mask: SSAValue | None,
-        accumulators: Sequence[SSAValue],
+        ins: Sequence[SSAValue] = (),
+        outs: Sequence[SSAValue] = (),
         *,
-        m_blocking: int,
-        n_blocking: int,
-        k_blocking: int,
+        m: int,
+        n: int,
+        k: int,
         lda: int,
         ldb: int,
         datatype: Float32Type | Float64Type,
         aligned_a: bool,
+        iterator: MatmulIterator,
     ):
         super().__init__(
-            operands=(a, b, c, rbp, rsp, mask, accumulators),
+            operands=(a, b, rbp, rsp, ins, outs),
             result_types=(
                 a.type,
                 b.type,
-                c.type,
                 rbp.type,
                 rsp.type,
-                None if mask is None else mask.type,
-                tuple(acc.type for acc in accumulators),
+                tuple(out.type for out in outs),
             ),
             properties={
-                "m_blocking": IntegerAttr(m_blocking, i64),
-                "n_blocking": IntegerAttr(n_blocking, i64),
-                "k_blocking": IntegerAttr(k_blocking, i64),
+                "m": IntegerAttr(m, i64),
+                "n": IntegerAttr(n, i64),
+                "k": IntegerAttr(k, i64),
                 "lda": IntegerAttr(lda, i64),
                 "ldb": IntegerAttr(ldb, i64),
                 "datatype": datatype,
                 "aligned_a": BoolAttr.from_bool(aligned_a),
+                "iterator": StringAttr(iterator),
             },
         )
 
     def verify_(self) -> None:
+        try:
+            MatmulIterator(self.iterator.data)
+        except ValueError as error:
+            allowed = ", ".join(iterator.value for iterator in MatmulIterator)
+            raise VerifyException(
+                f"iterator must be one of {allowed}, got {self.iterator.data}"
+            ) from error
+
         integer_properties = {
-            "m_blocking": self.m_blocking.value.data,
-            "n_blocking": self.n_blocking.value.data,
-            "k_blocking": self.k_blocking.value.data,
+            "m": self.m.value.data,
+            "n": self.n.value.data,
+            "k": self.k.value.data,
             "lda": self.lda.value.data,
             "ldb": self.ldb.value.data,
         }
@@ -300,31 +311,6 @@ class MatmulKOp(IRDLOperation):
                 raise VerifyException(f"{name} must be positive, got {value}")
 
         vector_length = 512 // self.datatype.bitwidth
-        m_blocking = self.m_blocking.value.data
-        n_blocking = self.n_blocking.value.data
-        m_vectors = (m_blocking + vector_length - 1) // vector_length
-        expected_accumulators = m_vectors * n_blocking
-        if len(self.accumulators) != expected_accumulators:
-            raise VerifyException(
-                "expected "
-                f"{expected_accumulators} accumulators for {m_blocking}x{n_blocking} "
-                f"blocking, got {len(self.accumulators)}"
-            )
-
-        if len(self.accumulator_outs) != len(self.accumulators):
-            raise VerifyException(
-                "expected the same number of accumulator operands and results"
-            )
-
-        needs_mask = m_blocking % vector_length != 0
-        if bool(self.mask) != needs_mask:
-            raise VerifyException(
-                "expected a mask exactly when m_blocking is not a multiple of the "
-                "vector length"
-            )
-        if bool(self.mask_out) != bool(self.mask):
-            raise VerifyException("mask operand and result presence must match")
-
         if self.aligned_a.value.data and self.lda.value.data % vector_length:
             raise VerifyException(
                 "aligned A requires lda to be a multiple of the vector length"
@@ -333,20 +319,16 @@ class MatmulKOp(IRDLOperation):
         inputs = (
             self.a,
             self.b,
-            self.c,
             self.rbp,
             self.rsp,
-            *((self.mask,) if self.mask is not None else ()),
-            *self.accumulators,
+            *self.outs,
         )
         outputs = (
             self.a_out,
             self.b_out,
-            self.c_out,
             self.rbp_out,
             self.rsp_out,
-            *((self.mask_out,) if self.mask_out is not None else ()),
-            *self.accumulator_outs,
+            *self.out_results,
         )
         if tuple(value.type for value in inputs) != tuple(
             value.type for value in outputs
@@ -354,8 +336,28 @@ class MatmulKOp(IRDLOperation):
             raise VerifyException("operand and result types must match pairwise")
 
 
+def matmul_reg_pointer_offsets(
+    op: MatmulRegOp, iterator: MatmulIterator | None = None
+) -> tuple[int, int]:
+    """Return the A and B pointer advances in bytes for an iterator."""
+    iterator = MatmulIterator(op.iterator.data) if iterator is None else iterator
+    element_size = op.datatype.bitwidth // 8
+    match iterator:
+        case MatmulIterator.NONE:
+            return 0, 0
+        case MatmulIterator.M:
+            return op.m.value.data * element_size, 0
+        case MatmulIterator.N:
+            return 0, op.n.value.data * op.ldb.value.data * element_size
+        case MatmulIterator.K:
+            return (
+                op.k.value.data * op.lda.value.data * element_size,
+                op.k.value.data * element_size,
+            )
+
+
 XSMM = Dialect(
     "xsmm",
-    [MatmulOp, MatmulKOp],
+    [MatmulOp, MatmulRegOp],
     [],
 )
