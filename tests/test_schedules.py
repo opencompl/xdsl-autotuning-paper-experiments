@@ -51,22 +51,22 @@ def make_matmul(
         (
             MatmulIterator.N,
             MatmulIterator.M,
-            (("x86.ri.add", 128), ("x86.ri.add", 96), ("x86.ri.sub", 64)),
+            (("x86.ri.sub", 64), ("x86.ri.add", 96), ("x86.ri.add", 128)),
         ),
         (
             MatmulIterator.M,
             MatmulIterator.N,
-            (("x86.ri.sub", 128), ("x86.ri.sub", 96), ("x86.ri.add", 64)),
+            (("x86.ri.add", 64), ("x86.ri.sub", 96), ("x86.ri.sub", 128)),
         ),
         (
             MatmulIterator.N,
             MatmulIterator.NONE,
-            (("x86.ri.add", 192), ("x86.ri.add", 96), ("x86.ri.add", 0)),
+            (("x86.ri.add", 0), ("x86.ri.add", 96), ("x86.ri.add", 192)),
         ),
         (
             MatmulIterator.NONE,
             MatmulIterator.N,
-            (("x86.ri.sub", 192), ("x86.ri.sub", 96), ("x86.ri.add", 0)),
+            (("x86.ri.add", 0), ("x86.ri.sub", 96), ("x86.ri.sub", 192)),
         ),
         (
             MatmulIterator.M,
@@ -83,7 +83,7 @@ def make_matmul(
 def test_set_matmul_iterator(
     source: MatmulIterator,
     target: MatmulIterator,
-    expected_adjustments: tuple[tuple[str, int], ...],
+    expected_adjustments: tuple[tuple[str, int] | None, ...],
 ) -> None:
     module, matmul, consumer, input_value, output_value = make_matmul(source)
 
@@ -94,20 +94,16 @@ def test_set_matmul_iterator(
         for op in module.body.block.ops
         if isinstance(op, (x86.ops.RI_AddOp, x86.ops.RI_SubOp))
     )
-    assert (
-        tuple(
-            (adjustment.name, adjustment.immediate.value.data)
-            for adjustment in adjustments
-        )
-        == expected_adjustments
-    )
+    assert tuple(
+        (adjustment.name, adjustment.immediate.value.data) for adjustment in adjustments
+    ) == tuple(adjustment for adjustment in expected_adjustments if adjustment)
     assert replacement.iterator.data == target
     assert replacement.ins[0] is input_value
     assert replacement.outs[0] is output_value
-    assert tuple(operand.owner for operand in consumer.operands[:3]) == (
-        adjustments[2],
-        adjustments[1],
-        adjustments[0],
+    adjustment_iter = iter(adjustments)
+    assert tuple(operand.owner for operand in consumer.operands[:3]) == tuple(
+        replacement if expected is None else next(adjustment_iter)
+        for expected in expected_adjustments
     )
     assert consumer.operands[3] is replacement.rbp_out
     assert consumer.operands[4] is replacement.rsp_out

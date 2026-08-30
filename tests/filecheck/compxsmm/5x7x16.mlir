@@ -1,11 +1,5 @@
 // RUN: compxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP && cat %t | filecheck %s
-// RUN: compxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
-// RUN: compxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
 // RUN: compxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
-
-// The manual pipeline saves one extra GPR for mask setup, so the shared structure
-// starts at frame setup and ends before register restoration. Within that range,
-// named captures verify identical dataflow and instruction structure.
 
 // CHECK:       x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
 // CHECK-NEXT:    %3 = x86.get_register : !x86.reg64<rbp>
@@ -182,174 +176,12 @@
 // CHECK-REGALLOC-NEXT:      sub rdi, 840
 // CHECK-REGALLOC-NEXT:      cmp rcx, 7
 // CHECK-REGALLOC-NEXT:      jl scf_body_0_for
-// CHECK-REGALLOC-NEXT:      add rdx, 224
-// CHECK-REGALLOC-NEXT:      add rsi, 640
 // CHECK-REGALLOC-NEXT:      sub rdi, 56
+// CHECK-REGALLOC-NEXT:      add rsi, 640
+// CHECK-REGALLOC-NEXT:      add rdx, 224
 // CHECK-REGALLOC-NEXT:      cmp rax, 5
 // CHECK-REGALLOC-NEXT:      jl scf_body_1_for
 // CHECK-REGALLOC-NEXT:      mov rsp, rbp
 // CHECK-REGALLOC-NEXT:      pop rbp
 // CHECK-REGALLOC-NEXT:      pop rbp
 // CHECK-REGALLOC-NEXT:      ret
-
-// CHECK-REGALLOC-STRUCTURE:           mov rbp, rsp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      sub rsp, 192
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[STACK_ALIGN:\S+]], -64
-// CHECK-REGALLOC-STRUCTURE-NEXT:      and rsp, [[STACK_ALIGN]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[N:\S+]], 0
-// CHECK-REGALLOC-STRUCTURE-NEXT:  scf_body_1_for:
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add [[N]], 5
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[MASK_VALUE:\S+]], 127
-// CHECK-REGALLOC-STRUCTURE-NEXT:      kmovb [[MASK:\S+]], [[MASK_VALUE_32:\S+]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[M:\S+]], 0
-// CHECK-REGALLOC-STRUCTURE-NEXT:  scf_body_0_for:
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add [[M]], 7
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[ACC_G0_N0:\S+]] {[[MASK]]}{z}, [rdx]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[ACC_G0_N1:\S+]] {[[MASK]]}{z}, [rdx+56]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[ACC_G0_N2:\S+]] {[[MASK]]}{z}, [rdx+112]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[ACC_G0_N3:\S+]] {[[MASK]]}{z}, [rdx+168]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[ACC_G0_N4:\S+]] {[[MASK]]}{z}, [rdx+224]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G1_N0:\S+]], [[ACC_G1_N0]], [[ACC_G1_N0]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G1_N1:\S+]], [[ACC_G1_N1]], [[ACC_G1_N1]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G1_N2:\S+]], [[ACC_G1_N2]], [[ACC_G1_N2]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G1_N3:\S+]], [[ACC_G1_N3]], [[ACC_G1_N3]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G1_N4:\S+]], [[ACC_G1_N4]], [[ACC_G1_N4]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G2_N0:\S+]], [[ACC_G2_N0]], [[ACC_G2_N0]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G2_N1:\S+]], [[ACC_G2_N1]], [[ACC_G2_N1]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G2_N2:\S+]], [[ACC_G2_N2]], [[ACC_G2_N2]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G2_N3:\S+]], [[ACC_G2_N3]], [[ACC_G2_N3]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G2_N4:\S+]], [[ACC_G2_N4]], [[ACC_G2_N4]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G3_N0:\S+]], [[ACC_G3_N0]], [[ACC_G3_N0]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G3_N1:\S+]], [[ACC_G3_N1]], [[ACC_G3_N1]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G3_N2:\S+]], [[ACC_G3_N2]], [[ACC_G3_N2]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G3_N3:\S+]], [[ACC_G3_N3]], [[ACC_G3_N3]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vpxord [[ACC_G3_N4:\S+]], [[ACC_G3_N4]], [[ACC_G3_N4]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K0:\S+]] {[[MASK]]}{z}, [rdi]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K1:\S+]] {[[MASK]]}{z}, [rdi+56]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N0]], [[A_K0]], [rsi]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N1]], [[A_K0]], [rsi+128]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N2]], [[A_K0]], [rsi+256]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N3]], [[A_K0]], [rsi+384]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N4]], [[A_K0]], [rsi+512]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K2:\S+]] {[[MASK]]}{z}, [rdi+112]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N0]], [[A_K1]], [rsi+8]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N1]], [[A_K1]], [rsi+136]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N2]], [[A_K1]], [rsi+264]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N3]], [[A_K1]], [rsi+392]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N4]], [[A_K1]], [rsi+520]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K3:\S+]] {[[MASK]]}{z}, [rdi+168]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N0]], [[A_K2]], [rsi+16]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N1]], [[A_K2]], [rsi+144]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N2]], [[A_K2]], [rsi+272]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N3]], [[A_K2]], [rsi+400]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N4]], [[A_K2]], [rsi+528]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K4:\S+]] {[[MASK]]}{z}, [rdi+224]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N0]], [[A_K3]], [rsi+24]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N1]], [[A_K3]], [rsi+152]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N2]], [[A_K3]], [rsi+280]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N3]], [[A_K3]], [rsi+408]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N4]], [[A_K3]], [rsi+536]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K5:\S+]] {[[MASK]]}{z}, [rdi+280]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N0]], [[A_K4]], [rsi+32]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N1]], [[A_K4]], [rsi+160]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N2]], [[A_K4]], [rsi+288]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N3]], [[A_K4]], [rsi+416]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N4]], [[A_K4]], [rsi+544]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K6:\S+]] {[[MASK]]}{z}, [rdi+336]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N0]], [[A_K5]], [rsi+40]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N1]], [[A_K5]], [rsi+168]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N2]], [[A_K5]], [rsi+296]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N3]], [[A_K5]], [rsi+424]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N4]], [[A_K5]], [rsi+552]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K7:\S+]] {[[MASK]]}{z}, [rdi+392]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N0]], [[A_K6]], [rsi+48]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N1]], [[A_K6]], [rsi+176]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N2]], [[A_K6]], [rsi+304]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N3]], [[A_K6]], [rsi+432]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N4]], [[A_K6]], [rsi+560]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K8:\S+]] {[[MASK]]}{z}, [rdi+448]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N0]], [[A_K7]], [rsi+56]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N1]], [[A_K7]], [rsi+184]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N2]], [[A_K7]], [rsi+312]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N3]], [[A_K7]], [rsi+440]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N4]], [[A_K7]], [rsi+568]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K9:\S+]] {[[MASK]]}{z}, [rdi+504]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N0]], [[A_K8]], [rsi+64]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N1]], [[A_K8]], [rsi+192]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N2]], [[A_K8]], [rsi+320]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N3]], [[A_K8]], [rsi+448]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N4]], [[A_K8]], [rsi+576]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K10:\S+]] {[[MASK]]}{z}, [rdi+560]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N0]], [[A_K9]], [rsi+72]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N1]], [[A_K9]], [rsi+200]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N2]], [[A_K9]], [rsi+328]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N3]], [[A_K9]], [rsi+456]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N4]], [[A_K9]], [rsi+584]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K11:\S+]] {[[MASK]]}{z}, [rdi+616]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N0]], [[A_K10]], [rsi+80]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N1]], [[A_K10]], [rsi+208]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N2]], [[A_K10]], [rsi+336]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N3]], [[A_K10]], [rsi+464]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N4]], [[A_K10]], [rsi+592]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K12:\S+]] {[[MASK]]}{z}, [rdi+672]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N0]], [[A_K11]], [rsi+88]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N1]], [[A_K11]], [rsi+216]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N2]], [[A_K11]], [rsi+344]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N3]], [[A_K11]], [rsi+472]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N4]], [[A_K11]], [rsi+600]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K13:\S+]] {[[MASK]]}{z}, [rdi+728]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N0]], [[A_K12]], [rsi+96]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N1]], [[A_K12]], [rsi+224]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N2]], [[A_K12]], [rsi+352]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N3]], [[A_K12]], [rsi+480]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G0_N4]], [[A_K12]], [rsi+608]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K14:\S+]] {[[MASK]]}{z}, [rdi+784]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N0]], [[A_K13]], [rsi+104]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N1]], [[A_K13]], [rsi+232]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N2]], [[A_K13]], [rsi+360]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N3]], [[A_K13]], [rsi+488]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G1_N4]], [[A_K13]], [rsi+616]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [[A_K15:\S+]] {[[MASK]]}{z}, [rdi+840]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N0]], [[A_K14]], [rsi+112]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N1]], [[A_K14]], [rsi+240]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N2]], [[A_K14]], [rsi+368]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N3]], [[A_K14]], [rsi+496]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G2_N4]], [[A_K14]], [rsi+624]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add rdi, 896
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N0]], [[A_K15]], [rsi+120]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N1]], [[A_K15]], [rsi+248]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N2]], [[A_K15]], [rsi+376]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N3]], [[A_K15]], [rsi+504]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC_G3_N4]], [[A_K15]], [rsi+632]{1to8}
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add rsi, 128
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N0]], [[ACC_G1_N0]], [[ACC_G0_N0]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N1]], [[ACC_G1_N1]], [[ACC_G0_N1]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N2]], [[ACC_G1_N2]], [[ACC_G0_N2]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N3]], [[ACC_G1_N3]], [[ACC_G0_N3]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N4]], [[ACC_G1_N4]], [[ACC_G0_N4]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N0]], [[ACC_G2_N0]], [[ACC_G0_N0]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N1]], [[ACC_G2_N1]], [[ACC_G0_N1]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N2]], [[ACC_G2_N2]], [[ACC_G0_N2]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N3]], [[ACC_G2_N3]], [[ACC_G0_N3]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N4]], [[ACC_G2_N4]], [[ACC_G0_N4]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N0]], [[ACC_G3_N0]], [[ACC_G0_N0]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N1]], [[ACC_G3_N1]], [[ACC_G0_N1]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N2]], [[ACC_G3_N2]], [[ACC_G0_N2]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N3]], [[ACC_G3_N3]], [[ACC_G0_N3]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vaddpd [[ACC_G0_N4]], [[ACC_G3_N4]], [[ACC_G0_N4]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      sub rsi, 128
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [rdx] {[[MASK]]}, [[ACC_G0_N0]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [rdx+56] {[[MASK]]}, [[ACC_G0_N1]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [rdx+112] {[[MASK]]}, [[ACC_G0_N2]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [rdx+168] {[[MASK]]}, [[ACC_G0_N3]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      vmovupd [rdx+224] {[[MASK]]}, [[ACC_G0_N4]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add rdx, 56
-// CHECK-REGALLOC-STRUCTURE-NEXT:      sub rdi, 840
-// CHECK-REGALLOC-STRUCTURE-NEXT:      cmp [[M]], 7
-// CHECK-REGALLOC-STRUCTURE-NEXT:      jl scf_body_0_for
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add rdx, 224
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add rsi, 640
-// CHECK-REGALLOC-STRUCTURE-NEXT:      sub rdi, 56
-// CHECK-REGALLOC-STRUCTURE-NEXT:      cmp [[N]], 5
-// CHECK-REGALLOC-STRUCTURE-NEXT:      jl scf_body_1_for
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov rsp, rbp

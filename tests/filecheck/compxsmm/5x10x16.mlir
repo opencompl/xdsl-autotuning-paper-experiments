@@ -362,9 +362,9 @@
 // CHECK-REGALLOC-NEXT:      sub rdi, 1200
 // CHECK-REGALLOC-NEXT:      cmp rcx, 10
 // CHECK-REGALLOC-NEXT:      jl scf_body_0_for
-// CHECK-REGALLOC-NEXT:      add rdx, 320
-// CHECK-REGALLOC-NEXT:      add rsi, 640
 // CHECK-REGALLOC-NEXT:      sub rdi, 80
+// CHECK-REGALLOC-NEXT:      add rsi, 640
+// CHECK-REGALLOC-NEXT:      add rdx, 320
 // CHECK-REGALLOC-NEXT:      cmp rax, 5
 // CHECK-REGALLOC-NEXT:      jl scf_body_1_for
 // CHECK-REGALLOC-NEXT:      mov rsp, rbp

@@ -183,31 +183,27 @@ def set_matmul_iterator(
         iterator=iterator,
     )
 
-    # TODO: fix the iterator order and break compatibility with libxsmm for pointer manipulations
-
-    # Preserve the existing C, B, A adjustment order and zero adjustments in
-    # generated code, so changing the iterator does not change the schedule.
-    old_offsets_cba = reversed(_matmul_pointer_offsets_abc(op, old_iterator))
-    new_offsets_cba = reversed(_matmul_pointer_offsets_abc(op, iterator))
-    offsets_cba = tuple(
+    old_offsets_abc = _matmul_pointer_offsets_abc(op, old_iterator)
+    new_offsets_abc = _matmul_pointer_offsets_abc(op, iterator)
+    offsets_abc = tuple(
         old_offset - new_offset
-        for old_offset, new_offset in zip(old_offsets_cba, new_offsets_cba, strict=True)
+        for old_offset, new_offset in zip(old_offsets_abc, new_offsets_abc, strict=True)
     )
-    pointer_results_cba = [matmul.c_out, matmul.b_out, matmul.a_out]
+    pointer_results_abc = [matmul.a_out, matmul.b_out, matmul.c_out]
     offset_ops = [
         (x86.ops.RI_SubOp if offset < 0 else x86.ops.RI_AddOp)(
             pointer_result,
             abs(offset),
             register_out=pointer_result.type,
         )
-        for offset, pointer_result in zip(offsets_cba, pointer_results_cba)
+        for offset, pointer_result in zip(offsets_abc, pointer_results_abc)
     ]
 
     rewriter.replace(
         op,
         (matmul, *offset_ops),
         (
-            *(offset_op.register_out for offset_op in reversed(offset_ops)),
+            *(offset_op.register_out for offset_op in offset_ops),
             matmul.rbp_out,
             matmul.rsp_out,
             *matmul.out_results,
@@ -405,21 +401,8 @@ def tile_k(
     k_a_offset, k_b_offset = matmul_reg_pointer_offsets(op, MatmulIterator.K)
     a, b, *rest = results
     # Keep the B-before-A adjustment order used by the existing schedule.
+    a = _offset_pointer(rewriter, insert_point, a, desired_a_offset - k_a_offset)
     b = _offset_pointer(rewriter, insert_point, b, desired_b_offset - k_b_offset)
-    # Delay the independent A normalization until its first same-block use so
-    # intervening C stores retain their established instruction order.
-    a_insert_point = insert_point
-    if (
-        a_user := op.a_out.get_user_of_unique_use()
-    ) is not None and a_user.parent_block() is op.parent_block():
-        a_insert_point = InsertPoint.before(a_user)
-    a = _offset_pointer(
-        rewriter,
-        a_insert_point,
-        a,
-        desired_a_offset - k_a_offset,
-        emit_zero_sub=op.iterator.data == MatmulIterator.M,
-    )
 
     rewriter.replace(op, [], (a, b, *rest))
     return tiled_matmul, remainder_matmul

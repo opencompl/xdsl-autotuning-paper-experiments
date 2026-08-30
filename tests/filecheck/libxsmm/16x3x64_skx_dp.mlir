@@ -1,6 +1,6 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s
-// RUN: libxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
+// RUN: libxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
+// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
 
 // CHECK-MANUAL:       .intel_syntax noprefix
 // CHECK-MANUAL-NEXT:  .text
@@ -82,6 +82,7 @@
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
 // CHECK-MANUAL-NEXT:      cmp r12, 64
 // CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_35]]
+// CHECK-COMPXSMM-NEXT:    sub rdi, 8064
 // CHECK-MANUAL-NEXT:      sub rsi, 512
 // CHECK-MANUAL-NEXT:      vmovapd [rdx], zmm26
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+64], zmm27
@@ -90,12 +91,14 @@
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+256], zmm30
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+320], zmm31
 // CHECK-MANUAL-NEXT:      add rdx, 128
-// CHECK-MANUAL-NEXT:      sub rdi, 8064
+// CHECK-LIBXSMM-NEXT:     sub rdi, 8064
 // CHECK-MANUAL-NEXT:      cmp r10, 16
 // CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_34]]
-// CHECK-MANUAL-NEXT:      add rdx, 256
+// CHECK-LIBXSMM-NEXT:     add rdx, 256
+// CHECK-COMPXSMM-NEXT:    sub rdi, 128
 // CHECK-MANUAL-NEXT:      add rsi, 1536
-// CHECK-MANUAL-NEXT:      sub rdi, 128
+// CHECK-LIBXSMM-NEXT:     sub rdi, 128
+// CHECK-COMPXSMM-NEXT:    add rdx, 256
 // CHECK-MANUAL-NEXT:      cmp r11, 3
 // CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_33]]
 // CHECK-MANUAL-NEXT:      mov rsp, rbp

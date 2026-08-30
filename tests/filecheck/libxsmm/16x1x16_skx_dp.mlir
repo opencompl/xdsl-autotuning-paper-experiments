@@ -1,6 +1,6 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 16 1 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s
-// RUN: libxsmm-gemm dense %t matmul_bac 16 1 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
-// RUN: compxsmm-gemm dense %t matmul_bac 16 1 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
+// RUN: libxsmm-gemm dense %t matmul_bac 16 1 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
+// RUN: compxsmm-gemm dense %t matmul_bac 16 1 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
 
 // CHECK-MANUAL:       .intel_syntax noprefix
 // CHECK-MANUAL-NEXT:  .text
@@ -139,9 +139,11 @@
 // CHECK-MANUAL-NEXT:      sub rdi, 1920
 // CHECK-MANUAL-NEXT:      cmp r10, 16
 // CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_34]]
-// CHECK-MANUAL-NEXT:      add rdx, 0
+// CHECK-LIBXSMM-NEXT:     add rdx, 0
+// CHECK-COMPXSMM-NEXT:    sub rdi, 128
 // CHECK-MANUAL-NEXT:      add rsi, 128
-// CHECK-MANUAL-NEXT:      sub rdi, 128
+// CHECK-LIBXSMM-NEXT:     sub rdi, 128
+// CHECK-COMPXSMM-NEXT:    add rdx, 0
 // CHECK-MANUAL-NEXT:      cmp r11, 1
 // CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_33]]
 // CHECK-MANUAL-NEXT:      mov rsp, rbp

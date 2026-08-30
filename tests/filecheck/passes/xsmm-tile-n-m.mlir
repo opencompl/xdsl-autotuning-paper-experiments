@@ -20,10 +20,10 @@ x86_func.func @single_n_range(
 // CHECK-NEXT:          %26, %27, %28, %29, %30 = "xsmm.matmul"(%21, %22, %23, %24, %25) <{m = 16 : i64, n_start = 4 : i64, n = 14 : i64, k = 16 : i64, lda = 16 : i64, ldb = 16 : i64, ldc = 16 : i64, datatype = f64, aligned_a = true, aligned_c = true, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
 // CHECK-NEXT:          x86_scf.yield %26, %27, %28, %29, %30 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
 // CHECK-NEXT:        }
-// CHECK-NEXT:        %31 = x86.ri.add %17, 1664 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:        %31 = x86.ri.sub %15, 128 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
 // CHECK-NEXT:        %32 = x86.ri.add %16, 1792 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:        %33 = x86.ri.sub %15, 128 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:        x86_scf.yield %33, %32, %31, %18, %19 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
+// CHECK-NEXT:        %33 = x86.ri.add %17, 1664 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:        x86_scf.yield %31, %32, %33, %18, %19 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      x86_func.ret
 // CHECK-NEXT:    }
@@ -52,10 +52,10 @@ x86_func.func @loop_carried_out(
 // CHECK-NEXT:          %30, %31, %32, %33, %34, %35 = "xsmm.matmul"(%24, %25, %26, %27, %28, %29) <{m = 16 : i64, n_start = 4 : i64, n = 14 : i64, k = 16 : i64, lda = 16 : i64, ldb = 16 : i64, ldc = 16 : i64, datatype = f64, aligned_a = true, aligned_c = true, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<r8>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<r8>)
 // CHECK-NEXT:          x86_scf.yield %30, %31, %32, %33, %34, %35 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<r8>
 // CHECK-NEXT:        }
-// CHECK-NEXT:        %36 = x86.ri.add %19, 1664 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:        %36 = x86.ri.sub %17, 128 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
 // CHECK-NEXT:        %37 = x86.ri.add %18, 1792 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:        %38 = x86.ri.sub %17, 128 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:        x86_scf.yield %38, %37, %36, %20, %21, %22 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<r8>
+// CHECK-NEXT:        %38 = x86.ri.add %19, 1664 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:        x86_scf.yield %36, %37, %38, %20, %21, %22 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<r8>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      x86_func.ret
 // CHECK-NEXT:    }
@@ -90,10 +90,10 @@ x86_func.func @two_n_ranges_with_m_remainder(
 // CHECK-NEXT:          %46, %47, %48, %49, %50 = "xsmm.matmul"(%41, %42, %43, %44, %45, %32) <{m = 6 : i64, n_start = 0 : i64, n = 6 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.avx512maskreg<k1>) -> (!x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64)
 // CHECK-NEXT:          x86_scf.yield %46, %47, %48, %49, %50 : !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64
 // CHECK-NEXT:        }
-// CHECK-NEXT:        %51 = x86.ri.add %37, 1400 : (!x86.reg64) -> !x86.reg64
+// CHECK-NEXT:        %51 = x86.ri.sub %35, 280 : (!x86.reg64) -> !x86.reg64
 // CHECK-NEXT:        %52 = x86.ri.add %36, 3072 : (!x86.reg64) -> !x86.reg64
-// CHECK-NEXT:        %53 = x86.ri.sub %35, 280 : (!x86.reg64) -> !x86.reg64
-// CHECK-NEXT:        x86_scf.yield %53, %52, %51, %38, %39 : !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64
+// CHECK-NEXT:        %53 = x86.ri.add %37, 1400 : (!x86.reg64) -> !x86.reg64
+// CHECK-NEXT:        x86_scf.yield %51, %52, %53, %38, %39 : !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64
 // CHECK-NEXT:      }
 // CHECK-NEXT:      %54 = x86.di.mov 18 : () -> !x86.reg64<r11>
 // CHECK-NEXT:      %55, %56, %57, %58, %59, %60 = x86_scf.for %61 : !x86.reg64<r11>  = %54 to 38 : si32 step 5 : si32 iter_args(%62 = %2, %63 = %3, %64 = %4, %65 = %5, %66 = %6) -> (!x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64) {
@@ -109,10 +109,10 @@ x86_func.func @two_n_ranges_with_m_remainder(
 // CHECK-NEXT:          %100, %101, %102, %103, %104 = "xsmm.matmul"(%95, %96, %97, %98, %99, %86) <{m = 6 : i64, n_start = 18 : i64, n = 5 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.avx512maskreg<k1>) -> (!x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64)
 // CHECK-NEXT:          x86_scf.yield %100, %101, %102, %103, %104 : !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64
 // CHECK-NEXT:        }
-// CHECK-NEXT:        %105 = x86.ri.add %91, 1120 : (!x86.reg64) -> !x86.reg64
+// CHECK-NEXT:        %105 = x86.ri.sub %89, 280 : (!x86.reg64) -> !x86.reg64
 // CHECK-NEXT:        %106 = x86.ri.add %90, 2560 : (!x86.reg64) -> !x86.reg64
-// CHECK-NEXT:        %107 = x86.ri.sub %89, 280 : (!x86.reg64) -> !x86.reg64
-// CHECK-NEXT:        x86_scf.yield %107, %106, %105, %92, %93 : !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64
+// CHECK-NEXT:        %107 = x86.ri.add %91, 1120 : (!x86.reg64) -> !x86.reg64
+// CHECK-NEXT:        x86_scf.yield %105, %106, %107, %92, %93 : !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64, !x86.reg64
 // CHECK-NEXT:      }
 // CHECK-NEXT:      x86_func.ret
 // CHECK-NEXT:    }
