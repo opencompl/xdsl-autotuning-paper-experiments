@@ -1,8 +1,8 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s
-// RUN: libxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
-// RUN: env SWAP_A_B=1 libxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefix CHECK-SWAP
-// RUN: env SWAP_A_B=1 compxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-SWAP
+// RUN: libxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
+// RUN: compxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
+// RUN: env SWAP_A_B=1 libxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-SWAP,CHECK-SWAP-LIBXSMM
+// RUN: env SWAP_A_B=1 compxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-SWAP,CHECK-SWAP-COMPXSMM
 
 // CHECK-MANUAL:       .intel_syntax noprefix
 // CHECK-MANUAL-NEXT:  .text
@@ -15,10 +15,10 @@
 // CHECK-MANUAL-NEXT:      mov r10, -64
 // CHECK-MANUAL-NEXT:      and rsp, r10
 // CHECK-MANUAL-NEXT:      mov r11, 0
-// CHECK-MANUAL-NEXT:  [[ASM_LABEL_33:^\S+]]:
+// CHECK-MANUAL-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r11, 3
 // CHECK-MANUAL-NEXT:      mov r10, 0
-// CHECK-MANUAL-NEXT:  [[ASM_LABEL_34:^\S+]]:
+// CHECK-MANUAL-NEXT:  [[SCF_M_BODY:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r10, 16
 // CHECK-MANUAL-NEXT:      vmovapd zmm26, [rdx]
 // CHECK-MANUAL-NEXT:      vmovapd zmm27, [rdx+64]
@@ -101,18 +101,20 @@
 // CHECK-MANUAL-NEXT:      add rdx, 128
 // CHECK-MANUAL-NEXT:      sub rdi, 512
 // CHECK-MANUAL-NEXT:      cmp r10, 16
-// CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_34]]
-// CHECK-MANUAL-NEXT:      add rdx, 256
+// CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY]]
+// CHECK-LIBXSMM-NEXT:     add rdx, 256
+// CHECK-COMPXSMM-NEXT:    sub rdi, 128
 // CHECK-MANUAL-NEXT:      add rsi, 120
-// CHECK-MANUAL-NEXT:      sub rdi, 128
+// CHECK-LIBXSMM-NEXT:     sub rdi, 128
+// CHECK-COMPXSMM-NEXT:    add rdx, 256
 // CHECK-MANUAL-NEXT:      cmp r11, 3
-// CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_33]]
+// CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY]]
 // CHECK-MANUAL-NEXT:      mov rsp, rbp
 // CHECK-MANUAL-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      ret
 
-+// CHECK-SWAP:  .intel_syntax noprefix
+// CHECK-SWAP:       .intel_syntax noprefix
 // CHECK-SWAP-NEXT:  .text
 // CHECK-SWAP-NEXT:  .globl matmul
 // CHECK-SWAP-NEXT:  matmul:
@@ -123,10 +125,10 @@
 // CHECK-SWAP-NEXT:      mov r10, -64
 // CHECK-SWAP-NEXT:      and rsp, r10
 // CHECK-SWAP-NEXT:      mov r11, 0
-// CHECK-SWAP-NEXT:  [[SWAP_N_BODY:^\S+]]:
+// CHECK-SWAP-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-SWAP-NEXT:      add r11, 3
 // CHECK-SWAP-NEXT:      mov r10, 0
-// CHECK-SWAP-NEXT:  [[SWAP_M_BODY:^\S+]]:
+// CHECK-SWAP-NEXT:  [[SCF_M_BODY:^\S+]]:
 // CHECK-SWAP-NEXT:      add r10, 16
 // CHECK-SWAP-NEXT:      vmovapd zmm26, [rdx]
 // CHECK-SWAP-NEXT:      vmovapd zmm27, [rdx+64]
@@ -209,12 +211,14 @@
 // CHECK-SWAP-NEXT:      add rdx, 128
 // CHECK-SWAP-NEXT:      sub rsi, 512
 // CHECK-SWAP-NEXT:      cmp r10, 16
-// CHECK-SWAP-NEXT:      jl [[SWAP_M_BODY]]
-// CHECK-SWAP-NEXT:      add rdx, 256
-// CHECK-SWAP-NEXT:      add rdi, 120
-// CHECK-SWAP-NEXT:      sub rsi, 128
+// CHECK-SWAP-NEXT:      jl [[SCF_M_BODY]]
+// CHECK-SWAP-LIBXSMM-NEXT:     add rdx, 256
+// CHECK-SWAP-COMPXSMM-NEXT:    sub rsi, 128
+// CHECK-SWAP-NEXT:              add rdi, 120
+// CHECK-SWAP-LIBXSMM-NEXT:     sub rsi, 128
+// CHECK-SWAP-COMPXSMM-NEXT:    add rdx, 256
 // CHECK-SWAP-NEXT:      cmp r11, 3
-// CHECK-SWAP-NEXT:      jl [[SWAP_N_BODY]]
+// CHECK-SWAP-NEXT:      jl [[SCF_N_BODY]]
 // CHECK-SWAP-NEXT:      mov rsp, rbp
 // CHECK-SWAP-NEXT:      pop rbp
 // CHECK-SWAP-NEXT:      pop rbp

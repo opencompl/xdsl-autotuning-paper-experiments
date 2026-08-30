@@ -207,6 +207,7 @@
 // CHECK-REGALLOC-NEXT:      vfmadd231ps zmm31, zmm0, zmm1
 // CHECK-REGALLOC-NEXT:      cmp rbx, 128
 // CHECK-REGALLOC-NEXT:      jl scf_body_0_for
+// CHECK-REGALLOC-NEXT:      sub rdi, 25400
 // CHECK-REGALLOC-NEXT:      sub rsi, 512
 // CHECK-REGALLOC-NEXT:      vmovups [rdx], zmm8
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+64], zmm9
@@ -233,12 +234,11 @@
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+1128], zmm30
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+1192] {k1}, zmm31
 // CHECK-REGALLOC-NEXT:      add rdx, 200
-// CHECK-REGALLOC-NEXT:      sub rdi, 25400
 // CHECK-REGALLOC-NEXT:      cmp rcx, 50
 // CHECK-REGALLOC-NEXT:      jl scf_body_1_for
-// CHECK-REGALLOC-NEXT:      add rdx, 1000
-// CHECK-REGALLOC-NEXT:      add rsi, 3072
 // CHECK-REGALLOC-NEXT:      sub rdi, 200
+// CHECK-REGALLOC-NEXT:      add rsi, 3072
+// CHECK-REGALLOC-NEXT:      add rdx, 1000
 // CHECK-REGALLOC-NEXT:      cmp rax, 18
 // CHECK-REGALLOC-NEXT:      jl scf_body_2_for
 // CHECK-REGALLOC-NEXT:      mov rax, 18
@@ -398,6 +398,7 @@
 // CHECK-REGALLOC-NEXT:      vfmadd231ps zmm31, zmm0, zmm1
 // CHECK-REGALLOC-NEXT:      cmp rbx, 128
 // CHECK-REGALLOC-NEXT:      jl scf_body_3_for
+// CHECK-REGALLOC-NEXT:      sub rdi, 25400
 // CHECK-REGALLOC-NEXT:      sub rsi, 512
 // CHECK-REGALLOC-NEXT:      vmovups [rdx], zmm12
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+64], zmm13
@@ -420,12 +421,11 @@
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+928], zmm30
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+992] {k1}, zmm31
 // CHECK-REGALLOC-NEXT:      add rdx, 200
-// CHECK-REGALLOC-NEXT:      sub rdi, 25400
 // CHECK-REGALLOC-NEXT:      cmp rcx, 50
 // CHECK-REGALLOC-NEXT:      jl scf_body_4_for
-// CHECK-REGALLOC-NEXT:      add rdx, 800
-// CHECK-REGALLOC-NEXT:      add rsi, 2560
 // CHECK-REGALLOC-NEXT:      sub rdi, 200
+// CHECK-REGALLOC-NEXT:      add rsi, 2560
+// CHECK-REGALLOC-NEXT:      add rdx, 800
 // CHECK-REGALLOC-NEXT:      cmp rax, 38
 // CHECK-REGALLOC-NEXT:      jl scf_body_5_for
 // CHECK-REGALLOC-NEXT:      mov rsp, rbp

@@ -79,8 +79,8 @@ x86_func.func @tiles_and_remainder(
 // CHECK-NEXT:        %10, %11, %12, %13, %14 = "xsmm.matmul_reg"(%5, %6, %7, %8, %mask, %9) <{m = 7 : i64, n = 1 : i64, k = 4 : i64, lda = 7 : i64, ldb = 32 : i64, datatype = f64, aligned_a = false, iterator = "k", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>)
 // CHECK-NEXT:        x86_scf.yield %10, %11, %12, %13, %14 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      %b_out = x86.ri.sub %3, 192 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
 // CHECK-NEXT:      %a_out = x86.ri.sub %2, 1288 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:      %b_out = x86.ri.sub %3, 192 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
 // CHECK-NEXT:      x86_func.ret
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
