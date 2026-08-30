@@ -1,7 +1,7 @@
 from xdsl.dialects import builtin
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.xsmm import MatmulNOp
+from autotuner.dialects.xsmm import MatmulOp
 from autotuner.libxsmm_gemm.generator_common import MicroKernelConfig
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_init_micro_kernel_config,
@@ -20,14 +20,14 @@ from autotuner.libxsmm_gemm.libxsmm_main import (
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def get_max_n_blocking_for_matmul_n(op: MatmulNOp, arch: Arch) -> int:
-    """Reconstruct the current AVX-512 N blocking limit for matmul_n."""
+def get_max_n_blocking_for_matmul_n(op: MatmulOp, arch: Arch) -> int:
+    """Reconstruct the current AVX-512 N blocking limit for matmul."""
     if isinstance(op.datatype, builtin.Float32Type):
         datatype = Datatype.F32
     elif isinstance(op.datatype, builtin.Float64Type):
         datatype = Datatype.F64
     else:
-        raise PassFailedException(f"unsupported xsmm.matmul_n datatype {op.datatype}")
+        raise PassFailedException(f"unsupported xsmm.matmul datatype {op.datatype}")
 
     flags = GEMMFlag.NONE
     if op.aligned_a.value.data:
@@ -36,7 +36,7 @@ def get_max_n_blocking_for_matmul_n(op: MatmulNOp, arch: Arch) -> int:
         flags |= GEMMFlag.ALIGN_C
     desc = GEMMDescriptor(
         m=op.m.value.data,
-        n=op.n_blocking.value.data,
+        n=op.n.value.data,
         k=op.k.value.data,
         lda=op.lda.value.data,
         ldb=op.ldb.value.data,

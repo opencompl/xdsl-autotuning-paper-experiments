@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from xdsl.context import Context
-from xdsl.dialects import builtin
+from xdsl.dialects import builtin, x86
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
     PatternRewriter,
@@ -11,7 +11,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.xsmm import MatmulMOp
+from autotuner.dialects.xsmm import MatmulIterator, MatmulOp
 from autotuner.schedules import matmul_m_to_k
 from autotuner.strategy import get_xsmm_strategy
 
@@ -21,10 +21,25 @@ class ConvertMatmulMToKPattern(RewritePattern):
     """Expose the K body and preserve the pointer semantics of matmul_m."""
 
     @op_type_rewrite_pattern
-    def match_and_rewrite(self, op: MatmulMOp, rewriter: PatternRewriter, /) -> None:
-        m_blocking = op.m_blocking.value.data
+    def match_and_rewrite(self, op: MatmulOp, rewriter: PatternRewriter, /) -> None:
+        if op.iterator.data != MatmulIterator.M:
+            return
+        if (
+            op.ins
+            or len(op.outs) > 1
+            or (
+                op.outs
+                and not isinstance(
+                    op.outs[0].type, x86.registers.AVX512MaskRegisterType
+                )
+            )
+        ):
+            raise PassFailedException(
+                "xsmm-matmul-m-to-k currently supports only one mask out"
+            )
+        m_blocking = op.m.value.data
         vector_length = 512 // op.datatype.bitwidth
-        if m_blocking % vector_length and op.mask is None:
+        if m_blocking % vector_length and not op.outs:
             raise PassFailedException(
                 "xsmm-matmul-m-to-k requires a mask for a partial M vector; "
                 "run tile_m first"
