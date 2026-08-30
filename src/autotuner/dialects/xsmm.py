@@ -56,7 +56,7 @@ class MatmulOp(IRDLOperation):
 
     ``ins`` are additional read-only registers. ``outs`` are additional
     loop-carried registers and have pairwise matching ``out_results``. The
-    current schedule uses an ``out`` for an optional AVX-512 mask.
+    current schedule uses an ``in`` for an optional AVX-512 mask.
     """
 
     name = "xsmm.matmul"

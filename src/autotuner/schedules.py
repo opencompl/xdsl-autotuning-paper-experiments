@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from typing import cast
+
 from xdsl import ir
 from xdsl.dialects import builtin, x86, x86_scf
 from xdsl.pattern_rewriter import PatternRewriter
@@ -217,8 +218,8 @@ def set_matmul_iterator(
 
 def matmul_m_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
     assert op.iterator.data == MatmulIterator.M
-    assert not op.ins, "matmul_m_to_reg does not yet support ins"
-    assert len(op.outs) <= 1, "matmul_m_to_reg supports at most one mask out"
+    assert len(op.ins) <= 1, "matmul_m_to_reg supports at most one mask in"
+    assert not op.outs, "matmul_m_to_reg does not yet support outs"
     m_blocking = op.m.value.data
     n_blocking = op.n.value.data
     k = op.k.value.data
@@ -226,11 +227,12 @@ def matmul_m_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
     vector_length = 512 // op.datatype.bitwidth
     insert_point = InsertPoint.before(op)
 
-    mask = (
-        None
-        if not op.outs
-        else ir.SSAValue.get(op.outs[0], type=x86.registers.AVX512MaskRegisterType)
-    )
+    if op.ins:
+        mask = ir.SSAValue.get(op.ins[0], type=x86.registers.AVX512MaskRegisterType)
+        ins = (mask,)
+    else:
+        mask = None
+        ins = ()
     accumulators = load_c(
         rewriter,
         insert_point,
@@ -252,7 +254,7 @@ def matmul_m_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
             op.b,
             op.rbp,
             op.rsp,
-            () if mask is None else (mask,),
+            ins,
             accumulators,
             m=m_blocking,
             n=n_blocking,
@@ -302,7 +304,6 @@ def matmul_m_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
             c_out,
             matmul_reg.rbp_out,
             matmul_reg.rsp_out,
-            *op.outs,
         ),
     )
     return matmul_reg
@@ -427,31 +428,31 @@ def tile_k(
 def _insert_m_loop(
     rewriter: PatternRewriter,
     op: MatmulOp,
-    inputs: tuple[ir.SSAValue, ...],
+    loop_carried: tuple[ir.SSAValue, ...],
+    ins: tuple[ir.SSAValue, ...],
     *,
     lower_bound: int,
     upper_bound: int,
     m_blocking: int,
-    mask: ir.SSAValue | None,
     mloop_register: x86.registers.GeneralRegisterType,
 ) -> tuple[tuple[ir.SSAValue, ...], MatmulOp]:
+    """Insert an M loop, capturing ``ins`` and iterating ``loop_carried``."""
     m_init = rewriter.insert(
         x86.ops.DI_MovOp(lower_bound, destination=mloop_register),
         insertion_point=InsertPoint.before(op),
     )
-    iter_args = (*inputs, *((mask,) if mask is not None else ()))
     body = ir.Block(
-        arg_types=(m_init.destination.type, *(value.type for value in iter_args))
+        arg_types=(m_init.destination.type, *(value.type for value in loop_carried))
     )
-    a, b, c, rbp, rsp, *rest = body.args[1:]
+    a, b, c, rbp, rsp, *outs = body.args[1:]
     tiled_matmul = MatmulOp(
         a,
         b,
         c,
         rbp,
         rsp,
-        (),
-        rest,
+        ins,
+        outs,
         m=m_blocking,
         n_start=op.n_start.value.data,
         n=op.n.value.data,
@@ -470,12 +471,12 @@ def _insert_m_loop(
             m_init.destination,
             builtin.IntegerAttr(upper_bound, x86.ops.si32),
             builtin.IntegerAttr(m_blocking, x86.ops.si32),
-            iter_args,
+            loop_carried,
             body,
         ),
         insertion_point=InsertPoint.before(op),
     )
-    return tuple(mloop.results[1:6]), tiled_matmul
+    return tuple(mloop.results[1:]), tiled_matmul
 
 
 def _initialize_avx512_mask(
@@ -532,12 +533,11 @@ def tile_m(
             vector_length = 16
 
     assert op.iterator.data == MatmulIterator.M
-    assert not op.ins and not op.outs
+    assert not op.ins
     m = op.m.value.data
     blocked_end = m // m_blocking * m_blocking
-    inputs = tuple(op.operands[:5])
+    inputs = (*op.operands[:5], *op.outs)
 
-    mask = None
     if m_blocking % vector_length:
         mask = _initialize_avx512_mask(
             rewriter,
@@ -547,19 +547,22 @@ def tile_m(
             vector_length - m_blocking % vector_length,
             op.datatype,
         )
+        ins = (mask,)
+    else:
+        mask = None
+        ins = ()
     inputs, tiled_matmul = _insert_m_loop(
         rewriter,
         op,
         inputs,
+        ins,
         lower_bound=0,
         upper_bound=blocked_end,
         m_blocking=m_blocking,
-        mask=mask,
         mloop_register=mloop_register,
     )
 
     if remainder := m - blocked_end:
-        mask = None
         if remainder % vector_length:
             mask = _initialize_avx512_mask(
                 rewriter,
@@ -569,15 +572,19 @@ def tile_m(
                 vector_length - remainder % vector_length,
                 op.datatype,
             )
+            ins = (mask,)
+        else:
+            mask = None
+            ins = ()
 
         inputs, remainder_matmul = _insert_m_loop(
             rewriter,
             op,
             inputs,
+            ins,
             lower_bound=blocked_end,
             upper_bound=m,
             m_blocking=remainder,
-            mask=mask,
             mloop_register=mloop_register,
         )
     else:

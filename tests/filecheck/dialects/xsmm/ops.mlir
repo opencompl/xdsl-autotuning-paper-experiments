@@ -90,9 +90,9 @@ builtin.module {
 // CHECK-NEXT:    %c = "test.op"() : () -> !x86.reg64<rdx>
 // CHECK-NEXT:    %rbp = "test.op"() : () -> !x86.reg64<rbp>
 // CHECK-NEXT:    %rsp = "test.op"() : () -> !x86.reg64<rsp>
-// CHECK-NEXT:    %input = "test.op"() : () -> !x86.reg64<rax>
 // CHECK-NEXT:    %mask = "test.op"() : () -> !x86.avx512maskreg<k1>
-// CHECK-NEXT:    %a_out, %b_out, %c_out, %rbp_out, %rsp_out, %mask_out = "xsmm.matmul"(%a, %b, %c, %rbp, %rsp, %input, %mask) <{m = 17 : i64, n_start = 0 : i64, n = 1 : i64, k = 2 : i64, lda = 17 : i64, ldb = 16 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<rax>, !x86.avx512maskreg<k1>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>)
+// CHECK-NEXT:    %carried = "test.op"() : () -> !x86.reg64<rax>
+// CHECK-NEXT:    %a_out, %b_out, %c_out, %rbp_out, %rsp_out, %carried_out = "xsmm.matmul"(%a, %b, %c, %rbp, %rsp, %mask, %carried) <{m = 17 : i64, n_start = 0 : i64, n = 1 : i64, k = 2 : i64, lda = 17 : i64, ldb = 16 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.reg64<rax>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<rax>)
 // CHECK-NEXT:  }
 
 builtin.module {
@@ -101,9 +101,9 @@ builtin.module {
   %c = "test.op"() : () -> !x86.reg64<rdx>
   %rbp = "test.op"() : () -> !x86.reg64<rbp>
   %rsp = "test.op"() : () -> !x86.reg64<rsp>
-  %input = "test.op"() : () -> !x86.reg64<rax>
   %mask = "test.op"() : () -> !x86.avx512maskreg<k1>
-  %a_out, %b_out, %c_out, %rbp_out, %rsp_out, %mask_out = "xsmm.matmul"(%a, %b, %c, %rbp, %rsp, %input, %mask) <{m = 17 : i64, n_start = 0 : i64, n = 1 : i64, k = 2 : i64, lda = 17 : i64, ldb = 16 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<rax>, !x86.avx512maskreg<k1>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>)
+  %carried = "test.op"() : () -> !x86.reg64<rax>
+  %a_out, %b_out, %c_out, %rbp_out, %rsp_out, %carried_out = "xsmm.matmul"(%a, %b, %c, %rbp, %rsp, %mask, %carried) <{m = 17 : i64, n_start = 0 : i64, n = 1 : i64, k = 2 : i64, lda = 17 : i64, ldb = 16 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>, !x86.reg64<rax>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.reg64<rax>)
 }
 
 // -----
