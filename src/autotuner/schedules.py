@@ -117,15 +117,40 @@ def tile_n(
     return tiled_matmul
 
 
-def matmul_n_to_m(rewriter: PatternRewriter, op: MatmulOp) -> MatmulOp:
-    assert op.iterator.data == MatmulIterator.N
-    m = op.m.value.data
-    n = op.n.value.data
-    ldb = op.ldb.value.data
-    ldc = op.ldc.value.data
+def _matmul_pointer_offsets_abc(
+    op: MatmulOp, iterator: MatmulIterator
+) -> tuple[int, int, int]:
+    """Return the A, B, and C pointer advances in bytes for an iterator."""
     element_size = op.datatype.bitwidth // 8
+    match iterator:
+        case MatmulIterator.NONE:
+            return 0, 0, 0
+        case MatmulIterator.M:
+            m_bytes = op.m.value.data * element_size
+            return m_bytes, 0, m_bytes
+        case MatmulIterator.N:
+            n = op.n.value.data
+            return (
+                0,
+                n * op.ldb.value.data * element_size,
+                n * op.ldc.value.data * element_size,
+            )
 
-    matmul_m = MatmulOp(
+
+def set_matmul_iterator(
+    rewriter: PatternRewriter, op: MatmulOp, iterator: MatmulIterator
+) -> MatmulOp:
+    """Change a matmul iterator without changing its externally visible results.
+
+    The replacement matmul has the requested pointer-result contract. Pointer
+    adjustments after it compensate for the difference from the old contract,
+    so existing users of the operation's results remain valid.
+    """
+    old_iterator = MatmulIterator(op.iterator.data)
+    if old_iterator == iterator:
+        return op
+
+    matmul = MatmulOp(
         op.a,
         op.b,
         op.c,
@@ -133,51 +158,50 @@ def matmul_n_to_m(rewriter: PatternRewriter, op: MatmulOp) -> MatmulOp:
         op.rsp,
         op.ins,
         op.outs,
-        m=m,
+        m=op.m.value.data,
         n_start=op.n_start.value.data,
-        n=n,
+        n=op.n.value.data,
         k=op.k.value.data,
         lda=op.lda.value.data,
-        ldb=ldb,
-        ldc=ldc,
+        ldb=op.ldb.value.data,
+        ldc=op.ldc.value.data,
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a),
         aligned_c=bool(op.aligned_c),
-        iterator=MatmulIterator.M,
+        iterator=iterator,
     )
 
-    # The N iterator increments by n, and the M iterator increments by m.
-    # Add ops to adjust A, B and C pointers as appropriate, so that the results at the
-    # end of this transform have the expected values.
-    c_out_op = x86.ops.RI_AddOp(
-        matmul_m.c_out,
-        (n * ldc - m) * element_size,
-        register_out=matmul_m.c_out.type,
+    # TODO: fix the iterator order and break compatibility with libxsmm for pointer manipulations
+
+    # Preserve the existing C, B, A adjustment order and zero adjustments in
+    # generated code, so changing the iterator does not change the schedule.
+    old_offsets_cba = reversed(_matmul_pointer_offsets_abc(op, old_iterator))
+    new_offsets_cba = reversed(_matmul_pointer_offsets_abc(op, iterator))
+    offsets_cba = tuple(
+        old_offset - new_offset
+        for old_offset, new_offset in zip(old_offsets_cba, new_offsets_cba, strict=True)
     )
-    b_out_op = x86.ops.RI_AddOp(
-        matmul_m.b_out,
-        n * ldb * element_size,
-        register_out=matmul_m.b_out.type,
-    )
-    a_out_op = x86.ops.RI_SubOp(
-        matmul_m.a_out,
-        m * element_size,
-        register_out=matmul_m.a_out.type,
-    )
+    pointer_results_cba = [matmul.c_out, matmul.b_out, matmul.a_out]
+    offset_ops = [
+        (x86.ops.RI_SubOp if offset < 0 else x86.ops.RI_AddOp)(
+            pointer_result,
+            abs(offset),
+            register_out=pointer_result.type,
+        )
+        for offset, pointer_result in zip(offsets_cba, pointer_results_cba)
+    ]
 
     rewriter.replace(
         op,
-        (matmul_m, c_out_op, b_out_op, a_out_op),
+        (matmul, *offset_ops),
         (
-            a_out_op.register_out,
-            b_out_op.register_out,
-            c_out_op.register_out,
-            matmul_m.rbp_out,
-            matmul_m.rsp_out,
-            *matmul_m.out_results,
+            *(offset_op.register_out for offset_op in reversed(offset_ops)),
+            matmul.rbp_out,
+            matmul.rsp_out,
+            *matmul.out_results,
         ),
     )
-    return matmul_m
+    return matmul
 
 
 def matmul_m_to_k(rewriter: PatternRewriter, op: MatmulOp) -> MatmulKOp:
