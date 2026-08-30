@@ -91,15 +91,17 @@
 // CHECK-MANUAL-NEXT:      add rdi, 128
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-MANUAL-NEXT:      sub rsi, 40
+// CHECK-LIBXSMM-NEXT:     sub rsi, 40
 // CHECK-MANUAL-NEXT:      vmovapd [rdx], zmm26
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+64], zmm27
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+128], zmm28
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+192], zmm29
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+256], zmm30
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+320], zmm31
+// CHECK-COMPXSMM-NEXT:    sub rdi, 512
+// CHECK-COMPXSMM-NEXT:    sub rsi, 40
 // CHECK-MANUAL-NEXT:      add rdx, 128
-// CHECK-MANUAL-NEXT:      sub rdi, 512
+// CHECK-LIBXSMM-NEXT:     sub rdi, 512
 // CHECK-MANUAL-NEXT:      cmp r10, 16
 // CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY]]
 // CHECK-LIBXSMM-NEXT:     add rdx, 256
@@ -201,15 +203,17 @@
 // CHECK-SWAP-NEXT:      add rsi, 128
 // CHECK-SWAP-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
 // CHECK-SWAP-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-SWAP-NEXT:      sub rdi, 40
+// CHECK-SWAP-LIBXSMM-NEXT:     sub rdi, 40
 // CHECK-SWAP-NEXT:      vmovapd [rdx], zmm26
 // CHECK-SWAP-NEXT:      vmovapd [rdx+64], zmm27
 // CHECK-SWAP-NEXT:      vmovapd [rdx+128], zmm28
 // CHECK-SWAP-NEXT:      vmovapd [rdx+192], zmm29
 // CHECK-SWAP-NEXT:      vmovapd [rdx+256], zmm30
 // CHECK-SWAP-NEXT:      vmovapd [rdx+320], zmm31
+// CHECK-SWAP-COMPXSMM-NEXT:    sub rsi, 512
+// CHECK-SWAP-COMPXSMM-NEXT:    sub rdi, 40
 // CHECK-SWAP-NEXT:      add rdx, 128
-// CHECK-SWAP-NEXT:      sub rsi, 512
+// CHECK-SWAP-LIBXSMM-NEXT:     sub rsi, 512
 // CHECK-SWAP-NEXT:      cmp r10, 16
 // CHECK-SWAP-NEXT:      jl [[SCF_M_BODY]]
 // CHECK-SWAP-LIBXSMM-NEXT:     add rdx, 256

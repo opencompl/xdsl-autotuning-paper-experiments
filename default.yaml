@@ -26,7 +26,7 @@ libxsmm-gemm-passes:
 compxsmm-gemm-passes:
   avx512:
     - xsmm-tile-n-m{strategy=libxsmm-skx disable-regalloc=true}
-    - xsmm-matmul-m-to-reg{strategy=libxsmm-skx}
+    - xsmm-matmul-k-to-reg{strategy=libxsmm-skx}
     - xsmm-tile-k{disable-regalloc=true}
     - convert-xsmm-to-x86{strategy=libxsmm-skx disable-regalloc=true}
     - x86-regalloc-verify-liveness

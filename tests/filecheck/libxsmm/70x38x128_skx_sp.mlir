@@ -193,8 +193,7 @@
 // CHECK-MANUAL-NEXT:      vfmadd231ps zmm31, zmm4, zmm0
 // CHECK-MANUAL-NEXT:      cmp r12, 128
 // CHECK-MANUAL-NEXT:      jl [[SCF_K_BODY_0]]
-// CHECK-COMPXSMM-NEXT:    sub rdi, 35584
-// CHECK-MANUAL-NEXT:      sub rsi, 512
+// CHECK-LIBXSMM-NEXT:     sub rsi, 512
 // CHECK-MANUAL-NEXT:      vmovups [rdx], zmm8
 // CHECK-MANUAL-NEXT:      vmovups [rdx+64], zmm9
 // CHECK-MANUAL-NEXT:      vmovups [rdx+128], zmm10
@@ -219,6 +218,8 @@
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1464], zmm29
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1528], zmm30
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1592], zmm31
+// CHECK-COMPXSMM-NEXT:    sub rdi, 35584
+// CHECK-COMPXSMM-NEXT:    sub rsi, 512
 // CHECK-MANUAL-NEXT:      add rdx, 256
 // CHECK-LIBXSMM-NEXT:     sub rdi, 35584
 // CHECK-MANUAL-NEXT:      cmp r10, 64
@@ -281,14 +282,15 @@
 // CHECK-MANUAL-NEXT:      vaddps zmm31, zmm25, zmm31
 // CHECK-MANUAL-NEXT:      cmp r12, 128
 // CHECK-MANUAL-NEXT:      jl [[SCF_K_BODY_1]]
-// CHECK-COMPXSMM-NEXT:    sub rdi, 35816
-// CHECK-MANUAL-NEXT:      sub rsi, 512
+// CHECK-LIBXSMM-NEXT:     sub rsi, 512
 // CHECK-MANUAL-NEXT:      vmovups [rdx] {k1}, zmm26
 // CHECK-MANUAL-NEXT:      vmovups [rdx+280] {k1}, zmm27
 // CHECK-MANUAL-NEXT:      vmovups [rdx+560] {k1}, zmm28
 // CHECK-MANUAL-NEXT:      vmovups [rdx+840] {k1}, zmm29
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1120] {k1}, zmm30
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1400] {k1}, zmm31
+// CHECK-COMPXSMM-NEXT:    sub rdi, 35816
+// CHECK-COMPXSMM-NEXT:    sub rsi, 512
 // CHECK-MANUAL-NEXT:      add rdx, 24
 // CHECK-LIBXSMM-NEXT:     sub rdi, 35816
 // CHECK-MANUAL-NEXT:      cmp r10, 70
@@ -456,8 +458,7 @@
 // CHECK-MANUAL-NEXT:      vfmadd231ps zmm31, zmm4, zmm0
 // CHECK-MANUAL-NEXT:      cmp r12, 128
 // CHECK-MANUAL-NEXT:      jl [[SCF_K_BODY_2]]
-// CHECK-COMPXSMM-NEXT:    sub rdi, 35584
-// CHECK-MANUAL-NEXT:      sub rsi, 512
+// CHECK-LIBXSMM-NEXT:     sub rsi, 512
 // CHECK-MANUAL-NEXT:      vmovups [rdx], zmm12
 // CHECK-MANUAL-NEXT:      vmovups [rdx+64], zmm13
 // CHECK-MANUAL-NEXT:      vmovups [rdx+128], zmm14
@@ -478,6 +479,8 @@
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1184], zmm29
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1248], zmm30
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1312], zmm31
+// CHECK-COMPXSMM-NEXT:    sub rdi, 35584
+// CHECK-COMPXSMM-NEXT:    sub rsi, 512
 // CHECK-MANUAL-NEXT:      add rdx, 256
 // CHECK-LIBXSMM-NEXT:     sub rdi, 35584
 // CHECK-MANUAL-NEXT:      cmp r10, 64
@@ -553,13 +556,14 @@
 // CHECK-MANUAL-NEXT:      vaddps zmm31, zmm16, zmm31
 // CHECK-MANUAL-NEXT:      cmp r12, 128
 // CHECK-MANUAL-NEXT:      jl [[SCF_K_BODY_3]]
-// CHECK-COMPXSMM-NEXT:    sub rdi, 35816
-// CHECK-MANUAL-NEXT:      sub rsi, 512
+// CHECK-LIBXSMM-NEXT:     sub rsi, 512
 // CHECK-MANUAL-NEXT:      vmovups [rdx] {k1}, zmm27
 // CHECK-MANUAL-NEXT:      vmovups [rdx+280] {k1}, zmm28
 // CHECK-MANUAL-NEXT:      vmovups [rdx+560] {k1}, zmm29
 // CHECK-MANUAL-NEXT:      vmovups [rdx+840] {k1}, zmm30
 // CHECK-MANUAL-NEXT:      vmovups [rdx+1120] {k1}, zmm31
+// CHECK-COMPXSMM-NEXT:    sub rdi, 35816
+// CHECK-COMPXSMM-NEXT:    sub rsi, 512
 // CHECK-MANUAL-NEXT:      add rdx, 24
 // CHECK-LIBXSMM-NEXT:     sub rdi, 35816
 // CHECK-MANUAL-NEXT:      cmp r10, 70
