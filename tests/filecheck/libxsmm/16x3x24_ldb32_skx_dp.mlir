@@ -14,10 +14,10 @@
 // CHECK-MANUAL-NEXT:      mov r10, -64
 // CHECK-MANUAL-NEXT:      and rsp, r10
 // CHECK-MANUAL-NEXT:      mov r11, 0
-// CHECK-MANUAL-NEXT:  [[ASM_LABEL_33:^\S+]]:
+// CHECK-MANUAL-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r11, 3
 // CHECK-MANUAL-NEXT:      mov r10, 0
-// CHECK-MANUAL-NEXT:  [[ASM_LABEL_34:^\S+]]:
+// CHECK-MANUAL-NEXT:  [[SCF_M_BODY:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r10, 16
 // CHECK-MANUAL-NEXT:      vmovapd zmm26, [rdx]
 // CHECK-MANUAL-NEXT:      vmovapd zmm27, [rdx+64]
@@ -26,7 +26,7 @@
 // CHECK-MANUAL-NEXT:      vmovapd zmm30, [rdx+256]
 // CHECK-MANUAL-NEXT:      vmovapd zmm31, [rdx+320]
 // CHECK-MANUAL-NEXT:      mov r12, 0
-// CHECK-MANUAL-NEXT:  [[ASM_LABEL_35:^\S+]]:
+// CHECK-MANUAL-NEXT:  [[SCF_K_BODY:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r12, 4
 // CHECK-MANUAL-NEXT:      vmovapd zmm1, [rdi]
 // CHECK-MANUAL-NEXT:      vmovapd zmm2, [rdi+64]
@@ -81,7 +81,7 @@
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
 // CHECK-MANUAL-NEXT:      cmp r12, 24
-// CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_35]]
+// CHECK-MANUAL-NEXT:      jl [[SCF_K_BODY]]
 // CHECK-COMPXSMM-NEXT:    sub rdi, 2944
 // CHECK-MANUAL-NEXT:      sub rsi, 192
 // CHECK-MANUAL-NEXT:      vmovapd [rdx], zmm26
@@ -93,14 +93,14 @@
 // CHECK-MANUAL-NEXT:      add rdx, 128
 // CHECK-LIBXSMM-NEXT:     sub rdi, 2944
 // CHECK-MANUAL-NEXT:      cmp r10, 16
-// CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_34]]
+// CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY]]
 // CHECK-LIBXSMM-NEXT:     add rdx, 256
 // CHECK-COMPXSMM-NEXT:    sub rdi, 128
 // CHECK-MANUAL-NEXT:      add rsi, 768
 // CHECK-LIBXSMM-NEXT:     sub rdi, 128
 // CHECK-COMPXSMM-NEXT:    add rdx, 256
 // CHECK-MANUAL-NEXT:      cmp r11, 3
-// CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_33]]
+// CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY]]
 // CHECK-MANUAL-NEXT:      mov rsp, rbp
 // CHECK-MANUAL-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      pop r12
