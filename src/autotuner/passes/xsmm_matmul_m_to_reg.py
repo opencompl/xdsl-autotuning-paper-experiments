@@ -25,13 +25,11 @@ class ConvertMatmulMToRegPattern(RewritePattern):
         if op.iterator.data != MatmulIterator.M:
             return
         if (
-            op.ins
-            or len(op.outs) > 1
+            len(op.ins) > 1
+            or op.outs
             or (
-                op.outs
-                and not isinstance(
-                    op.outs[0].type, x86.registers.AVX512MaskRegisterType
-                )
+                op.ins
+                and not isinstance(op.ins[0].type, x86.registers.AVX512MaskRegisterType)
             )
         ):
             raise PassFailedException(
@@ -39,7 +37,7 @@ class ConvertMatmulMToRegPattern(RewritePattern):
             )
         m_blocking = op.m.value.data
         vector_length = 512 // op.datatype.bitwidth
-        if m_blocking % vector_length and not op.outs:
+        if m_blocking % vector_length and not op.ins:
             raise PassFailedException(
                 "xsmm-matmul-m-to-reg requires a mask for a partial M vector; "
                 "run tile_m first"
