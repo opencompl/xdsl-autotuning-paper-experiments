@@ -295,6 +295,10 @@ def _tile_n_m(
 
 
 def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
+    if op.iterator.data != MatmulIterator.K:
+        raise PassFailedException(
+            "xsmm-apply-schedule requires K iteration before matmul_reg"
+        )
     if (
         len(op.ins) > 1
         or op.outs
@@ -350,7 +354,6 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
             ldb=op.ldb.value.data,
             datatype=op.datatype,
             aligned_a=bool(op.aligned_a),
-            iterator=MatmulIterator(op.iterator.data),
         ),
         insertion_point=insert_point,
     )
@@ -396,7 +399,6 @@ def _tile_k(
     tiled, remainder = tile_matmul_reg(
         rewriter,
         op,
-        MatmulIterator.K,
         K_BLOCKING,
         kloop_register,
     )

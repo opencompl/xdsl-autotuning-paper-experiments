@@ -8,21 +8,21 @@
 // -----
 
 %a, %b, %c, %rbp, %rsp, %acc = "test.op"() : () -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>)
-%a_out, %b_out, %rbp_out, %rsp_out, %acc_out = "xsmm.matmul_reg"(%a, %b, %rbp, %rsp, %acc) <{m = 8 : i64, n = 1 : i64, k = 0 : i64, lda = 8 : i64, ldb = 8 : i64, datatype = f64, aligned_a = true, iterator = "k", operandSegmentSizes = array<i32: 1, 1, 1, 1, 0, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>)
+%a_out, %b_out, %rbp_out, %rsp_out, %acc_out = "xsmm.matmul_reg"(%a, %b, %rbp, %rsp, %acc) <{m = 8 : i64, n = 1 : i64, k = 0 : i64, lda = 8 : i64, ldb = 8 : i64, datatype = f64, aligned_a = true, operandSegmentSizes = array<i32: 1, 1, 1, 1, 0, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>)
 
 // CHECK: Operation does not verify: k must be positive, got 0
 
 // -----
 
 %a, %b, %rbp, %rsp, %acc = "test.op"() : () -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>)
-%a_out, %b_out, %rbp_out, %rsp_out, %acc_out = "xsmm.matmul_reg"(%a, %b, %rbp, %rsp, %acc) <{m = 8 : i64, n = 1 : i64, k = 4 : i64, lda = 8 : i64, ldb = 8 : i64, datatype = f64, aligned_a = true, iterator = "k", operandSegmentSizes = array<i32: 1, 1, 1, 1, 0, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>)
+%a_out, %b_out, %rbp_out, %rsp_out, %acc_out = "xsmm.matmul_reg"(%a, %b, %rbp, %rsp, %acc) <{m = 8 : i64, n = 1 : i64, k = 4 : i64, lda = 8 : i64, ldb = 8 : i64, datatype = f64, aligned_a = true, operandSegmentSizes = array<i32: 1, 1, 1, 1, 0, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512maskreg<k1>)
 
 // CHECK: Operation does not verify: operand and result types must match pairwise
 
 // -----
 
 %a, %b, %c, %rbp, %rsp, %acc = "test.op"() : () -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>)
-%a_out, %b_out, %rbp_out, %rsp_out, %acc_out = "xsmm.matmul_reg"(%a, %b, %rbp, %rsp, %acc) <{m = 8 : i64, n = 1 : i64, k = 4 : i64, lda = 7 : i64, ldb = 8 : i64, datatype = f64, aligned_a = true, iterator = "k", operandSegmentSizes = array<i32: 1, 1, 1, 1, 0, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>)
+%a_out, %b_out, %rbp_out, %rsp_out, %acc_out = "xsmm.matmul_reg"(%a, %b, %rbp, %rsp, %acc) <{m = 8 : i64, n = 1 : i64, k = 4 : i64, lda = 7 : i64, ldb = 8 : i64, datatype = f64, aligned_a = true, operandSegmentSizes = array<i32: 1, 1, 1, 1, 0, 1>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rbp>, !x86.reg64<rsp>, !x86.avx512reg<zmm31>)
 
 // CHECK: Operation does not verify: aligned A requires lda to be a multiple of the vector length
 
