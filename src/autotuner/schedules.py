@@ -345,10 +345,10 @@ def tile_n(
     return loop_matmul(rewriter, op, MatmulIterator.N, n_tile, nloop_register)
 
 
-def matmul_m_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
-    assert op.iterator.data == MatmulIterator.M
-    assert len(op.ins) <= 1, "matmul_m_to_reg supports at most one mask in"
-    assert not op.outs, "matmul_m_to_reg does not yet support outs"
+def matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
+    assert op.iterator.data == MatmulIterator.K
+    assert len(op.ins) <= 1, "matmul_k_to_reg supports at most one mask in"
+    assert not op.outs, "matmul_k_to_reg does not yet support outs"
     m_blocking = op.m.value.data
     n_blocking = op.n.value.data
     k = op.k.value.data
@@ -397,7 +397,6 @@ def matmul_m_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
         insertion_point=insert_point,
     )
 
-    element_size = op.datatype.size
     store_c(
         rewriter,
         insert_point,
@@ -416,21 +415,13 @@ def matmul_m_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
         mask_k1=mask,
     )
 
-    c_out = rewriter.insert(
-        x86.ops.RI_AddOp(
-            op.c,
-            m_blocking * element_size,
-            register_out=op.c_out.type,
-        ),
-        insertion_point=insert_point,
-    ).register_out
     rewriter.replace(
         op,
         [],
         (
             matmul_reg.a_out,
             matmul_reg.b_out,
-            c_out,
+            op.c,
             matmul_reg.rbp_out,
             matmul_reg.rsp_out,
         ),

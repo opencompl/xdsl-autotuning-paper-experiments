@@ -151,11 +151,11 @@
 // CHECK-REGALLOC-NEXT:      add rdi, 128
 // CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
 // CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      sub rsi, 128
 // CHECK-REGALLOC-NEXT:      vmovapd [rdx], zmm30
 // CHECK-REGALLOC-NEXT:      vmovapd [rdx+64], zmm31
-// CHECK-REGALLOC-NEXT:      add rdx, 128
 // CHECK-REGALLOC-NEXT:      sub rdi, 1920
+// CHECK-REGALLOC-NEXT:      sub rsi, 128
+// CHECK-REGALLOC-NEXT:      add rdx, 128
 // CHECK-REGALLOC-NEXT:      cmp rcx, 16
 // CHECK-REGALLOC-NEXT:      jl scf_body_0_for
 // CHECK-REGALLOC-NEXT:      sub rdi, 128
@@ -298,11 +298,11 @@
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add rdi, 128
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC0]], [[A0_K15]], [[B_K15]]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vfmadd231pd [[ACC1]], [[A1_K15]], [[B_K15]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      sub rsi, 128
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [rdx], [[ACC0]]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [rdx+64], [[ACC1]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add rdx, 128
 // CHECK-REGALLOC-STRUCTURE-NEXT:      sub rdi, 1920
+// CHECK-REGALLOC-STRUCTURE-NEXT:      sub rsi, 128
+// CHECK-REGALLOC-STRUCTURE-NEXT:      add rdx, 128
 // CHECK-REGALLOC-STRUCTURE-NEXT:      cmp [[M]], 16
 // CHECK-REGALLOC-STRUCTURE-NEXT:      jl scf_body_0_for
 // CHECK-REGALLOC-STRUCTURE-NEXT:      sub rdi, 128

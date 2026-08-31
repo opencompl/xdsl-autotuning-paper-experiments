@@ -12,17 +12,17 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulIterator, MatmulOp
-from autotuner.schedules import matmul_m_to_reg
+from autotuner.schedules import matmul_k_to_reg
 from autotuner.strategy import get_xsmm_strategy
 
 
 @dataclass
-class ConvertMatmulMToRegPattern(RewritePattern):
-    """Expose the register body and preserve the M iterator semantics."""
+class ConvertMatmulKToRegPattern(RewritePattern):
+    """Expose the register body of a K-iterating matmul."""
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: MatmulOp, rewriter: PatternRewriter, /) -> None:
-        if op.iterator.data != MatmulIterator.M:
+        if op.iterator.data != MatmulIterator.K:
             return
         if (
             len(op.ins) > 1
@@ -33,28 +33,28 @@ class ConvertMatmulMToRegPattern(RewritePattern):
             )
         ):
             raise PassFailedException(
-                "xsmm-matmul-m-to-reg currently supports only one mask out"
+                "xsmm-matmul-k-to-reg currently supports only one mask in"
             )
         m_blocking = op.m.value.data
         vector_length = 512 // op.datatype.bitwidth
         if m_blocking % vector_length and not op.ins:
             raise PassFailedException(
-                "xsmm-matmul-m-to-reg requires a mask for a partial M vector; "
+                "xsmm-matmul-k-to-reg requires a mask for a partial M vector; "
                 "run tile_m first"
             )
-        matmul_m_to_reg(rewriter, op)
+        matmul_k_to_reg(rewriter, op)
 
 
 @dataclass(frozen=True)
-class XsmmMatmulMToRegPass(ModulePass):
-    """Lower an M-iterating matmul to C accesses and matmul_reg.
+class XsmmMatmulKToRegPass(ModulePass):
+    """Lower a K-iterating matmul to C accesses and matmul_reg.
 
-    The generated adjustments preserve the M operation's pointer semantics:
-    A and C advance by the M block, while B remains unchanged. These results do
-    not depend on whether a later transformation tiles the generated matmul_reg.
+    The operation already carries its complete pointer-result contract, so the
+    conversion only moves C through vector registers and leaves its pointer
+    unchanged.
     """
 
-    name = "xsmm-matmul-m-to-reg"
+    name = "xsmm-matmul-k-to-reg"
 
     strategy: str = "libxsmm-skx"
 
@@ -65,6 +65,6 @@ class XsmmMatmulMToRegPass(ModulePass):
             raise PassFailedException(str(error)) from error
 
         PatternRewriteWalker(
-            ConvertMatmulMToRegPattern(),
+            ConvertMatmulKToRegPattern(),
             apply_recursively=False,
         ).rewrite_module(op)

@@ -29,6 +29,7 @@ def tile_n_m(
     mask_tmp_reg: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     mask_reg: x86.registers.AVX512MaskRegisterType = x86.registers.UNALLOCATED_AVX512_MASK,
 ) -> list[MatmulOp]:
+    """Tile N and M, then expose K as the innermost pointer contract."""
     if len(strategy.n_ranges) == 2:
         first_range, second_range = strategy.n_ranges
         first, second = split_n(rewriter, op, first_range.extent)
@@ -48,7 +49,7 @@ def tile_n_m(
         )
         matmul_m = set_matmul_iterator(rewriter, tiled_matmul_n, MatmulIterator.M)
 
-        tiled, remainder = tile_m(
+        tiled_m, remainder_m = tile_m(
             rewriter,
             matmul_m,
             m_blocking=strategy.m_tile_size,
@@ -57,9 +58,12 @@ def tile_n_m(
             mask_reg=mask_reg,
         )
 
-        res.append(tiled)
-        if remainder is not None:
-            res.append(remainder)
+        tiled_k = set_matmul_iterator(rewriter, tiled_m, MatmulIterator.K)
+        res.append(tiled_k)
+
+        if remainder_m is not None:
+            remainder_k = set_matmul_iterator(rewriter, remainder_m, MatmulIterator.K)
+            res.append(remainder_k)
 
     return res
 
@@ -116,7 +120,7 @@ class TileMatmulNMPattern(RewritePattern):
 
 @dataclass(frozen=True)
 class XsmmTileNMPass(ModulePass):
-    """Split and tile N, lower to M, and tile M using the current policy."""
+    """Tile N and M, then make the resulting matmuls iterate in K."""
 
     name = "xsmm-tile-n-m"
 

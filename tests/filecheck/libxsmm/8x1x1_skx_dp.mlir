@@ -23,10 +23,12 @@
 // CHECK-MANUAL-NEXT:      add rdi, 64
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm31, zmm0, [rsi]{1to8}
 // CHECK-MANUAL-NEXT:      add rsi, 8
-// CHECK-MANUAL-NEXT:      sub rsi, 8
+// CHECK-LIBXSMM-NEXT:     sub rsi, 8
 // CHECK-MANUAL-NEXT:      vmovapd [rdx], zmm31
+// CHECK-COMPXSMM-NEXT:    add rdi, 0
+// CHECK-COMPXSMM-NEXT:    sub rsi, 8
 // CHECK-MANUAL-NEXT:      add rdx, 64
-// CHECK-MANUAL-NEXT:      sub rdi, 0
+// CHECK-LIBXSMM-NEXT:     sub rdi, 0
 // CHECK-MANUAL-NEXT:      cmp r10, 8
 // CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY]]
 // CHECK-LIBXSMM-NEXT:     add rdx, 0

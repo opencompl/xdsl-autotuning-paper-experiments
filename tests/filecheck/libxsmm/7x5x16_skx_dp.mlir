@@ -154,14 +154,16 @@
 // CHECK-MANUAL-NEXT:      vaddpd zmm29, zmm14, zmm29
 // CHECK-MANUAL-NEXT:      vaddpd zmm30, zmm15, zmm30
 // CHECK-MANUAL-NEXT:      vaddpd zmm31, zmm16, zmm31
-// CHECK-MANUAL-NEXT:      sub rsi, 128
+// CHECK-LIBXSMM-NEXT:     sub rsi, 128
 // CHECK-MANUAL-NEXT:      vmovupd [rdx] {k1}, zmm27
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+56] {k1}, zmm28
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+112] {k1}, zmm29
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+168] {k1}, zmm30
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+224] {k1}, zmm31
+// CHECK-COMPXSMM-NEXT:    sub rdi, 840
+// CHECK-COMPXSMM-NEXT:    sub rsi, 128
 // CHECK-MANUAL-NEXT:      add rdx, 56
-// CHECK-MANUAL-NEXT:      sub rdi, 840
+// CHECK-LIBXSMM-NEXT:     sub rdi, 840
 // CHECK-MANUAL-NEXT:      cmp r10, 7
 // CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY]]
 // CHECK-LIBXSMM-NEXT:     add rdx, 224

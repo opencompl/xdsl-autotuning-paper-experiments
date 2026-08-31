@@ -166,14 +166,14 @@
 // CHECK-REGALLOC-NEXT:      vaddpd zmm29, zmm14, zmm29
 // CHECK-REGALLOC-NEXT:      vaddpd zmm30, zmm15, zmm30
 // CHECK-REGALLOC-NEXT:      vaddpd zmm31, zmm16, zmm31
-// CHECK-REGALLOC-NEXT:      sub rsi, 128
 // CHECK-REGALLOC-NEXT:      vmovupd [rdx] {k1}, zmm27
 // CHECK-REGALLOC-NEXT:      vmovupd [rdx+56] {k1}, zmm28
 // CHECK-REGALLOC-NEXT:      vmovupd [rdx+112] {k1}, zmm29
 // CHECK-REGALLOC-NEXT:      vmovupd [rdx+168] {k1}, zmm30
 // CHECK-REGALLOC-NEXT:      vmovupd [rdx+224] {k1}, zmm31
-// CHECK-REGALLOC-NEXT:      add rdx, 56
 // CHECK-REGALLOC-NEXT:      sub rdi, 840
+// CHECK-REGALLOC-NEXT:      sub rsi, 128
+// CHECK-REGALLOC-NEXT:      add rdx, 56
 // CHECK-REGALLOC-NEXT:      cmp rcx, 7
 // CHECK-REGALLOC-NEXT:      jl scf_body_0_for
 // CHECK-REGALLOC-NEXT:      sub rdi, 56
