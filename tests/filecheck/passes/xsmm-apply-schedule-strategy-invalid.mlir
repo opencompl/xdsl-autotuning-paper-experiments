@@ -1,4 +1,4 @@
-// RUN: xdsl-opt %s --split-input-file --verify-diagnostics -p 'xsmm-tile-n-m{strategy=unknown}' | filecheck %s
+// RUN: xdsl-opt %s --verify-diagnostics -p 'xsmm-apply-schedule{strategy=unknown}' | filecheck %s
 
 builtin.module {}
 
