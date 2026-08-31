@@ -1,7 +1,6 @@
 """Apply a concrete XSMM-compatible schedule and lower it to x86."""
 
 from dataclasses import dataclass
-from typing import cast
 
 from xdsl import ir
 from xdsl.context import Context
@@ -17,6 +16,7 @@ from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
+from autotuner.instructions import load_mask, load_vector, store_vector
 from autotuner.nano_kernel import GemmDescriptor, ISAInfo, NanoKernel
 from autotuner.schedules import (
     loop_matmul,
@@ -30,32 +30,6 @@ from autotuner.tiling import TilingStrategy, compute_tiling_strategy
 
 K_BLOCKING = 4
 K_THRESHOLD = 23
-
-
-def load_mask(
-    rewriter: PatternRewriter,
-    insert_point: InsertPoint,
-    gp_reg_tmp: x86.registers.GeneralRegisterType,
-    mask_reg: x86.registers.AVX512MaskRegisterType,
-    mask_count: int,
-    datatype: builtin.Float64Type | builtin.Float32Type,
-) -> ir.SSAValue[x86.registers.AVX512MaskRegisterType]:
-    """Materialize the AVX-512 tail mask expected by the XSMM kernels."""
-    match datatype:
-        case builtin.Float64Type():
-            mask = 0xFF
-            op_type = x86.ops.KS_KMovBOp
-        case builtin.Float32Type():
-            mask = 0xFFFF
-            op_type = x86.ops.KS_KMovWOp
-
-    mask = mask >> mask_count
-    mask_tmp_val = rewriter.insert(
-        x86.ops.DI_MovOp(mask, destination=gp_reg_tmp), insertion_point=insert_point
-    ).destination
-    return rewriter.insert(
-        op_type(mask_tmp_val, destination=mask_reg), insertion_point=insert_point
-    ).destination
 
 
 def _attach_mask(
@@ -168,61 +142,6 @@ def tile_m(
     return tiled_matmul, remainder_matmul
 
 
-def load_vector(
-    rewriter: PatternRewriter,
-    insert_point: InsertPoint,
-    datatype: builtin.Float32Type | builtin.Float64Type,
-    pointer: ir.SSAValue[x86.registers.GeneralRegisterType],
-    offset: int,
-    mask: ir.SSAValue[x86.registers.AVX512MaskRegisterType] | None = None,
-    *,
-    aligned: bool,
-    destination: x86.registers.AVX512RegisterType,
-) -> ir.SSAValue[x86.registers.AVX512RegisterType]:
-    if mask is None:
-        match (datatype, aligned):
-            case (builtin.Float32Type(), True):
-                move_op_type = x86.ops.DM_VmovapsOp
-            case (builtin.Float32Type(), False):
-                move_op_type = x86.ops.DM_VmovupsOp
-            case (builtin.Float64Type(), True):
-                move_op_type = x86.ops.DM_VmovapdOp
-            case (builtin.Float64Type(), False):
-                move_op_type = x86.ops.DM_VmovupdOp
-
-        res_vec = rewriter.insert(
-            move_op_type(
-                memory=pointer,
-                memory_offset=offset,
-                destination=destination,
-            ),
-            insertion_point=insert_point,
-        ).destination
-        res_vec = cast(ir.SSAValue[x86.registers.AVX512RegisterType], res_vec)
-    else:
-        match (datatype, aligned):
-            case (builtin.Float32Type(), True):
-                move_op_type = x86.ops.DMK_VmovapsOp
-            case (builtin.Float32Type(), False):
-                move_op_type = x86.ops.DMK_VmovupsOp
-            case (builtin.Float64Type(), True):
-                move_op_type = x86.ops.DMK_VmovapdOp
-            case (builtin.Float64Type(), False):
-                move_op_type = x86.ops.DMK_VmovupdOp
-
-        res_vec = rewriter.insert(
-            move_op_type(
-                memory=pointer,
-                memory_offset=offset,
-                destination=destination,
-                mask_reg=mask,
-                z=True,
-            ),
-            insertion_point=insert_point,
-        ).destination
-    return res_vec
-
-
 def load_c(
     rewriter: PatternRewriter,
     insert_point: InsertPoint,
@@ -275,66 +194,14 @@ def load_c(
                 datatype,
                 c_val,
                 displacement,
-                mask_k1 if use_masking else None,
-                aligned=aligned_c,
                 destination=c_vec_reg,
+                aligned=aligned_c,
+                mask=mask_k1 if use_masking else None,
             )
 
             result.append(res_vec)
 
     return tuple(result)
-
-
-def store_vector(
-    rewriter: PatternRewriter,
-    insert_point: InsertPoint,
-    datatype: builtin.Float32Type | builtin.Float64Type,
-    pointer: ir.SSAValue[x86.registers.GeneralRegisterType],
-    offset: int,
-    source: ir.SSAValue[x86.registers.AVX512RegisterType],
-    mask: ir.SSAValue[x86.registers.AVX512MaskRegisterType] | None = None,
-    *,
-    aligned: bool,
-) -> None:
-    if mask is None:
-        match (datatype, aligned):
-            case (builtin.Float32Type(), True):
-                move_op_type = x86.ops.MS_VmovapsOp
-            case (builtin.Float32Type(), False):
-                move_op_type = x86.ops.MS_VmovupsOp
-            case (builtin.Float64Type(), True):
-                move_op_type = x86.ops.MS_VmovapdOp
-            case (builtin.Float64Type(), False):
-                move_op_type = x86.ops.MS_VmovupdOp
-
-        rewriter.insert(
-            move_op_type(
-                memory=pointer,
-                memory_offset=offset,
-                source=source,
-            ),
-            insertion_point=insert_point,
-        )
-    else:
-        match (datatype, aligned):
-            case (builtin.Float32Type(), True):
-                move_op_type = x86.ops.MSK_VmovapsOp
-            case (builtin.Float32Type(), False):
-                move_op_type = x86.ops.MSK_VmovupsOp
-            case (builtin.Float64Type(), True):
-                move_op_type = x86.ops.MSK_VmovapdOp
-            case (builtin.Float64Type(), False):
-                move_op_type = x86.ops.MSK_VmovupdOp
-
-        rewriter.insert(
-            move_op_type(
-                memory=pointer,
-                memory_offset=offset,
-                source=source,
-                mask_reg=mask,
-            ),
-            insertion_point=insert_point,
-        )
 
 
 def store_c(
@@ -377,8 +244,8 @@ def store_c(
                 c_val,
                 displacement,
                 accumulator,
-                mask_k1 if use_masking else None,
                 aligned=aligned_c,
+                mask=mask_k1 if use_masking else None,
             )
 
 

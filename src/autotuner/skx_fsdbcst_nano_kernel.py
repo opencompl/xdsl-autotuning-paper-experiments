@@ -4,6 +4,14 @@ from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulRegOp
+from autotuner.instructions import (
+    VectorValue,
+    add_vectors,
+    advance_pointer,
+    load_vector,
+    multiply_add_memory,
+    zero_vector,
+)
 from autotuner.nano_kernel import (
     GemmDescriptor,
     NanoKernel,
@@ -13,17 +21,11 @@ from autotuner.nano_kernel import (
 )
 from autotuner.skx_nano_kernel_utils import (
     MatmulRegValues,
-    VectorValue,
-    add_vectors,
-    advance_pointer,
     apply_matmul_reg_pointer_contract,
     descriptor_from_op,
-    load_vector,
-    multiply_add_memory,
     tile_sizes_from_op,
     values_from_op,
     vector_register,
-    zero_vector,
 )
 
 
