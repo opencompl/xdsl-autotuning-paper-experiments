@@ -43,25 +43,16 @@ def load_c(
     ldc: int,
     vector_length: int,
     vector_reg_count: int,
-    use_masking_a_c: bool,
     aligned_c: bool,
     c_val: ir.SSAValue[x86.registers.GeneralRegisterType],
     mask_k1: ir.SSAValue[x86.registers.AVX512MaskRegisterType] | None = None,
 ) -> tuple[ir.SSAValue[x86.registers.AVX512RegisterType], ...]:
     result: list[ir.SSAValue[x86.registers.AVX512RegisterType]] = []
-    # register blocking counter in n
-    n = 0
-    # register blocking counter in m
-    m = 0
 
     datatype_size_out = datatype.size
 
     # deriving register blocking from kernel config
-    m_blocking = (
-        m_blocking // vector_length
-        if (m_blocking % vector_length == 0)
-        else (m_blocking // vector_length) + 1
-    )
+    m_blocking = m_blocking // vector_length + bool(m_blocking % vector_length)
     # start register of accumulator
     vec_reg_acc_start = vector_reg_count - n_blocking * m_blocking
 
@@ -72,11 +63,7 @@ def load_c(
         for m in range(m_blocking):
             c_vec_reg = dest_type.from_index(vec_reg_acc_start + m + (m_blocking * n))
             last_iteration = m == m_blocking - 1
-            use_masking = use_masking_a_c and last_iteration
-
             displacement = (n * ldc + m * vector_length) * datatype_size_out
-            if use_masking:
-                assert mask_k1 is not None
 
             res_vec = load_vector(
                 rewriter,
@@ -86,7 +73,7 @@ def load_c(
                 displacement,
                 destination=c_vec_reg,
                 aligned=aligned_c,
-                mask=mask_k1 if use_masking else None,
+                mask=mask_k1 if last_iteration else None,
             )
 
             result.append(res_vec)
@@ -103,7 +90,6 @@ def store_c(
     *,
     ldc: int,
     vector_length: int,
-    use_masking_a_c: bool,
     aligned_c: bool,
     c_val: ir.SSAValue[x86.registers.GeneralRegisterType],
     acc_vectors: tuple[ir.SSAValue[x86.registers.AVX512RegisterType], ...],
@@ -111,21 +97,13 @@ def store_c(
 ) -> None:
     datatype_size_out = datatype.size
 
-    m_blocking = (
-        m_blocking // vector_length
-        if m_blocking % vector_length == 0
-        else m_blocking // vector_length + 1
-    )
+    m_blocking = m_blocking // vector_length + bool(m_blocking % vector_length)
     assert len(acc_vectors) == n_blocking * m_blocking
 
     for n in range(n_blocking):
         for m in range(m_blocking):
             accumulator = acc_vectors[m + m_blocking * n]
-            use_masking = use_masking_a_c and m == m_blocking - 1
             displacement = (n * ldc + m * vector_length) * datatype_size_out
-
-            if use_masking:
-                assert mask_k1 is not None
 
             store_vector(
                 rewriter,
@@ -135,7 +113,7 @@ def store_c(
                 displacement,
                 accumulator,
                 aligned=aligned_c,
-                mask=mask_k1 if use_masking else None,
+                mask=mask_k1 if m == m_blocking - 1 else None,
             )
 
 
@@ -253,7 +231,6 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
         ldc=op.ldc.value.data,
         vector_length=vector_length,
         vector_reg_count=32,
-        use_masking_a_c=mask is not None,
         aligned_c=bool(op.aligned_c),
         c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
         mask_k1=mask,
@@ -284,7 +261,6 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
         op.datatype,
         ldc=op.ldc.value.data,
         vector_length=vector_length,
-        use_masking_a_c=mask is not None,
         aligned_c=bool(op.aligned_c),
         c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
         acc_vectors=tuple(
