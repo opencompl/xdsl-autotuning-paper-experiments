@@ -218,12 +218,6 @@ dependencies = [
     { name = "tvm" },
     { name = "xdsl", extra = ["dev"] },
     { name = "xtc" },
-]
-
-[package.optional-dependencies]
-xtc-runtime = [
-    { name = "xtc-llvm-tools" },
-    { name = "xtc-mlir-extra-tools" },
     { name = "xtc-mlir-python-bindings" },
 ]
 
@@ -236,11 +230,8 @@ requires-dist = [
     { name = "tvm", specifier = "==0.19.0.2025010903", index = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple" },
     { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=c8bdae0996431e9d8d43a51545619f48b3850202" },
     { name = "xtc", git = "https://github.com/xtc-tools/xtc.git?rev=7ae6b3945f67d0bee42272de02d316e0d7b0e6f1" },
-    { name = "xtc-llvm-tools", marker = "extra == 'xtc-runtime'", specifier = "==22.1.8.2" },
-    { name = "xtc-mlir-extra-tools", marker = "extra == 'xtc-runtime'", specifier = "==22.1.8.7" },
-    { name = "xtc-mlir-python-bindings", marker = "extra == 'xtc-runtime'", specifier = "==22.1.8.3" },
+    { name = "xtc-mlir-python-bindings", specifier = "==22.1.8.3" },
 ]
-provides-extras = ["xtc-runtime"]
 
 [[package]]
 name = "certifi"
@@ -256,7 +247,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
+    { name = "pycparser" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -1897,10 +1888,10 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", marker = "python_full_version >= '3.14'" },
-    { name = "python-dateutil", marker = "python_full_version >= '3.14'" },
-    { name = "pytz", marker = "python_full_version >= '3.14'" },
-    { name = "tzdata", marker = "python_full_version >= '3.14'" },
+    { name = "numpy" },
+    { name = "python-dateutil" },
+    { name = "pytz" },
+    { name = "tzdata" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/33/01/d40b85317f86cf08d853a4f495195c73815fdf205eef3993821720274518/pandas-2.3.3.tar.gz", hash = "sha256:e05e1af93b977f7eafa636d043f9f94c7ee3ac81af99c13508215942e64c993b", size = 4495223, upload-time = "2025-09-29T23:34:51.853Z" }
 wheels = [
@@ -1962,9 +1953,9 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", marker = "python_full_version < '3.14'" },
-    { name = "python-dateutil", marker = "python_full_version < '3.14'" },
-    { name = "tzdata", marker = "(python_full_version < '3.14' and sys_platform == 'emscripten') or (python_full_version < '3.14' and sys_platform == 'win32')" },
+    { name = "numpy" },
+    { name = "python-dateutil" },
+    { name = "tzdata", marker = "sys_platform == 'emscripten' or sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/da/99/b342345300f13440fe9fe385c3c481e2d9a595ee3bab4d3219247ac94e9a/pandas-3.0.2.tar.gz", hash = "sha256:f4753e73e34c8d83221ba58f232433fca2748be8b18dbca02d242ed153945043", size = 4645855, upload-time = "2026-03-31T06:48:30.816Z" }
 wheels = [
@@ -3603,35 +3594,6 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
     { name = "xdsl", extra = ["dev"] },
-]
-
-[[package]]
-name = "xtc-llvm-tools"
-version = "22.1.8.2"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/a4/96860aed3aaa8f29d58c65249441aad7c8f16d180accc244fe575e96958d/xtc_llvm_tools-22.1.8.2-py3-none-macosx_14_0_arm64.whl", hash = "sha256:18ecc1592768c3514bfbd126b37dceb3d7135931ec751a235473281d4694974c", size = 76788805, upload-time = "2026-08-24T16:52:23.015Z" },
-    { url = "https://files.pythonhosted.org/packages/0b/17/07fed6131c52b9cc7f82f78ed0466c9fd54479293698b8120d94ceda2387/xtc_llvm_tools-22.1.8.2-py3-none-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:b96137adc8defcae4ea86cb17d8a6600d813d9ae9836cc419d57470f67d6b2b7", size = 89818861, upload-time = "2026-08-24T16:52:15.888Z" },
-    { url = "https://files.pythonhosted.org/packages/97/0f/d2854bd3bd6ee92a8174b03578807480413f12c6acb85a89b2ca759dacb4/xtc_llvm_tools-22.1.8.2-py3-none-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:203b24eb16664296b1a6004946f6139a81817196c0e6c950292decd1b03be5e0", size = 94361550, upload-time = "2026-08-24T16:52:24.764Z" },
-]
-
-[[package]]
-name = "xtc-mlir-extra-tools"
-version = "22.1.8.7"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/f8/20feaf0ba59d9bc401e944017d18c67976209f4b027f9a51b58d855a4df3/xtc_mlir_extra_tools-22.1.8.7-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:b1cbe70459e323ecbc7c99e400962c3d475fae2a2f59d230f10e15db78037afc", size = 39457262, upload-time = "2026-08-25T12:36:27.583Z" },
-    { url = "https://files.pythonhosted.org/packages/8f/94/cd45c8432a69b0f7d6a3ee9ea7670c84352c6673fc5b34b682505e83af7f/xtc_mlir_extra_tools-22.1.8.7-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:97806d82c6620b19691905c60955c74de6d47039e7c7cbee2fe8a1eb5324c331", size = 47174692, upload-time = "2026-08-25T12:35:57.789Z" },
-    { url = "https://files.pythonhosted.org/packages/1e/92/df898ea9ede453ae0e462257c14a678395aca3a36a2b9f7e46fc7d27780d/xtc_mlir_extra_tools-22.1.8.7-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0b2ab7700b70394f143bed0b5ee45d71b6def1db7df6a60f829401b9b352cdaf", size = 47306478, upload-time = "2026-08-25T12:36:00.781Z" },
-    { url = "https://files.pythonhosted.org/packages/d8/3f/2c040e4148c64d21bd10ea5838a1bfab7df3dd53176c5b3a2eddf259c6a6/xtc_mlir_extra_tools-22.1.8.7-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:99ae4795f2093359319d48db7dfefe0521b98946cf7a32262f2d8934c637df20", size = 39456502, upload-time = "2026-08-25T12:36:20.852Z" },
-    { url = "https://files.pythonhosted.org/packages/df/fd/e73e50aeca11ccd4b1a562685c9ffbd0c4cace2a608708a06accd42adeee/xtc_mlir_extra_tools-22.1.8.7-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:385dab25a088838fa1a4b6012c318d57f64380c805b0454a9f55568314a772b4", size = 47174215, upload-time = "2026-08-25T12:36:24.802Z" },
-    { url = "https://files.pythonhosted.org/packages/3c/d8/74b0af1771bbc24efce7ea0b2609fa90dbb56e3434a9c6199391b69f5ee0/xtc_mlir_extra_tools-22.1.8.7-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c799dc60484369e485bd643e54663a6c9733b494cf2adfd520ec524ec5ad4d95", size = 47305837, upload-time = "2026-08-25T12:36:13.077Z" },
-    { url = "https://files.pythonhosted.org/packages/71/66/119554c90fad9420e051779cbd4c39555265c4b56913bdca357da8db4f4a/xtc_mlir_extra_tools-22.1.8.7-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:07ec6ed7241acde360d2441e583bdb5c103ece8516ec2e659f2e725c382517bf", size = 39456611, upload-time = "2026-08-25T12:36:11.882Z" },
-    { url = "https://files.pythonhosted.org/packages/f4/f7/a96d12586044d001ec3b8203fee3d365005fbe3ba6b2514f2fd5c6dfb73e/xtc_mlir_extra_tools-22.1.8.7-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:58e137df45c1e2638c6c17327923912cac615339b6fabffc5a22289b7e91110a", size = 47175476, upload-time = "2026-08-25T12:36:01.403Z" },
-    { url = "https://files.pythonhosted.org/packages/3a/63/5a785c32d2b0689991c951698e42c4c8d4b2f6d91ba65c1c2ff2a27427e9/xtc_mlir_extra_tools-22.1.8.7-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f0906d07c35d667bb3096aa7588518e091cd4ba7fc93a57f0130f80dd176e852", size = 47305736, upload-time = "2026-08-25T12:36:27.157Z" },
-    { url = "https://files.pythonhosted.org/packages/ca/7f/213fe7d927334eacea7b4b3b69bad37da497541aa0679c12a19c55c7ad11/xtc_mlir_extra_tools-22.1.8.7-cp314-cp314-macosx_14_0_arm64.whl", hash = "sha256:38f1c16e6a2618b135e01739ad4f4d2eaa15ae0fd019ebfc2ad778d9df652699", size = 39456679, upload-time = "2026-08-25T12:36:20.429Z" },
-    { url = "https://files.pythonhosted.org/packages/a2/15/14defb3849ae121a925d831cb610f866a7569a4b827863c492f85c1965dc/xtc_mlir_extra_tools-22.1.8.7-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1ed2a9942a265027b2c9ff25cdd965ec450c461c77275ae3d33087195f615bab", size = 47176385, upload-time = "2026-08-25T12:36:04.56Z" },
-    { url = "https://files.pythonhosted.org/packages/1a/8d/73e646d3721e983c058918f10f457a0c7ffbbe48452a4b0129c0d8f2456a/xtc_mlir_extra_tools-22.1.8.7-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:21e700b88948551ce80a34348890c24f57a9920125e6ed771cd8707ca0c36372", size = 47305687, upload-time = "2026-08-25T12:36:05.573Z" },
 ]
 
 [[package]]

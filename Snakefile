@@ -33,8 +33,8 @@ else:
 
 CC_ASM = config.get("cc_asm", config["cc"])
 
-# XTC-installed MLIR/LLVM tools, used to lower libxtcmm's transform-dialect IR
-# (its emitter runs in the same environment, so xtc is importable here).
+# MLIR/LLVM tools used to lower libxtcmm's transform-dialect IR. XTC resolves
+# these from XTC_MLIR_PREFIX/XTC_LLVM_PREFIX, set by the Nix and Docker environments.
 try:
     from xtc.utils.tools import get_mlir_prefix, get_llvm_prefix
     XTC_MLIR_BIN = f"{get_mlir_prefix(None)}/bin"
@@ -433,13 +433,11 @@ rule libxtcmm_s:
         llvm_bin=XTC_LLVM_BIN,
     shell:
         """
-        # libxtcmm lowers with xtc's bundled mlir-opt/mlir-translate/opt/llc, whose
-        # paths are resolved from the xtc install when the Snakefile loads. If xtc
-        # was not importable those paths fall back to empty -- fail clearly here
-        # instead of running a broken "/mlir-opt".
+        # libxtcmm lowers with the Nix/Docker mlir-opt, mlir-translate, opt and
+        # llc, whose paths are resolved through XTC's prefix helpers when the
+        # Snakefile loads. Fail clearly if that toolchain is unavailable.
         if [ -z "{params.mlir_bin}" ] || [ -z "{params.llvm_bin}" ]; then
-            echo "error: xtc not found in this environment; libxtcmm needs xtc installed" >&2
-            echo "       (its emitter and the mlir/llvm tools it lowers with come from xtc)" >&2
+            echo "error: libxtcmm requires the MLIR/LLVM toolchain from the Nix or Docker environment" >&2
             exit 1
         fi
         # Replay XTC's own lowering here: apply the transform + lower to the llvm

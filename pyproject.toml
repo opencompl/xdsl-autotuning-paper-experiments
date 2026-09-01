@@ -12,12 +12,6 @@ dependencies = [
     "tvm==0.19.0.2025010903",
     "xdsl[dev]",
     "xtc",
-]
-
-[project.optional-dependencies]
-xtc-runtime = [
-    "xtc-llvm-tools==22.1.8.2",
-    "xtc-mlir-extra-tools==22.1.8.7",
     "xtc-mlir-python-bindings==22.1.8.3",
 ]
 
