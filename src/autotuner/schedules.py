@@ -181,27 +181,26 @@ def set_matmul_iterator(
 def split_matmul(
     rewriter: PatternRewriter,
     op: MatmulOp,
-    dimension: MatmulIterator,
     first_size: int,
 ) -> tuple[MatmulOp, MatmulOp]:
-    """Split a matmul along M or N and preserve its external pointer contract."""
-    assert dimension in (MatmulIterator.M, MatmulIterator.N)
-    extent = op.m.value.data if dimension == MatmulIterator.M else op.n.value.data
+    """Split a matmul along its M or N iterator."""
+    iterator = MatmulIterator(op.iterator.data)
+    assert iterator in (MatmulIterator.M, MatmulIterator.N)
+    extent = op.m.value.data if iterator == MatmulIterator.M else op.n.value.data
     assert 0 < first_size < extent, (
-        f"Invalid {dimension} split {first_size} for extent {extent}"
+        f"Invalid {iterator} split {first_size} for extent {extent}"
     )
     vector_length = 512 // op.datatype.bitwidth
     second_aligned_a = bool(op.aligned_a) and (
-        dimension != MatmulIterator.M or first_size % vector_length == 0
+        iterator != MatmulIterator.M or first_size % vector_length == 0
     )
     second_aligned_c = bool(op.aligned_c) and (
-        dimension != MatmulIterator.M or first_size % vector_length == 0
+        iterator != MatmulIterator.M or first_size % vector_length == 0
     )
     first = _matmul_like(
         op,
-        m=first_size if dimension == MatmulIterator.M else None,
-        n=first_size if dimension == MatmulIterator.N else None,
-        iterator=dimension,
+        m=first_size if iterator == MatmulIterator.M else None,
+        n=first_size if iterator == MatmulIterator.N else None,
     )
     second = _matmul_like(
         op,
@@ -211,29 +210,27 @@ def split_matmul(
         rbp=first.rbp_out,
         rsp=first.rsp_out,
         outs=first.out_results,
-        m=extent - first_size if dimension == MatmulIterator.M else None,
-        n=extent - first_size if dimension == MatmulIterator.N else None,
+        m=extent - first_size if iterator == MatmulIterator.M else None,
+        n=extent - first_size if iterator == MatmulIterator.N else None,
         aligned_a=second_aligned_a,
         aligned_c=second_aligned_c,
-        iterator=dimension,
     )
-    results, adjustments = _normalize_matmul_results(op, second.results, dimension)
-    rewriter.replace(op, (first, second, *adjustments), results)
+    rewriter.replace(op, (first, second), second.results)
     return first, second
 
 
 def loop_matmul(
     rewriter: PatternRewriter,
     op: MatmulOp,
-    dimension: MatmulIterator,
     tile_size: int,
     loop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
     *,
     lower_bound: int | None = None,
 ) -> MatmulOp:
-    """Materialize an exact M or N tiled loop and preserve result semantics."""
-    assert dimension in (MatmulIterator.M, MatmulIterator.N)
-    extent = op.m.value.data if dimension == MatmulIterator.M else op.n.value.data
+    """Materialize an exact loop along a matmul's M or N iterator."""
+    iterator = MatmulIterator(op.iterator.data)
+    assert iterator in (MatmulIterator.M, MatmulIterator.N)
+    extent = op.m.value.data if iterator == MatmulIterator.M else op.n.value.data
     assert 0 < tile_size <= extent and extent % tile_size == 0
 
     if lower_bound is None:
@@ -250,9 +247,8 @@ def loop_matmul(
         rbp=rbp,
         rsp=rsp,
         outs=outs,
-        m=tile_size if dimension == MatmulIterator.M else None,
-        n=tile_size if dimension == MatmulIterator.N else None,
-        iterator=dimension,
+        m=tile_size if iterator == MatmulIterator.M else None,
+        n=tile_size if iterator == MatmulIterator.N else None,
     )
     body.add_ops((tiled, x86_scf.YieldOp(*tiled.results)))
     loop = x86_scf.ForOp(
@@ -262,33 +258,30 @@ def loop_matmul(
         inputs,
         body,
     )
-    results, adjustments = _normalize_matmul_results(
-        op, tuple(loop.results[1:]), dimension
-    )
-    rewriter.replace(op, (init, loop, *adjustments), results)
+    rewriter.replace(op, (init, loop), tuple(loop.results[1:]))
     return tiled
 
 
 def tile_matmul(
     rewriter: PatternRewriter,
     op: MatmulOp,
-    dimension: MatmulIterator,
     tile_size: int,
     loop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
 ) -> tuple[MatmulOp, MatmulOp | None]:
-    """Tile M or N with an exact loop and an optional direct remainder."""
-    assert dimension in (MatmulIterator.M, MatmulIterator.N)
-    extent = op.m.value.data if dimension == MatmulIterator.M else op.n.value.data
+    """Tile along a matmul's M or N iterator with an optional remainder."""
+    iterator = MatmulIterator(op.iterator.data)
+    assert iterator in (MatmulIterator.M, MatmulIterator.N)
+    extent = op.m.value.data if iterator == MatmulIterator.M else op.n.value.data
     assert 0 < tile_size <= extent
     if tile_size == extent:
-        return loop_matmul(rewriter, op, dimension, tile_size, loop_register), None
+        return loop_matmul(rewriter, op, tile_size, loop_register), None
 
     blocked_end = extent // tile_size * tile_size
     if blocked_end != extent:
-        main, remainder = split_matmul(rewriter, op, dimension, blocked_end)
+        main, remainder = split_matmul(rewriter, op, blocked_end)
     else:
         main, remainder = op, None
-    tiled = loop_matmul(rewriter, main, dimension, tile_size, loop_register)
+    tiled = loop_matmul(rewriter, main, tile_size, loop_register)
     return tiled, remainder
 
 
