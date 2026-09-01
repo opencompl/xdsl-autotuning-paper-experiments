@@ -132,7 +132,6 @@ def tile_m(
             remainder_matmul,
             remainder,
             mloop_register,
-            lower_bound=blocked_end,
         )
 
     return tiled_matmul, remainder_matmul

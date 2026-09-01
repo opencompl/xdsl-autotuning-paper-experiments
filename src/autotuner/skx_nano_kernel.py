@@ -10,9 +10,9 @@ from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.nano_kernel import (
     FloatingPointType,
     GemmDescriptor,
+    ISAInfo,
     NanoKernel,
     RegisterCount,
-    ISAInfo,
     TileSizes,
 )
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel

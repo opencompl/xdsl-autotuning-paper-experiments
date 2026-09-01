@@ -564,7 +564,8 @@
 // CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY_0]]
 // CHECK-MANUAL-NEXT:      mov r15, 3
 // CHECK-MANUAL-NEXT:      kmovb k1, r15d
-// CHECK-MANUAL-NEXT:      mov r10, 32
+// CHECK-LIBXSMM-NEXT:     mov r10, 32
+// CHECK-COMPXSMM-NEXT:    mov r10, 0
 // CHECK-MANUAL-NEXT:  [[SCF_M_BODY_1:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r10, 2
 // CHECK-MANUAL-NEXT:      vmovupd zmm27 {k1}{z}, [rdx]
@@ -710,7 +711,8 @@
 // CHECK-COMPXSMM-NEXT:    sub rsi, 128
 // CHECK-MANUAL-NEXT:      add rdx, 16
 // CHECK-LIBXSMM-NEXT:     sub rdi, 4336
-// CHECK-MANUAL-NEXT:      cmp r10, 34
+// CHECK-LIBXSMM-NEXT:     cmp r10, 34
+// CHECK-COMPXSMM-NEXT:    cmp r10, 2
 // CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY_1]]
 // CHECK-LIBXSMM-NEXT:     add rdx, 1088
 // CHECK-COMPXSMM-NEXT:    sub rdi, 272

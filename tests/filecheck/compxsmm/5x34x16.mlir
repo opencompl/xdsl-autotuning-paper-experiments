@@ -574,7 +574,7 @@
 // CHECK-REGALLOC-NEXT:      jl scf_body_0_for
 // CHECK-REGALLOC-NEXT:      mov rcx, 3
 // CHECK-REGALLOC-NEXT:      kmovb k1, ecx
-// CHECK-REGALLOC-NEXT:      mov rcx, 32
+// CHECK-REGALLOC-NEXT:      mov rcx, 0
 // CHECK-REGALLOC-NEXT:  scf_body_1_for:
 // CHECK-REGALLOC-NEXT:      add rcx, 2
 // CHECK-REGALLOC-NEXT:      vmovupd zmm27 {k1}{z}, [rdx]
@@ -718,7 +718,7 @@
 // CHECK-REGALLOC-NEXT:      sub rdi, 4336
 // CHECK-REGALLOC-NEXT:      sub rsi, 128
 // CHECK-REGALLOC-NEXT:      add rdx, 16
-// CHECK-REGALLOC-NEXT:      cmp rcx, 34
+// CHECK-REGALLOC-NEXT:      cmp rcx, 2
 // CHECK-REGALLOC-NEXT:      jl scf_body_1_for
 // CHECK-REGALLOC-NEXT:      sub rdi, 272
 // CHECK-REGALLOC-NEXT:      add rsi, 640

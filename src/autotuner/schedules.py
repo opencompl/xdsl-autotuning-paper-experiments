@@ -224,8 +224,6 @@ def loop_matmul(
     op: MatmulOp,
     tile_size: int,
     loop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
-    *,
-    lower_bound: int | None = None,
 ) -> MatmulOp:
     """Materialize an exact loop along a matmul's M or N iterator."""
     iterator = MatmulIterator(op.iterator.data)
@@ -233,9 +231,7 @@ def loop_matmul(
     extent = op.m.value.data if iterator == MatmulIterator.M else op.n.value.data
     assert 0 < tile_size <= extent and extent % tile_size == 0
 
-    if lower_bound is None:
-        lower_bound = 0
-    init = x86.ops.DI_MovOp(lower_bound, destination=loop_register)
+    init = x86.ops.DI_MovOp(0, destination=loop_register)
     inputs = (op.a, op.b, op.c, op.rbp, op.rsp, *op.outs)
     body = ir.Block(arg_types=(init.destination.type, *(v.type for v in inputs)))
     a, b, c, rbp, rsp, *outs = body.args[1:]
@@ -253,7 +249,7 @@ def loop_matmul(
     body.add_ops((tiled, x86_scf.YieldOp(*tiled.results)))
     loop = x86_scf.ForOp(
         init.destination,
-        builtin.IntegerAttr(lower_bound + extent, x86.ops.si32),
+        builtin.IntegerAttr(extent, x86.ops.si32),
         builtin.IntegerAttr(tile_size, x86.ops.si32),
         inputs,
         body,
