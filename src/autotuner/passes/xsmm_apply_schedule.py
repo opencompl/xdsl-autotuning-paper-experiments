@@ -95,9 +95,7 @@ def tile_m(
     assert 0 < m_blocking <= m
     blocked_end = m // m_blocking * m_blocking
     if remainder := m % m_blocking:
-        main, remainder_matmul = split_matmul(
-            rewriter, op, MatmulIterator.M, blocked_end
-        )
+        main, remainder_matmul = split_matmul(rewriter, op, blocked_end)
     else:
         main = op
         remainder_matmul = None
@@ -114,7 +112,6 @@ def tile_m(
     tiled_matmul, unexpected_remainder = tile_matmul(
         rewriter,
         main,
-        MatmulIterator.M,
         m_blocking,
         mloop_register,
     )
@@ -133,7 +130,6 @@ def tile_m(
         remainder_matmul = loop_matmul(
             rewriter,
             remainder_matmul,
-            MatmulIterator.M,
             remainder,
             mloop_register,
             lower_bound=blocked_end,
@@ -261,7 +257,7 @@ def _tile_n_m(
 ) -> list[MatmulOp]:
     if len(strategy.n_ranges) == 2:
         first_range, second_range = strategy.n_ranges
-        first, second = split_matmul(rewriter, op, MatmulIterator.N, first_range.extent)
+        first, second = split_matmul(rewriter, op, first_range.extent)
         n_ranges = (
             (first, first_range.tile_size),
             (second, second_range.tile_size),
@@ -275,7 +271,6 @@ def _tile_n_m(
         tiled_n = loop_matmul(
             rewriter,
             n_range,
-            MatmulIterator.N,
             n_tile,
             nloop_register,
         )
