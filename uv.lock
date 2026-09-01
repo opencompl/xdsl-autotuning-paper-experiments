@@ -231,7 +231,7 @@ requires-dist = [
     { name = "snakemake", specifier = ">=8.30.0" },
     { name = "tvm", specifier = "==0.19.0.2025010903", index = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple" },
     { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=c8bdae0996431e9d8d43a51545619f48b3850202" },
-    { name = "xtc", git = "https://github.com/xtc-tools/xtc.git?rev=7ae6b3945f67d0bee42272de02d316e0d7b0e6f1" },
+    { name = "xtc", git = "https://github.com/superlopuh/xtc.git?rev=1b7ecb65565d2b5ef82afca1aece31e67b09c7aa" },
     { name = "xtc-llvm-tools", specifier = "==22.1.8.2" },
     { name = "xtc-mlir-extra-tools", specifier = "==22.1.8.7" },
     { name = "xtc-mlir-python-bindings", specifier = "==22.1.8.3" },
@@ -3584,7 +3584,7 @@ dev = [
 [[package]]
 name = "xtc"
 version = "0.2.dev1"
-source = { git = "https://github.com/xtc-tools/xtc.git?rev=7ae6b3945f67d0bee42272de02d316e0d7b0e6f1#7ae6b3945f67d0bee42272de02d316e0d7b0e6f1" }
+source = { git = "https://github.com/superlopuh/xtc.git?rev=1b7ecb65565d2b5ef82afca1aece31e67b09c7aa#1b7ecb65565d2b5ef82afca1aece31e67b09c7aa" }
 dependencies = [
     { name = "jinja2" },
     { name = "matplotlib" },

@@ -33,7 +33,7 @@ explicit = true
 override-dependencies = ["xdsl[dev]"]
 
 [tool.uv.sources]
-xtc = { git = "https://github.com/xtc-tools/xtc.git", rev = "7ae6b3945f67d0bee42272de02d316e0d7b0e6f1" }
+xtc = { git = "https://github.com/superlopuh/xtc.git", rev = "1b7ecb65565d2b5ef82afca1aece31e67b09c7aa" }
 xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "c8bdae0996431e9d8d43a51545619f48b3850202" }
 tvm = { index = "corse" }
 
