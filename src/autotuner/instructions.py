@@ -266,22 +266,3 @@ def advance_pointer(
         insertion_point=insert_point,
     ).register_out
     return cast(PointerValue, result)
-
-
-def offset_pointer(
-    rewriter: PatternRewriter,
-    insert_point: InsertPoint,
-    pointer: PointerValue,
-    byte_offset: int,
-    *,
-    emit_zero_sub: bool = False,
-) -> PointerValue:
-    """Apply a signed byte offset."""
-    if byte_offset == 0 and not emit_zero_sub:
-        return pointer
-    op_type = x86.ops.RI_SubOp if byte_offset <= 0 else x86.ops.RI_AddOp
-    result = rewriter.insert(
-        op_type(pointer, abs(byte_offset)),
-        insertion_point=insert_point,
-    ).register_out
-    return cast(PointerValue, result)

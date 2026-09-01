@@ -21,7 +21,6 @@ from autotuner.nano_kernel import (
 )
 from autotuner.skx_nano_kernel_utils import (
     MatmulRegValues,
-    apply_matmul_reg_pointer_contract,
     descriptor_from_op,
     tile_sizes_from_op,
     values_from_op,
@@ -227,5 +226,4 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                 for n in range(tile.n)
             ),
         )
-        result = apply_matmul_reg_pointer_contract(rewriter, insert_point, op, result)
         rewriter.replace(op, [], result.vals)

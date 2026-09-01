@@ -10,7 +10,6 @@ from autotuner.dialects.xsmm import (
     MatmulIterator,
     MatmulOp,
     MatmulRegOp,
-    matmul_reg_pointer_offsets,
 )
 
 
@@ -66,7 +65,6 @@ def _matmul_reg_like(
     n: int | None = None,
     k: int | None = None,
     aligned_a: bool | None = None,
-    iterator: MatmulIterator | None = None,
 ) -> MatmulRegOp:
     """Copy a matmul_reg while replacing only explicitly supplied fields."""
     return MatmulRegOp(
@@ -83,7 +81,6 @@ def _matmul_reg_like(
         ldb=op.ldb.value.data,
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a) if aligned_a is None else aligned_a,
-        iterator=(MatmulIterator(op.iterator.data) if iterator is None else iterator),
     )
 
 
@@ -162,25 +159,6 @@ def _normalize_matmul_results(
     return (*pointers, *results[3:]), adjustments
 
 
-def _normalize_matmul_reg_results(
-    op: MatmulRegOp,
-    results: Sequence[ir.SSAValue],
-    actual_iterator: MatmulIterator,
-) -> tuple[tuple[ir.SSAValue, ...], tuple[ir.Operation, ...]]:
-    pointers, adjustments = _normalize_pointers(
-        results[:2],
-        matmul_reg_pointer_offsets(op),
-        matmul_reg_pointer_offsets(op, actual_iterator),
-        (
-            (x86.ops.RI_SubOp, None)
-            if op.iterator.data == MatmulIterator.M
-            and actual_iterator == MatmulIterator.K
-            else (None, None)
-        ),
-    )
-    return (*pointers, *results[2:]), adjustments
-
-
 def set_matmul_iterator(
     rewriter: PatternRewriter, op: MatmulOp, iterator: MatmulIterator
 ) -> MatmulOp:
@@ -196,18 +174,6 @@ def set_matmul_iterator(
 
     matmul = _matmul_like(op, iterator=iterator)
     results, adjustments = _normalize_matmul_results(op, matmul.results, iterator)
-    rewriter.replace(op, (matmul, *adjustments), results)
-    return matmul
-
-
-def set_matmul_reg_iterator(
-    rewriter: PatternRewriter, op: MatmulRegOp, iterator: MatmulIterator
-) -> MatmulRegOp:
-    """Change a matmul_reg iterator while preserving its result contract."""
-    if op.iterator.data == iterator:
-        return op
-    matmul = _matmul_reg_like(op, iterator=iterator)
-    results, adjustments = _normalize_matmul_reg_results(op, matmul.results, iterator)
     rewriter.replace(op, (matmul, *adjustments), results)
     return matmul
 
@@ -329,14 +295,12 @@ def tile_matmul(
 def split_matmul_reg(
     rewriter: PatternRewriter,
     op: MatmulRegOp,
-    dimension: MatmulIterator,
     first_size: int,
 ) -> tuple[MatmulRegOp, MatmulRegOp]:
-    """Split a matmul_reg reduction and preserve its pointer contract."""
-    assert dimension == MatmulIterator.K
+    """Split a matmul_reg K reduction and preserve its pointer contract."""
     extent = op.k.value.data
     assert 0 < first_size < extent, f"Invalid K split {first_size} for extent {extent}"
-    first = _matmul_reg_like(op, k=first_size, iterator=dimension)
+    first = _matmul_reg_like(op, k=first_size)
     second = _matmul_reg_like(
         op,
         a=first.a_out,
@@ -345,22 +309,18 @@ def split_matmul_reg(
         rsp=first.rsp_out,
         outs=first.out_results,
         k=extent - first_size,
-        iterator=dimension,
     )
-    results, adjustments = _normalize_matmul_reg_results(op, second.results, dimension)
-    rewriter.replace(op, (first, second, *adjustments), results)
+    rewriter.replace(op, (first, second), second.results)
     return first, second
 
 
 def loop_matmul_reg(
     rewriter: PatternRewriter,
     op: MatmulRegOp,
-    dimension: MatmulIterator,
     tile_size: int,
     loop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
 ) -> MatmulRegOp:
-    """Materialize an exact K loop and preserve the original result contract."""
-    assert dimension == MatmulIterator.K
+    """Materialize an exact K loop and preserve the result contract."""
     extent = op.k.value.data
     assert 0 < tile_size <= extent and extent % tile_size == 0
 
@@ -376,7 +336,6 @@ def loop_matmul_reg(
         rsp=rsp,
         outs=outs,
         k=tile_size,
-        iterator=dimension,
     )
     body.add_ops((tiled, x86_scf.YieldOp(*tiled.results)))
     loop = x86_scf.ForOp(
@@ -386,31 +345,26 @@ def loop_matmul_reg(
         inputs,
         body,
     )
-    results, adjustments = _normalize_matmul_reg_results(
-        op, tuple(loop.results[1:]), dimension
-    )
-    rewriter.replace(op, (init, loop, *adjustments), results)
+    rewriter.replace(op, (init, loop), tuple(loop.results[1:]))
     return tiled
 
 
 def tile_matmul_reg(
     rewriter: PatternRewriter,
     op: MatmulRegOp,
-    dimension: MatmulIterator,
     tile_size: int,
     loop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
 ) -> tuple[MatmulRegOp, MatmulRegOp | None]:
     """Tile matmul_reg K with an exact loop and an optional direct remainder."""
-    assert dimension == MatmulIterator.K
     extent = op.k.value.data
     assert 0 < tile_size <= extent
     if tile_size == extent:
-        return loop_matmul_reg(rewriter, op, dimension, tile_size, loop_register), None
+        return loop_matmul_reg(rewriter, op, tile_size, loop_register), None
 
     blocked_end = extent // tile_size * tile_size
     if blocked_end != extent:
-        main, remainder = split_matmul_reg(rewriter, op, dimension, blocked_end)
+        main, remainder = split_matmul_reg(rewriter, op, blocked_end)
     else:
         main, remainder = op, None
-    tiled = loop_matmul_reg(rewriter, main, dimension, tile_size, loop_register)
+    tiled = loop_matmul_reg(rewriter, main, tile_size, loop_register)
     return tiled, remainder

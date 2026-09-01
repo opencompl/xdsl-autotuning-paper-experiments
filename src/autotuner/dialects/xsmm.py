@@ -193,13 +193,8 @@ class MatmulOp(IRDLOperation):
 class MatmulRegOp(IRDLOperation):
     """A blocked, register-resident matrix multiplication body.
 
-    The operation performs ``k`` K steps. ``iterator`` describes the
-    pointer-result contract for the currently supported non-transposed inputs:
-
-    - ``m`` advances A by ``m`` elements and leaves B unchanged;
-    - ``n`` leaves A unchanged and advances B by ``n * ldb`` elements;
-    - ``k`` advances A by ``k * lda`` and B by ``k`` elements;
-    - ``none`` passes both matrix pointers through unchanged.
+    The operation performs ``k`` K steps, advancing A by ``k * lda`` elements
+    and B by ``k`` elements for the currently supported non-transposed inputs.
 
     The frame and stack pointers are passed through. C is register-resident and
     represented by ``outs``, so this operation does not carry a C pointer.
@@ -232,7 +227,6 @@ class MatmulRegOp(IRDLOperation):
     ldb = prop_def(IntegerAttr)
     datatype = prop_def(Float32Type | Float64Type)
     aligned_a = prop_def(BoolAttr)
-    iterator = prop_def(StringAttr)
 
     irdl_options = (
         AttrSizedOperandSegments(as_property=True),
@@ -257,7 +251,6 @@ class MatmulRegOp(IRDLOperation):
         ldb: int,
         datatype: Float32Type | Float64Type,
         aligned_a: bool,
-        iterator: MatmulIterator,
     ):
         super().__init__(
             operands=(a, b, rbp, rsp, ins, outs),
@@ -276,19 +269,10 @@ class MatmulRegOp(IRDLOperation):
                 "ldb": IntegerAttr(ldb, i64),
                 "datatype": datatype,
                 "aligned_a": BoolAttr.from_bool(aligned_a),
-                "iterator": StringAttr(iterator),
             },
         )
 
     def verify_(self) -> None:
-        try:
-            MatmulIterator(self.iterator.data)
-        except ValueError as error:
-            allowed = ", ".join(iterator.value for iterator in MatmulIterator)
-            raise VerifyException(
-                f"iterator must be one of {allowed}, got {self.iterator.data}"
-            ) from error
-
         integer_properties = {
             "m": self.m.value.data,
             "n": self.n.value.data,
@@ -324,26 +308,6 @@ class MatmulRegOp(IRDLOperation):
             value.type for value in outputs
         ):
             raise VerifyException("operand and result types must match pairwise")
-
-
-def matmul_reg_pointer_offsets(
-    op: MatmulRegOp, iterator: MatmulIterator | None = None
-) -> tuple[int, int]:
-    """Return the A and B pointer advances in bytes for an iterator."""
-    iterator = MatmulIterator(op.iterator.data) if iterator is None else iterator
-    element_size = op.datatype.bitwidth // 8
-    match iterator:
-        case MatmulIterator.NONE:
-            return 0, 0
-        case MatmulIterator.M:
-            return op.m.value.data * element_size, 0
-        case MatmulIterator.N:
-            return 0, op.n.value.data * op.ldb.value.data * element_size
-        case MatmulIterator.K:
-            return (
-                op.k.value.data * op.lda.value.data * element_size,
-                op.k.value.data * element_size,
-            )
 
 
 XSMM = Dialect(

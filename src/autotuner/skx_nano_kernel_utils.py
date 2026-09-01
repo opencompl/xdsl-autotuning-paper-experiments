@@ -2,16 +2,10 @@ from dataclasses import dataclass
 
 from xdsl import ir
 from xdsl.dialects import x86
-from xdsl.pattern_rewriter import PatternRewriter
-from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.xsmm import (
-    MatmulIterator,
-    MatmulRegOp,
-    matmul_reg_pointer_offsets,
-)
-from autotuner.instructions import MaskValue, PointerValue, VectorValue, offset_pointer
+from autotuner.dialects.xsmm import MatmulRegOp
+from autotuner.instructions import MaskValue, PointerValue, VectorValue
 from autotuner.nano_kernel import GemmDescriptor, TileSizes
 
 
@@ -97,38 +91,3 @@ def vector_register(
     if disable_regalloc:
         return x86.registers.AVX512RegisterType.unallocated()
     return x86.registers.AVX512RegisterType.from_index(index)
-
-
-def apply_matmul_reg_pointer_contract(
-    rewriter: PatternRewriter,
-    insert_point: InsertPoint,
-    op: MatmulRegOp,
-    values: MatmulRegValues,
-) -> MatmulRegValues:
-    """Normalize a nano-kernel's natural K traversal to the op iterator."""
-    desired_a_offset, desired_b_offset = matmul_reg_pointer_offsets(op)
-    k_a_offset, k_b_offset = matmul_reg_pointer_offsets(op, MatmulIterator.K)
-    # Preserve the schedule's existing B-before-A normalization order.
-    b = offset_pointer(rewriter, insert_point, values.b, desired_b_offset - k_b_offset)
-    # Delay the independent A normalization until its first same-block use so
-    # intervening C stores retain their established instruction order.
-    a_insert_point = insert_point
-    if (
-        a_user := op.a_out.get_user_of_unique_use()
-    ) is not None and a_user.parent_block() is op.parent_block():
-        a_insert_point = InsertPoint.before(a_user)
-    a = offset_pointer(
-        rewriter,
-        a_insert_point,
-        values.a,
-        desired_a_offset - k_a_offset,
-        emit_zero_sub=op.iterator.data == MatmulIterator.M,
-    )
-    return MatmulRegValues(
-        a,
-        b,
-        values.rbp,
-        values.rsp,
-        values.mask,
-        values.accumulators,
-    )
