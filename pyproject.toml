@@ -12,6 +12,11 @@ dependencies = [
     "tvm==0.19.0.2025010903",
     "xdsl[dev]",
     "xtc",
+    # XTC's MLIR backend is split across three wheels without dependency metadata.
+    # Its executables are bypassed in favour of the Nix/Docker toolchain, but the
+    # LLVM shared library and native Python extensions are all required at import.
+    "xtc-llvm-tools==22.1.8.2",
+    "xtc-mlir-extra-tools==22.1.8.7",
     "xtc-mlir-python-bindings==22.1.8.3",
 ]
 
