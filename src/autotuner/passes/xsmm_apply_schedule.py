@@ -16,9 +16,10 @@ from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
-from autotuner.instructions import load_mask, load_vector, store_vector
+from autotuner.instructions import load_vector, store_vector
 from autotuner.nano_kernel import GemmDescriptor, ISAInfo, NanoKernel
 from autotuner.schedules import (
+    attach_mask,
     loop_matmul,
     set_matmul_iterator,
     split_matmul,
@@ -32,48 +33,6 @@ K_BLOCKING = 4
 K_THRESHOLD = 23
 
 
-def _attach_mask(
-    rewriter: PatternRewriter,
-    op: MatmulOp,
-    *,
-    active_elements: int,
-    vector_length: int,
-    mask_tmp_reg: x86.registers.GeneralRegisterType,
-    mask_reg: x86.registers.AVX512MaskRegisterType,
-) -> MatmulOp:
-    """Attach one loop-invariant AVX-512 tail mask as a read-only input."""
-    assert not op.ins
-    mask = load_mask(
-        rewriter,
-        InsertPoint.before(op),
-        mask_tmp_reg,
-        mask_reg,
-        vector_length - active_elements % vector_length,
-        op.datatype,
-    )
-    masked = MatmulOp(
-        op.a,
-        op.b,
-        op.c,
-        op.rbp,
-        op.rsp,
-        (mask,),
-        op.outs,
-        m=op.m.value.data,
-        n=op.n.value.data,
-        k=op.k.value.data,
-        lda=op.lda.value.data,
-        ldb=op.ldb.value.data,
-        ldc=op.ldc.value.data,
-        datatype=op.datatype,
-        aligned_a=bool(op.aligned_a),
-        aligned_c=bool(op.aligned_c),
-        iterator=MatmulIterator(op.iterator.data),
-    )
-    rewriter.replace(op, (masked,), masked.results)
-    return masked
-
-
 def tile_m(
     rewriter: PatternRewriter,
     op: MatmulOp,
@@ -84,12 +43,6 @@ def tile_m(
     mask_reg: x86.registers.AVX512MaskRegisterType,
 ) -> tuple[MatmulOp, MatmulOp | None]:
     """Apply the XSMM M-tiling and masked-remainder policy."""
-    match op.datatype:
-        case builtin.Float64Type():
-            vector_length = 8
-        case builtin.Float32Type():
-            vector_length = 16
-
     assert not op.ins
     m = op.m.value.data
     assert 0 < m_blocking <= m
@@ -100,15 +53,13 @@ def tile_m(
         main = op
         remainder_matmul = None
 
-    if m_blocking % vector_length:
-        main = _attach_mask(
-            rewriter,
-            main,
-            active_elements=m_blocking,
-            vector_length=vector_length,
-            mask_tmp_reg=mask_tmp_reg,
-            mask_reg=mask_reg,
-        )
+    main = attach_mask(
+        rewriter,
+        main,
+        vectorize_dim=MatmulIterator.M,
+        mask_tmp_reg=mask_tmp_reg,
+        mask_reg=mask_reg,
+    )
     tiled_matmul, unexpected_remainder = tile_matmul(
         rewriter,
         main,
@@ -118,15 +69,13 @@ def tile_m(
     assert unexpected_remainder is None
 
     if remainder_matmul is not None:
-        if remainder % vector_length:
-            remainder_matmul = _attach_mask(
-                rewriter,
-                remainder_matmul,
-                active_elements=remainder,
-                vector_length=vector_length,
-                mask_tmp_reg=mask_tmp_reg,
-                mask_reg=mask_reg,
-            )
+        remainder_matmul = attach_mask(
+            rewriter,
+            remainder_matmul,
+            vectorize_dim=MatmulIterator.M,
+            mask_tmp_reg=mask_tmp_reg,
+            mask_reg=mask_reg,
+        )
         remainder_matmul = loop_matmul(
             rewriter,
             remainder_matmul,
