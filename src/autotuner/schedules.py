@@ -345,90 +345,6 @@ def tile_n(
     return loop_matmul(rewriter, op, MatmulIterator.N, n_tile, nloop_register)
 
 
-def matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
-    assert op.iterator.data == MatmulIterator.K
-    assert len(op.ins) <= 1, "matmul_k_to_reg supports at most one mask in"
-    assert not op.outs, "matmul_k_to_reg does not yet support outs"
-    m_blocking = op.m.value.data
-    n_blocking = op.n.value.data
-    k = op.k.value.data
-    lda = op.lda.value.data
-    vector_length = 512 // op.datatype.bitwidth
-    insert_point = InsertPoint.before(op)
-
-    if op.ins:
-        mask = ir.SSAValue.get(op.ins[0], type=x86.registers.AVX512MaskRegisterType)
-        ins = (mask,)
-    else:
-        mask = None
-        ins = ()
-    accumulators = load_c(
-        rewriter,
-        insert_point,
-        m_blocking,
-        n_blocking,
-        x86.registers.AVX512RegisterType,
-        op.datatype,
-        ldc=op.ldc.value.data,
-        vector_length=vector_length,
-        vector_reg_count=32,
-        use_masking_a_c=mask is not None,
-        aligned_c=bool(op.aligned_c),
-        c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
-        mask_k1=mask,
-    )
-    matmul_reg = rewriter.insert(
-        MatmulRegOp(
-            op.a,
-            op.b,
-            op.rbp,
-            op.rsp,
-            ins,
-            accumulators,
-            m=m_blocking,
-            n=n_blocking,
-            k=k,
-            lda=lda,
-            ldb=op.ldb.value.data,
-            datatype=op.datatype,
-            aligned_a=bool(op.aligned_a),
-            iterator=MatmulIterator(op.iterator.data),
-        ),
-        insertion_point=insert_point,
-    )
-
-    store_c(
-        rewriter,
-        insert_point,
-        m_blocking,
-        n_blocking,
-        op.datatype,
-        ldc=op.ldc.value.data,
-        vector_length=vector_length,
-        use_masking_a_c=mask is not None,
-        aligned_c=bool(op.aligned_c),
-        c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
-        acc_vectors=tuple(
-            ir.SSAValue.get(accumulator, type=x86.registers.AVX512RegisterType)
-            for accumulator in matmul_reg.out_results
-        ),
-        mask_k1=mask,
-    )
-
-    rewriter.replace(
-        op,
-        [],
-        (
-            matmul_reg.a_out,
-            matmul_reg.b_out,
-            op.c,
-            matmul_reg.rbp_out,
-            matmul_reg.rsp_out,
-        ),
-    )
-    return matmul_reg
-
-
 def split_matmul_reg(
     rewriter: PatternRewriter,
     op: MatmulRegOp,
@@ -517,16 +433,6 @@ def tile_matmul_reg(
         main, remainder = op, None
     tiled = loop_matmul_reg(rewriter, main, dimension, tile_size, loop_register)
     return tiled, remainder
-
-
-def tile_k(
-    rewriter: PatternRewriter,
-    op: MatmulRegOp,
-    k_tile: int,
-    kloop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
-) -> tuple[MatmulRegOp, MatmulRegOp | None]:
-    """Compatibility wrapper for the existing XSMM K-tiling pass."""
-    return tile_matmul_reg(rewriter, op, MatmulIterator.K, k_tile, kloop_register)
 
 
 def _initialize_avx512_mask(
