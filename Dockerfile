@@ -25,6 +25,11 @@ ENV LD_LIBRARY_PATH="/opt/toolchain/lib"
 ENV LIBRARY_PATH="/opt/toolchain/lib"
 ENV C_INCLUDE_PATH="/opt/toolchain/include"
 ENV PKG_CONFIG_PATH="/opt/toolchain/lib/pkgconfig"
+# XTC shells out to mlir-opt/mlir-translate/opt/llc; it resolves them from these
+# prefixes (expecting {prefix}/bin/...) ahead of its own mlir/llvm wheels, whose
+# binaries abort on some hosts.
+ENV XTC_MLIR_PREFIX="/opt/toolchain"
+ENV XTC_LLVM_PREFIX="/opt/toolchain"
 
 # Install remaining system dependencies
 RUN apt-get update && apt-get install -y \

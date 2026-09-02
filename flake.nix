@@ -50,6 +50,11 @@
             };
 
             devShells.default = with pkgs; mkShellNoCC {
+              # XTC shells out to mlir-opt/mlir-translate/opt/llc; it resolves
+              # them from these prefixes (expecting {prefix}/bin/...) ahead of
+              # its own mlir/llvm wheels, whose binaries abort on some hosts.
+              XTC_MLIR_PREFIX = "${llvmToolchain}";
+              XTC_LLVM_PREFIX = "${llvmToolchain}";
               LD_LIBRARY_PATH = lib.makeLibraryPath ([ stdenv.cc.cc.lib zlib llvmToolchain ]
                 ++ lib.optionals stdenv.hostPlatform.isLinux [ papi ]);
               LIBRARY_PATH = lib.makeLibraryPath [ llvmToolchain ];

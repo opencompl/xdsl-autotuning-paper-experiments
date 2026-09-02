@@ -11,6 +11,13 @@ dependencies = [
     "snakemake>=8.30.0",
     "tvm==0.19.0.2025010903",
     "xdsl[dev]",
+    "xtc",
+    # XTC's MLIR backend is split across three wheels without dependency metadata.
+    # Its executables are bypassed in favour of the Nix/Docker toolchain, but the
+    # LLVM shared library and native Python extensions are all required at import.
+    "xtc-llvm-tools==22.1.8.2",
+    "xtc-mlir-extra-tools==22.1.8.7",
+    "xtc-mlir-python-bindings==22.1.8.3",
 ]
 
 [project.entry-points.'xdsl.universe']
@@ -21,7 +28,12 @@ name = "corse"
 url = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple"
 explicit = true
 
+[tool.uv]
+# xtc requires `xdsl~=0.57.1`; this project tracks a much newer xdsl revision.
+override-dependencies = ["xdsl[dev]"]
+
 [tool.uv.sources]
+xtc = { git = "https://github.com/superlopuh/xtc.git", rev = "1b7ecb65565d2b5ef82afca1aece31e67b09c7aa" }
 xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "c8bdae0996431e9d8d43a51545619f48b3850202" }
 tvm = { index = "corse" }
 
