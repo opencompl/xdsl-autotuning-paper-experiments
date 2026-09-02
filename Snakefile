@@ -35,12 +35,15 @@ CC_ASM = config.get("cc_asm", config["cc"])
 
 # MLIR/LLVM tools used to lower libxtcmm's transform-dialect IR. XTC resolves
 # these from XTC_MLIR_PREFIX/XTC_LLVM_PREFIX, set by the Nix and Docker environments.
-try:
-    from xtc.utils.tools import get_mlir_prefix, get_llvm_prefix
-    XTC_MLIR_BIN = f"{get_mlir_prefix(None)}/bin"
-    XTC_LLVM_BIN = f"{get_llvm_prefix(None)}/bin"
-except Exception:
-    XTC_MLIR_BIN = XTC_LLVM_BIN = ""
+from xtc.utils.tools import get_mlir_prefix, get_llvm_prefix
+
+
+def xtc_mlir_bin(_wildcards):
+    return get_mlir_prefix(None) / "bin"
+
+
+def xtc_llvm_bin(_wildcards):
+    return get_llvm_prefix(None) / "bin"
 
 from autotuner.machines import MACHINES
 
@@ -429,17 +432,13 @@ rule libxtcmm_s:
         passes=lambda wc: ",".join(config["libxtcmm-gemm-passes"][machine_isa(wc)]),
         triple=target_triple,
         march=compiler_march,
-        mlir_bin=XTC_MLIR_BIN,
-        llvm_bin=XTC_LLVM_BIN,
+        mlir_bin=xtc_mlir_bin,
+        llvm_bin=xtc_llvm_bin,
     shell:
         """
         # libxtcmm lowers with the Nix/Docker mlir-opt, mlir-translate, opt and
-        # llc, whose paths are resolved through XTC's prefix helpers when the
-        # Snakefile loads. Fail clearly if that toolchain is unavailable.
-        if [ -z "{params.mlir_bin}" ] || [ -z "{params.llvm_bin}" ]; then
-            echo "error: libxtcmm requires the MLIR/LLVM toolchain from the Nix or Docker environment" >&2
-            exit 1
-        fi
+        # llc. Their paths are resolved through XTC's prefix helpers only when
+        # this rule is selected, which gives a clear error if they are unavailable.
         # Replay XTC's own lowering here: apply the transform + lower to the llvm
         # dialect (mlir-opt), then mlir-translate/opt/llc with XTC's options.
         {params.mlir_bin}/mlir-opt {input.mlir} \
@@ -717,6 +716,14 @@ def testset_ci(machine: str, ext: str):
         dtype=["f32", "f64"],
     )
 
+
+# Exercise XTC's F32 emitter and the complete MLIR/LLVM lowering without
+# requiring the CI host to execute AVX-512 instructions.
+LIBXTCMM_COMPILE_SMOKE = machine_file(
+    kernel="matmul_rowmaj", m="29", n="16", k="25",
+    variant="libxtcmm", dtype="f32", machine="tower", ext="S"
+)
+
 TESTSET_MAC = [
     # Validate CI test set neon executables
     *testset_ci(machine="neon", ext="test.log"),
@@ -746,6 +753,7 @@ TESTSET_MAC = [
         kernel="matmul_rowmaj", m="6", n="32", k="5",
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
+    LIBXTCMM_COMPILE_SMOKE,
 ]
 
 TESTSET_CI = [
@@ -763,6 +771,7 @@ TESTSET_CI = [
         kernel="matmul_rowmaj", m="3", n="16", k="5",
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
+    LIBXTCMM_COMPILE_SMOKE,
     # Validate CI test set x86 executables
     *testset_ci(machine="ci", ext="test.log"),
     machine_file(
@@ -805,9 +814,14 @@ TESTSET_AVX512 = [
             "libxsmm",
             "xdsl_libxsmm",
             "compxsmm",
+            "libxtcmm",
             "mkl",
             "aocl",
         ],
+    ),
+    machine_file(
+        kernel="matmul_rowmaj", m="29", n="16", k="25", dtype="f64",
+        machine=THIS_MACHINE, variant="libxtcmm", ext="test.log",
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
     *expand(

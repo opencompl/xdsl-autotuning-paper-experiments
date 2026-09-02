@@ -1,4 +1,3 @@
-// REQUIRES: xtc
 // RUN: libxtcmm-gemm dense %t matmul_bac 20 16 16 20 16 20 1 1 1 1 skx nopf DP && cat %t | filecheck %s
 // RUN: libxtcmm-gemm dense %t matmul_bac 20 16 16 20 16 20 1 1 1 1 skx nopf DP --mask-tail && cat %t | filecheck %s --check-prefix MASK
 

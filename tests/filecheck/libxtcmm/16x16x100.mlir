@@ -1,4 +1,3 @@
-// REQUIRES: xtc
 // RUN: libxtcmm-gemm dense %t matmul_bac 16 16 100 16 100 16 1 1 1 1 skx nopf DP && cat %t | filecheck %s
 
 // XTC source IR (linalg payload + transform-dialect schedule, before it is
