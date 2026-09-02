@@ -34,7 +34,8 @@ override-dependencies = ["xdsl[dev]"]
 
 [tool.uv.sources]
 xtc = { git = "https://github.com/superlopuh/xtc.git", rev = "1b7ecb65565d2b5ef82afca1aece31e67b09c7aa" }
-xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "c8bdae0996431e9d8d43a51545619f48b3850202" }
+# Head of the upstream `jm/x86-masked-narrow-vectors` branch.
+xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "861579b33c2103ab9a1f10dfb388c8d64b3f28ce" }
 tvm = { index = "corse" }
 
 [project.scripts]
