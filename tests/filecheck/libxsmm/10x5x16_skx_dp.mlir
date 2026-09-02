@@ -1,6 +1,6 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 10 5 16 10 16 10 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s
-// RUN: libxsmm-gemm dense %t matmul_bac 10 5 16 10 16 10 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
-// RUN: compxsmm-gemm dense %t matmul_bac 10 5 16 10 16 10 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
+// RUN: libxsmm-gemm dense %t matmul_bac 10 5 16 10 16 10 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
+// RUN: compxsmm-gemm dense %t matmul_bac 10 5 16 10 16 10 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
 
 // CHECK-MANUAL:       .intel_syntax noprefix
 // CHECK-MANUAL-NEXT:  .text
@@ -335,7 +335,7 @@
 // CHECK-MANUAL-NEXT:      add rdi, 80
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-MANUAL-NEXT:      sub rsi, 128
+// CHECK-LIBXSMM-NEXT:     sub rsi, 128
 // CHECK-MANUAL-NEXT:      vmovupd [rdx], zmm22
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+64] {k1}, zmm23
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+80], zmm24
@@ -346,13 +346,17 @@
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+304] {k1}, zmm29
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+320], zmm30
 // CHECK-MANUAL-NEXT:      vmovupd [rdx+384] {k1}, zmm31
+// CHECK-COMPXSMM-NEXT:    sub rdi, 1200
+// CHECK-COMPXSMM-NEXT:    sub rsi, 128
 // CHECK-MANUAL-NEXT:      add rdx, 80
-// CHECK-MANUAL-NEXT:      sub rdi, 1200
+// CHECK-LIBXSMM-NEXT:     sub rdi, 1200
 // CHECK-MANUAL-NEXT:      cmp r10, 10
 // CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY]]
-// CHECK-MANUAL-NEXT:      add rdx, 320
+// CHECK-LIBXSMM-NEXT:     add rdx, 320
+// CHECK-COMPXSMM-NEXT:    sub rdi, 80
 // CHECK-MANUAL-NEXT:      add rsi, 640
-// CHECK-MANUAL-NEXT:      sub rdi, 80
+// CHECK-LIBXSMM-NEXT:     sub rdi, 80
+// CHECK-COMPXSMM-NEXT:    add rdx, 320
 // CHECK-MANUAL-NEXT:      cmp r11, 5
 // CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY]]
 // CHECK-MANUAL-NEXT:      mov rsp, rbp

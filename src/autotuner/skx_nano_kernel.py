@@ -6,13 +6,13 @@ from xdsl.dialects import builtin
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.xsmm import MatmulKOp
+from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.nano_kernel import (
     FloatingPointType,
     GemmDescriptor,
+    ISAInfo,
     NanoKernel,
     RegisterCount,
-    ISAInfo,
     TileSizes,
 )
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
@@ -104,7 +104,7 @@ class SkxNanoKernel(NanoKernel):
     def rewrite(
         self,
         rewriter: PatternRewriter,
-        op: MatmulKOp,
+        op: MatmulRegOp,
         isa_info: ISAInfo,
         *,
         disable_regalloc: bool,

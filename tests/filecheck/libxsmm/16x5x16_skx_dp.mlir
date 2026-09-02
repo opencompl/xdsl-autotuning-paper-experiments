@@ -1,6 +1,6 @@
 // RUN: libxsmm-gemm dense %t matmul_bac 16 5 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s
-// RUN: libxsmm-gemm dense %t matmul_bac 16 5 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
-// RUN: compxsmm-gemm dense %t matmul_bac 16 5 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-MANUAL
+// RUN: libxsmm-gemm dense %t matmul_bac 16 5 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
+// RUN: compxsmm-gemm dense %t matmul_bac 16 5 16 16 16 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
 
 // CHECK-MANUAL:       .intel_syntax noprefix
 // CHECK-MANUAL-NEXT:  .text
@@ -13,10 +13,10 @@
 // CHECK-MANUAL-NEXT:      mov r10, -64
 // CHECK-MANUAL-NEXT:      and rsp, r10
 // CHECK-MANUAL-NEXT:      mov r11, 0
-// CHECK-MANUAL-NEXT:  [[ASM_LABEL_33:^\S+]]:
+// CHECK-MANUAL-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r11, 5
 // CHECK-MANUAL-NEXT:      mov r10, 0
-// CHECK-MANUAL-NEXT:  [[ASM_LABEL_34:^\S+]]:
+// CHECK-MANUAL-NEXT:  [[SCF_M_BODY:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r10, 16
 // CHECK-MANUAL-NEXT:      vmovapd zmm22, [rdx]
 // CHECK-MANUAL-NEXT:      vmovapd zmm23, [rdx+64]
@@ -332,7 +332,7 @@
 // CHECK-MANUAL-NEXT:      add rdi, 128
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
 // CHECK-MANUAL-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-MANUAL-NEXT:      sub rsi, 128
+// CHECK-LIBXSMM-NEXT:     sub rsi, 128
 // CHECK-MANUAL-NEXT:      vmovapd [rdx], zmm22
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+64], zmm23
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+128], zmm24
@@ -343,15 +343,19 @@
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+448], zmm29
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+512], zmm30
 // CHECK-MANUAL-NEXT:      vmovapd [rdx+576], zmm31
+// CHECK-COMPXSMM-NEXT:    sub rdi, 1920
+// CHECK-COMPXSMM-NEXT:    sub rsi, 128
 // CHECK-MANUAL-NEXT:      add rdx, 128
-// CHECK-MANUAL-NEXT:      sub rdi, 1920
+// CHECK-LIBXSMM-NEXT:     sub rdi, 1920
 // CHECK-MANUAL-NEXT:      cmp r10, 16
-// CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_34]]
-// CHECK-MANUAL-NEXT:      add rdx, 512
+// CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY]]
+// CHECK-LIBXSMM-NEXT:     add rdx, 512
+// CHECK-COMPXSMM-NEXT:    sub rdi, 128
 // CHECK-MANUAL-NEXT:      add rsi, 640
-// CHECK-MANUAL-NEXT:      sub rdi, 128
+// CHECK-LIBXSMM-NEXT:     sub rdi, 128
+// CHECK-COMPXSMM-NEXT:    add rdx, 512
 // CHECK-MANUAL-NEXT:      cmp r11, 5
-// CHECK-MANUAL-NEXT:      jl [[ASM_LABEL_33]]
+// CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY]]
 // CHECK-MANUAL-NEXT:      mov rsp, rbp
 // CHECK-MANUAL-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      pop rbp

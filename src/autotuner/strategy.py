@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from autotuner.nano_kernel import ISAInfo, NanoKernel
-from autotuner.skx_nano_kernel import AVX512Info, SKX_NANO_KERNELS
+from autotuner.skx_nano_kernel import SKX_NANO_KERNELS, AVX512Info
 
 
 @dataclass(frozen=True)

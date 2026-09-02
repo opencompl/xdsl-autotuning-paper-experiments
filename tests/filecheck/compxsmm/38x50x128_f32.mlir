@@ -9,7 +9,7 @@
 // CHECK-NEXT:    %7 = x86.ri.sub %5, 192 : (!x86.reg64<rsp>) -> !x86.reg64<rsp>
 // CHECK-NEXT:    %8 = x86.di.mov -64 : () -> !x86.reg64<r10>
 // CHECK-NEXT:    %9 = x86.rs.and %7, %8 : (!x86.reg64<rsp>, !x86.reg64<r10>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %10, %11, %12, %13, %14 = "xsmm.matmul_n"(%0, %1, %2, %6, %9) <{m = 50 : i64, n_start = 0 : i64, n_blocking = 38 : i64, k = 128 : i64, lda = 50 : i64, ldb = 128 : i64, ldc = 50 : i64, datatype = f32, aligned_a = false, aligned_c = false}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+// CHECK-NEXT:    %10, %11, %12, %13, %14 = "xsmm.matmul"(%0, %1, %2, %6, %9) <{m = 50 : i64, n = 38 : i64, k = 128 : i64, lda = 50 : i64, ldb = 128 : i64, ldc = 50 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
 // CHECK-NEXT:    %15 = x86.ds.mov %13 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
 // CHECK-NEXT:    %16, %17 = x86.d.pop %15 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
 // CHECK-NEXT:    x86_func.ret
@@ -207,7 +207,6 @@
 // CHECK-REGALLOC-NEXT:      vfmadd231ps zmm31, zmm0, zmm1
 // CHECK-REGALLOC-NEXT:      cmp rbx, 128
 // CHECK-REGALLOC-NEXT:      jl scf_body_0_for
-// CHECK-REGALLOC-NEXT:      sub rsi, 512
 // CHECK-REGALLOC-NEXT:      vmovups [rdx], zmm8
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+64], zmm9
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+128], zmm10
@@ -232,16 +231,17 @@
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+1064], zmm29
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+1128], zmm30
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+1192] {k1}, zmm31
-// CHECK-REGALLOC-NEXT:      add rdx, 200
 // CHECK-REGALLOC-NEXT:      sub rdi, 25400
+// CHECK-REGALLOC-NEXT:      sub rsi, 512
+// CHECK-REGALLOC-NEXT:      add rdx, 200
 // CHECK-REGALLOC-NEXT:      cmp rcx, 50
 // CHECK-REGALLOC-NEXT:      jl scf_body_1_for
-// CHECK-REGALLOC-NEXT:      add rdx, 1000
-// CHECK-REGALLOC-NEXT:      add rsi, 3072
 // CHECK-REGALLOC-NEXT:      sub rdi, 200
+// CHECK-REGALLOC-NEXT:      add rsi, 3072
+// CHECK-REGALLOC-NEXT:      add rdx, 1000
 // CHECK-REGALLOC-NEXT:      cmp rax, 18
 // CHECK-REGALLOC-NEXT:      jl scf_body_2_for
-// CHECK-REGALLOC-NEXT:      mov rax, 18
+// CHECK-REGALLOC-NEXT:      mov rax, 0
 // CHECK-REGALLOC-NEXT:  scf_body_5_for:
 // CHECK-REGALLOC-NEXT:      add rax, 5
 // CHECK-REGALLOC-NEXT:      mov rcx, 3
@@ -398,7 +398,6 @@
 // CHECK-REGALLOC-NEXT:      vfmadd231ps zmm31, zmm0, zmm1
 // CHECK-REGALLOC-NEXT:      cmp rbx, 128
 // CHECK-REGALLOC-NEXT:      jl scf_body_3_for
-// CHECK-REGALLOC-NEXT:      sub rsi, 512
 // CHECK-REGALLOC-NEXT:      vmovups [rdx], zmm12
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+64], zmm13
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+128], zmm14
@@ -419,14 +418,15 @@
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+864], zmm29
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+928], zmm30
 // CHECK-REGALLOC-NEXT:      vmovups [rdx+992] {k1}, zmm31
-// CHECK-REGALLOC-NEXT:      add rdx, 200
 // CHECK-REGALLOC-NEXT:      sub rdi, 25400
+// CHECK-REGALLOC-NEXT:      sub rsi, 512
+// CHECK-REGALLOC-NEXT:      add rdx, 200
 // CHECK-REGALLOC-NEXT:      cmp rcx, 50
 // CHECK-REGALLOC-NEXT:      jl scf_body_4_for
-// CHECK-REGALLOC-NEXT:      add rdx, 800
-// CHECK-REGALLOC-NEXT:      add rsi, 2560
 // CHECK-REGALLOC-NEXT:      sub rdi, 200
-// CHECK-REGALLOC-NEXT:      cmp rax, 38
+// CHECK-REGALLOC-NEXT:      add rsi, 2560
+// CHECK-REGALLOC-NEXT:      add rdx, 800
+// CHECK-REGALLOC-NEXT:      cmp rax, 20
 // CHECK-REGALLOC-NEXT:      jl scf_body_5_for
 // CHECK-REGALLOC-NEXT:      mov rsp, rbp
 // CHECK-REGALLOC-NEXT:      pop rbp
