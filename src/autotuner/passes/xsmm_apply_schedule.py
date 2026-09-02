@@ -17,7 +17,13 @@ from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
 from autotuner.instructions import load_vector, store_vector
-from autotuner.nano_kernel import GemmDescriptor, ISAInfo, NanoKernel
+from autotuner.nano_kernel import (
+    GemmDescriptor,
+    ISAInfo,
+    NanoKernel,
+    TileSizes,
+    VectorLayout,
+)
 from autotuner.schedules import (
     attach_mask,
     loop_matmul,
@@ -32,10 +38,35 @@ K_BLOCKING = 4
 K_THRESHOLD = 23
 
 
+def _tile_layout(
+    op: MatmulOp | MatmulRegOp,
+    descriptor: GemmDescriptor,
+    isa_info: ISAInfo,
+    nano_kernel: NanoKernel,
+    *,
+    m: int | None = None,
+) -> VectorLayout:
+    """The register bank the nano-kernel gives one M vector of ``op``'s tile.
+
+    ``m`` overrides the op's own M extent, for an op that is about to be tiled
+    into M blocks smaller than that extent.
+    """
+    return nano_kernel.vector_layout(
+        descriptor,
+        TileSizes(
+            op.m.value.data if m is None else m, op.n.value.data, op.k.value.data
+        ),
+        isa_info,
+    )
+
+
 def _tile_n_m(
     rewriter: PatternRewriter,
     op: MatmulOp,
     strategy: TilingStrategy,
+    descriptor: GemmDescriptor,
+    isa_info: ISAInfo,
+    nano_kernel: NanoKernel,
     *,
     nloop_register: x86.registers.GeneralRegisterType,
     mloop_register: x86.registers.GeneralRegisterType,
@@ -72,7 +103,10 @@ def _tile_n_m(
             remainder_m = attach_mask(
                 rewriter,
                 remainder_m,
-                vectorize_dim=MatmulIterator.M,
+                tile_size=remainder,
+                vector_lanes=_tile_layout(
+                    remainder_m, descriptor, isa_info, nano_kernel, m=remainder
+                ).lanes,
                 mask_tmp_reg=mask_tmp_register,
                 mask_reg=mask_register,
             )
@@ -89,7 +123,10 @@ def _tile_n_m(
         tiled_m = attach_mask(
             rewriter,
             tiled_m,
-            vectorize_dim=MatmulIterator.M,
+            tile_size=m_blocking,
+            vector_lanes=_tile_layout(
+                tiled_m, descriptor, isa_info, nano_kernel, m=m_blocking
+            ).lanes,
             mask_tmp_reg=mask_tmp_register,
             mask_reg=mask_register,
         )
@@ -106,7 +143,9 @@ def _tile_n_m(
     return result
 
 
-def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
+def _matmul_k_to_reg(
+    rewriter: PatternRewriter, op: MatmulOp, layout: VectorLayout
+) -> MatmulRegOp:
     if op.iterator.data != MatmulIterator.K:
         raise PassFailedException(
             "xsmm-apply-schedule requires K iteration before matmul_reg"
@@ -123,7 +162,7 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
             "xsmm-apply-schedule currently supports only one mask in"
         )
     m_blocking = op.m.value.data
-    vector_length = 512 // op.datatype.bitwidth
+    vector_length = layout.lanes
     if m_blocking % vector_length and not op.ins:
         raise PassFailedException(
             "xsmm-apply-schedule requires a mask for a partial M vector"
@@ -154,9 +193,7 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
             op.datatype,
             c_val,
             offset,
-            destination=x86.registers.AVX512RegisterType.from_index(
-                accumulator_start + index
-            ),
+            destination=layout.register(accumulator_start + index, allocated=True),
             aligned=bool(op.aligned_c),
             mask=access_mask,
         )
@@ -189,7 +226,7 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
             op.datatype,
             c_val,
             offset,
-            ir.SSAValue.get(accumulator, type=x86.registers.AVX512RegisterType),
+            ir.SSAValue.get(accumulator, type=x86.registers.X86VectorRegisterType),
             aligned=bool(op.aligned_c),
             mask=access_mask,
         )
@@ -269,12 +306,16 @@ class ApplySchedulePattern(RewritePattern):
             rewriter,
             op,
             strategy,
+            descriptor,
+            self.isa_info,
+            self.nano_kernel,
             nloop_register=nloop_register,
             mloop_register=mloop_register,
             mask_tmp_register=mask_tmp_reg,
             mask_register=x86.registers.K1,
         ):
-            matmul_reg = _matmul_k_to_reg(rewriter, tiled_m)
+            layout = _tile_layout(tiled_m, descriptor, self.isa_info, self.nano_kernel)
+            matmul_reg = _matmul_k_to_reg(rewriter, tiled_m, layout)
             for tiled_k in _tile_k(rewriter, matmul_reg, kloop_register=kloop_register):
                 self.nano_kernel.rewrite(
                     rewriter,

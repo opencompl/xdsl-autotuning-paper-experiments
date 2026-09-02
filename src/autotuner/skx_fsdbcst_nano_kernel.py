@@ -1,4 +1,4 @@
-from xdsl.dialects import builtin, x86
+from xdsl.dialects import builtin
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
@@ -18,6 +18,7 @@ from autotuner.nano_kernel import (
     RegisterCount,
     ISAInfo,
     TileSizes,
+    VectorLayout,
 )
 from autotuner.skx_nano_kernel_utils import (
     MatmulRegValues,
@@ -64,6 +65,14 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return m_vectors == 1
 
+    def vector_layout(
+        self,
+        descriptor: GemmDescriptor,
+        tile: TileSizes,
+        isa_info: ISAInfo,
+    ) -> VectorLayout:
+        return isa_info.widest_vector_layout(descriptor.datatype)
+
     def supports_tile(
         self,
         descriptor: GemmDescriptor,
@@ -91,11 +100,12 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             raise ValueError("unsupported SKX fsdbcst nano-kernel tile")
 
         accumulator_sets = self._accumulator_sets(tile)
+        layout = self.vector_layout(descriptor, tile, isa_info)
 
         return RegisterCount(
             general=5,
             vector=tile.n * accumulator_sets + min(tile.k, 2),
-            mask=int(tile.m % isa_info.vector_length(descriptor.datatype) != 0),
+            mask=int(tile.m % layout.lanes != 0),
         )
 
     def rewrite(
@@ -112,7 +122,8 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             raise PassFailedException("unsupported SKX fsdbcst nano-kernel tile")
 
         insert_point = InsertPoint.before(op)
-        values = values_from_op(op)
+        layout = self.vector_layout(descriptor, tile, isa_info)
+        values = values_from_op(op, layout)
         vector_reg_count = isa_info.register_capacity.vector
         element_size = op.datatype.size
 
@@ -125,9 +136,10 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         for accumulator_set in range(1, accumulator_sets):
             for n in range(tile.n):
                 register_index = vector_reg_count - tile.n * (accumulator_set + 1) + n
-                register = x86.registers.AVX512RegisterType.from_index(register_index)
                 accumulators_by_index[register_index] = zero_vector(
-                    rewriter, insert_point, register
+                    rewriter,
+                    insert_point,
+                    layout.register(register_index, allocated=True),
                 )
 
         a_vectors: dict[int, VectorValue] = {}
@@ -141,7 +153,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     op.datatype,
                     a,
                     0,
-                    vector_register(register_index, disable_regalloc=disable_regalloc),
+                    vector_register(
+                        layout, register_index, disable_regalloc=disable_regalloc
+                    ),
                     aligned=bool(op.aligned_a.value.data),
                     mask=values.mask,
                 )
@@ -154,7 +168,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                         a,
                         op.lda.value.data * element_size,
                         vector_register(
-                            register_index, disable_regalloc=disable_regalloc
+                            layout, register_index, disable_regalloc=disable_regalloc
                         ),
                         aligned=bool(op.aligned_a.value.data),
                         mask=values.mask,
@@ -167,7 +181,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     op.datatype,
                     a,
                     op.lda.value.data * (k + 1) * element_size,
-                    vector_register(register_index, disable_regalloc=disable_regalloc),
+                    vector_register(
+                        layout, register_index, disable_regalloc=disable_regalloc
+                    ),
                     aligned=bool(op.aligned_a.value.data),
                     mask=values.mask,
                 )
@@ -212,7 +228,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     op.datatype,
                     accumulators_by_index[source_index],
                     accumulators_by_index[main_index],
-                    x86.registers.AVX512RegisterType.from_index(main_index),
+                    layout.register(main_index, allocated=True),
                 )
 
         result = MatmulRegValues(

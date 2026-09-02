@@ -23,13 +23,21 @@ xdsl-opt-backend-passes:
 libxsmm-gemm-passes:
   - x86-prologue-epilogue-insertion
 
+# `{strategy}` is substituted with the nano-kernel strategy of the benchmark
+# variant being built; the doubled braces are the literal ones of the pass's own
+# argument syntax.
 compxsmm-gemm-passes:
   avx512:
-    - xsmm-apply-schedule{strategy=libxsmm-skx disable-regalloc=true}
+    - "xsmm-apply-schedule{{strategy={strategy} disable-regalloc=true}}"
     - x86-regalloc-verify-liveness
     - x86-allocate-registers
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
+
+# The nano-kernel strategy each CompXSMM benchmark variant is built with.
+compxsmm-strategies:
+  compxsmm: libxsmm-skx
+  compxsmm_narrow: libxsmm-skx-narrow-fsdbcst
 
 # libxtcmm emits the linalg payload + transform-dialect schedule; this replays
 # XTC's own lowering (the same passes MlirLLVMTarget runs in-process) via

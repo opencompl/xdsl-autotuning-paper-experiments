@@ -41,9 +41,33 @@ The libxsmm generator deliberately retains libxsmm's own `arch` terminology and
 codes such as `skx` and `clx`. A non-Intel machine may therefore have
 `isa: avx512` and `libxsmm_arch: skx`: the latter is passed to libxsmm and does
 not claim that the physical CPU is Skylake. The CompXSMM reimplementation uses
-a separate `strategy` option, currently `libxsmm-skx`, to select the scheduling
-and nano-kernel policy reproduced from libxsmm. This makes room for future
-non-libxsmm strategies without confusing a policy with the machine's ISA.
+a separate `strategy` option to select the scheduling and nano-kernel policy,
+which makes room for non-libxsmm strategies without confusing a policy with the
+machine's ISA.
+
+### CompXSMM strategies
+
+`xsmm-apply-schedule` takes the strategy by name. `libxsmm-skx` reproduces
+libxsmm's own policy: it picks between the one-M-vector memory-broadcast kernel
+(`libxsmm-skx-fsdbcst`) and the multi-M-vector register-broadcast kernel
+(`libxsmm-skx-nofsdbcst`), both of which hold every M vector in a full-width
+zmm and mask the lanes a partial vector leaves over.
+
+`libxsmm-skx-narrow-fsdbcst` is the same one-M-vector kernel with one decision
+changed: an M vector goes in the narrowest register bank that covers it — xmm
+for one or two f64 elements, ymm for three or four — instead of always a zmm.
+The instruction sequence is otherwise identical, down to the accumulator
+assignment. On a core that splits 512-bit operations over a narrower datapath
+(Zen 4, for example) this roughly halves the cost of the FMA loop for those
+tiles, which is where LLVM's own vectorizer beats libxsmm on small M.
+`libxsmm-skx-narrow` applies that choice inside libxsmm's selection heuristic,
+leaving multi-M-vector tiles full-width.
+
+Each strategy is exposed as a benchmark variant through the
+`compxsmm-strategies` map in [`default.yaml`](default.yaml): `compxsmm` builds
+with `libxsmm-skx` and `compxsmm_narrow` with `libxsmm-skx-narrow-fsdbcst`. Add
+an entry there to benchmark a new strategy, then list the variant in the
+Snakefile's `DATASET_VARIANTS`.
 Likewise, the llvm-mca analyzer exposes `arch` and `cpu`, matching llvm-mca's
 `-march` and `-mcpu` options; those names are local to that tool boundary.
 

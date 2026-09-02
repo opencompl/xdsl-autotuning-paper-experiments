@@ -6,7 +6,7 @@ from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.instructions import MaskValue, PointerValue, VectorValue
-from autotuner.nano_kernel import GemmDescriptor, TileSizes
+from autotuner.nano_kernel import GemmDescriptor, TileSizes, VectorLayout
 
 
 def tile_sizes_from_op(op: MatmulRegOp) -> TileSizes:
@@ -51,9 +51,8 @@ class MatmulRegValues:
         )
 
 
-def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
-    vector_length = 512 // op.datatype.bitwidth
-    m_vectors = (op.m.value.data + vector_length - 1) // vector_length
+def values_from_op(op: MatmulRegOp, layout: VectorLayout) -> MatmulRegValues:
+    m_vectors = (op.m.value.data + layout.lanes - 1) // layout.lanes
     expected_accumulators = m_vectors * op.n.value.data
     if len(op.outs) != expected_accumulators:
         raise PassFailedException(
@@ -61,7 +60,7 @@ def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
             f"{expected_accumulators} accumulator outs, got {len(op.outs)}"
         )
 
-    needs_mask = op.m.value.data % vector_length != 0
+    needs_mask = op.m.value.data % layout.lanes != 0
     if len(op.ins) != int(needs_mask):
         raise PassFailedException(
             "SKX matmul_reg expects one mask in exactly when M has a partial vector"
@@ -79,15 +78,13 @@ def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
         ir.SSAValue.get(op.rsp, type=x86.registers.GeneralRegisterType),
         mask,
         tuple(
-            ir.SSAValue.get(acc, type=x86.registers.AVX512RegisterType)
+            ir.SSAValue.get(acc, type=x86.registers.X86VectorRegisterType)
             for acc in op.outs
         ),
     )
 
 
 def vector_register(
-    index: int, *, disable_regalloc: bool
-) -> x86.registers.AVX512RegisterType:
-    if disable_regalloc:
-        return x86.registers.AVX512RegisterType.unallocated()
-    return x86.registers.AVX512RegisterType.from_index(index)
+    layout: VectorLayout, index: int, *, disable_regalloc: bool
+) -> x86.registers.X86VectorRegisterType:
+    return layout.register(index, allocated=not disable_regalloc)

@@ -16,6 +16,7 @@ from autotuner.nano_kernel import (
     RegisterCount,
     ISAInfo,
     TileSizes,
+    VectorLayout,
 )
 from autotuner.skx_nano_kernel_utils import (
     MatmulRegValues,
@@ -51,6 +52,14 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return m_vectors >= 2
+
+    def vector_layout(
+        self,
+        descriptor: GemmDescriptor,
+        tile: TileSizes,
+        isa_info: ISAInfo,
+    ) -> VectorLayout:
+        return isa_info.widest_vector_layout(descriptor.datatype)
 
     def supports_tile(
         self,
@@ -103,8 +112,9 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
             raise PassFailedException("unsupported SKX nofsdbcst nano-kernel tile")
 
         insert_point = InsertPoint.before(op)
-        values = values_from_op(op)
-        vector_length = isa_info.vector_length(op.datatype)
+        layout = self.vector_layout(descriptor, tile, isa_info)
+        values = values_from_op(op, layout)
+        vector_length = layout.lanes
         m_vectors = (tile.m + vector_length - 1) // vector_length
         element_size = op.datatype.size
         accumulators = list(values.accumulators)
@@ -119,7 +129,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
                     op.datatype,
                     a,
                     m * vector_length * element_size,
-                    vector_register(1 + m, disable_regalloc=disable_regalloc),
+                    vector_register(layout, 1 + m, disable_regalloc=disable_regalloc),
                     aligned=bool(op.aligned_a.value.data),
                     mask=values.mask if m == m_vectors - 1 else None,
                 )
@@ -133,7 +143,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
                     op.datatype,
                     b,
                     op.ldb.value.data * n * element_size,
-                    vector_register(0, disable_regalloc=disable_regalloc),
+                    vector_register(layout, 0, disable_regalloc=disable_regalloc),
                 )
 
                 if n == tile.n - 1:

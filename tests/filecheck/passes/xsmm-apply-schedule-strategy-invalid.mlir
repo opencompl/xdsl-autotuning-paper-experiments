@@ -2,4 +2,4 @@
 
 builtin.module {}
 
-// CHECK: unknown XSMM strategy 'unknown'; expected one of: libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst
+// CHECK: unknown XSMM strategy 'unknown'; expected one of: libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-narrow, libxsmm-skx-narrow-fsdbcst, libxsmm-skx-nofsdbcst

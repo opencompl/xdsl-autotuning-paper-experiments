@@ -111,6 +111,16 @@ def machine_libxsmm_arch_json(wildcards):
 def machine_libs_opts(wildcards):
     return " ".join(f"-l{x}" for x in machine_libs(wildcards))
 
+# The CompXSMM benchmark variants, each pinned to one nano-kernel strategy.
+COMPXSMM_VARIANTS = tuple(config["compxsmm-strategies"])
+
+def compxsmm_passes(wildcards):
+    strategy = config["compxsmm-strategies"][wildcards.variant]
+    return ",".join(
+        p.format(strategy=strategy)
+        for p in config["compxsmm-gemm-passes"][machine_isa(wildcards)]
+    )
+
 # Path management
 
 def machine_base(
@@ -164,7 +174,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|libxtcmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_narrow|libxtcmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -369,7 +379,9 @@ rule xdsl_libxsmm_s:
 
 rule compxsmm_rowmaj_mlir:
     input: ["pyproject.toml"] + COMPXSMM_GEMM_SOURCES
-    output: machine_file(kernel='matmul_rowmaj',variant='compxsmm',ext='compxsmm.mlir')
+    output: machine_file(kernel='matmul_rowmaj',ext='compxsmm.mlir')
+    wildcard_constraints:
+        variant="|".join(COMPXSMM_VARIANTS)
     params:
         libxsmm_arch=libxsmm_arch,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
@@ -391,11 +403,13 @@ rule compxsmm_rowmaj_mlir:
 
 rule compxsmm_s:
     input:
-        mlir=machine_file(variant='compxsmm',ext='compxsmm.mlir'),
+        mlir=machine_file(ext='compxsmm.mlir'),
         sources=["pyproject.toml"] + COMPXSMM_GEMM_SOURCES,
-    output: machine_file(variant='compxsmm',ext='S')
+    output: machine_file(ext='S')
+    wildcard_constraints:
+        variant="|".join(COMPXSMM_VARIANTS)
     params:
-        passes=lambda wc: ",".join(config["compxsmm-gemm-passes"][machine_isa(wc)])
+        passes=compxsmm_passes
     shell:
         """
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
@@ -599,7 +613,7 @@ DATASET_VARIANTS = {
     },
     "tower": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "compxsmm_narrow", "libxtcmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
@@ -607,7 +621,7 @@ DATASET_VARIANTS = {
     },
     "rapper": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "compxsmm_narrow", "libxtcmm"],
     },
     "ci": {
         "ttile": ["naive_c"],
@@ -814,6 +828,7 @@ TESTSET_AVX512 = [
             "libxsmm",
             "xdsl_libxsmm",
             "compxsmm",
+            "compxsmm_narrow",
             "libxtcmm",
             "mkl",
             "aocl",
@@ -829,7 +844,7 @@ TESTSET_AVX512 = [
         + THIS_MACHINE
         + "/{case.kernel}/{case.m}x{case.n}x{case.k}/{variant}.f64.test.log",
         case=KERNELS_XSMM_AVX512,
-        variant=["xdsl_libxsmm", "compxsmm"],
+        variant=["xdsl_libxsmm", "compxsmm", "compxsmm_narrow"],
     ),
 ]
 

@@ -7,7 +7,7 @@ from xdsl.dialects import builtin, x86
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 
-VectorValue = ir.SSAValue[x86.registers.AVX512RegisterType]
+VectorValue = ir.SSAValue[x86.registers.X86VectorRegisterType]
 PointerValue = ir.SSAValue[x86.registers.GeneralRegisterType]
 MaskValue = ir.SSAValue[x86.registers.AVX512MaskRegisterType]
 
@@ -17,19 +17,17 @@ def load_mask(
     insert_point: InsertPoint,
     gp_reg_tmp: x86.registers.GeneralRegisterType,
     mask_reg: x86.registers.AVX512MaskRegisterType,
-    mask_count: int,
+    active_lanes: int,
     datatype: builtin.Float64Type | builtin.Float32Type,
 ) -> MaskValue:
-    """Materialize an AVX-512 mask with the requested number of high bits removed."""
+    """Materialize an AVX-512 mask enabling the ``active_lanes`` lowest lanes."""
     match datatype:
         case builtin.Float64Type():
-            mask = 0xFF
             op_type = x86.ops.KS_KMovBOp
         case builtin.Float32Type():
-            mask = 0xFFFF
             op_type = x86.ops.KS_KMovWOp
 
-    mask = mask >> mask_count
+    mask = (1 << active_lanes) - 1
     mask_tmp_val = rewriter.insert(
         x86.ops.DI_MovOp(mask, destination=gp_reg_tmp), insertion_point=insert_point
     ).destination
@@ -45,7 +43,7 @@ def load_vector(
     datatype: builtin.Float32Type | builtin.Float64Type,
     pointer: PointerValue,
     offset: int,
-    destination: x86.registers.AVX512RegisterType,
+    destination: x86.registers.X86VectorRegisterType,
     *,
     aligned: bool,
     mask: MaskValue | None,
@@ -147,7 +145,7 @@ def broadcast_scalar(
     datatype: builtin.Float32Type | builtin.Float64Type,
     pointer: PointerValue,
     offset: int,
-    destination: x86.registers.AVX512RegisterType,
+    destination: x86.registers.X86VectorRegisterType,
 ) -> VectorValue:
     match datatype:
         case builtin.Float32Type():
@@ -169,7 +167,7 @@ def broadcast_scalar(
 def zero_vector(
     rewriter: PatternRewriter,
     insert_point: InsertPoint,
-    register: x86.registers.AVX512RegisterType,
+    register: x86.registers.X86VectorRegisterType,
 ) -> VectorValue:
     register_value = rewriter.insert(
         x86.ops.GetAVXRegisterOp(register), insertion_point=insert_point
@@ -240,7 +238,7 @@ def add_vectors(
     datatype: builtin.Float32Type | builtin.Float64Type,
     lhs: VectorValue,
     rhs: VectorValue,
-    destination: x86.registers.AVX512RegisterType,
+    destination: x86.registers.X86VectorRegisterType,
 ) -> VectorValue:
     match datatype:
         case builtin.Float32Type():

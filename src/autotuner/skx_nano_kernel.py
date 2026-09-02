@@ -2,7 +2,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
 
-from xdsl.dialects import builtin
+from xdsl.dialects import builtin, x86
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.exceptions import PassFailedException
 
@@ -14,12 +14,14 @@ from autotuner.nano_kernel import (
     NanoKernel,
     RegisterCount,
     TileSizes,
+    VectorLayout,
 )
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel_utils import (
     descriptor_from_op,
     tile_sizes_from_op,
 )
+from autotuner.skx_narrow_fsdbcst_nano_kernel import SkxNarrowFsdbcstNanoKernel
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 
 
@@ -34,6 +36,14 @@ class AVX512Info(ISAInfo):
     @property
     def register_capacity(self) -> RegisterCount:
         return RegisterCount(general=16, vector=32, mask=8)
+
+    @property
+    def vector_banks(self) -> tuple[type[x86.registers.X86VectorRegisterType], ...]:
+        return (
+            x86.registers.SSERegisterType,
+            x86.registers.AVX2RegisterType,
+            x86.registers.AVX512RegisterType,
+        )
 
     def vector_length(self, datatype: FloatingPointType) -> int:
         match datatype:
@@ -87,6 +97,18 @@ class SkxNanoKernel(NanoKernel):
             descriptor, tile, isa_info
         )
 
+    def vector_layout(
+        self,
+        descriptor: GemmDescriptor,
+        tile: TileSizes,
+        isa_info: ISAInfo,
+    ) -> VectorLayout:
+        return self._select_nano_kernel(descriptor, tile, isa_info).vector_layout(
+            descriptor,
+            tile,
+            isa_info,
+        )
+
     def register_usage(
         self,
         descriptor: GemmDescriptor,
@@ -121,11 +143,30 @@ class SkxNanoKernel(NanoKernel):
         )
 
 
+class SkxNarrowNanoKernel(SkxNanoKernel):
+    """The SKX selection heuristic, narrowing a one-M-vector tile's bank.
+
+    Selects between the same two kernels as :class:`SkxNanoKernel`, but a tile
+    that fits in a single M vector goes to
+    :class:`~autotuner.skx_narrow_fsdbcst_nano_kernel.SkxNarrowFsdbcstNanoKernel`,
+    which sizes that vector's register bank to the tile's M. Multi-M-vector
+    tiles keep LIBXSMM's full-width register-broadcast kernel.
+    """
+
+    _fsdbcst = SkxNarrowFsdbcstNanoKernel()
+
+    @property
+    def name(self) -> str:
+        return "libxsmm-skx-narrow"
+
+
 SKX_NANO_KERNELS: Mapping[str, NanoKernel] = {
     nano_kernel.name: nano_kernel
     for nano_kernel in (
         SkxNanoKernel(),
+        SkxNarrowNanoKernel(),
         SkxFsdbcstNanoKernel(),
+        SkxNarrowFsdbcstNanoKernel(),
         SkxNofsdbcstNanoKernel(),
     )
 }
