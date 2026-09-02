@@ -5,12 +5,14 @@ from collections.abc import Sequence
 from xdsl import ir
 from xdsl.dialects import builtin, x86, x86_scf
 from xdsl.pattern_rewriter import PatternRewriter
+from xdsl.rewriter import InsertPoint
 
 from autotuner.dialects.xsmm import (
     MatmulIterator,
     MatmulOp,
     MatmulRegOp,
 )
+from autotuner.instructions import load_mask
 
 
 def _matmul_like(
@@ -357,3 +359,48 @@ def tile_matmul_reg(
         main, remainder = op, None
     tiled = loop_matmul_reg(rewriter, main, tile_size, loop_register)
     return tiled, remainder
+
+
+def attach_mask(
+    rewriter: PatternRewriter,
+    op: MatmulOp,
+    vectorize_dim: MatmulIterator,
+    *,
+    mask_tmp_reg: x86.registers.GeneralRegisterType,
+    mask_reg: x86.registers.AVX512MaskRegisterType,
+) -> MatmulOp:
+    """
+    Attach one loop-invariant AVX-512 tail mask as a read-only input, if necessary.
+    """
+    assert not op.ins
+    match vectorize_dim:
+        case MatmulIterator.N:
+            active_elements = op.n.value.data
+        case MatmulIterator.M:
+            active_elements = op.m.value.data
+        case MatmulIterator.K:
+            active_elements = op.k.value.data
+        case MatmulIterator.NONE:
+            assert False
+
+    match op.datatype:
+        case builtin.Float64Type():
+            vector_length = 8
+        case builtin.Float32Type():
+            vector_length = 16
+
+    remainder = active_elements % vector_length
+    if not remainder:
+        return op
+
+    mask = load_mask(
+        rewriter,
+        InsertPoint.before(op),
+        mask_tmp_reg,
+        mask_reg,
+        vector_length - remainder,
+        op.datatype,
+    )
+    masked = _matmul_like(op, ins=(mask,))
+    rewriter.replace(op, (masked,), masked.results)
+    return masked
