@@ -33,6 +33,18 @@ else:
 
 CC_ASM = config.get("cc_asm", config["cc"])
 
+# MLIR/LLVM tools used to lower libxtcmm's transform-dialect IR. XTC resolves
+# these from XTC_MLIR_PREFIX/XTC_LLVM_PREFIX, set by the Nix and Docker environments.
+from xtc.utils.tools import get_mlir_prefix, get_llvm_prefix
+
+
+def xtc_mlir_bin(_wildcards):
+    return get_mlir_prefix(None) / "bin"
+
+
+def xtc_llvm_bin(_wildcards):
+    return get_llvm_prefix(None) / "bin"
+
 from autotuner.machines import MACHINES
 
 def machine_config(wildcards):
@@ -140,6 +152,11 @@ COMPXSMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
     glob.glob("src/autotuner/compxsmm_gemm/**/*.py", recursive=True)
 )
 
+# libxtcmm reuses libxsmm_gemm's scheduling decisions plus its own emitter
+LIBXTCMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
+    glob.glob("src/autotuner/libxtcmm_gemm/**/*.py", recursive=True)
+)
+
 # Rules
 
 wildcard_constraints:
@@ -147,7 +164,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|libxtcmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -384,6 +401,55 @@ rule compxsmm_s:
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
+rule libxtcmm_rowmaj_mlir:
+    input: ["pyproject.toml"] + LIBXTCMM_GEMM_SOURCES
+    output: machine_file(kernel='matmul_rowmaj',variant='libxtcmm',ext='xtcmm.mlir')
+    params:
+        libxsmm_arch=libxsmm_arch,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        # Emits `void matmul(A, B, C)` with the direct row-major ABI, so it links
+        # into the timing/validation drivers exactly like the other variants.
+        libxtcmm-gemm dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.libxsmm_arch} \
+            nopf \
+            {params.dtype}
+        """
+
+rule libxtcmm_s:
+    input:
+        mlir=machine_file(variant='libxtcmm',ext='xtcmm.mlir'),
+        sources=["pyproject.toml"] + LIBXTCMM_GEMM_SOURCES,
+    output: machine_file(variant='libxtcmm',ext='S')
+    params:
+        passes=lambda wc: ",".join(config["libxtcmm-gemm-passes"][machine_isa(wc)]),
+        triple=target_triple,
+        march=compiler_march,
+        mlir_bin=xtc_mlir_bin,
+        llvm_bin=xtc_llvm_bin,
+    shell:
+        """
+        # libxtcmm lowers with the Nix/Docker mlir-opt, mlir-translate, opt and
+        # llc. Their paths are resolved through XTC's prefix helpers only when
+        # this rule is selected, which gives a clear error if they are unavailable.
+        # Replay XTC's own lowering here: apply the transform + lower to the llvm
+        # dialect (mlir-opt), then mlir-translate/opt/llc with XTC's options.
+        {params.mlir_bin}/mlir-opt {input.mlir} \
+            -pass-pipeline="builtin.module({params.passes})" -o {output}.llvm.mlir
+        {params.mlir_bin}/mlir-translate --mlir-to-llvmir {output}.llvm.mlir -o {output}.ll
+        {params.llvm_bin}/opt -O2 --fp-contract=fast \
+            -mtriple={params.triple} -mcpu={params.march} {output}.ll -o {output}.bc
+        {params.llvm_bin}/llc -O2 -filetype=asm \
+            -mtriple={params.triple} -mcpu={params.march} {output}.bc -o {output}
+        """
+
 rule mkl_rowmaj_s:
     output: machine_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
     params:
@@ -532,16 +598,16 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
     },
     "rapper": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
     },
     "ci": {
         "ttile": ["naive_c"],
@@ -650,6 +716,14 @@ def testset_ci(machine: str, ext: str):
         dtype=["f32", "f64"],
     )
 
+
+# Exercise XTC's F32 emitter and the complete MLIR/LLVM lowering without
+# requiring the CI host to execute AVX-512 instructions.
+LIBXTCMM_COMPILE_SMOKE = machine_file(
+    kernel="matmul_rowmaj", m="29", n="16", k="25",
+    variant="libxtcmm", dtype="f32", machine="tower", ext="S"
+)
+
 TESTSET_MAC = [
     # Validate CI test set neon executables
     *testset_ci(machine="neon", ext="test.log"),
@@ -679,6 +753,7 @@ TESTSET_MAC = [
         kernel="matmul_rowmaj", m="6", n="32", k="5",
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
+    LIBXTCMM_COMPILE_SMOKE,
 ]
 
 TESTSET_CI = [
@@ -696,6 +771,7 @@ TESTSET_CI = [
         kernel="matmul_rowmaj", m="3", n="16", k="5",
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
+    LIBXTCMM_COMPILE_SMOKE,
     # Validate CI test set x86 executables
     *testset_ci(machine="ci", ext="test.log"),
     machine_file(
@@ -738,9 +814,14 @@ TESTSET_AVX512 = [
             "libxsmm",
             "xdsl_libxsmm",
             "compxsmm",
+            "libxtcmm",
             "mkl",
             "aocl",
         ],
+    ),
+    machine_file(
+        kernel="matmul_rowmaj", m="29", n="16", k="25", dtype="f64",
+        machine=THIS_MACHINE, variant="libxtcmm", ext="test.log",
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
     *expand(
