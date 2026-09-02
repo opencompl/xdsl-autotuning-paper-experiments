@@ -39,8 +39,12 @@ def main():
     parser.add_argument("lda", type=int, help="Leading dimension A (LDA)")
     parser.add_argument("ldb", type=int, help="Leading dimension B (LDB)")
     parser.add_argument("ldc", type=int, help="Leading dimension C (LDC)")
-    parser.add_argument("alpha", type=int, help="Alpha (must be -1 or 1)")
-    parser.add_argument("beta", type=int, choices=[0, 1], help="Beta (0 or 1)")
+    parser.add_argument(
+        "alpha", type=int, choices=[1], help="Alpha (only 1 is supported)"
+    )
+    parser.add_argument(
+        "beta", type=int, choices=[1], help="Beta (only 1 is supported)"
+    )
     parser.add_argument(
         "align_a", type=int, choices=[0, 1], help="0: unaligned A, otherwise aligned"
     )
@@ -81,9 +85,6 @@ def main():
         flags |= GEMMFlag.ALIGN_A
     if args.align_c:
         flags |= GEMMFlag.ALIGN_C
-    if args.beta == 0:
-        flags |= GEMMFlag.BETA_0
-
     descriptor = GEMMDescriptor(
         m=args.m,
         n=args.n,
