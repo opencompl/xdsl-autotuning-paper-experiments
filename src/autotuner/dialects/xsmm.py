@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from enum import StrEnum
 
+from xdsl.backend.register_allocatable import RegisterConstraints
 from xdsl.dialects.builtin import (
     BoolAttr,
     Float32Type,
@@ -9,7 +10,9 @@ from xdsl.dialects.builtin import (
     StringAttr,
     i64,
 )
+from xdsl.dialects.x86.ops import DSS_Operation
 from xdsl.dialects.x86.registers import (
+    AVX512RegisterType,
     GeneralRegisterType,
     X86RegisterType,
 )
@@ -35,6 +38,33 @@ class MatmulIterator(StrEnum):
     M = "m"
     N = "n"
     K = "k"
+
+
+class AccumulatorAddOp(
+    DSS_Operation[AVX512RegisterType, AVX512RegisterType, AVX512RegisterType]
+):
+    """A vector add whose destination reuses the accumulator source register."""
+
+    def get_register_constraints(self) -> RegisterConstraints:
+        return RegisterConstraints(
+            (self.source1,), (), ((self.source2, self.destination),)
+        )
+
+
+@irdl_op_definition
+class AccumulatorAddpdOp(AccumulatorAddOp):
+    name = "xsmm.accumulator.vaddpd"
+
+    def assembly_instruction_name(self) -> str:
+        return "vaddpd"
+
+
+@irdl_op_definition
+class AccumulatorAddpsOp(AccumulatorAddOp):
+    name = "xsmm.accumulator.vaddps"
+
+    def assembly_instruction_name(self) -> str:
+        return "vaddps"
 
 
 @irdl_op_definition
@@ -312,6 +342,6 @@ class MatmulRegOp(IRDLOperation):
 
 XSMM = Dialect(
     "xsmm",
-    [MatmulOp, MatmulRegOp],
+    [AccumulatorAddpdOp, AccumulatorAddpsOp, MatmulOp, MatmulRegOp],
     [],
 )

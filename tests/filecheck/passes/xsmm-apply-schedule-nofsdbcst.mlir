@@ -1,4 +1,9 @@
 // RUN: xdsl-opt %s -p 'xsmm-apply-schedule{strategy=libxsmm-skx-nofsdbcst}' | filecheck %s
+// RUN: xdsl-opt %s -p 'xsmm-apply-schedule{strategy=libxsmm-skx-nofsdbcst disable-regalloc=true}' | filecheck %s --check-prefix AUTO
+
+// AUTO-LABEL:   x86_func.func @nofsdbcst
+// AUTO-NOT:     !x86.avx512reg<zmm
+// AUTO:         x86_func.ret
 
 // CHECK:       builtin.module {
 // CHECK-NEXT:    x86_func.func @nofsdbcst(%a: !x86.reg64<rdi>, %b: !x86.reg64<rsi>, %c: !x86.reg64<rdx>, %rbp: !x86.reg64<rbp>, %rsp: !x86.reg64<rsp>) {
