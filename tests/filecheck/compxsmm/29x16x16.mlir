@@ -31,590 +31,590 @@
 // CHECK-REGALLOC-NEXT:      mov rcx, 0
 // CHECK-REGALLOC-NEXT:  scf_body_0_for:
 // CHECK-REGALLOC-NEXT:      add rcx, 16
-// CHECK-REGALLOC-NEXT:      vmovapd zmm12, [rdx]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm13, [rdx+64]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm14, [rdx+128]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm15, [rdx+192]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm16, [rdx+256]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm17, [rdx+320]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdx+384]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdx+448]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdx+512]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdx+576]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdx+640]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm23, [rdx+704]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm24, [rdx+768]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm25, [rdx+832]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm26, [rdx+896]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm27, [rdx+960]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm28, [rdx+1024]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm29, [rdx+1088]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm30, [rdx+1152]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm31, [rdx+1216]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdx]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdx+64]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdx+128]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdx+192]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdx+256]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm3, [rdx+320]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm4, [rdx+384]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm5, [rdx+448]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm6, [rdx+512]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm7, [rdx+576]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm8, [rdx+640]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm9, [rdx+704]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm10, [rdx+768]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm11, [rdx+832]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm12, [rdx+896]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm13, [rdx+960]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm14, [rdx+1024]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm15, [rdx+1088]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm16, [rdx+1152]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm17, [rdx+1216]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm22, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm22
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm21, zmm22
+// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1152]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm21, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm22, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm21, [rsi+1152]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx], zmm12
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+64], zmm13
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+128], zmm14
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+192], zmm15
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+256], zmm16
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+320], zmm17
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+384], zmm18
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+448], zmm19
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+512], zmm20
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+576], zmm21
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+640], zmm22
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+704], zmm23
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+768], zmm24
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+832], zmm25
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+896], zmm26
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+960], zmm27
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1024], zmm28
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1088], zmm29
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1152], zmm30
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1216], zmm31
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm22, zmm21
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm21
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx], zmm18
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+64], zmm20
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+128], zmm0
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+192], zmm1
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+256], zmm2
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+320], zmm3
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+384], zmm4
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+448], zmm5
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+512], zmm6
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+576], zmm7
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+640], zmm8
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+704], zmm9
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+768], zmm10
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+832], zmm11
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+896], zmm12
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+960], zmm13
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1024], zmm14
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1088], zmm15
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1152], zmm16
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1216], zmm17
 // CHECK-REGALLOC-NEXT:      sub rdi, 1920
 // CHECK-REGALLOC-NEXT:      sub rsi, 128
 // CHECK-REGALLOC-NEXT:      add rdx, 128
@@ -631,538 +631,538 @@
 // CHECK-REGALLOC-NEXT:      mov rcx, 0
 // CHECK-REGALLOC-NEXT:  scf_body_2_for:
 // CHECK-REGALLOC-NEXT:      add rcx, 16
-// CHECK-REGALLOC-NEXT:      vmovapd zmm14, [rdx]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm15, [rdx+64]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm16, [rdx+128]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm17, [rdx+192]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdx+256]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdx+320]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdx+384]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm21, [rdx+448]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm22, [rdx+512]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm23, [rdx+576]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm24, [rdx+640]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm25, [rdx+704]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm26, [rdx+768]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm27, [rdx+832]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm28, [rdx+896]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm29, [rdx+960]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm30, [rdx+1024]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm31, [rdx+1088]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm17, [rdx]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm16, [rdx+64]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm15, [rdx+128]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm14, [rdx+192]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm13, [rdx+256]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm12, [rdx+320]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm11, [rdx+384]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm10, [rdx+448]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm9, [rdx+512]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm8, [rdx+576]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm7, [rdx+640]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm6, [rdx+704]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm5, [rdx+768]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm4, [rdx+832]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm3, [rdx+896]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdx+960]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdx+1024]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdx+1088]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm2, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm20, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm0, zmm2
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm1, zmm2
-// CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm0, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm18, zmm20
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm19, zmm20
+// CHECK-REGALLOC-NEXT:      vmovapd zmm19, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm18, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdi]
-// CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdi+64]
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+128]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+256]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm18, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm19, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+384]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm20, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm21, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+512]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm22, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm23, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+640]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm24, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm25, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+768]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm26, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm27, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+896]
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm28, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm29, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm1, [rsi+1024]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm19, zmm18
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm20, zmm18
+// CHECK-REGALLOC-NEXT:      vmovapd zmm20, [rdi]
+// CHECK-REGALLOC-NEXT:      vmovapd zmm18, [rdi+64]
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm17, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm16, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+128]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm15, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm14, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+256]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm13, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm12, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+384]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm11, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm10, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+512]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm9, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm8, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+640]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm7, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm6, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+768]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm5, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm4, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+896]
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm3, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm2, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vbroadcastsd zmm19, [rsi+1024]
 // CHECK-REGALLOC-NEXT:      add rsi, 8
 // CHECK-REGALLOC-NEXT:      add rdi, 128
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm30, zmm2, zmm1
-// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm31, zmm0, zmm1
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx], zmm14
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+64], zmm15
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+128], zmm16
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+192], zmm17
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+256], zmm18
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+320], zmm19
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+384], zmm20
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+448], zmm21
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+512], zmm22
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+576], zmm23
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+640], zmm24
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+704], zmm25
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+768], zmm26
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+832], zmm27
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+896], zmm28
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+960], zmm29
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1024], zmm30
-// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1088], zmm31
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm20, zmm19
+// CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm18, zmm19
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx], zmm17
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+64], zmm16
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+128], zmm15
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+192], zmm14
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+256], zmm13
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+320], zmm12
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+384], zmm11
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+448], zmm10
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+512], zmm9
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+576], zmm8
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+640], zmm7
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+704], zmm6
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+768], zmm5
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+832], zmm4
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+896], zmm3
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+960], zmm2
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1024], zmm1
+// CHECK-REGALLOC-NEXT:      vmovapd [rdx+1088], zmm0
 // CHECK-REGALLOC-NEXT:      sub rdi, 1920
 // CHECK-REGALLOC-NEXT:      sub rsi, 128
 // CHECK-REGALLOC-NEXT:      add rdx, 128

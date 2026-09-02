@@ -1,4 +1,4 @@
-from xdsl.dialects import builtin, x86
+from xdsl.dialects import builtin
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
@@ -6,6 +6,7 @@ from xdsl.utils.exceptions import PassFailedException
 from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.instructions import (
     VectorValue,
+    add_accumulator_vectors,
     add_vectors,
     advance_pointer,
     load_vector,
@@ -125,7 +126,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         for accumulator_set in range(1, accumulator_sets):
             for n in range(tile.n):
                 register_index = vector_reg_count - tile.n * (accumulator_set + 1) + n
-                register = x86.registers.AVX512RegisterType.from_index(register_index)
+                register = vector_register(
+                    register_index, disable_regalloc=disable_regalloc
+                )
                 accumulators_by_index[register_index] = zero_vector(
                     rewriter, insert_point, register
                 )
@@ -206,13 +209,16 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             for n in range(tile.n):
                 source_index = vector_reg_count - tile.n * (accumulator_set + 1) + n
                 main_index = vector_reg_count - tile.n + n
-                accumulators_by_index[main_index] = add_vectors(
+                source = accumulators_by_index[source_index]
+                main = accumulators_by_index[main_index]
+                add = add_accumulator_vectors if disable_regalloc else add_vectors
+                accumulators_by_index[main_index] = add(
                     rewriter,
                     insert_point,
                     op.datatype,
-                    accumulators_by_index[source_index],
-                    accumulators_by_index[main_index],
-                    x86.registers.AVX512RegisterType.from_index(main_index),
+                    source,
+                    main,
+                    vector_register(main_index, disable_regalloc=disable_regalloc),
                 )
 
         result = MatmulRegValues(

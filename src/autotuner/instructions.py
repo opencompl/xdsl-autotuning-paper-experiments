@@ -7,6 +7,8 @@ from xdsl.dialects import builtin, x86
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 
+from autotuner.dialects.xsmm import AccumulatorAddpdOp, AccumulatorAddpsOp
+
 VectorValue = ir.SSAValue[x86.registers.AVX512RegisterType]
 PointerValue = ir.SSAValue[x86.registers.GeneralRegisterType]
 MaskValue = ir.SSAValue[x86.registers.AVX512MaskRegisterType]
@@ -250,6 +252,28 @@ def add_vectors(
 
     result = rewriter.insert(
         add_op_type(lhs, rhs, destination=destination),
+        insertion_point=insert_point,
+    ).destination
+    return cast(VectorValue, result)
+
+
+def add_accumulator_vectors(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    datatype: builtin.Float32Type | builtin.Float64Type,
+    source: VectorValue,
+    accumulator: VectorValue,
+    destination: x86.registers.AVX512RegisterType,
+) -> VectorValue:
+    """Add into an accumulator with an explicit source/destination reuse constraint."""
+    match datatype:
+        case builtin.Float32Type():
+            add_op_type = AccumulatorAddpsOp
+        case builtin.Float64Type():
+            add_op_type = AccumulatorAddpdOp
+
+    result = rewriter.insert(
+        add_op_type(source, accumulator, destination=destination),
         insertion_point=insert_point,
     ).destination
     return cast(VectorValue, result)

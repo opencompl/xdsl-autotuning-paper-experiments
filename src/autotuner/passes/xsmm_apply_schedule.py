@@ -25,6 +25,7 @@ from autotuner.schedules import (
     split_matmul,
     tile_matmul_reg,
 )
+from autotuner.skx_nano_kernel_utils import vector_register
 from autotuner.strategy import get_xsmm_strategy
 from autotuner.tiling import TilingStrategy, compute_tiling_strategy
 
@@ -106,7 +107,12 @@ def _tile_n_m(
     return result
 
 
-def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
+def _matmul_k_to_reg(
+    rewriter: PatternRewriter,
+    op: MatmulOp,
+    *,
+    disable_regalloc: bool,
+) -> MatmulRegOp:
     if op.iterator.data != MatmulIterator.K:
         raise PassFailedException(
             "xsmm-apply-schedule requires K iteration before matmul_reg"
@@ -154,8 +160,9 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
             op.datatype,
             c_val,
             offset,
-            destination=x86.registers.AVX512RegisterType.from_index(
-                accumulator_start + index
+            destination=vector_register(
+                accumulator_start + index,
+                disable_regalloc=disable_regalloc,
             ),
             aligned=bool(op.aligned_c),
             mask=access_mask,
@@ -274,7 +281,11 @@ class ApplySchedulePattern(RewritePattern):
             mask_tmp_register=mask_tmp_reg,
             mask_register=x86.registers.K1,
         ):
-            matmul_reg = _matmul_k_to_reg(rewriter, tiled_m)
+            matmul_reg = _matmul_k_to_reg(
+                rewriter,
+                tiled_m,
+                disable_regalloc=self.disable_regalloc,
+            )
             for tiled_k in _tile_k(rewriter, matmul_reg, kloop_register=kloop_register):
                 self.nano_kernel.rewrite(
                     rewriter,
