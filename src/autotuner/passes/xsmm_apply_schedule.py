@@ -23,7 +23,6 @@ from autotuner.schedules import (
     loop_matmul,
     set_matmul_iterator,
     split_matmul,
-    tile_matmul,
     tile_matmul_reg,
 )
 from autotuner.strategy import get_xsmm_strategy
@@ -31,59 +30,6 @@ from autotuner.tiling import TilingStrategy, compute_tiling_strategy
 
 K_BLOCKING = 4
 K_THRESHOLD = 23
-
-
-def tile_m(
-    rewriter: PatternRewriter,
-    op: MatmulOp,
-    *,
-    m_blocking: int,
-    mloop_register: x86.registers.GeneralRegisterType,
-    mask_tmp_reg: x86.registers.GeneralRegisterType,
-    mask_reg: x86.registers.AVX512MaskRegisterType,
-) -> tuple[MatmulOp, MatmulOp | None]:
-    """Apply the XSMM M-tiling and masked-remainder policy."""
-    assert not op.ins
-    m = op.m.value.data
-    assert 0 < m_blocking <= m
-    blocked_end = m // m_blocking * m_blocking
-    if remainder := m % m_blocking:
-        main, remainder_matmul = split_matmul(rewriter, op, blocked_end)
-    else:
-        main = op
-        remainder_matmul = None
-
-    main = attach_mask(
-        rewriter,
-        main,
-        vectorize_dim=MatmulIterator.M,
-        mask_tmp_reg=mask_tmp_reg,
-        mask_reg=mask_reg,
-    )
-    tiled_matmul, unexpected_remainder = tile_matmul(
-        rewriter,
-        main,
-        m_blocking,
-        mloop_register,
-    )
-    assert unexpected_remainder is None
-
-    if remainder_matmul is not None:
-        remainder_matmul = attach_mask(
-            rewriter,
-            remainder_matmul,
-            vectorize_dim=MatmulIterator.M,
-            mask_tmp_reg=mask_tmp_reg,
-            mask_reg=mask_reg,
-        )
-        remainder_matmul = loop_matmul(
-            rewriter,
-            remainder_matmul,
-            remainder,
-            mloop_register,
-        )
-
-    return tiled_matmul, remainder_matmul
 
 
 def load_c(
@@ -223,14 +169,44 @@ def _tile_n_m(
             nloop_register,
         )
         matmul_m = set_matmul_iterator(rewriter, tiled_n, MatmulIterator.M)
-        tiled_m, remainder_m = tile_m(
+        assert not matmul_m.ins
+        m = matmul_m.m.value.data
+        m_blocking = strategy.m_tile_size
+        assert 0 < m_blocking <= m
+        blocked_end = m // m_blocking * m_blocking
+        if remainder := m % m_blocking:
+            tiled_m, remainder_m = split_matmul(rewriter, matmul_m, blocked_end)
+            remainder_m = attach_mask(
+                rewriter,
+                remainder_m,
+                vectorize_dim=MatmulIterator.M,
+                mask_tmp_reg=mask_tmp_register,
+                mask_reg=mask_register,
+            )
+            remainder_m = loop_matmul(
+                rewriter,
+                remainder_m,
+                remainder,
+                mloop_register,
+            )
+        else:
+            tiled_m = matmul_m
+            remainder_m = None
+
+        tiled_m = attach_mask(
             rewriter,
-            matmul_m,
-            m_blocking=strategy.m_tile_size,
-            mloop_register=mloop_register,
+            tiled_m,
+            vectorize_dim=MatmulIterator.M,
             mask_tmp_reg=mask_tmp_register,
             mask_reg=mask_register,
         )
+        tiled_m = loop_matmul(
+            rewriter,
+            tiled_m,
+            m_blocking,
+            mloop_register,
+        )
+
         result.append(set_matmul_iterator(rewriter, tiled_m, MatmulIterator.K))
         if remainder_m is not None:
             result.append(set_matmul_iterator(rewriter, remainder_m, MatmulIterator.K))
