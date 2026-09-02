@@ -32,91 +32,6 @@ K_BLOCKING = 4
 K_THRESHOLD = 23
 
 
-def load_c(
-    rewriter: PatternRewriter,
-    insert_point: InsertPoint,
-    m_blocking: int,
-    n_blocking: int,
-    dest_type: type[x86.registers.AVX512RegisterType],
-    datatype: builtin.Float32Type | builtin.Float64Type,
-    *,
-    ldc: int,
-    vector_length: int,
-    vector_reg_count: int,
-    aligned_c: bool,
-    c_val: ir.SSAValue[x86.registers.GeneralRegisterType],
-    mask_k1: ir.SSAValue[x86.registers.AVX512MaskRegisterType] | None = None,
-) -> tuple[ir.SSAValue[x86.registers.AVX512RegisterType], ...]:
-    result: list[ir.SSAValue[x86.registers.AVX512RegisterType]] = []
-
-    datatype_size_out = datatype.size
-
-    # deriving register blocking from kernel config
-    m_blocking = m_blocking // vector_length + bool(m_blocking % vector_length)
-    # start register of accumulator
-    vec_reg_acc_start = vector_reg_count - n_blocking * m_blocking
-
-    # load C accumulator
-    # Beta=1
-    # adding to C, so let's load C
-    for n in range(n_blocking):
-        for m in range(m_blocking):
-            c_vec_reg = dest_type.from_index(vec_reg_acc_start + m + (m_blocking * n))
-            last_iteration = m == m_blocking - 1
-            displacement = (n * ldc + m * vector_length) * datatype_size_out
-
-            res_vec = load_vector(
-                rewriter,
-                insert_point,
-                datatype,
-                c_val,
-                displacement,
-                destination=c_vec_reg,
-                aligned=aligned_c,
-                mask=mask_k1 if last_iteration else None,
-            )
-
-            result.append(res_vec)
-
-    return tuple(result)
-
-
-def store_c(
-    rewriter: PatternRewriter,
-    insert_point: InsertPoint,
-    m_blocking: int,
-    n_blocking: int,
-    datatype: builtin.Float32Type | builtin.Float64Type,
-    *,
-    ldc: int,
-    vector_length: int,
-    aligned_c: bool,
-    c_val: ir.SSAValue[x86.registers.GeneralRegisterType],
-    acc_vectors: tuple[ir.SSAValue[x86.registers.AVX512RegisterType], ...],
-    mask_k1: ir.SSAValue[x86.registers.AVX512MaskRegisterType] | None = None,
-) -> None:
-    datatype_size_out = datatype.size
-
-    m_blocking = m_blocking // vector_length + bool(m_blocking % vector_length)
-    assert len(acc_vectors) == n_blocking * m_blocking
-
-    for n in range(n_blocking):
-        for m in range(m_blocking):
-            accumulator = acc_vectors[m + m_blocking * n]
-            displacement = (n * ldc + m * vector_length) * datatype_size_out
-
-            store_vector(
-                rewriter,
-                insert_point,
-                datatype,
-                c_val,
-                displacement,
-                accumulator,
-                aligned=aligned_c,
-                mask=mask_k1 if m == m_blocking - 1 else None,
-            )
-
-
 def _tile_n_m(
     rewriter: PatternRewriter,
     op: MatmulOp,
@@ -221,19 +136,31 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
     else:
         mask = None
         ins = ()
-    accumulators = load_c(
-        rewriter,
-        insert_point,
-        m_blocking,
-        op.n.value.data,
-        x86.registers.AVX512RegisterType,
-        op.datatype,
-        ldc=op.ldc.value.data,
-        vector_length=vector_length,
-        vector_reg_count=32,
-        aligned_c=bool(op.aligned_c),
-        c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
-        mask_k1=mask,
+    m_vectors = m_blocking // vector_length + bool(m_blocking % vector_length)
+    c_val = ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType)
+    c_accesses = tuple(
+        (
+            (n * op.ldc.value.data + m * vector_length) * op.datatype.size,
+            mask if m == m_vectors - 1 else None,
+        )
+        for n in range(op.n.value.data)
+        for m in range(m_vectors)
+    )
+    accumulator_start = 32 - len(c_accesses)
+    accumulators = tuple(
+        load_vector(
+            rewriter,
+            insert_point,
+            op.datatype,
+            c_val,
+            offset,
+            destination=x86.registers.AVX512RegisterType.from_index(
+                accumulator_start + index
+            ),
+            aligned=bool(op.aligned_c),
+            mask=access_mask,
+        )
+        for index, (offset, access_mask) in enumerate(c_accesses)
     )
     matmul_reg = rewriter.insert(
         MatmulRegOp(
@@ -253,22 +180,19 @@ def _matmul_k_to_reg(rewriter: PatternRewriter, op: MatmulOp) -> MatmulRegOp:
         ),
         insertion_point=insert_point,
     )
-    store_c(
-        rewriter,
-        insert_point,
-        m_blocking,
-        op.n.value.data,
-        op.datatype,
-        ldc=op.ldc.value.data,
-        vector_length=vector_length,
-        aligned_c=bool(op.aligned_c),
-        c_val=ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType),
-        acc_vectors=tuple(
-            ir.SSAValue.get(accumulator, type=x86.registers.AVX512RegisterType)
-            for accumulator in matmul_reg.out_results
-        ),
-        mask_k1=mask,
-    )
+    for accumulator, (offset, access_mask) in zip(
+        matmul_reg.out_results, c_accesses, strict=True
+    ):
+        store_vector(
+            rewriter,
+            insert_point,
+            op.datatype,
+            c_val,
+            offset,
+            ir.SSAValue.get(accumulator, type=x86.registers.AVX512RegisterType),
+            aligned=bool(op.aligned_c),
+            mask=access_mask,
+        )
     rewriter.replace(
         op,
         [],
