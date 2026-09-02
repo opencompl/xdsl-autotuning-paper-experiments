@@ -18,6 +18,22 @@
         "type": "github"
       }
     },
+    "lighthouse": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788313784,
+        "narHash": "sha256-QJBI1oba6+f81Fqw5P/MJKq1tF6FabvhCpXqC0djiPM=",
+        "owner": "libxsmm",
+        "repo": "lighthouse",
+        "rev": "910e74b0b953159655198e99f76603f223307bf1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "libxsmm",
+        "repo": "lighthouse",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1775888245,
@@ -37,6 +53,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "lighthouse": "lighthouse",
         "nixpkgs": "nixpkgs"
       }
     },

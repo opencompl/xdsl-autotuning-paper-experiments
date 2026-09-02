@@ -164,7 +164,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|libxtcmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|libxtcmm|lighthouse"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -247,6 +247,40 @@ rule naive_mlir:
             --convert-scf-to-cf \
             --buffer-results-to-out-params \
             -o {output}"""
+
+# The `lighthouse` variant hands the tensor-level `linalg.matmul` payload to the
+# pipeline descriptor that Lighthouse selects for the host machine, and links the
+# object it emits into the usual timing/validation drivers. Both the descriptor
+# and the schedules it includes come from the lighthouse flake input, so no
+# schedule is duplicated here. Codegen is JIT-based, so it has to run on the
+# machine being measured, and lighthouse only ships x86_64 f32 descriptors.
+
+rule templated_lighthouse:
+    input: "kernels/{kernel}/lighthouse.mlir"
+    output: machine_file(variant='lighthouse',ext='payload.mlir')
+    template_engine:
+        "jinja2"
+
+rule lighthouse_o:
+    wildcard_constraints:
+        kernel="matmul_rowmaj",
+        variant="lighthouse",
+        dtype="f32",
+    input:
+        payload=machine_file(variant='lighthouse',ext='payload.mlir'),
+        script="scripts/lighthouse_codegen.py",
+    output: machine_file(variant='lighthouse',ext='o')
+    shell:
+        """
+        command -v lighthouse-python > /dev/null || {{
+            echo "lighthouse-python not found: run inside 'nix develop' or the docker image" >&2
+            exit 1
+        }}
+        lighthouse-python {input.script} {input.payload} \
+            --entry matmul --symbol lighthouse_matmul \
+            --dtype {wildcards.dtype} \
+            --output {output}
+        """
 
 rule arith_to_llvm:
     wildcard_constraints:
@@ -534,6 +568,47 @@ rule executable:
     shell:
         "{params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -DFREQ={params.machine_freq} {params.use_papi} -target {params.target_triple} -march={params.compiler_march} -o {output} kernels/{wildcards.kernel}/{wildcards.executable}.c {input} {params.machine_libs_opts} {params.mkl_libs} {params.aocl_libs} {params.linker_flag}"
 
+# Lighthouse emits an object file rather than assembly, and its entry point uses
+# the memref calling convention, so it is linked through a shim instead of going
+# through the generic `executable` rule. `libmlir_c_runner_utils` covers the
+# buffer helpers (e.g. `memrefCopy`) the pipeline's packing calls; it ships with
+# the MLIR bindings, and rpath keeps the executable self-contained. `-fopenmp`
+# is needed because the pipeline parallelizes with OpenMP; the measurements stay
+# single-threaded through `OMP_NUM_THREADS=1` in the `time` rule. The JIT emits
+# a non-PIC object, which lld refuses to put in a PIE, hence `-no-pie`.
+ruleorder: lighthouse_executable > executable
+
+rule lighthouse_executable:
+    wildcard_constraints:
+        kernel="matmul_rowmaj",
+        variant="lighthouse",
+    input:
+        obj=machine_file(ext='o'),
+        shim="kernels/{kernel}/lighthouse_shim.c",
+        harness="kernels/{kernel}/{executable}.c",
+    output: machine_file(ext='{executable}.o')
+    params:
+        target_triple=target_triple,
+        compiler_march=compiler_march,
+        machine_libs_opts=machine_libs_opts,
+        machine_freq=machine_freq,
+        cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+        use_papi=machine_use_papi,
+        linker_flag=machine_linker_flag,
+    shell:
+        """
+        MLIR_LIB_DIR=$(lighthouse-python -c \
+            'from lighthouse.utils.mlir import get_mlir_library_path; print(get_mlir_library_path())')
+        {params.cc} -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} \
+            -DDTYPE={params.dtype} -DFREQ={params.machine_freq} {params.use_papi} \
+            -target {params.target_triple} -march={params.compiler_march} \
+            -o {output} {input.harness} {input.shim} {input.obj} \
+            -fopenmp -no-pie \
+            -L"$MLIR_LIB_DIR" -lmlir_c_runner_utils -Wl,-rpath,"$MLIR_LIB_DIR" \
+            {params.machine_libs_opts} {params.linker_flag}
+        """
+
 rule validation:
     input:  machine_file(ext='test.o')
     log:    machine_file(ext='test.log')
@@ -598,7 +673,7 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
     "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm", "lighthouse"],
         "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
     },
     "pinocchio": {
@@ -606,7 +681,7 @@ DATASET_VARIANTS = {
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
     },
     "rapper": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
+        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm", "lighthouse"],
         "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
     },
     "ci": {
@@ -614,6 +689,16 @@ DATASET_VARIANTS = {
         "f64.small_matrices": [],
     },
 }[THIS_MACHINE]
+
+# Lighthouse only ships x86_64 pipeline descriptors for f32, so it takes part in
+# the f32 half of the ttile sweep only.
+F32_ONLY_VARIANTS = ("lighthouse",)
+
+def ttile_variants(dtype):
+    variants = DATASET_VARIANTS["ttile"]
+    if dtype == "f32":
+        return variants
+    return [v for v in variants if v not in F32_ONLY_VARIANTS]
 
 # Values are missing the extension
 # The extension is added in the dataset rules below
@@ -627,7 +712,7 @@ DATASET_BASES = {
             ext="",
             machine=THIS_MACHINE,
         ),
-        variant=DATASET_VARIANTS["ttile"],
+        variant=ttile_variants("f32"),
         m=range(8, 50, 2),
     ),
     "f64.ttile": expand(
@@ -639,7 +724,7 @@ DATASET_BASES = {
             ext="",
             machine=THIS_MACHINE,
         ),
-        variant=DATASET_VARIANTS["ttile"], # + ["transform_xdsl"]
+        variant=ttile_variants("f64"), # + ["transform_xdsl"]
         m=range(9, 63, 3),
     ),
     "f64.small_matrices": expand(
@@ -830,6 +915,18 @@ TESTSET_AVX512 = [
         + "/{case.kernel}/{case.m}x{case.n}x{case.k}/{variant}.f64.test.log",
         case=KERNELS_XSMM_AVX512,
         variant=["xdsl_libxsmm", "compxsmm"],
+    ),
+    # Lighthouse needs the interpreter the flake provides; skip it elsewhere
+    # rather than failing the whole test set.
+    *(
+        [
+            machine_file(
+                kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f32",
+                machine=THIS_MACHINE, variant="lighthouse", ext="test.log",
+            )
+        ]
+        if shutil.which("lighthouse-python")
+        else []
     ),
 ]
 
