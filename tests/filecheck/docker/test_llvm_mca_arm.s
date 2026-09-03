@@ -30,13 +30,13 @@ myfun:
 // CHECK-NEXT:  Instructions:      2500
 // CHECK-NEXT:  Total Cycles:      587
 // CHECK-NEXT:  Total uOps:        3300
-// CHECK-NEXT:  
+// CHECK-EMPTY:  
 // CHECK-NEXT:  Dispatch Width:    6
 // CHECK-NEXT:  uOps Per Cycle:    5.62
 // CHECK-NEXT:  IPC:               4.26
 // CHECK-NEXT:  Block RThroughput: 5.5
-// CHECK-NEXT:  
-// CHECK-NEXT:  
+// CHECK-EMPTY:  
+// CHECK-EMPTY:  
 // CHECK-NEXT:  Instruction Info:
 // CHECK-NEXT:  [1]: #uOps
 // CHECK-NEXT:  [2]: Latency
@@ -44,7 +44,7 @@ myfun:
 // CHECK-NEXT:  [4]: MayLoad
 // CHECK-NEXT:  [5]: MayStore
 // CHECK-NEXT:  [6]: HasSideEffects (U)
-// CHECK-NEXT:  
+// CHECK-EMPTY:  
 // CHECK-NEXT:  [1]    [2]    [3]    [4]    [5]    [6]    Instructions:
 // CHECK-NEXT:   2      4     0.50    *                   ldp	q0, q1, [x0]
 // CHECK-NEXT:   2      4     0.50    *                   ldp	q2, q3, [x0, #32]
@@ -71,8 +71,8 @@ myfun:
 // CHECK-NEXT:   2      4     1.00           *            stp	q16, q17, [x2]
 // CHECK-NEXT:   2      4     1.00           *            stp	q18, q19, [x2, #32]
 // CHECK-NEXT:   1      0     1.00                  U     ret
-// CHECK-NEXT:  
-// CHECK-NEXT:  
+// CHECK-EMPTY:  
+// CHECK-EMPTY:  
 // CHECK-NEXT:  Resources:
 // CHECK-NEXT:  [0.0] - CyUnitB
 // CHECK-NEXT:  [0.1] - CyUnitB
@@ -97,12 +97,12 @@ myfun:
 // CHECK-NEXT:  [11]  - CyUnitVD
 // CHECK-NEXT:  [12.0] - CyUnitVM
 // CHECK-NEXT:  [12.1] - CyUnitVM
-// CHECK-NEXT:  
-// CHECK-NEXT:  
+// CHECK-EMPTY:  
+// CHECK-EMPTY:  
 // CHECK-NEXT:  Resource pressure per iteration:
 // CHECK-NEXT:  [0.0]  [0.1]  [1]    [2.0]  [2.1]  [3.0]  [3.1]  [3.2]  [3.3]  [4]    [5]    [6.0]  [6.1]  [7]    [8.0]  [8.1]  [9.0]  [9.1]  [9.2]  [10]   [11]   [12.0] [12.1] 
 // CHECK-NEXT:  0.50   0.50   1.00    -      -     0.25   0.25   0.25   0.25    -      -      -      -      -     4.99   5.01   5.33   5.33   5.34    -      -      -      -     
-// CHECK-NEXT:  
+// CHECK-EMPTY:  
 // CHECK-NEXT:  Resource pressure by instruction:
 // CHECK-NEXT:  [0.0]  [0.1]  [1]    [2.0]  [2.1]  [3.0]  [3.1]  [3.2]  [3.3]  [4]    [5]    [6.0]  [6.1]  [7]    [8.0]  [8.1]  [9.0]  [9.1]  [9.2]  [10]   [11]   [12.0] [12.1] Instructions:
 // CHECK-NEXT:   -      -      -      -      -      -      -      -      -      -      -      -      -      -     0.61   0.39    -      -      -      -      -      -      -     ldp	q0, q1, [x0]
