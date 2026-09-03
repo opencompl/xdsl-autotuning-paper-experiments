@@ -1,4 +1,4 @@
-// RUN: xdsl-opt -p vectorize-libxsmm,scf-for-loop-unroll,convert-vector-to-ptr,convert-memref-to-ptr{lower_func=true},convert-ptr-type-offsets,canonicalize,convert-func-to-x86-func,convert-vector-to-x86{arch=avx512},convert-ptr-to-x86{arch=avx512},convert-arith-to-x86,reconcile-unrealized-casts,canonicalize,x86-infer-broadcast,dce,x86-allocate-registers,canonicalize -t x86-asm %s | filecheck %s
+// RUN: xdsl-opt -p vectorize-libxsmm,scf-for-loop-unroll,convert-vector-to-ptr,convert-memref-to-ptr{lower_func=true},convert-ptr-type-offsets,canonicalize,convert-func-to-x86-func,convert-vector-to-x86{arch=avx512},convert-ptr-to-x86{arch=avx512},convert-arith-to-x86,reconcile-unrealized-casts,canonicalize,x86-infer-broadcast,dce,x86-allocate-registers{arch=avx512},canonicalize -t x86-asm %s | filecheck %s
 
 func.func @matmul(
   %A: memref<3x42xf64>,
