@@ -217,10 +217,10 @@ dependencies = [
     { name = "snakemake" },
     { name = "tvm" },
     { name = "xdsl", extra = ["dev"] },
-    { name = "xtc" },
     { name = "xtc-llvm-tools" },
     { name = "xtc-mlir-extra-tools" },
     { name = "xtc-mlir-python-bindings" },
+    { name = "xtc-tools" },
 ]
 
 [package.metadata]
@@ -231,10 +231,10 @@ requires-dist = [
     { name = "snakemake", specifier = ">=8.30.0" },
     { name = "tvm", specifier = "==0.19.0.2025010903", index = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple" },
     { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=c8bdae0996431e9d8d43a51545619f48b3850202" },
-    { name = "xtc", git = "https://github.com/superlopuh/xtc.git?rev=1b7ecb65565d2b5ef82afca1aece31e67b09c7aa" },
     { name = "xtc-llvm-tools", specifier = "==22.1.8.2" },
     { name = "xtc-mlir-extra-tools", specifier = "==22.1.8.7" },
     { name = "xtc-mlir-python-bindings", specifier = "==22.1.8.3" },
+    { name = "xtc-tools", git = "https://github.com/xtc-tools/xtc.git?rev=bbf98bd4af3a68a3145a802d41f5debd8f95bf2b" },
 ]
 
 [[package]]
@@ -3582,25 +3582,6 @@ dev = [
 ]
 
 [[package]]
-name = "xtc"
-version = "0.2.dev1"
-source = { git = "https://github.com/superlopuh/xtc.git?rev=1b7ecb65565d2b5ef82afca1aece31e67b09c7aa#1b7ecb65565d2b5ef82afca1aece31e67b09c7aa" }
-dependencies = [
-    { name = "jinja2" },
-    { name = "matplotlib" },
-    { name = "numpy" },
-    { name = "ordered-set" },
-    { name = "py-cpuinfo" },
-    { name = "pyyaml" },
-    { name = "scikit-learn" },
-    { name = "strictyaml" },
-    { name = "tomlkit" },
-    { name = "tqdm" },
-    { name = "typing-extensions" },
-    { name = "xdsl", extra = ["dev"] },
-]
-
-[[package]]
 name = "xtc-llvm-tools"
 version = "22.1.8.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3646,6 +3627,25 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f2/18/680fbcc509657c63f752ca5fbbfd7c9485b8619d97714db5d41e3324b85c/xtc_mlir_python_bindings-22.1.8.3-cp314-cp314-macosx_14_0_arm64.whl", hash = "sha256:d7f93d0c9aa8b370e6a993c1753f78d1a9f75be259b37b0cc2e09358cede840d", size = 36145017, upload-time = "2026-08-25T10:37:36.405Z" },
     { url = "https://files.pythonhosted.org/packages/7c/4e/488ea8d5991d7f644763b7cb8d006ed082a8685aa47bfd05f8325ec3ce59/xtc_mlir_python_bindings-22.1.8.3-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:20baaa6515a63bc3403b659e4d9184086e586102b1b9f774477a6999bd1b9540", size = 50579221, upload-time = "2026-08-25T10:38:00.371Z" },
     { url = "https://files.pythonhosted.org/packages/bd/bf/b1a8beef65c950cac024ab6715324839f599f963bbcc1ba8828fb181ec6a/xtc_mlir_python_bindings-22.1.8.3-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d8425a2b6e9586448767f7fc71507c4fd93c26baefa773609c865b8966203f17", size = 52097868, upload-time = "2026-08-25T10:38:16.499Z" },
+]
+
+[[package]]
+name = "xtc-tools"
+version = "0.2.1.dev527"
+source = { git = "https://github.com/xtc-tools/xtc.git?rev=bbf98bd4af3a68a3145a802d41f5debd8f95bf2b#bbf98bd4af3a68a3145a802d41f5debd8f95bf2b" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "ordered-set" },
+    { name = "py-cpuinfo" },
+    { name = "pyyaml" },
+    { name = "scikit-learn" },
+    { name = "strictyaml" },
+    { name = "tomlkit" },
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+    { name = "xdsl", extra = ["dev"] },
 ]
 
 [[package]]
