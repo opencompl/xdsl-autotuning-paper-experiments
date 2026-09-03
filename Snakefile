@@ -642,7 +642,7 @@ DATASET_BASES = {
             machine=THIS_MACHINE,
         ),
         variant=DATASET_VARIANTS["ttile"],
-        m=range(8, 50, 2),
+        m=range(2, 50, 2),
     ),
     "f64.ttile": expand(
         machine_file(
@@ -654,7 +654,7 @@ DATASET_BASES = {
             machine=THIS_MACHINE,
         ),
         variant=DATASET_VARIANTS["ttile"], # + ["transform_xdsl"]
-        m=range(9, 63, 3),
+        m=range(2, 65, 2),
     ),
     "f64.small_matrices": expand(
         machine_file(
