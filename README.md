@@ -60,8 +60,10 @@ The instruction sequence is otherwise identical, down to the accumulator
 assignment. On a core that splits 512-bit operations over a narrower datapath
 (Zen 4, for example) this roughly halves the cost of the FMA loop for those
 tiles, which is where LLVM's own vectorizer beats libxsmm on small M.
-`libxsmm-skx-narrow` applies that choice inside libxsmm's selection heuristic,
-leaving multi-M-vector tiles full-width.
+`libxsmm-skx-narrow` applies that choice inside libxsmm's selection heuristic:
+it dispatches over all three nano-kernels, sending a tile shorter than one M
+vector to the narrowed kernel and keeping libxsmm's own two for tiles that fill
+a vector exactly or span several of them.
 
 Each strategy is exposed as a benchmark variant through the
 `compxsmm-strategies` map in [`default.yaml`](default.yaml): `compxsmm` builds

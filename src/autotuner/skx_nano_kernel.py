@@ -17,9 +17,9 @@ from autotuner.nano_kernel import (
     TileSizes,
     VectorLayout,
 )
-from autotuner.schedules import attach_mask
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel_utils import (
+    SKX_VECTOR_BANKS,
     descriptor_from_op,
     tile_sizes_from_op,
 )
@@ -41,11 +41,7 @@ class AVX512Info(ISAInfo):
 
     @property
     def vector_banks(self) -> tuple[type[x86.registers.X86VectorRegisterType], ...]:
-        return (
-            x86.registers.SSERegisterType,
-            x86.registers.AVX2RegisterType,
-            x86.registers.AVX512RegisterType,
-        )
+        return SKX_VECTOR_BANKS
 
     def vector_length(self, datatype: FloatingPointType) -> int:
         match datatype:
@@ -71,15 +67,22 @@ class SkxNanoKernel(NanoKernel):
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type
         )
 
+    def select_for_tile(self, m: int, vector_length: int) -> NanoKernel:
+        """The kernel that lowers an ``m``-row tile, given the full vector length.
+
+        Both the planning entry points and :meth:`attach_mask` route through
+        here, so the mask a tile is given always comes from the kernel that goes
+        on to lower it.
+        """
+        return self._fsdbcst if m <= vector_length else self._nofsdbcst
+
     def _select_nano_kernel(
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
         isa_info: ISAInfo,
     ) -> NanoKernel:
-        vector_length = isa_info.vector_length(descriptor.datatype)
-        m_vectors = (tile.m + vector_length - 1) // vector_length
-        return self._fsdbcst if m_vectors == 1 else self._nofsdbcst
+        return self.select_for_tile(tile.m, isa_info.vector_length(descriptor.datatype))
 
     def supports_tile(
         self,
@@ -131,14 +134,14 @@ class SkxNanoKernel(NanoKernel):
         rewriter: PatternRewriter,
         op: MatmulOp,
         *,
+        tile_size: int,
         mask_tmp_reg: GeneralRegisterType,
         mask_reg: AVX512MaskRegisterType,
     ) -> MatmulOp:
-        return attach_mask(
+        return self.select_for_tile(tile_size, 512 // op.datatype.bitwidth).attach_mask(
             rewriter,
             op,
-            tile_size=op.m.value.data,
-            vector_size=512 // op.datatype.bitwidth,
+            tile_size=tile_size,
             mask_tmp_reg=mask_tmp_reg,
             mask_reg=mask_reg,
         )
@@ -164,20 +167,34 @@ class SkxNanoKernel(NanoKernel):
 
 
 class SkxNarrowNanoKernel(SkxNanoKernel):
-    """The SKX selection heuristic, narrowing a one-M-vector tile's bank.
+    """The SKX selection heuristic over all three nano-kernels.
 
-    Selects between the same two kernels as :class:`SkxNanoKernel`, but a tile
-    that fits in a single M vector goes to
+    Dispatches a tile shorter than one full M vector to
     :class:`~autotuner.skx_narrow_fsdbcst_nano_kernel.SkxNarrowFsdbcstNanoKernel`,
-    which sizes that vector's register bank to the tile's M. Multi-M-vector
-    tiles keep LIBXSMM's full-width register-broadcast kernel.
+    which sizes that vector's register bank to the tile's M. A tile that fills
+    the vector exactly has no narrower bank to move to and keeps LIBXSMM's
+    full-width memory-broadcast kernel, and a tile spanning several M vectors
+    keeps its full-width register-broadcast kernel, so this differs from
+    :class:`SkxNanoKernel` only where narrowing is available.
     """
 
-    _fsdbcst = SkxNarrowFsdbcstNanoKernel()
+    _narrow_fsdbcst = SkxNarrowFsdbcstNanoKernel()
 
     @property
+    @override
     def name(self) -> str:
         return "libxsmm-skx-narrow"
+
+    @override
+    def select_for_tile(self, m: int, vector_length: int) -> NanoKernel:
+        if m < vector_length:
+            return self._narrow_fsdbcst
+        return super().select_for_tile(m, vector_length)
+
+    # @override
+    # def attach_mask(self, rewriter: PatternRewriter, op: MatmulOp, *, tile_size: int, mask_tmp_reg: GeneralRegisterType, mask_reg: AVX512MaskRegisterType) -> MatmulOp:
+    #     return self.select_for_tile(op.)
+    #     return super().attach_mask(rewriter, op, tile_size=tile_size, mask_tmp_reg=mask_tmp_reg, mask_reg=mask_reg)
 
 
 SKX_NANO_KERNELS: Mapping[str, NanoKernel] = {

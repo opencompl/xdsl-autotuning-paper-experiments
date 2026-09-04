@@ -242,6 +242,28 @@ def test_narrow_fsdbcst_masks_only_what_its_own_bank_leaves_over() -> None:
     ) == RegisterCount(general=5, vector=6, mask=1)
 
 
+def test_narrow_composite_dispatches_to_all_three_nano_kernels() -> None:
+    kernel = SkxNarrowNanoKernel()
+    vector_length = 8  # f64 in the widest bank.
+
+    # Shorter than one M vector: the narrowed memory-broadcast kernel.
+    # Exactly one M vector: no narrower bank to move to, so LIBXSMM's own.
+    # Several M vectors: LIBXSMM's register-broadcast kernel.
+    assert [kernel.select_for_tile(m, vector_length).name for m in (3, 8, 16)] == [
+        "libxsmm-skx-narrow-fsdbcst",
+        "libxsmm-skx-fsdbcst",
+        "libxsmm-skx-nofsdbcst",
+    ]
+    # The full-width heuristic never reaches for the narrowed kernel.
+    assert [
+        SkxNanoKernel().select_for_tile(m, vector_length).name for m in (3, 8, 16)
+    ] == [
+        "libxsmm-skx-fsdbcst",
+        "libxsmm-skx-fsdbcst",
+        "libxsmm-skx-nofsdbcst",
+    ]
+
+
 def test_narrow_composite_narrows_one_vector_tiles_only() -> None:
     isa_info = AVX512Info()
     kernel = SkxNarrowNanoKernel()

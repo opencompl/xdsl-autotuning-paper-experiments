@@ -44,6 +44,25 @@ class VectorLayout:
             return self.register_type.unallocated()
         return self.register_type.from_index(index)
 
+    @classmethod
+    def narrowest(
+        cls,
+        banks: tuple[type[x86.registers.X86VectorRegisterType], ...],
+        datatype: FloatingPointType,
+        lanes: int,
+    ) -> VectorLayout:
+        """The layout using the narrowest of ``banks`` that holds ``lanes``.
+
+        ``banks`` runs narrowest first. This is the one place a lane count is
+        rounded up to a register bank, so a kernel that reports a narrowed
+        layout and the mask attached to its tiles cannot disagree.
+        """
+        for bank in banks:
+            capacity = bank.bitwidth() // datatype.bitwidth
+            if capacity >= lanes:
+                return cls(bank, capacity)
+        raise ValueError(f"no vector bank holds {lanes} {datatype} elements")
+
 
 @dataclass(frozen=True)
 class GemmDescriptor:
@@ -107,11 +126,7 @@ class ISAInfo(ABC):
         self, datatype: FloatingPointType, lanes: int
     ) -> VectorLayout:
         """The layout using the narrowest bank that holds ``lanes`` elements."""
-        for bank in self.vector_banks:
-            capacity = bank.bitwidth() // datatype.bitwidth
-            if capacity >= lanes:
-                return VectorLayout(bank, capacity)
-        raise ValueError(f"no vector bank holds {lanes} {datatype} elements")
+        return VectorLayout.narrowest(self.vector_banks, datatype, lanes)
 
 
 class NanoKernel(ABC):
@@ -159,10 +174,17 @@ class NanoKernel(ABC):
         rewriter: PatternRewriter,
         op: MatmulOp,
         *,
+        tile_size: int,
         mask_tmp_reg: GeneralRegisterType,
         mask_reg: AVX512MaskRegisterType,
     ) -> MatmulOp:
-        """Attach a mask to ``op`` if the kernel needs one, or do nothing."""
+        """Attach a mask to ``op`` if the kernel needs one, or do nothing.
+
+        ``tile_size`` is the M extent of one nano-kernel tile, which is what
+        decides the mask; ``op`` still spans every tile of the block being
+        masked. A kernel that sizes its register bank to the tile has no bank at
+        all for that whole extent, so it cannot recover the tile from ``op``.
+        """
 
     @abstractmethod
     def rewrite(

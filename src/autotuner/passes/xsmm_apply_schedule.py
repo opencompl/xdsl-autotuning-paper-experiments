@@ -42,19 +42,11 @@ def _tile_layout(
     descriptor: GemmDescriptor,
     isa_info: ISAInfo,
     nano_kernel: NanoKernel,
-    *,
-    m: int | None = None,
 ) -> VectorLayout:
-    """The register bank the nano-kernel gives one M vector of ``op``'s tile.
-
-    ``m`` overrides the op's own M extent, for an op that is about to be tiled
-    into M blocks smaller than that extent.
-    """
+    """The register bank the nano-kernel gives one M vector of ``op``'s tile."""
     return nano_kernel.vector_layout(
         descriptor,
-        TileSizes(
-            op.m.value.data if m is None else m, op.n.value.data, op.k.value.data
-        ),
+        TileSizes(op.m.value.data, op.n.value.data, op.k.value.data),
         isa_info,
     )
 
@@ -63,8 +55,6 @@ def _tile_n_m(
     rewriter: PatternRewriter,
     op: MatmulOp,
     strategy: TilingStrategy,
-    descriptor: GemmDescriptor,
-    isa_info: ISAInfo,
     nano_kernel: NanoKernel,
     *,
     nloop_register: x86.registers.GeneralRegisterType,
@@ -102,6 +92,7 @@ def _tile_n_m(
             remainder_m = nano_kernel.attach_mask(
                 rewriter,
                 remainder_m,
+                tile_size=remainder,
                 mask_tmp_reg=mask_tmp_register,
                 mask_reg=mask_register,
             )
@@ -118,6 +109,7 @@ def _tile_n_m(
         tiled_m = nano_kernel.attach_mask(
             rewriter,
             tiled_m,
+            tile_size=m_blocking,
             mask_tmp_reg=mask_tmp_register,
             mask_reg=mask_register,
         )
@@ -297,8 +289,6 @@ class ApplySchedulePattern(RewritePattern):
             rewriter,
             op,
             strategy,
-            descriptor,
-            self.isa_info,
             self.nano_kernel,
             nloop_register=nloop_register,
             mloop_register=mloop_register,

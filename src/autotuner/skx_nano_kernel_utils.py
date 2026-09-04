@@ -8,6 +8,13 @@ from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.instructions import MaskValue, PointerValue, VectorValue
 from autotuner.nano_kernel import GemmDescriptor, TileSizes, VectorLayout
 
+SKX_VECTOR_BANKS: tuple[type[x86.registers.X86VectorRegisterType], ...] = (
+    x86.registers.SSERegisterType,
+    x86.registers.AVX2RegisterType,
+    x86.registers.AVX512RegisterType,
+)
+"""The vector register banks an SKX kernel may lower a tile to, narrowest first."""
+
 
 def tile_sizes_from_op(op: MatmulRegOp) -> TileSizes:
     return TileSizes(

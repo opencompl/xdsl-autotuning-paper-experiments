@@ -118,13 +118,14 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         rewriter: PatternRewriter,
         op: MatmulOp,
         *,
+        tile_size: int,
         mask_tmp_reg: GeneralRegisterType,
         mask_reg: AVX512MaskRegisterType,
     ) -> MatmulOp:
         return attach_mask(
             rewriter,
             op,
-            tile_size=op.m.value.data,
+            tile_size=tile_size,
             vector_size=512 // op.datatype.bitwidth,
             mask_tmp_reg=mask_tmp_reg,
             mask_reg=mask_reg,

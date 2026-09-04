@@ -1,9 +1,13 @@
 // RUN: xdsl-opt %s -p 'xsmm-apply-schedule{strategy=libxsmm-skx-narrow-fsdbcst}' | filecheck %s
+// RUN: xdsl-opt %s -p 'xsmm-apply-schedule{strategy=libxsmm-skx-narrow}' | filecheck %s
 
 // The same one-M-vector kernel as xsmm-apply-schedule-fsdbcst.mlir, with M=3
 // instead of a full vector: every vector register is a ymm rather than a masked
 // zmm, the FMAs broadcast 1to4, and the mask enables the ymm's three low lanes
 // (0b111 = 7) rather than three of a zmm's eight.
+//
+// A three-row tile is shorter than one M vector, so the composite strategy
+// dispatches it to this same kernel and both must lower it identically.
 
 // CHECK:       builtin.module {
 // CHECK-NEXT:    x86_func.func @narrow_fsdbcst(%a: !x86.reg64<rdi>, %b: !x86.reg64<rsi>, %c: !x86.reg64<rdx>, %rbp: !x86.reg64<rbp>, %rsp: !x86.reg64<rsp>) {
