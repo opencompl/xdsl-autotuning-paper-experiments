@@ -5,9 +5,10 @@ from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 from xdsl.dialects import builtin, x86
+from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
 from xdsl.pattern_rewriter import PatternRewriter
 
-from autotuner.dialects.xsmm import MatmulRegOp
+from autotuner.dialects.xsmm import MatmulOp, MatmulRegOp
 
 FloatingPointType: TypeAlias = builtin.Float32Type | builtin.Float64Type
 
@@ -151,6 +152,17 @@ class NanoKernel(ABC):
         isa_info: ISAInfo,
     ) -> RegisterCount:
         """Return the peak register demand of the proposed tile."""
+
+    @abstractmethod
+    def attach_mask(
+        self,
+        rewriter: PatternRewriter,
+        op: MatmulOp,
+        *,
+        mask_tmp_reg: GeneralRegisterType,
+        mask_reg: AVX512MaskRegisterType,
+    ) -> MatmulOp:
+        """Attach a mask to ``op`` if the kernel needs one, or do nothing."""
 
     @abstractmethod
     def rewrite(

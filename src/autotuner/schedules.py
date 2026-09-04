@@ -366,7 +366,7 @@ def attach_mask(
     op: MatmulOp,
     *,
     tile_size: int,
-    vector_lanes: int,
+    vector_size: int,
     mask_tmp_reg: x86.registers.GeneralRegisterType,
     mask_reg: x86.registers.AVX512MaskRegisterType,
 ) -> MatmulOp:
@@ -381,7 +381,7 @@ def attach_mask(
     """
     assert not op.ins
 
-    remainder = tile_size % vector_lanes
+    remainder = tile_size % vector_size
     if not remainder:
         return op
 

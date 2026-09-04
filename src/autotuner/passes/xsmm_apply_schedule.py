@@ -25,7 +25,6 @@ from autotuner.nano_kernel import (
     VectorLayout,
 )
 from autotuner.schedules import (
-    attach_mask,
     loop_matmul,
     set_matmul_iterator,
     split_matmul,
@@ -100,13 +99,9 @@ def _tile_n_m(
         blocked_end = m // m_blocking * m_blocking
         if remainder := m % m_blocking:
             tiled_m, remainder_m = split_matmul(rewriter, matmul_m, blocked_end)
-            remainder_m = attach_mask(
+            remainder_m = nano_kernel.attach_mask(
                 rewriter,
                 remainder_m,
-                tile_size=remainder,
-                vector_lanes=_tile_layout(
-                    remainder_m, descriptor, isa_info, nano_kernel, m=remainder
-                ).lanes,
                 mask_tmp_reg=mask_tmp_register,
                 mask_reg=mask_register,
             )
@@ -120,13 +115,9 @@ def _tile_n_m(
             tiled_m = matmul_m
             remainder_m = None
 
-        tiled_m = attach_mask(
+        tiled_m = nano_kernel.attach_mask(
             rewriter,
             tiled_m,
-            tile_size=m_blocking,
-            vector_lanes=_tile_layout(
-                tiled_m, descriptor, isa_info, nano_kernel, m=m_blocking
-            ).lanes,
             mask_tmp_reg=mask_tmp_register,
             mask_reg=mask_register,
         )

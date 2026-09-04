@@ -1,12 +1,13 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, override
 
 from xdsl.dialects import builtin, x86
+from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.xsmm import MatmulRegOp
+from autotuner.dialects.xsmm import MatmulOp, MatmulRegOp
 from autotuner.nano_kernel import (
     FloatingPointType,
     GemmDescriptor,
@@ -16,6 +17,7 @@ from autotuner.nano_kernel import (
     TileSizes,
     VectorLayout,
 )
+from autotuner.schedules import attach_mask
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel_utils import (
     descriptor_from_op,
@@ -121,6 +123,24 @@ class SkxNanoKernel(NanoKernel):
             descriptor,
             tile,
             isa_info,
+        )
+
+    @override
+    def attach_mask(
+        self,
+        rewriter: PatternRewriter,
+        op: MatmulOp,
+        *,
+        mask_tmp_reg: GeneralRegisterType,
+        mask_reg: AVX512MaskRegisterType,
+    ) -> MatmulOp:
+        return attach_mask(
+            rewriter,
+            op,
+            tile_size=op.m.value.data,
+            vector_size=512 // op.datatype.bitwidth,
+            mask_tmp_reg=mask_tmp_reg,
+            mask_reg=mask_reg,
         )
 
     def rewrite(
