@@ -20,6 +20,7 @@ dependencies = [
     "xtc-llvm-tools==22.1.8.2",
     "xtc-mlir-extra-tools==22.1.8.7",
     "xtc-mlir-python-bindings==22.1.8.3",
+    "enoslib>=7.1.2",
 ]
 
 [project.entry-points.'xdsl.universe']
