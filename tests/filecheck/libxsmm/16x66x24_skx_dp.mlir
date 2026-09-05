@@ -13,12 +13,12 @@
 // CHECK-MANUAL-NEXT:      sub rsp, 192
 // CHECK-MANUAL-NEXT:      mov r10, -64
 // CHECK-MANUAL-NEXT:      and rsp, r10
-// CHECK-MANUAL-NEXT:      mov r11, 0
-// CHECK-MANUAL-NEXT:  [[SCF_N_BODY_0:^\S+]]:
-// CHECK-MANUAL-NEXT:      add r11, 14
-// CHECK-MANUAL-NEXT:      mov r10, 0
-// CHECK-MANUAL-NEXT:  [[SCF_M_BODY_0:^\S+]]:
-// CHECK-MANUAL-NEXT:      add r10, 16
+// CHECK-LIBXSMM-NEXT:      mov r11, 0
+// CHECK-LIBXSMM-NEXT:  [[SCF_N_BODY_0:^\S+]]:
+// CHECK-LIBXSMM-NEXT:      add r11, 14
+// CHECK-LIBXSMM-NEXT:      mov r10, 0
+// CHECK-LIBXSMM-NEXT:  [[SCF_M_BODY_0:^\S+]]:
+// CHECK-LIBXSMM-NEXT:      add r10, 16
 // CHECK-MANUAL-NEXT:      vmovapd zmm4, [rdx]
 // CHECK-MANUAL-NEXT:      vmovapd zmm5, [rdx+64]
 // CHECK-MANUAL-NEXT:      vmovapd zmm6, [rdx+128]
@@ -269,22 +269,22 @@
 // CHECK-COMPXSMM-NEXT:    sub rsi, 192
 // CHECK-MANUAL-NEXT:      add rdx, 128
 // CHECK-LIBXSMM-NEXT:     sub rdi, 2944
-// CHECK-MANUAL-NEXT:      cmp r10, 16
-// CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY_0]]
+// CHECK-LIBXSMM-NEXT:      cmp r10, 16
+// CHECK-LIBXSMM-NEXT:      jl [[SCF_M_BODY_0]]
 // CHECK-LIBXSMM-NEXT:     add rdx, 1664
 // CHECK-COMPXSMM-NEXT:    sub rdi, 128
 // CHECK-MANUAL-NEXT:      add rsi, 2688
 // CHECK-LIBXSMM-NEXT:     sub rdi, 128
 // CHECK-COMPXSMM-NEXT:    add rdx, 1664
-// CHECK-MANUAL-NEXT:      cmp r11, 14
-// CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY_0]]
+// CHECK-LIBXSMM-NEXT:      cmp r11, 14
+// CHECK-LIBXSMM-NEXT:      jl [[SCF_N_BODY_0]]
 // CHECK-LIBXSMM-NEXT:     mov r11, 14
 // CHECK-COMPXSMM-NEXT:    mov r11, 0
 // CHECK-MANUAL-NEXT:  [[SCF_N_BODY_1:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r11, 13
-// CHECK-MANUAL-NEXT:      mov r10, 0
-// CHECK-MANUAL-NEXT:  [[SCF_M_BODY_1:^\S+]]:
-// CHECK-MANUAL-NEXT:      add r10, 16
+// CHECK-LIBXSMM-NEXT:      mov r10, 0
+// CHECK-LIBXSMM-NEXT:  [[SCF_M_BODY_1:^\S+]]:
+// CHECK-LIBXSMM-NEXT:      add r10, 16
 // CHECK-MANUAL-NEXT:      vmovapd zmm6, [rdx]
 // CHECK-MANUAL-NEXT:      vmovapd zmm7, [rdx+64]
 // CHECK-MANUAL-NEXT:      vmovapd zmm8, [rdx+128]
@@ -519,8 +519,8 @@
 // CHECK-COMPXSMM-NEXT:    sub rsi, 192
 // CHECK-MANUAL-NEXT:      add rdx, 128
 // CHECK-LIBXSMM-NEXT:     sub rdi, 2944
-// CHECK-MANUAL-NEXT:      cmp r10, 16
-// CHECK-MANUAL-NEXT:      jl [[SCF_M_BODY_1]]
+// CHECK-LIBXSMM-NEXT:      cmp r10, 16
+// CHECK-LIBXSMM-NEXT:      jl [[SCF_M_BODY_1]]
 // CHECK-LIBXSMM-NEXT:     add rdx, 1536
 // CHECK-COMPXSMM-NEXT:    sub rdi, 128
 // CHECK-MANUAL-NEXT:      add rsi, 2496
