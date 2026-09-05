@@ -2,10 +2,13 @@ from dataclasses import dataclass
 
 from autotuner.nano_kernel import (
     GemmDescriptor,
-    NanoKernel,
     ISAInfo,
+    NanoKernel,
     TileSizes,
 )
+
+K_BLOCKING = 4
+K_THRESHOLD = 23
 
 
 @dataclass(frozen=True)
@@ -22,10 +25,11 @@ class BlockingRange:
 
 @dataclass(frozen=True)
 class TilingStrategy:
-    """The M tile and one or two ranges that cover the N dimension."""
+    """The M and K tiles and one or two ranges that cover the N dimension."""
 
     m_tile_size: int
     n_ranges: tuple[BlockingRange, ...]
+    k_tile_size: int
 
 
 def _compute_equalized_n_ranges(n: int, max_n_tile: int) -> tuple[BlockingRange, ...]:
@@ -101,4 +105,5 @@ def compute_tiling_strategy(
     return TilingStrategy(
         m_tile_size,
         _compute_equalized_n_ranges(descriptor.n, max_n_tile),
+        descriptor.k if descriptor.k <= K_THRESHOLD else K_BLOCKING,
     )

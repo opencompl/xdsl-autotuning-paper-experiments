@@ -19,12 +19,6 @@ from autotuner.nano_kernel import GemmDescriptor as NanoDescriptor
 from autotuner.skx_nano_kernel import AVX512Info, SkxNanoKernel
 from autotuner.tiling import BlockingRange, compute_tiling_strategy
 
-# LIBXSMM's ``..._kloop`` K-unrolling model: for ``K <= 23`` K is fully unrolled
-# (no K loop); above that a rolled loop with a body of ``K_BLOCKING`` unrolled
-# steps is emitted, plus an unrolled remainder when ``K % K_BLOCKING != 0``.
-K_UNROLL_THRESHOLD = 23
-K_BLOCKING = 4
-
 
 @dataclass(frozen=True)
 class XtcGemmPlan:
@@ -40,8 +34,8 @@ class XtcGemmPlan:
       a register block (``ceil(tile_size / vector_length)`` zmm, the tail lane
       masked when ``tile_size`` is not a multiple of ``vector_length``).
     * ``k_ranges``: how the K reduction is covered -- a single fully-unrolled
-      range when ``K <= K_UNROLL_THRESHOLD``, otherwise a rolled loop of
-      ``K_BLOCKING``-wide blocks plus an unrolled remainder.
+      range for small K, otherwise a rolled loop of four-wide blocks plus an
+      unrolled remainder.
     """
 
     vector_length: int
@@ -82,14 +76,9 @@ def compute_plan(desc: GEMMDescriptor, arch: Arch) -> XtcGemmPlan:
     )
     strategy = compute_tiling_strategy(nano_desc, isa_info, SkxNanoKernel())
 
-    # K <= threshold is fully unrolled (a single trip of the whole K); above it,
-    # roll a loop over K_BLOCKING-wide blocks (the remainder falls out as a
-    # second, single-trip = fully unrolled range).
-    k_block = desc.k if desc.k <= K_UNROLL_THRESHOLD else K_BLOCKING
-
     return XtcGemmPlan(
         vector_length=vector_length,
         n_ranges=strategy.n_ranges,
         m_ranges=_cover_ranges(desc.m, strategy.m_tile_size),
-        k_ranges=_cover_ranges(desc.k, k_block),
+        k_ranges=_cover_ranges(desc.k, strategy.k_tile_size),
     )
