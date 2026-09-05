@@ -1,12 +1,17 @@
 import pytest
-
-from xdsl.dialects import test, x86
+from xdsl.dialects import test, x86, x86_scf
 from xdsl.dialects.builtin import Float64Type, ModuleOp
 from xdsl.ir import SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
-from autotuner.dialects.xsmm import MatmulIterator, MatmulOp
-from autotuner.schedules import set_matmul_iterator
+from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
+from autotuner.schedules import (
+    loop_matmul,
+    loop_matmul_reg,
+    set_matmul_iterator,
+    tile_matmul,
+    tile_matmul_reg,
+)
 
 
 def make_matmul(
@@ -42,6 +47,31 @@ def make_matmul(
     consumer = test.TestOp(operands=matmul.results)
     module = ModuleOp([*pointer_ops, input_op, output_op, matmul, consumer])
     return module, matmul, consumer, input_value, output_value
+
+
+def make_matmul_reg() -> tuple[ModuleOp, MatmulRegOp, test.TestOp]:
+    pointer_ops = [
+        test.TestOp(result_types=[x86.registers.UNALLOCATED_REG64]) for _ in range(4)
+    ]
+    output_op = test.TestOp(result_types=[x86.registers.UNALLOCATED_AVX512])
+    a, b, rbp, rsp = (pointer_op.results[0] for pointer_op in pointer_ops)
+    matmul = MatmulRegOp(
+        a,
+        b,
+        rbp,
+        rsp,
+        outs=(output_op.results[0],),
+        m=8,
+        n=3,
+        k=4,
+        lda=8,
+        ldb=4,
+        datatype=Float64Type(),
+        aligned_a=True,
+    )
+    consumer = test.TestOp(operands=matmul.results)
+    module = ModuleOp([*pointer_ops, output_op, matmul, consumer])
+    return module, matmul, consumer
 
 
 @pytest.mark.parametrize(
@@ -119,3 +149,58 @@ def test_set_matmul_iterator_is_noop_for_current_iterator() -> None:
     assert replacement is matmul
     assert tuple(module.body.block.ops) == original_ops
     assert tuple(consumer.operands) == tuple(matmul.results)
+
+
+@pytest.mark.parametrize(
+    ("iterator", "tile_size"),
+    [
+        (MatmulIterator.M, 8),
+        (MatmulIterator.N, 3),
+    ],
+)
+def test_loop_matmul_elides_single_iteration_loop(
+    iterator: MatmulIterator, tile_size: int
+) -> None:
+    module, matmul, consumer, _, _ = make_matmul(iterator)
+    original_ops = tuple(module.body.block.ops)
+
+    tiled = loop_matmul(PatternRewriter(matmul), matmul, tile_size)
+
+    assert tiled is matmul
+    assert tuple(module.body.block.ops) == original_ops
+    assert tuple(consumer.operands) == tuple(matmul.results)
+    assert not any(isinstance(op, x86_scf.ForOp) for op in module.walk())
+
+
+def test_tile_matmul_elides_single_iteration_loop() -> None:
+    module, matmul, _, _, _ = make_matmul(MatmulIterator.M)
+    original_ops = tuple(module.body.block.ops)
+
+    tiled, remainder = tile_matmul(PatternRewriter(matmul), matmul, 8)
+
+    assert tiled is matmul
+    assert remainder is None
+    assert tuple(module.body.block.ops) == original_ops
+
+
+def test_loop_matmul_reg_elides_single_iteration_loop() -> None:
+    module, matmul, consumer = make_matmul_reg()
+    original_ops = tuple(module.body.block.ops)
+
+    tiled = loop_matmul_reg(PatternRewriter(matmul), matmul, 4)
+
+    assert tiled is matmul
+    assert tuple(module.body.block.ops) == original_ops
+    assert tuple(consumer.operands) == tuple(matmul.results)
+    assert not any(isinstance(op, x86_scf.ForOp) for op in module.walk())
+
+
+def test_tile_matmul_reg_elides_single_iteration_loop() -> None:
+    module, matmul, _ = make_matmul_reg()
+    original_ops = tuple(module.body.block.ops)
+
+    tiled, remainder = tile_matmul_reg(PatternRewriter(matmul), matmul, 4)
+
+    assert tiled is matmul
+    assert remainder is None
+    assert tuple(module.body.block.ops) == original_ops

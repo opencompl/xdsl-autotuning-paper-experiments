@@ -25,27 +25,20 @@
 // CHECK-REGALLOC-NEXT:  .globl matmul_bac
 // CHECK-REGALLOC-NEXT:  matmul_bac:
 // CHECK-REGALLOC-NEXT:      push rbp
-// CHECK-REGALLOC-NEXT:      push rbx
 // CHECK-REGALLOC-NEXT:      push rbp
 // CHECK-REGALLOC-NEXT:      mov rbp, rsp
 // CHECK-REGALLOC-NEXT:      sub rsp, 192
 // CHECK-REGALLOC-NEXT:      mov r10, -64
 // CHECK-REGALLOC-NEXT:      and rsp, r10
-// CHECK-REGALLOC-NEXT:      mov rax, 0
-// CHECK-REGALLOC-NEXT:  scf_body_2_for:
-// CHECK-REGALLOC-NEXT:      add rax, 3
-// CHECK-REGALLOC-NEXT:      mov rcx, 0
-// CHECK-REGALLOC-NEXT:  scf_body_1_for:
-// CHECK-REGALLOC-NEXT:      add rcx, 16
 // CHECK-REGALLOC-NEXT:      vmovapd zmm5, [rdx]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm4, [rdx+64]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm3, [rdx+128]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm2, [rdx+192]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm1, [rdx+256]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm0, [rdx+320]
-// CHECK-REGALLOC-NEXT:      mov rbx, 0
+// CHECK-REGALLOC-NEXT:      mov rax, 0
 // CHECK-REGALLOC-NEXT:  scf_body_0_for:
-// CHECK-REGALLOC-NEXT:      add rbx, 4
+// CHECK-REGALLOC-NEXT:      add rax, 4
 // CHECK-REGALLOC-NEXT:      vmovapd zmm8, [rdi]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm6, [rdi+64]
 // CHECK-REGALLOC-NEXT:      vbroadcastsd zmm7, [rsi]
@@ -98,7 +91,7 @@
 // CHECK-REGALLOC-NEXT:      add rdi, 128
 // CHECK-REGALLOC-NEXT:      vfmadd231pd zmm1, zmm8, zmm7
 // CHECK-REGALLOC-NEXT:      vfmadd231pd zmm0, zmm6, zmm7
-// CHECK-REGALLOC-NEXT:      cmp rbx, 64
+// CHECK-REGALLOC-NEXT:      cmp rax, 64
 // CHECK-REGALLOC-NEXT:      jl scf_body_0_for
 // CHECK-REGALLOC-NEXT:      vmovapd [rdx], zmm5
 // CHECK-REGALLOC-NEXT:      vmovapd [rdx+64], zmm4
@@ -109,16 +102,11 @@
 // CHECK-REGALLOC-NEXT:      sub rdi, 8064
 // CHECK-REGALLOC-NEXT:      sub rsi, 512
 // CHECK-REGALLOC-NEXT:      add rdx, 128
-// CHECK-REGALLOC-NEXT:      cmp rcx, 16
-// CHECK-REGALLOC-NEXT:      jl scf_body_1_for
 // CHECK-REGALLOC-NEXT:      sub rdi, 128
 // CHECK-REGALLOC-NEXT:      add rsi, 1536
 // CHECK-REGALLOC-NEXT:      add rdx, 256
-// CHECK-REGALLOC-NEXT:      cmp rax, 3
-// CHECK-REGALLOC-NEXT:      jl scf_body_2_for
 // CHECK-REGALLOC-NEXT:      mov rsp, rbp
 // CHECK-REGALLOC-NEXT:      pop rbp
-// CHECK-REGALLOC-NEXT:      pop rbx
 // CHECK-REGALLOC-NEXT:      pop rbp
 // CHECK-REGALLOC-NEXT:      ret
 
@@ -127,25 +115,18 @@
 // CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul_bac
 // CHECK-REGALLOC-STRUCTURE-NEXT:  matmul_bac:
 // CHECK-REGALLOC-STRUCTURE-NEXT:      push rbp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      push [[K:\S+]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      push rbp
+// CHECK-REGALLOC-STRUCTURE:           push rbp
 // CHECK-REGALLOC-STRUCTURE-NEXT:      mov rbp, rsp
 // CHECK-REGALLOC-STRUCTURE-NEXT:      sub rsp, 192
 // CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[STACK_ALIGN:\S+]], -64
 // CHECK-REGALLOC-STRUCTURE-NEXT:      and rsp, [[STACK_ALIGN]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[N:\S+]], 0
-// CHECK-REGALLOC-STRUCTURE-NEXT:  scf_body_2_for:
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add [[N]], 3
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[M:\S+]], 0
-// CHECK-REGALLOC-STRUCTURE-NEXT:  scf_body_1_for:
-// CHECK-REGALLOC-STRUCTURE-NEXT:      add [[M]], 16
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC0:\S+]], [rdx]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC1:\S+]], [rdx+64]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC2:\S+]], [rdx+128]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC3:\S+]], [rdx+192]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC4:\S+]], [rdx+256]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC5:\S+]], [rdx+320]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[K]], 0
+// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[K:\S+]], 0
 // CHECK-REGALLOC-STRUCTURE-NEXT:  scf_body_0_for:
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add [[K]], 4
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[A0_K0:\S+]], [rdi]
@@ -211,15 +192,10 @@
 // CHECK-REGALLOC-STRUCTURE-NEXT:      sub rdi, 8064
 // CHECK-REGALLOC-STRUCTURE-NEXT:      sub rsi, 512
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add rdx, 128
-// CHECK-REGALLOC-STRUCTURE-NEXT:      cmp [[M]], 16
-// CHECK-REGALLOC-STRUCTURE-NEXT:      jl scf_body_1_for
 // CHECK-REGALLOC-STRUCTURE-NEXT:      sub rdi, 128
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add rsi, 1536
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add rdx, 256
-// CHECK-REGALLOC-STRUCTURE-NEXT:      cmp [[N]], 3
-// CHECK-REGALLOC-STRUCTURE-NEXT:      jl scf_body_2_for
 // CHECK-REGALLOC-STRUCTURE-NEXT:      mov rsp, rbp
 // CHECK-REGALLOC-STRUCTURE-NEXT:      pop rbp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      pop [[K]]
-// CHECK-REGALLOC-STRUCTURE-NEXT:      pop rbp
+// CHECK-REGALLOC-STRUCTURE:           pop rbp
 // CHECK-REGALLOC-STRUCTURE-NEXT:      ret

@@ -2,26 +2,18 @@
 
 // CHECK:       builtin.module {
 // CHECK-NEXT:    x86_func.func @matmul(%a: !x86.reg64<rdi>, %b: !x86.reg64<rsi>, %c: !x86.reg64<rdx>, %rbp: !x86.reg64<rbp>, %rsp: !x86.reg64<rsp>) {
-// CHECK-NEXT:      %0 = x86.di.mov 0 : () -> !x86.reg64<r11>
-// CHECK-NEXT:      %1, %a_out, %b_out, %c_out, %rbp_out, %rsp_out = x86_scf.for %2 : !x86.reg64<r11>  = %0 to 1 : si32 step 1 : si32 iter_args(%3 = %a, %4 = %b, %5 = %c, %6 = %rbp, %7 = %rsp) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
-// CHECK-NEXT:        %8 = x86.di.mov 0 : () -> !x86.reg64<r10>
-// CHECK-NEXT:        %9, %10, %11, %12, %13, %14 = x86_scf.for %15 : !x86.reg64<r10>  = %8 to 8 : si32 step 8 : si32 iter_args(%16 = %3, %17 = %4, %18 = %5, %19 = %6, %20 = %7) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) {
-// CHECK-NEXT:          %21 = x86.dm.vmovapd [%18] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm31>
-// CHECK-NEXT:          %22 = x86.dm.vmovapd [%16] : (!x86.reg64<rdi>) -> !x86.avx512reg<zmm0>
-// CHECK-NEXT:          %23 = x86.ri.add %16, 64 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:          %24 = x86.rsm.vfmadd231pd %21, %22, [%17] {broadcast} : (!x86.avx512reg<zmm31>, !x86.avx512reg<zmm0>, !x86.reg64<rsi>) -> !x86.avx512reg<zmm31>
-// CHECK-NEXT:          %25 = x86.ri.add %17, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:          x86.ms.vmovapd [%18], %24 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>) -> ()
-// CHECK-NEXT:          %26 = x86.ri.add %23, 0 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:          %27 = x86.ri.sub %25, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:          %28 = x86.ri.add %18, 64 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:          x86_scf.yield %26, %27, %28, %19, %20 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
-// CHECK-NEXT:        }
-// CHECK-NEXT:        %29 = x86.ri.sub %10, 64 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
-// CHECK-NEXT:        %30 = x86.ri.add %11, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
-// CHECK-NEXT:        %31 = x86.ri.add %12, 0 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
-// CHECK-NEXT:        x86_scf.yield %29, %30, %31, %13, %14 : !x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>
-// CHECK-NEXT:      }
+// CHECK-NEXT:      %0 = x86.dm.vmovapd [%c] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm31>
+// CHECK-NEXT:      %1 = x86.dm.vmovapd [%a] : (!x86.reg64<rdi>) -> !x86.avx512reg<zmm0>
+// CHECK-NEXT:      %2 = x86.ri.add %a, 64 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:      %3 = x86.rsm.vfmadd231pd %0, %1, [%b] {broadcast} : (!x86.avx512reg<zmm31>, !x86.avx512reg<zmm0>, !x86.reg64<rsi>) -> !x86.avx512reg<zmm31>
+// CHECK-NEXT:      %4 = x86.ri.add %b, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:      x86.ms.vmovapd [%c], %3 : (!x86.reg64<rdx>, !x86.avx512reg<zmm31>) -> ()
+// CHECK-NEXT:      %5 = x86.ri.add %2, 0 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:      %6 = x86.ri.sub %4, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:      %7 = x86.ri.add %c, 64 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+// CHECK-NEXT:      %a_out = x86.ri.sub %5, 64 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+// CHECK-NEXT:      %b_out = x86.ri.add %6, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+// CHECK-NEXT:      %c_out = x86.ri.add %7, 0 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
 // CHECK-NEXT:      x86_func.ret
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }

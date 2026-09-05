@@ -227,11 +227,13 @@ def loop_matmul(
     tile_size: int,
     loop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
 ) -> MatmulOp:
-    """Materialize an exact loop along a matmul's M or N iterator."""
+    """Tile a matmul's M or N iterator, eliding a single-iteration loop."""
     iterator = MatmulIterator(op.iterator.data)
     assert iterator in (MatmulIterator.M, MatmulIterator.N)
     extent = op.m.value.data if iterator == MatmulIterator.M else op.n.value.data
     assert 0 < tile_size <= extent and extent % tile_size == 0
+    if tile_size == extent:
+        return op
 
     init = x86.ops.DI_MovOp(0, destination=loop_register)
     inputs = (op.a, op.b, op.c, op.rbp, op.rsp, *op.outs)
@@ -271,14 +273,11 @@ def tile_matmul(
     assert iterator in (MatmulIterator.M, MatmulIterator.N)
     extent = op.m.value.data if iterator == MatmulIterator.M else op.n.value.data
     assert 0 < tile_size <= extent
-    if tile_size == extent:
-        return loop_matmul(rewriter, op, tile_size, loop_register), None
 
     blocked_end = extent // tile_size * tile_size
-    if blocked_end != extent:
-        main, remainder = split_matmul(rewriter, op, blocked_end)
-    else:
-        main, remainder = op, None
+    main, remainder = (
+        split_matmul(rewriter, op, blocked_end) if blocked_end != extent else (op, None)
+    )
     tiled = loop_matmul(rewriter, main, tile_size, loop_register)
     return tiled, remainder
 
@@ -311,9 +310,11 @@ def loop_matmul_reg(
     tile_size: int,
     loop_register: x86.registers.GeneralRegisterType = x86.registers.UNALLOCATED_REG64,
 ) -> MatmulRegOp:
-    """Materialize an exact K loop and preserve the result contract."""
+    """Tile a matmul_reg K reduction, eliding a single-iteration loop."""
     extent = op.k.value.data
     assert 0 < tile_size <= extent and extent % tile_size == 0
+    if tile_size == extent:
+        return op
 
     init = x86.ops.DI_MovOp(0, destination=loop_register)
     inputs = (op.a, op.b, op.rbp, op.rsp, *op.outs)
@@ -349,14 +350,13 @@ def tile_matmul_reg(
     """Tile matmul_reg K with an exact loop and an optional direct remainder."""
     extent = op.k.value.data
     assert 0 < tile_size <= extent
-    if tile_size == extent:
-        return loop_matmul_reg(rewriter, op, tile_size, loop_register), None
 
     blocked_end = extent // tile_size * tile_size
-    if blocked_end != extent:
-        main, remainder = split_matmul_reg(rewriter, op, blocked_end)
-    else:
-        main, remainder = op, None
+    main, remainder = (
+        split_matmul_reg(rewriter, op, blocked_end)
+        if blocked_end != extent
+        else (op, None)
+    )
     tiled = loop_matmul_reg(rewriter, main, tile_size, loop_register)
     return tiled, remainder
 
