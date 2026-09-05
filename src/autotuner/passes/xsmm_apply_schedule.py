@@ -29,9 +29,6 @@ from autotuner.skx_nano_kernel_utils import vector_register
 from autotuner.strategy import get_xsmm_strategy
 from autotuner.tiling import TilingStrategy, compute_tiling_strategy
 
-K_BLOCKING = 4
-K_THRESHOLD = 23
-
 
 def _tile_n_m(
     rewriter: PatternRewriter,
@@ -218,14 +215,13 @@ def _tile_k(
     rewriter: PatternRewriter,
     op: MatmulRegOp,
     *,
+    tile_size: int,
     kloop_register: x86.registers.GeneralRegisterType,
 ) -> tuple[MatmulRegOp, ...]:
-    if op.k.value.data <= K_THRESHOLD:
-        return (op,)
     tiled, remainder = tile_matmul_reg(
         rewriter,
         op,
-        K_BLOCKING,
+        tile_size,
         kloop_register,
     )
     return (tiled,) if remainder is None else (tiled, remainder)
@@ -286,7 +282,12 @@ class ApplySchedulePattern(RewritePattern):
                 tiled_m,
                 disable_regalloc=self.disable_regalloc,
             )
-            for tiled_k in _tile_k(rewriter, matmul_reg, kloop_register=kloop_register):
+            for tiled_k in _tile_k(
+                rewriter,
+                matmul_reg,
+                tile_size=strategy.k_tile_size,
+                kloop_register=kloop_register,
+            ):
                 self.nano_kernel.rewrite(
                     rewriter,
                     tiled_k,

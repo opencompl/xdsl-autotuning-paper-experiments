@@ -146,6 +146,7 @@ def test_single_n_range_tiling_strategy() -> None:
     assert strategy == TilingStrategy(
         m_tile_size=16,
         n_ranges=(BlockingRange(extent=28, tile_size=14),),
+        k_tile_size=16,
     )
 
 
@@ -161,4 +162,5 @@ def test_two_n_ranges_and_m_remainder_tiling_strategy() -> None:
             BlockingRange(extent=18, tile_size=6),
             BlockingRange(extent=20, tile_size=5),
         ),
+        k_tile_size=4,
     )
