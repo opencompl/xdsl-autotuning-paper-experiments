@@ -27,7 +27,7 @@ from autotuner.schedules import (
 )
 from autotuner.skx_nano_kernel_utils import vector_register
 from autotuner.strategy import get_xsmm_strategy
-from autotuner.tiling import TilingStrategy, compute_tiling_strategy
+from autotuner.tiling import BlockingRange, TilingStrategy, compute_tiling_strategy
 
 
 def _tile_n_m(
@@ -234,6 +234,7 @@ class ApplySchedulePattern(RewritePattern):
     isa_info: ISAInfo
     nano_kernel: NanoKernel
     disable_regalloc: bool
+    disable_loop_construction: bool
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: MatmulOp, rewriter: PatternRewriter, /) -> None:
@@ -250,12 +251,19 @@ class ApplySchedulePattern(RewritePattern):
             aligned_a=bool(op.aligned_a),
             aligned_c=bool(op.aligned_c),
         )
-        try:
-            strategy = compute_tiling_strategy(
-                descriptor, self.isa_info, self.nano_kernel
+        if self.disable_loop_construction:
+            strategy = TilingStrategy(
+                m_tile_size=descriptor.m,
+                n_ranges=(BlockingRange(descriptor.n, descriptor.n),),
+                k_tile_size=descriptor.k,
             )
-        except ValueError as error:
-            raise PassFailedException(str(error)) from error
+        else:
+            try:
+                strategy = compute_tiling_strategy(
+                    descriptor, self.isa_info, self.nano_kernel
+                )
+            except ValueError as error:
+                raise PassFailedException(str(error)) from error
 
         if self.disable_regalloc:
             nloop_register = x86.registers.UNALLOCATED_REG64
@@ -304,6 +312,7 @@ class XsmmApplySchedulePass(ModulePass):
 
     strategy: str = "libxsmm-skx"
     disable_regalloc: bool = False
+    disable_loop_construction: bool = False
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
         try:
@@ -313,7 +322,10 @@ class XsmmApplySchedulePass(ModulePass):
 
         PatternRewriteWalker(
             ApplySchedulePattern(
-                strategy.isa_info, strategy.nano_kernel, self.disable_regalloc
+                strategy.isa_info,
+                strategy.nano_kernel,
+                self.disable_regalloc,
+                self.disable_loop_construction,
             ),
             apply_recursively=False,
         ).rewrite_module(op)

@@ -55,7 +55,7 @@ def compute_tiling_strategy(
     isa_info: ISAInfo,
     nano_kernel: NanoKernel,
 ) -> TilingStrategy:
-    """Choose the current LIBXSMM M tile and equalized N decomposition."""
+    """Choose the current LIBXSMM tiling."""
     if not nano_kernel.supports(descriptor, isa_info):
         raise ValueError("nano-kernel does not support the GEMM descriptor")
 
