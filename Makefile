@@ -12,6 +12,12 @@ endif
 # SNAKEMAKE_SCHEDULER=greedy — needed on Apple Silicon where PuLP's bundled CBC is x86_64-only.
 SCHEDULER_FLAG = $(if $(SNAKEMAKE_SCHEDULER),--scheduler $(SNAKEMAKE_SCHEDULER),)
 
+ifeq ($(MAKE_TERMOUT),)
+PROGRESS_FLAG = --quiet rules host reason
+else
+PROGRESS_FLAG = --logger rich
+endif
+
 .PHONY: pytest
 pytest:
 	uv run pytest -W error
@@ -31,18 +37,18 @@ tests: pytest filecheck snakemake
 
 .PHONY: dataset_code
 dataset_code:
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_code $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run snakemake $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores all dataset_code $(if $(MACHINE),--config machine=$(MACHINE),)
 
 .PHONY: dataset_validate
 dataset_validate:
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_validate --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run snakemake $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores all dataset_validate --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
 
 # --cores 1 to avoid contention issues when measuring performance.
 # Run `make clean` to re-measure everything.
 # Run `make clean-ours` to re-measure just our code.
 .PHONY: dataset
 dataset: dataset_code
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 dataset $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run snakemake $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores 1 dataset $(if $(MACHINE),--config machine=$(MACHINE),)
 
 
 # Prevent Make from deleting this intermediate file

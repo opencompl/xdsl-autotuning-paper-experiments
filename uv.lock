@@ -215,6 +215,7 @@ dependencies = [
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "snakemake" },
+    { name = "snakemake-logger-plugin-rich" },
     { name = "tvm" },
     { name = "xdsl", extra = ["dev"] },
     { name = "xtc-llvm-tools" },
@@ -229,6 +230,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
     { name = "snakemake", specifier = ">=8.30.0" },
+    { name = "snakemake-logger-plugin-rich", specifier = ">=0.5.0" },
     { name = "tvm", specifier = "==0.19.0.2025010903", index = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple" },
     { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=7fba22adaa453a5bc5e60308d6b1e9f617e07455" },
     { name = "xtc-llvm-tools", specifier = "==22.1.8.2" },
@@ -3087,6 +3089,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/93/6e/f3c5b2d621fd6a6b78d8cfc01fef6b926fe2c277f5ed77c5e4deeacb94eb/snakemake_interface_storage_plugins-4.4.1.tar.gz", hash = "sha256:b2b5bf05318af36955ebf2ce76c921c0fb06904ca98fb30e1657d88b7b7b6945", size = 14924, upload-time = "2026-03-16T11:16:01.075Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b6/49/1f72d8c05d8588f06a61f1af3deb125a4ff8169d2a41f1b839d62c824d1c/snakemake_interface_storage_plugins-4.4.1-py3-none-any.whl", hash = "sha256:6e075f448543cc3d0cb1ee5e6e5a83af9761e7085f3ce0922011685d098f231e", size = 18256, upload-time = "2026-03-16T11:15:59.582Z" },
+]
+
+[[package]]
+name = "snakemake-logger-plugin-rich"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "rich" },
+    { name = "snakemake-interface-executor-plugins" },
+    { name = "snakemake-interface-logger-plugins" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e7/7b/35877d00cfe3b82c1ea0da5291fd4570fefeef480c5f5b73f2e7fd37c370/snakemake_logger_plugin_rich-0.5.0.tar.gz", hash = "sha256:2fc4d67385029a2c58fc928e27a9fd5556d49c28d98838366599412c1bf114ae", size = 18136, upload-time = "2026-07-15T17:32:19.888Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/a7/7498966f63005dc8fcf73821a3eee4ea47433a032fa56e474a71f74b06e2/snakemake_logger_plugin_rich-0.5.0-py3-none-any.whl", hash = "sha256:37ff224169bc0e4efb0db71e9cc4386abf12b270a40508705f05c3acbf0b1d0f", size = 13454, upload-time = "2026-07-15T17:32:18.811Z" },
 ]
 
 [[package]]
