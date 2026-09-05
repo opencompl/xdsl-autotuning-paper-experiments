@@ -4,8 +4,8 @@ from autotuner.nano_kernel import GemmDescriptor, RegisterCount, TileSizes
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel import (
     SKX_NANO_KERNELS,
-    SkxNanoKernel,
     AVX512Info,
+    SkxNanoKernel,
     get_skx_nano_kernel,
 )
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
