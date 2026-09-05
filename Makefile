@@ -12,6 +12,15 @@ endif
 # SNAKEMAKE_SCHEDULER=greedy — needed on Apple Silicon where PuLP's bundled CBC is x86_64-only.
 SCHEDULER_FLAG = $(if $(SNAKEMAKE_SCHEDULER),--scheduler $(SNAKEMAKE_SCHEDULER),)
 
+# only use rich logging in interactive terminal
+ifeq ($(MAKE_TERMOUT),)
+PROGRESS_FLAG = --quiet rules host reason
+else
+PROGRESS_FLAG = --logger rich
+endif
+
+RATE_FLAG = --max-jobs-per-timespan 100000/1s
+
 .PHONY: pytest
 pytest:
 	uv run pytest -W error
@@ -22,7 +31,7 @@ filecheck:
 
 .PHONY: snakemake
 snakemake:
-	uv run snakemake tests $(SCHEDULER_FLAG) --quiet all --cores all --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run snakemake tests $(RATE_FLAG) $(SCHEDULER_FLAG) --quiet all --cores all --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
 
 .PHONY: tests
 tests: pytest filecheck snakemake
@@ -31,24 +40,24 @@ tests: pytest filecheck snakemake
 
 .PHONY: dataset_code
 dataset_code:
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_code $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run snakemake $(RATE_FLAG) $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores all dataset_code $(if $(MACHINE),--config machine=$(MACHINE),)
 
 .PHONY: dataset_validate
 dataset_validate:
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores all dataset_validate --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run snakemake $(RATE_FLAG) $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores all dataset_validate --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
 
 # --cores 1 to avoid contention issues when measuring performance.
 # Run `make clean` to re-measure everything.
 # Run `make clean-ours` to re-measure just our code.
 .PHONY: dataset
 dataset: dataset_code
-	uv run snakemake $(SCHEDULER_FLAG) --quiet --cores 1 dataset $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run snakemake $(RATE_FLAG) $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores 1 dataset $(if $(MACHINE),--config machine=$(MACHINE),)
 
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(MACHINE)/f64.bars.jsonl
 data/$(MACHINE)/f64.bars.jsonl:
-	uv run snakemake $(SCHEDULER_FLAG) --cores 1 $@ --config machine=$(MACHINE)
+	uv run snakemake $(RATE_FLAG) $(SCHEDULER_FLAG) --cores 1 $@ --config machine=$(MACHINE)
 
 PLOTS =
 
