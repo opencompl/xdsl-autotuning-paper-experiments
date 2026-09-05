@@ -229,7 +229,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.1" },
-    { name = "snakemake", specifier = ">=8.30.0" },
+    { name = "snakemake", specifier = ">=9.0" },
     { name = "snakemake-logger-plugin-rich", specifier = ">=0.5.0" },
     { name = "tvm", specifier = "==0.19.0.2025010903", index = "https://gitlab.inria.fr/api/v4/groups/corse/-/packages/pypi/simple" },
     { name = "xdsl", extras = ["dev"], git = "https://github.com/xdslproject/xdsl.git?rev=7fba22adaa453a5bc5e60308d6b1e9f617e07455" },
