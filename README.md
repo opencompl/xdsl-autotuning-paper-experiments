@@ -124,6 +124,54 @@ can force unsupported instructions. Measurements set both `OMP_NUM_THREADS=1` an
 Once this smoke test passes, `make dataset_validate TARGET=tower` validates the full
 tower dataset and `make dataset TARGET=tower` collects its measurements.
 
+### Lighthouse pipeline
+
+The `lighthouse` variant compiles the matmul with the
+[Lighthouse](https://github.com/libxsmm/lighthouse) project's own pipeline. The
+repository is a Nix flake input (pinned in `flake.lock`), built by
+[`nix/lighthouse.nix`](nix/lighthouse.nix) together with the MLIR Python bindings
+it depends on ([`nix/mlir-python-bindings.nix`](nix/mlir-python-bindings.nix)),
+and exposed as the `lighthouse-python` interpreter in the dev shell, the default
+toolchain, and therefore the Docker image. Nothing from Lighthouse is copied into
+this repository: the pipeline descriptor and the transform schedules it includes
+are looked up in the installed package with `find_pipeline_file`, which selects
+`x86_64/matmul/f32.yaml` for the host machine.
+
+[`scripts/lighthouse_codegen.py`](scripts/lighthouse_codegen.py) drives it. Note
+that this script runs under `lighthouse-python`, not under the project's uv
+environment, so Lighthouse's nightly LLVM/MLIR stays out of `pyproject.toml`. It
+takes [`kernels/matmul_rowmaj/lighthouse.mlir`](kernels/matmul_rowmaj/lighthouse.mlir)
+— the same `linalg.matmul` payload as the other MLIR variants, with the result
+returned rather than dropped, because Lighthouse schedules at the tensor level
+and would otherwise fold a dead matmul away — and writes an object file, which
+[`kernels/matmul_rowmaj/lighthouse_shim.c`](kernels/matmul_rowmaj/lighthouse_shim.c)
+adapts to the `void matmul(A, B, C)` the drivers call.
+
+Consequences of using the pipeline as it ships:
+
+- **f32 and x86-64 only.** Lighthouse ships no f64 descriptor, so the variant
+  takes part in the f32 half of the `ttile` sweep only.
+- **Codegen runs on the machine being measured.** The object file comes out of
+  Lighthouse's JIT, which targets the host, so unlike the other variants this
+  one cannot be cross-compiled for another machine.
+- **The kernel is parallelized with OpenMP** by the pipeline's `lower.yaml`
+  stage, and packs its operands at run time. Measurements stay single-threaded
+  because the `time` rule sets `OMP_NUM_THREADS=1`.
+
+Smoke-test the flow on a new machine with:
+
+```sh
+nix develop
+uv run snakemake --cores 1 --forceall \
+  build/rapper/matmul_rowmaj/8x128x128/lighthouse.f32.test.log \
+  --config machine=rapper
+```
+
+To move to a newer Lighthouse, run `nix flake update lighthouse` and set the
+`version` and hashes in [`nix/mlir-python-bindings.nix`](nix/mlir-python-bindings.nix)
+to the `mlir-python-bindings` pin in Lighthouse's `pyproject.toml`; the build
+fails with a diagnostic if the two disagree.
+
 ### Plotting
 
 Plot data using `make plots`; this command fails when required input data is
