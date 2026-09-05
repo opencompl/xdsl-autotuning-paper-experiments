@@ -12,6 +12,7 @@ endif
 # SNAKEMAKE_SCHEDULER=greedy — needed on Apple Silicon where PuLP's bundled CBC is x86_64-only.
 SCHEDULER_FLAG = $(if $(SNAKEMAKE_SCHEDULER),--scheduler $(SNAKEMAKE_SCHEDULER),)
 
+# only use rich logging in interactive terminal
 ifeq ($(MAKE_TERMOUT),)
 PROGRESS_FLAG = --quiet rules host reason
 else
