@@ -413,7 +413,7 @@ rule libxtcmm_rowmaj_mlir:
         #     ^          ^          ^        <- leading dimensions
         # Emits `void matmul(A, B, C)` with the direct row-major ABI, so it links
         # into the timing/validation drivers exactly like the other variants.
-        libxtcmm-gemm dense {output} matmul \
+        libxtcmm-gemm --mask-tail dense {output} matmul \
             {wildcards.n} {wildcards.m} {wildcards.k} \
             {wildcards.n} {wildcards.k} {wildcards.n} \
             1 1 \
@@ -444,9 +444,9 @@ rule libxtcmm_s:
         {params.mlir_bin}/mlir-opt {input.mlir} \
             -pass-pipeline="builtin.module({params.passes})" -o {output}.llvm.mlir
         {params.mlir_bin}/mlir-translate --mlir-to-llvmir {output}.llvm.mlir -o {output}.ll
-        {params.llvm_bin}/opt -O2 --fp-contract=fast \
+        {params.mlir_bin}/opt -O2 --fp-contract=fast --disable-loop-unrolling \
             -mtriple={params.triple} -mcpu={params.march} {output}.ll -o {output}.bc
-        {params.llvm_bin}/llc -O2 -filetype=asm \
+        {params.mlir_bin}/llc -O2 -filetype=asm -pre-RA-sched=list-ilp \
             -mtriple={params.triple} -mcpu={params.march} {output}.bc -o {output}
         """
 
