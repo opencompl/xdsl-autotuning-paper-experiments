@@ -1,6 +1,6 @@
 """A sweep over square matmuls, one curve per implementation.
 
-    uv run plot-squares data/rapper/f64.squares.jsonl --output plots/rapper/f64.squares.pdf
+    uv run plot-squares data/rapper/f64.squares.jsonl --output plots/f64.squares.rapper.pdf
 
 The figure is one column wide: the x axis is the problem size, with M = N = K
 set to each of 1..64, and the y axis is throughput as a share of machine peak.

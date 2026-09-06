@@ -92,7 +92,7 @@ PLOTS += plots/rapper/f64.ttile.png
 PLOTS += plots/rapper/f64.ttile_squares.png
 PLOTS += plots/rapper/f64.ttile_combined.png
 PLOTS += plots/rapper/f64.heatmap.png
-PLOTS += plots/rapper/f64.squares.pdf
+PLOTS += plots/f64.squares.rapper.pdf
 
 PLOTS += plots/ttile.pdf
 
@@ -112,8 +112,10 @@ plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile
 plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 	uv run plot-heatmap $< --output $@
 
-# A paper figure, so a PDF rather than a PNG: LaTeX gets the vector text.
-plots/%.squares.pdf: data/%.squares.jsonl src/autotuner/plot_squares.py src/autotuner/plot_style.py
+# A paper figure, so a PDF rather than a PNG: LaTeX gets the vector text.  It
+# goes straight in plots/ with the machine last in the name, the way the paper
+# includes it; here `%` is the machine on its own.
+plots/f64.squares.%.pdf: data/%/f64.squares.jsonl src/autotuner/plot_squares.py src/autotuner/plot_style.py
 	uv run plot-squares $< --output $@
 
 .PHONY: plots
