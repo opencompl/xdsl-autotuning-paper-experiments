@@ -29,6 +29,8 @@ from xdsl.irdl import (
     var_operand_def,
     var_result_def,
 )
+from xdsl.parser import Parser
+from xdsl.printer import Printer
 from xdsl.traits import MemoryReadEffect, MemoryWriteEffect
 from xdsl.utils.exceptions import VerifyException
 
@@ -38,6 +40,38 @@ class MatmulIterator(StrEnum):
     M = "m"
     N = "n"
     K = "k"
+
+
+def _parse_variadic_operands(parser: Parser, keyword: str) -> tuple[SSAValue, ...]:
+    if not parser.parse_optional_keyword(keyword):
+        return ()
+
+    operands_pos = parser.pos
+    parser.parse_punctuation("(")
+    unresolved_operands = parser.parse_comma_separated_list(
+        Parser.Delimiter.NONE, parser.parse_unresolved_operand
+    )
+    parser.parse_punctuation(":")
+    operand_types = parser.parse_comma_separated_list(
+        Parser.Delimiter.NONE, parser.parse_type
+    )
+    parser.parse_punctuation(")")
+    return tuple(
+        parser.resolve_operands(unresolved_operands, operand_types, operands_pos)
+    )
+
+
+def _print_variadic_operands(
+    printer: Printer, keyword: str, operands: Sequence[SSAValue]
+) -> None:
+    if not operands:
+        return
+
+    printer.print_string(f" {keyword}(")
+    printer.print_list(operands, printer.print_ssa_value)
+    printer.print_string(" : ")
+    printer.print_list(operands, lambda operand: printer.print_attribute(operand.type))
+    printer.print_string(")")
 
 
 class AccumulatorAddOp(
@@ -157,6 +191,70 @@ class MatmulOp(IRDLOperation):
                 "iterator": StringAttr(iterator),
             },
         )
+
+    @classmethod
+    def parse(cls, parser: Parser) -> "MatmulOp":
+        operands_pos = parser.pos
+        unresolved_a = parser.parse_unresolved_operand()
+        parser.parse_punctuation(",")
+        unresolved_b = parser.parse_unresolved_operand()
+        parser.parse_punctuation(",")
+        unresolved_c = parser.parse_unresolved_operand()
+
+        attributes = parser.parse_optional_attr_dict()
+        ins = _parse_variadic_operands(parser, "ins")
+        outs = _parse_variadic_operands(parser, "outs")
+
+        parser.parse_punctuation(":")
+        pointer_types = parser.parse_comma_separated_list(
+            Parser.Delimiter.PAREN, parser.parse_type
+        )
+        if len(pointer_types) != 3:
+            parser.raise_error("expected exactly three pointer types")
+
+        a, b, c = parser.resolve_operands(
+            (unresolved_a, unresolved_b, unresolved_c), pointer_types, operands_pos
+        )
+        property_names = cls.get_irdl_definition().properties
+        properties = {
+            name: value for name, value in attributes.items() if name in property_names
+        }
+        attributes = {
+            name: value
+            for name, value in attributes.items()
+            if name not in property_names
+        }
+
+        return cls.build(
+            operands=(a, b, c, ins, outs),
+            result_types=(a.type, b.type, c.type, tuple(out.type for out in outs)),
+            properties=properties,
+            attributes=attributes,
+        )
+
+    def print(self, printer: Printer) -> None:
+        printer.print_string(" ")
+        printer.print_ssa_value(self.a)
+        printer.print_string(", ")
+        printer.print_ssa_value(self.b)
+        printer.print_string(", ")
+        printer.print_ssa_value(self.c)
+
+        attributes = {**self.properties, **self.attributes}
+        attributes.pop("operandSegmentSizes", None)
+        attributes.pop("resultSegmentSizes", None)
+        if attributes:
+            printer.print_op_attributes(attributes)
+
+        _print_variadic_operands(printer, "ins", self.ins)
+        _print_variadic_operands(printer, "outs", self.outs)
+
+        printer.print_string(" : (")
+        printer.print_list(
+            (self.a, self.b, self.c),
+            lambda operand: printer.print_attribute(operand.type),
+        )
+        printer.print_string(")")
 
     def verify_(self) -> None:
         try:
@@ -281,6 +379,66 @@ class MatmulRegOp(IRDLOperation):
                 "aligned_a": BoolAttr.from_bool(aligned_a),
             },
         )
+
+    @classmethod
+    def parse(cls, parser: Parser) -> "MatmulRegOp":
+        operands_pos = parser.pos
+        unresolved_a = parser.parse_unresolved_operand()
+        parser.parse_punctuation(",")
+        unresolved_b = parser.parse_unresolved_operand()
+
+        attributes = parser.parse_optional_attr_dict()
+        ins = _parse_variadic_operands(parser, "ins")
+        outs = _parse_variadic_operands(parser, "outs")
+
+        parser.parse_punctuation(":")
+        pointer_types = parser.parse_comma_separated_list(
+            Parser.Delimiter.PAREN, parser.parse_type
+        )
+        if len(pointer_types) != 2:
+            parser.raise_error("expected exactly two pointer types")
+
+        a, b = parser.resolve_operands(
+            (unresolved_a, unresolved_b), pointer_types, operands_pos
+        )
+        property_names = cls.get_irdl_definition().properties
+        properties = {
+            name: value for name, value in attributes.items() if name in property_names
+        }
+        attributes = {
+            name: value
+            for name, value in attributes.items()
+            if name not in property_names
+        }
+
+        return cls.build(
+            operands=(a, b, ins, outs),
+            result_types=(a.type, b.type, tuple(out.type for out in outs)),
+            properties=properties,
+            attributes=attributes,
+        )
+
+    def print(self, printer: Printer) -> None:
+        printer.print_string(" ")
+        printer.print_ssa_value(self.a)
+        printer.print_string(", ")
+        printer.print_ssa_value(self.b)
+
+        attributes = {**self.properties, **self.attributes}
+        attributes.pop("operandSegmentSizes", None)
+        attributes.pop("resultSegmentSizes", None)
+        if attributes:
+            printer.print_op_attributes(attributes)
+
+        _print_variadic_operands(printer, "ins", self.ins)
+        _print_variadic_operands(printer, "outs", self.outs)
+
+        printer.print_string(" : (")
+        printer.print_list(
+            (self.a, self.b),
+            lambda operand: printer.print_attribute(operand.type),
+        )
+        printer.print_string(")")
 
     def verify_(self) -> None:
         integer_properties = {
