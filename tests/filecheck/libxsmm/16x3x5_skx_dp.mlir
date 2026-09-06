@@ -8,12 +8,12 @@
 // CHECK-MANUAL-NEXT:  .text
 // CHECK-MANUAL-NEXT:  .globl matmul_bac
 // CHECK-MANUAL-NEXT:  matmul_bac:
-// CHECK-MANUAL-NEXT:      push rbp
-// CHECK-MANUAL-NEXT:      push rbp
-// CHECK-MANUAL-NEXT:      mov rbp, rsp
-// CHECK-MANUAL-NEXT:      sub rsp, 192
-// CHECK-MANUAL-NEXT:      mov r10, -64
-// CHECK-MANUAL-NEXT:      and rsp, r10
+// CHECK-LIBXSMM-NEXT:      push rbp
+// CHECK-LIBXSMM-NEXT:      push rbp
+// CHECK-LIBXSMM-NEXT:      mov rbp, rsp
+// CHECK-LIBXSMM-NEXT:      sub rsp, 192
+// CHECK-LIBXSMM-NEXT:      mov r10, -64
+// CHECK-LIBXSMM-NEXT:      and rsp, r10
 // CHECK-LIBXSMM-NEXT:      mov r11, 0
 // CHECK-LIBXSMM-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-LIBXSMM-NEXT:      add r11, 3
@@ -111,21 +111,21 @@
 // CHECK-COMPXSMM-NEXT:    add rdx, 256
 // CHECK-LIBXSMM-NEXT:      cmp r11, 3
 // CHECK-LIBXSMM-NEXT:      jl [[SCF_N_BODY]]
-// CHECK-MANUAL-NEXT:      mov rsp, rbp
-// CHECK-MANUAL-NEXT:      pop rbp
-// CHECK-MANUAL-NEXT:      pop rbp
+// CHECK-LIBXSMM-NEXT:      mov rsp, rbp
+// CHECK-LIBXSMM-NEXT:      pop rbp
+// CHECK-LIBXSMM-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      ret
 
 // CHECK-SWAP:       .intel_syntax noprefix
 // CHECK-SWAP-NEXT:  .text
 // CHECK-SWAP-NEXT:  .globl matmul
 // CHECK-SWAP-NEXT:  matmul:
-// CHECK-SWAP-NEXT:      push rbp
-// CHECK-SWAP-NEXT:      push rbp
-// CHECK-SWAP-NEXT:      mov rbp, rsp
-// CHECK-SWAP-NEXT:      sub rsp, 192
-// CHECK-SWAP-NEXT:      mov r10, -64
-// CHECK-SWAP-NEXT:      and rsp, r10
+// CHECK-SWAP-LIBXSMM-NEXT:      push rbp
+// CHECK-SWAP-LIBXSMM-NEXT:      push rbp
+// CHECK-SWAP-LIBXSMM-NEXT:      mov rbp, rsp
+// CHECK-SWAP-LIBXSMM-NEXT:      sub rsp, 192
+// CHECK-SWAP-LIBXSMM-NEXT:      mov r10, -64
+// CHECK-SWAP-LIBXSMM-NEXT:      and rsp, r10
 // CHECK-SWAP-LIBXSMM-NEXT:      mov r11, 0
 // CHECK-SWAP-LIBXSMM-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-SWAP-LIBXSMM-NEXT:      add r11, 3
@@ -223,9 +223,9 @@
 // CHECK-SWAP-COMPXSMM-NEXT:    add rdx, 256
 // CHECK-SWAP-LIBXSMM-NEXT:      cmp r11, 3
 // CHECK-SWAP-LIBXSMM-NEXT:      jl [[SCF_N_BODY]]
-// CHECK-SWAP-NEXT:      mov rsp, rbp
-// CHECK-SWAP-NEXT:      pop rbp
-// CHECK-SWAP-NEXT:      pop rbp
+// CHECK-SWAP-LIBXSMM-NEXT:      mov rsp, rbp
+// CHECK-SWAP-LIBXSMM-NEXT:      pop rbp
+// CHECK-SWAP-LIBXSMM-NEXT:      pop rbp
 // CHECK-SWAP-NEXT:      ret
 
 // CHECK:       builtin.module {

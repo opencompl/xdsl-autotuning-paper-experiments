@@ -2,16 +2,7 @@
 // RUN: compxsmm-gemm dense %t matmul_bac 70 38 128 70 128 70 1 1 1 1 skx nopf SP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
 
 // CHECK:       x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
-// CHECK-NEXT:    %3 = x86.get_register : !x86.reg64<rbp>
-// CHECK-NEXT:    %4 = x86.get_register : !x86.reg64<rsp>
-// CHECK-NEXT:    %5 = x86.s.push %4, %3 : (!x86.reg64<rsp>, !x86.reg64<rbp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %6 = x86.ds.mov %5 : (!x86.reg64<rsp>) -> !x86.reg64<rbp>
-// CHECK-NEXT:    %7 = x86.ri.sub %5, 192 : (!x86.reg64<rsp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %8 = x86.di.mov -64 : () -> !x86.reg64<r10>
-// CHECK-NEXT:    %9 = x86.rs.and %7, %8 : (!x86.reg64<rsp>, !x86.reg64<r10>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %10, %11, %12 = "xsmm.matmul"(%0, %1, %2) <{m = 70 : i64, n = 38 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
-// CHECK-NEXT:    %13 = x86.ds.mov %6 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %14, %15 = x86.d.pop %13 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
+// CHECK-NEXT:    %3, %4, %5 = "xsmm.matmul"(%0, %1, %2) <{m = 70 : i64, n = 38 : i64, k = 128 : i64, lda = 70 : i64, ldb = 128 : i64, ldc = 70 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
 // CHECK-NEXT:    x86_func.ret
 // CHECK-NEXT:  }
 
@@ -19,12 +10,6 @@
 // CHECK-REGALLOC-NEXT:  .text
 // CHECK-REGALLOC-NEXT:  .globl matmul_bac
 // CHECK-REGALLOC-NEXT:  matmul_bac:
-// CHECK-REGALLOC-NEXT:      push rbp
-// CHECK-REGALLOC-NEXT:      push rbp
-// CHECK-REGALLOC-NEXT:      mov rbp, rsp
-// CHECK-REGALLOC-NEXT:      sub rsp, 192
-// CHECK-REGALLOC-NEXT:      mov r10, -64
-// CHECK-REGALLOC-NEXT:      and rsp, r10
 // CHECK-REGALLOC-NEXT:      mov rax, 0
 // CHECK-REGALLOC-NEXT:  scf_body_2_for:
 // CHECK-REGALLOC-NEXT:      add rax, 6
@@ -553,7 +538,4 @@
 // CHECK-REGALLOC-NEXT:      add rdx, 1120
 // CHECK-REGALLOC-NEXT:      cmp rax, 20
 // CHECK-REGALLOC-NEXT:      jl scf_body_5_for
-// CHECK-REGALLOC-NEXT:      mov rsp, rbp
-// CHECK-REGALLOC-NEXT:      pop rbp
-// CHECK-REGALLOC-NEXT:      pop rbp
 // CHECK-REGALLOC-NEXT:      ret

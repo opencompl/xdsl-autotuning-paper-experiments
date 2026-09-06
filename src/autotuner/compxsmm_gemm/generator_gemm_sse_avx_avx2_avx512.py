@@ -27,9 +27,7 @@ from autotuner.libxsmm_gemm.generator_common import (
     MicroKernelConfig,
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
-    libxsmm_generator_gemm_destroy_stack_frame,
     libxsmm_generator_gemm_init_micro_kernel_config,
-    libxsmm_generator_gemm_setup_stack_frame,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
@@ -335,11 +333,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     if GEMMFlag.USE_XGEMM_EXT_ABI in desc.flags or micro_kernel_config.vnni_format_C:
         raise NotImplementedError
 
-    # Setting up the stack frame
-    rbp_val, _ = libxsmm_generator_gemm_setup_stack_frame(
-        generated_code, desc, gp_reg_mapping, micro_kernel_config
-    )
-
     # In this case we store C to scratch */
     if micro_kernel_config.vnni_format_C:
         raise NotImplementedError
@@ -427,8 +420,3 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:
         raise NotImplementedError
-
-    # destroy stack frame
-    libxsmm_generator_gemm_destroy_stack_frame(
-        generated_code, desc, gp_reg_mapping, micro_kernel_config, rbp_val
-    )
