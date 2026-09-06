@@ -8,6 +8,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "matplotlib>=3.10.3",
     "pandas>=2.3.1",
+    "rich>=13.0",
     "snakemake>=9.0",
     "snakemake-logger-plugin-rich>=0.5.0",
     "tvm==0.19.0.2025010903",
@@ -40,6 +41,8 @@ tvm = { index = "corse" }
 
 [project.scripts]
 hello = "autotuner.main:main"
+evaluate = "autotuner.evaluate:main"
+build-dataset = "autotuner.build:main"
 plot-ttile = "autotuner.plot_ttile:main"
 plot-ttile-squares = "autotuner.plot_ttile_squares:main"
 plot-ttile-combined = "autotuner.plot_ttile_combined:main"

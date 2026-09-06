@@ -1,12 +1,14 @@
+from collections.abc import Sequence
 from pathlib import Path
+
 from autotuner.libxsmm_gemm.generator_gemm import libxsmm_generator_gemm_directasm
+from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
 from autotuner.libxsmm_gemm.libxsmm_macros import gemm_flags
 from autotuner.libxsmm_gemm.libxsmm_main import DescDatatype, GEMMDescriptor, GEMMFlag
-from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> None:
     from argparse import ArgumentParser
 
     parser = ArgumentParser(
@@ -41,7 +43,7 @@ def main():
         help="Precision: SP or DP",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.density not in ["dense", "dense_asm"]:
         if args.density in ["sparse", "sparse_csr"]:
