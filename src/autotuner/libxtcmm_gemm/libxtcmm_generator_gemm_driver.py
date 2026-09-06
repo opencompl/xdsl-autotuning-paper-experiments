@@ -9,6 +9,7 @@ docstrings for the dimension mapping and the register-resident scope.
 
 import sys
 from argparse import ArgumentParser
+from collections.abc import Sequence
 from pathlib import Path
 
 from autotuner.libxsmm_gemm.libxsmm_cpuid import ARCH_BY_CODE, Arch
@@ -19,7 +20,7 @@ from autotuner.libxtcmm_gemm.plan import compute_plan
 from autotuner.libxtcmm_gemm.schedule import emit_mlir
 
 
-def main():
+def main(argv: Sequence[str] | None = None) -> None:
     parser = ArgumentParser(
         description=(
             "Apply the LIBXSMM GEMM schedule to a matmul via the XTC scheduler "
@@ -73,7 +74,7 @@ def main():
         ),
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # `precision` and `arch` are already constrained by argparse `choices`.
     dt = Datatype.F32 if args.precision == "SP" else Datatype.F64

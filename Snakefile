@@ -4,6 +4,13 @@ import glob
 import os
 import shutil
 
+from autotuner.datasets import (
+    dataset_samples,
+    machine_base,
+    machine_file,
+    variant_filename,
+)
+
 ########################################################################################
 # Build
 ########################################################################################
@@ -62,25 +69,11 @@ def compiler_mtune(wildcards):
 def machine_isa(wildcards):
     return machine_config(wildcards).isa
 
-def machine_family(wildcards):
-    return machine_config(wildcards).family
-
 def machine_linker_flag(wildcards):
     return machine_config(wildcards).linker_flag
 
 def machine_freq(wildcards):
     return machine_config(wildcards).freq
-
-def machine_peak_flops(wildcards):
-    match wildcards.dtype:
-        case 'f32':
-            factor = 1.0
-        case 'f64':
-            factor = 2.0
-        case _:
-            assert False
-    flops_per_cycle = machine_config(wildcards).peak_f32 / factor
-    return flops_per_cycle
 
 def machine_libs(wildcards):
     libs = machine_config(wildcards).libs
@@ -104,44 +97,8 @@ def libxsmm_arch(wildcards):
         )
     return arch
 
-def machine_libxsmm_arch_json(wildcards):
-    arch = machine_config(wildcards).libxsmm_arch
-    return "null" if arch is None else f'"{arch}"'
-
 def machine_libs_opts(wildcards):
     return " ".join(f"-l{x}" for x in machine_libs(wildcards))
-
-# Path management
-
-def machine_base(
-        machine = "{machine}",
-        kernel = "{kernel}",
-        m = "{m}",
-        n = "{n}",
-        k = "{k}"
-):
-    return f"build/{machine}/{kernel}/{m}x{n}x{k}"
-
-def variant_filename(
-        ext,
-        variant = "{variant}",
-        dtype = "{dtype}"
-):
-    return f"{variant}.{dtype}.{ext}"
-
-def machine_file(
-    ext,
-    machine = "{machine}",
-    kernel = "{kernel}",
-    m = "{m}",
-    n = "{n}",
-    k = "{k}",
-    variant = "{variant}",
-    dtype = "{dtype}",
-):
-    base = machine_base(machine=machine, kernel=kernel, m=m, n=n, k=k)
-    var = variant_filename(variant=variant, dtype=dtype, ext=ext)
-    return f"{base}/{var}"
 
 LIBXSMM_GEMM_SOURCES = sorted(
     glob.glob("src/autotuner/libxsmm_gemm/**/*.py", recursive=True)
@@ -549,41 +506,6 @@ rule time:
     params: machine_env=machine_env,
     shell: 'OMP_NUM_THREADS=1 BLIS_NUM_THREADS=1 {params.machine_env} {input} > {output}'
 
-rule flops:
-    input: "kernels/{kernel}/flops.sh"
-    output: "build/{machine}/{kernel}/{m}x{n}x{k}/flops.txt"
-    shell: "./{input} {wildcards.m} {wildcards.n} {wildcards.k} > {output}"
-
-rule json:
-    input:
-        time_txt=machine_file(ext="time.txt"),
-        flops_txt="build/{machine}/{kernel}/{m}x{n}x{k}/flops.txt"
-    output:
-        json=machine_file(ext="json")
-    params:
-        machine_peak_flops=machine_peak_flops,
-        machine_family=machine_family,
-        machine_isa=machine_isa,
-        compiler_march=compiler_march,
-        libxsmm_arch_json=machine_libxsmm_arch_json,
-    shell:
-        """
-        M={wildcards.m}
-        N={wildcards.n}
-        K={wildcards.k}
-        PEAK="{params.machine_peak_flops}"
-        FLOPS=$(head -n 1 {input.flops_txt} | tr -d '[:space:]')
-        TIME=$(head -n 1 {input.time_txt} | tr -d '[:space:]')
-        VARIANT="{wildcards.variant}"
-        MACHINE="{wildcards.machine}"
-        FAMILY="{params.machine_family}"
-        ISA="{params.machine_isa}"
-        COMPILER_MARCH="{params.compiler_march}"
-        LIBXSMM_ARCH='{params.libxsmm_arch_json}'
-        DTYPE="{wildcards.dtype}"
-        echo '{{"M":'${{M}}',"N":'${{N}}',"K":'${{K}}',"peak":'${{PEAK}}',"flops":'${{FLOPS}}',"time":'${{TIME}}',"variant":"'${{VARIANT}}'","machine":"'${{MACHINE}}'","family":"'${{FAMILY}}'","isa":"'${{ISA}}'","compiler_march":"'${{COMPILER_MARCH}}'","libxsmm_arch":'${{LIBXSMM_ARCH}}',"dtype":"'${{DTYPE}}'"}}' > {output.json}
-        """
-
 ########################################################################################
 # Dataset
 ########################################################################################
@@ -592,95 +514,32 @@ rule json:
 # MACHINE=NAME for Make, or adding MACHINE=NAME to .env.
 THIS_MACHINE = config["machine"]
 
-DATASET_VARIANTS = {
-    "neon": {
-        "ttile": ["naive_c"],
-        "f64.small_matrices": [],
-    },
-    "tower": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
-    },
-    "pinocchio": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
-        "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
-    },
-    "rapper": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
-        "f64.small_matrices": ["libxsmm", "aocl", "xdsl_libxsmm", "compxsmm", "libxtcmm"],
-    },
-    "ci": {
-        "ttile": ["naive_c"],
-        "f64.small_matrices": [],
-    },
-}[THIS_MACHINE]
+# What each dataset measures lives in autotuner.datasets, which the evaluate
+# script shares; `uv run evaluate` builds these, times them and writes the
+# jsonl.  The build itself is `autotuner.build` rather than a rule here: at
+# ~37k sub-second jobs Snakemake's dispatch loop, not the machine, was the
+# limit.  What is left is validation, which is a handful of jobs per sample.
+DATASETS = dataset_samples(THIS_MACHINE)
 
-# Values are missing the extension
-# The extension is added in the dataset rules below
-DATASET_BASES = {
-    "f32.ttile": expand(
-        machine_file(
-            kernel="matmul_rowmaj",
-            n="128",
-            k="128",
-            dtype="f32",
-            ext="",
-            machine=THIS_MACHINE,
-        ),
-        variant=DATASET_VARIANTS["ttile"],
-        m=range(8, 50, 2),
-    ),
-    "f64.ttile": expand(
-        machine_file(
-            kernel="matmul_rowmaj",
-            n="64",
-            k="64",
-            dtype="f64",
-            ext="",
-            machine=THIS_MACHINE,
-        ),
-        variant=DATASET_VARIANTS["ttile"], # + ["transform_xdsl"]
-        m=range(9, 63, 3),
-    ),
-    "f64.small_matrices": expand(
-        machine_file(
-            kernel="matmul_rowmaj",
-            k="64",
-            dtype="f64",
-            ext="",
-            machine=THIS_MACHINE,
-        ),
-        m=range(1, 17),
-        n=range(1, 17),
-        variant=DATASET_VARIANTS["f64.small_matrices"]
-    )
-}
+# `--config datasets=a,b` narrows the build to the datasets being evaluated.
+SELECTED = (
+    config["datasets"].split(",") if config.get("datasets") else list(DATASETS)
+)
 
-# If a dataset has no samples skip it here and in the dataset rule below
-for dataset, samples in DATASET_BASES.items():
-    if samples:
-        rule:
-            input: [base + "json" for base in samples]
-            output: f"data/{THIS_MACHINE}/{dataset}.jsonl"
-            shell: "cat {input} > {output}"
+def dataset_files(ext):
+    """Every distinct file of this kind the selected datasets need."""
+    return list(dict.fromkeys(
+        sample.path(THIS_MACHINE, ext)
+        for name in SELECTED
+        for sample in DATASETS[name]
+    ))
 
-rule dataset_code:
-    input: [p + "time.o" for p in flatten(DATASET_BASES.values())]
+# The timing kernels are built by `uv run build-dataset` (see `make
+# dataset_code`); building them here as well would relink every binary and so
+# invalidate every cached measurement.
 
 rule dataset_validate:
-    input: [p + "test.log" for p in flatten(DATASET_BASES.values())]
-
-rule dataset:
-    input:
-        expand(
-            "data/{machine}/{dataset}.jsonl",
-            machine=THIS_MACHINE,
-            dataset=tuple(
-                dataset
-                for dataset, samples in DATASET_BASES.items()
-                if samples
-            ),
-        )
+    input: dataset_files("test.log")
 
 ########################################################################################
 # CI

@@ -8,9 +8,14 @@ ifneq ("$(wildcard .env)","")
 	export
 endif
 
-# Empty by default (Snakemake uses its ILP scheduler). Override in .env, e.g.
-# SNAKEMAKE_SCHEDULER=greedy — needed on Apple Silicon where PuLP's bundled CBC is x86_64-only.
-SCHEDULER_FLAG = $(if $(SNAKEMAKE_SCHEDULER),--scheduler $(SNAKEMAKE_SCHEDULER),)
+# Snakemake's main loop dispatches ~120 jobs/s whichever scheduler is chosen
+# (measured on rapper: greedy 126/s, ILP 119/s), so on a DAG of sub-second jobs
+# it, not the machine, is the bottleneck -- which is why the datasets are built
+# by `build-dataset` instead.  Greedy still wins slightly here, and it is the
+# only option on Apple Silicon, where PuLP's bundled CBC is x86_64-only.
+# Override with SNAKEMAKE_SCHEDULER=ilp in .env.
+SNAKEMAKE_SCHEDULER ?= greedy
+SCHEDULER_FLAG = --scheduler $(SNAKEMAKE_SCHEDULER)
 
 # only use rich logging in interactive terminal
 ifeq ($(MAKE_TERMOUT),)
@@ -38,9 +43,10 @@ tests: pytest filecheck snakemake
 	@echo "All tests passed successfully"
 	@exit 0
 
+# One process, one task per shape, every core busy -- see src/autotuner/build.py.
 .PHONY: dataset_code
 dataset_code:
-	uv run snakemake $(RATE_FLAG) $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores all dataset_code $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run build-dataset $(if $(MACHINE),--machine $(MACHINE),)
 
 .PHONY: dataset_validate
 dataset_validate:
@@ -49,10 +55,12 @@ dataset_validate:
 # --cores 1 to avoid contention issues when measuring performance.
 # Run `make clean` to re-measure everything.
 # Run `make clean-ours` to re-measure just our code.
+# `evaluate` drives the whole thing: it has Snakemake build the kernels across
+# every core, then times them one at a time, then writes each dataset's jsonl.
+# Datasets sharing a shape build and measure it once.
 .PHONY: dataset
-dataset: dataset_code
-	uv run snakemake $(RATE_FLAG) $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores 1 dataset $(if $(MACHINE),--config machine=$(MACHINE),)
-
+dataset:
+	uv run evaluate $(if $(MACHINE),--machine $(MACHINE),)
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(MACHINE)/f64.bars.jsonl
