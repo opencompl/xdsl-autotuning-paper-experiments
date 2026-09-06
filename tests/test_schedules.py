@@ -18,19 +18,17 @@ def make_matmul(
     iterator: MatmulIterator,
 ) -> tuple[ModuleOp, MatmulOp, test.TestOp, SSAValue, SSAValue]:
     pointer_ops = [
-        test.TestOp(result_types=[x86.registers.UNALLOCATED_REG64]) for _ in range(5)
+        test.TestOp(result_types=[x86.registers.UNALLOCATED_REG64]) for _ in range(3)
     ]
     input_op = test.TestOp(result_types=[x86.registers.UNALLOCATED_REG64])
     output_op = test.TestOp(result_types=[x86.registers.UNALLOCATED_AVX512_MASK])
-    a, b, c, rbp, rsp = (pointer_op.results[0] for pointer_op in pointer_ops)
+    a, b, c = (pointer_op.results[0] for pointer_op in pointer_ops)
     input_value = input_op.results[0]
     output_value = output_op.results[0]
     matmul = MatmulOp(
         a,
         b,
         c,
-        rbp,
-        rsp,
         (input_value,),
         (output_value,),
         m=8,
@@ -51,15 +49,13 @@ def make_matmul(
 
 def make_matmul_reg() -> tuple[ModuleOp, MatmulRegOp, test.TestOp]:
     pointer_ops = [
-        test.TestOp(result_types=[x86.registers.UNALLOCATED_REG64]) for _ in range(4)
+        test.TestOp(result_types=[x86.registers.UNALLOCATED_REG64]) for _ in range(2)
     ]
     output_op = test.TestOp(result_types=[x86.registers.UNALLOCATED_AVX512])
-    a, b, rbp, rsp = (pointer_op.results[0] for pointer_op in pointer_ops)
+    a, b = (pointer_op.results[0] for pointer_op in pointer_ops)
     matmul = MatmulRegOp(
         a,
         b,
-        rbp,
-        rsp,
         outs=(output_op.results[0],),
         m=8,
         n=3,
@@ -134,9 +130,7 @@ def test_set_matmul_iterator(
         replacement if expected is None else next(adjustment_iter)
         for expected in expected_adjustments
     )
-    assert consumer.operands[3] is replacement.rbp_out
-    assert consumer.operands[4] is replacement.rsp_out
-    assert consumer.operands[5] is replacement.out_results[0]
+    assert consumer.operands[3] is replacement.out_results[0]
     module.verify()
 
 

@@ -91,16 +91,12 @@ class MatmulOp(IRDLOperation):
     a = operand_def(GeneralRegisterType)
     b = operand_def(GeneralRegisterType)
     c = operand_def(GeneralRegisterType)
-    rbp = operand_def(GeneralRegisterType)
-    rsp = operand_def(GeneralRegisterType)
     ins = var_operand_def(X86RegisterType)
     outs = var_operand_def(X86RegisterType)
 
     a_out = result_def(GeneralRegisterType)
     b_out = result_def(GeneralRegisterType)
     c_out = result_def(GeneralRegisterType)
-    rbp_out = result_def(GeneralRegisterType)
-    rsp_out = result_def(GeneralRegisterType)
     out_results = var_result_def(X86RegisterType)
 
     m = prop_def(IntegerAttr)
@@ -126,8 +122,6 @@ class MatmulOp(IRDLOperation):
         a: SSAValue,
         b: SSAValue,
         c: SSAValue,
-        rbp: SSAValue,
-        rsp: SSAValue,
         ins: Sequence[SSAValue] = (),
         outs: Sequence[SSAValue] = (),
         *,
@@ -143,13 +137,11 @@ class MatmulOp(IRDLOperation):
         iterator: MatmulIterator,
     ):
         super().__init__(
-            operands=(a, b, c, rbp, rsp, ins, outs),
+            operands=(a, b, c, ins, outs),
             result_types=(
                 a.type,
                 b.type,
                 c.type,
-                rbp.type,
-                rsp.type,
                 tuple(out.type for out in outs),
             ),
             properties={
@@ -201,16 +193,12 @@ class MatmulOp(IRDLOperation):
             self.a,
             self.b,
             self.c,
-            self.rbp,
-            self.rsp,
             *self.outs,
         )
         outputs = (
             self.a_out,
             self.b_out,
             self.c_out,
-            self.rbp_out,
-            self.rsp_out,
             *self.out_results,
         )
         if tuple(value.type for value in inputs) != tuple(
@@ -226,8 +214,8 @@ class MatmulRegOp(IRDLOperation):
     The operation performs ``k`` K steps, advancing A by ``k * lda`` elements
     and B by ``k`` elements for the currently supported non-transposed inputs.
 
-    The frame and stack pointers are passed through. C is register-resident and
-    represented by ``outs``, so this operation does not carry a C pointer.
+    C is register-resident and represented by ``outs``, so this operation does
+    not carry a C pointer.
 
     ``ins`` are additional read-only registers. ``outs`` are additional
     loop-carried registers and have pairwise matching ``out_results``. The
@@ -239,15 +227,11 @@ class MatmulRegOp(IRDLOperation):
 
     a = operand_def(GeneralRegisterType)
     b = operand_def(GeneralRegisterType)
-    rbp = operand_def(GeneralRegisterType)
-    rsp = operand_def(GeneralRegisterType)
     ins = var_operand_def(X86RegisterType)
     outs = var_operand_def(X86RegisterType)
 
     a_out = result_def(GeneralRegisterType)
     b_out = result_def(GeneralRegisterType)
-    rbp_out = result_def(GeneralRegisterType)
-    rsp_out = result_def(GeneralRegisterType)
     out_results = var_result_def(X86RegisterType)
 
     m = prop_def(IntegerAttr)
@@ -269,8 +253,6 @@ class MatmulRegOp(IRDLOperation):
         self,
         a: SSAValue,
         b: SSAValue,
-        rbp: SSAValue,
-        rsp: SSAValue,
         ins: Sequence[SSAValue] = (),
         outs: Sequence[SSAValue] = (),
         *,
@@ -283,12 +265,10 @@ class MatmulRegOp(IRDLOperation):
         aligned_a: bool,
     ):
         super().__init__(
-            operands=(a, b, rbp, rsp, ins, outs),
+            operands=(a, b, ins, outs),
             result_types=(
                 a.type,
                 b.type,
-                rbp.type,
-                rsp.type,
                 tuple(out.type for out in outs),
             ),
             properties={
@@ -323,15 +303,11 @@ class MatmulRegOp(IRDLOperation):
         inputs = (
             self.a,
             self.b,
-            self.rbp,
-            self.rsp,
             *self.outs,
         )
         outputs = (
             self.a_out,
             self.b_out,
-            self.rbp_out,
-            self.rsp_out,
             *self.out_results,
         )
         if tuple(value.type for value in inputs) != tuple(

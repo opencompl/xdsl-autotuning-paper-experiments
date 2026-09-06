@@ -168,8 +168,6 @@ def _matmul_k_to_reg(
         MatmulRegOp(
             op.a,
             op.b,
-            op.rbp,
-            op.rsp,
             ins,
             accumulators,
             m=m_blocking,
@@ -202,8 +200,6 @@ def _matmul_k_to_reg(
             matmul_reg.a_out,
             matmul_reg.b_out,
             op.c,
-            matmul_reg.rbp_out,
-            matmul_reg.rsp_out,
         ),
     )
     return matmul_reg

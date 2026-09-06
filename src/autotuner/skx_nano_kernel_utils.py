@@ -35,8 +35,6 @@ def descriptor_from_op(op: MatmulRegOp) -> GemmDescriptor:
 class MatmulRegValues:
     a: PointerValue
     b: PointerValue
-    rbp: PointerValue
-    rsp: PointerValue
     mask: MaskValue | None
     accumulators: tuple[VectorValue, ...]
 
@@ -45,8 +43,6 @@ class MatmulRegValues:
         return (
             self.a,
             self.b,
-            self.rbp,
-            self.rsp,
             *self.accumulators,
         )
 
@@ -75,8 +71,6 @@ def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
     return MatmulRegValues(
         ir.SSAValue.get(op.a, type=x86.registers.GeneralRegisterType),
         ir.SSAValue.get(op.b, type=x86.registers.GeneralRegisterType),
-        ir.SSAValue.get(op.rbp, type=x86.registers.GeneralRegisterType),
-        ir.SSAValue.get(op.rsp, type=x86.registers.GeneralRegisterType),
         mask,
         tuple(
             ir.SSAValue.get(acc, type=x86.registers.AVX512RegisterType)

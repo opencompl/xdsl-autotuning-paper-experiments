@@ -182,8 +182,6 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         result = MatmulRegValues(
             a,
             b,
-            values.rbp,
-            values.rsp,
             values.mask,
             tuple(accumulators),
         )

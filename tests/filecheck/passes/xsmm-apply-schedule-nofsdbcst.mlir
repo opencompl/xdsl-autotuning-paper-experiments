@@ -6,7 +6,7 @@
 // AUTO:         x86_func.ret
 
 // CHECK:       builtin.module {
-// CHECK-NEXT:    x86_func.func @nofsdbcst(%a: !x86.reg64<rdi>, %b: !x86.reg64<rsi>, %c: !x86.reg64<rdx>, %rbp: !x86.reg64<rbp>, %rsp: !x86.reg64<rsp>) {
+// CHECK-NEXT:    x86_func.func @nofsdbcst(%a: !x86.reg64<rdi>, %b: !x86.reg64<rsi>, %c: !x86.reg64<rdx>) {
 // CHECK-NEXT:      %0 = x86.di.mov 1 : () -> !x86.reg64<r15>
 // CHECK-NEXT:      %1 = x86.ks.kmovw %0 : (!x86.reg64<r15>) -> !x86.avx512maskreg<k1>
 // CHECK-NEXT:      %2 = x86.dm.vmovups [%c] : (!x86.reg64<rdx>) -> !x86.avx512reg<zmm30>
@@ -40,10 +40,8 @@
 x86_func.func @nofsdbcst(
   %a: !x86.reg64<rdi>,
   %b: !x86.reg64<rsi>,
-  %c: !x86.reg64<rdx>,
-  %rbp: !x86.reg64<rbp>,
-  %rsp: !x86.reg64<rsp>
+  %c: !x86.reg64<rdx>
 ) {
-  %a_out, %b_out, %c_out, %rbp_out, %rsp_out = "xsmm.matmul"(%a, %b, %c, %rbp, %rsp) <{m = 17 : i64, n = 1 : i64, k = 2 : i64, lda = 17 : i64, ldb = 2 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>, !x86.reg64<rbp>, !x86.reg64<rsp>)
+  %a_out, %b_out, %c_out = "xsmm.matmul"(%a, %b, %c) <{m = 17 : i64, n = 1 : i64, k = 2 : i64, lda = 17 : i64, ldb = 2 : i64, ldc = 17 : i64, datatype = f32, aligned_a = false, aligned_c = false, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
   x86_func.ret
 }
