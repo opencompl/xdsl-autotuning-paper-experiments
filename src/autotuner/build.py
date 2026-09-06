@@ -1,7 +1,7 @@
 """Generate and compile every kernel the datasets need, in one process.
 
     uv run build-dataset --machine rapper
-    uv run build-dataset --machine rapper f64.small_matrices
+    uv run build-dataset --machine rapper f64.mnk_grid
 
 Snakemake ran this as one job per file, which cost more than the work it
 scheduled: the full rapper sweep is ~37k jobs, and Snakemake dispatches around

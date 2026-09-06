@@ -1,7 +1,7 @@
 """Build, measure and record the benchmark datasets.
 
     uv run evaluate --machine rapper
-    uv run evaluate --machine rapper f64.small_matrices
+    uv run evaluate --machine rapper f64.mnk_grid
 
 Three phases, because each wants something different from the machine:
 

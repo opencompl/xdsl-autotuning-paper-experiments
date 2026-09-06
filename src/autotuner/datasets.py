@@ -12,12 +12,16 @@ KERNEL = "matmul_rowmaj"
 # Sizes swept by the square dataset, which sets M = N = K to each of them.
 SQUARE_RANGE = range(1, 65)
 
+# Sizes swept in every dimension of the grid dataset.
+GRID_RANGE = range(1, 17)
+
 # Which implementations each machine has to compare, per dataset.
 VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
         "f64.squares": [],
+        "f64.mnk_grid": [],
     },
     "tower": {
         "ttile": [
@@ -42,13 +46,16 @@ VARIANTS = {
             "compxsmm",
             "compxsmm_manual",
         ],
+        "f64.mnk_grid": ["aocl", "libxsmm", "compxsmm"],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
         # Neither of ours is generated for this target, so there is no
-        # register allocation to price here.
+        # register allocation to price here, and the grid figure draws
+        # compxsmm, which this target has no kernels for either.
         "f64.squares": [],
+        "f64.mnk_grid": [],
     },
     "rapper": {
         "ttile": [
@@ -73,11 +80,13 @@ VARIANTS = {
             "compxsmm",
             "compxsmm_manual",
         ],
+        "f64.mnk_grid": ["aocl", "libxsmm", "compxsmm"],
     },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
         "f64.squares": [],
+        "f64.mnk_grid": [],
     },
 }
 
@@ -181,5 +190,10 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
         ),
         "f64.squares": by_shape(
             "f64", [(s, s, s) for s in SQUARE_RANGE], "f64.squares"
+        ),
+        "f64.mnk_grid": by_shape(
+            "f64",
+            [(m, n, k) for m in GRID_RANGE for n in GRID_RANGE for k in GRID_RANGE],
+            "f64.mnk_grid",
         ),
     }
