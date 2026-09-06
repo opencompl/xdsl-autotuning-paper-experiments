@@ -10,6 +10,7 @@ COMMITTED = [
     ("tower", "f64.small_matrices"),
     ("tower", "f64.ttile"),
     ("tower", "f32.ttile"),
+    ("rapper", "f64.squares"),
 ]
 
 
@@ -43,3 +44,15 @@ def test_the_path_helper_still_spells_out_wildcards() -> None:
     assert (
         machine_file("S") == "build/{machine}/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.S"
     )
+
+
+def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
+    assert dataset_samples("neon")["f64.squares"] == []
+
+
+def test_the_square_sweep_keeps_every_dimension_equal() -> None:
+    samples = dataset_samples("rapper")["f64.squares"]
+
+    assert len(samples) == 64 * 4
+    assert all(s.m == s.n == s.k for s in samples)
+    assert {s.m for s in samples} == set(range(1, 65))

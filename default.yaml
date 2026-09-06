@@ -31,6 +31,16 @@ compxsmm-gemm-passes:
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
 
+# The same schedule with the registers assigned by the schedule itself, the way
+# libxsmm hands them out, so the figures can price our register allocator.  The
+# generator has to keep its own assignment too: see `--disable-regalloc`.
+compxsmm-manual-gemm-passes:
+  avx512:
+    - xsmm-apply-schedule{strategy=libxsmm-skx}
+    - x86-regalloc-verify-liveness
+    - convert-x86-scf-to-x86
+    - x86-prologue-epilogue-insertion
+
 # libxtcmm emits the linalg payload + transform-dialect schedule; this replays
 # XTC's own lowering (the same passes MlirLLVMTarget runs in-process) via
 # mlir-opt: apply the transform (transform-interpreter) and erase the schedule

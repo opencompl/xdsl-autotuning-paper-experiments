@@ -196,3 +196,32 @@ def test_a_kernel_builds_and_then_stays_built(tmp_path: Path) -> None:
     # A second run has nothing to do, and above all does not disturb the binary.
     build.build([sample], "ci", root=tmp_path, jobs=2, quiet=True)
     assert binary.stat().st_mtime_ns == stamped
+
+
+def test_only_the_allocated_compxsmm_asks_the_generator_to_stand_down(
+    tool: build.Toolchain,
+) -> None:
+    # `compxsmm` has xDSL allocate the registers, which only works if the
+    # generator leaves them unassigned; `compxsmm_manual` keeps its own.
+    def generate_args(variant: str) -> tuple[str, ...]:
+        sample = Sample(3, 5, 7, variant, "f64")
+        (step,) = [
+            s
+            for s in build.asm_artifact(tool, sample).steps
+            if s.kind == "generate:compxsmm"
+        ]
+        return step.args
+
+    assert "--disable-regalloc" in generate_args("compxsmm")
+    assert "--disable-regalloc" not in generate_args("compxsmm_manual")
+
+
+def test_the_two_compxsmm_variants_run_different_pipelines(
+    tool: build.Toolchain,
+) -> None:
+    allocated = tool.pipelines["compxsmm"]
+    manual = tool.pipelines["compxsmm_manual"]
+
+    assert "x86-allocate-registers" in allocated
+    assert "x86-allocate-registers" not in manual
+    assert manual

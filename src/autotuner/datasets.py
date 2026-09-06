@@ -9,11 +9,15 @@ from dataclasses import dataclass
 # Every dataset measures the row-major matmul.
 KERNEL = "matmul_rowmaj"
 
+# Sizes swept by the square dataset, which sets M = N = K to each of them.
+SQUARE_RANGE = range(1, 65)
+
 # Which implementations each machine has to compare, per dataset.
 VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.squares": [],
     },
     "tower": {
         "ttile": [
@@ -32,10 +36,19 @@ VARIANTS = {
             "compxsmm",
             "libxtcmm",
         ],
+        "f64.squares": [
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm",
+            "compxsmm_manual",
+        ],
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
+        # Neither of ours is generated for this target, so there is no
+        # register allocation to price here.
+        "f64.squares": [],
     },
     "rapper": {
         "ttile": [
@@ -54,10 +67,17 @@ VARIANTS = {
             "compxsmm",
             "libxtcmm",
         ],
+        "f64.squares": [
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm",
+            "compxsmm_manual",
+        ],
     },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
+        "f64.squares": [],
     },
 }
 
@@ -158,5 +178,8 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
             "f64",
             [(m, n, 64) for m in range(1, 17) for n in range(1, 17)],
             "f64.small_matrices",
+        ),
+        "f64.squares": by_shape(
+            "f64", [(s, s, s) for s in SQUARE_RANGE], "f64.squares"
         ),
     }

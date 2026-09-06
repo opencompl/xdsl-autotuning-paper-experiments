@@ -256,14 +256,17 @@ def toolchain(
     settings = yaml.safe_load(config.read_text())
     spec = MACHINES[machine]
 
+    def per_isa(setting: str) -> str:
+        by_isa = settings.get(setting, {})
+        return ",".join(by_isa[spec.isa]) if spec.isa in by_isa else ""
+
+    # Keyed by variant, not by generator: the two compxsmm variants come out of
+    # the same generator and differ only in who assigns the registers.
     pipelines = {
-        "libxsmm": ",".join(settings["libxsmm-gemm-passes"]),
-        "compxsmm": ",".join(settings["compxsmm-gemm-passes"][spec.isa])
-        if spec.isa in settings.get("compxsmm-gemm-passes", {})
-        else "",
-        "libxtcmm": ",".join(settings["libxtcmm-gemm-passes"][spec.isa])
-        if spec.isa in settings.get("libxtcmm-gemm-passes", {})
-        else "",
+        "xdsl_libxsmm": ",".join(settings["libxsmm-gemm-passes"]),
+        "compxsmm": per_isa("compxsmm-gemm-passes"),
+        "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
+        "libxtcmm": per_isa("libxtcmm-gemm-passes"),
     }
 
     return Toolchain(
@@ -437,11 +440,12 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
             )
             return Artifact(out, steps)
 
-        case "xdsl_libxsmm" | "compxsmm":
+        case "xdsl_libxsmm" | "compxsmm" | "compxsmm_manual":
             generator = "libxsmm" if sample.variant == "xdsl_libxsmm" else "compxsmm"
-            suffix = "libxsmm" if generator == "libxsmm" else "compxsmm"
-            mlir = here / f"{sample.variant}.{dtype}.{suffix}.mlir"
-            extra = ("--disable-regalloc",) if generator == "compxsmm" else ()
+            mlir = here / f"{sample.variant}.{dtype}.{generator}.mlir"
+            # xDSL only has registers to allocate if the generator leaves them
+            # unassigned; `compxsmm_manual` keeps the generator's own choice.
+            extra = ("--disable-regalloc",) if sample.variant == "compxsmm" else ()
             steps = (
                 Step("remove", (str(mlir),)),
                 Step(
@@ -473,7 +477,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                     (
                         str(mlir),
                         "-p",
-                        tool.pipelines[generator],
+                        tool.pipelines[sample.variant],
                         "-t",
                         "x86-asm",
                         "-o",
