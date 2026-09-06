@@ -121,7 +121,7 @@ wildcard_constraints:
     kernel="matmul_(rowmaj|colmaj)",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|libxtcmm"
+    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_manual|libxtcmm"
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -353,6 +353,41 @@ rule compxsmm_s:
     output: machine_file(variant='compxsmm',ext='S')
     params:
         passes=lambda wc: ",".join(config["compxsmm-gemm-passes"][machine_isa(wc)])
+    shell:
+        """
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
+        """
+
+# The same kernel with the registers assigned by the generator and the schedule
+# rather than by xDSL, so a figure can put the two side by side.
+
+rule compxsmm_manual_rowmaj_mlir:
+    input: ["pyproject.toml"] + COMPXSMM_GEMM_SOURCES
+    output: machine_file(kernel='matmul_rowmaj',variant='compxsmm_manual',ext='compxsmm.mlir')
+    params:
+        libxsmm_arch=libxsmm_arch,
+        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
+    shell:
+        """
+        # A = M * K, B = K * N, C = M * N    <- dimensions
+        #     ^          ^          ^        <- leading dimensions
+        SWAP_A_B=1 compxsmm-gemm dense {output} matmul \
+            {wildcards.n} {wildcards.m} {wildcards.k} \
+            {wildcards.n} {wildcards.k} {wildcards.n} \
+            1 1 \
+            1 1 \
+            {params.libxsmm_arch} \
+            nopf \
+            {params.dtype}
+        """
+
+rule compxsmm_manual_s:
+    input:
+        mlir=machine_file(variant='compxsmm_manual',ext='compxsmm.mlir'),
+        sources=["pyproject.toml"] + COMPXSMM_GEMM_SOURCES,
+    output: machine_file(variant='compxsmm_manual',ext='S')
+    params:
+        passes=lambda wc: ",".join(config["compxsmm-manual-gemm-passes"][machine_isa(wc)])
     shell:
         """
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
@@ -688,7 +723,7 @@ TESTSET_AVX512 = [
         + THIS_MACHINE
         + "/{case.kernel}/{case.m}x{case.n}x{case.k}/{variant}.f64.test.log",
         case=KERNELS_XSMM_AVX512,
-        variant=["xdsl_libxsmm", "compxsmm"],
+        variant=["xdsl_libxsmm", "compxsmm", "compxsmm_manual"],
     ),
 ]
 

@@ -92,6 +92,7 @@ PLOTS += plots/rapper/f64.ttile.png
 PLOTS += plots/rapper/f64.ttile_squares.png
 PLOTS += plots/rapper/f64.ttile_combined.png
 PLOTS += plots/rapper/f64.heatmap.png
+PLOTS += plots/rapper/f64.squares.pdf
 
 PLOTS += plots/ttile.pdf
 
@@ -110,6 +111,10 @@ plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile
 
 plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 	uv run plot-heatmap $< --output $@
+
+# A paper figure, so a PDF rather than a PNG: LaTeX gets the vector text.
+plots/%.squares.pdf: data/%.squares.jsonl src/autotuner/plot_squares.py src/autotuner/plot_style.py
+	uv run plot-squares $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)
@@ -159,7 +164,7 @@ docker-run-fast:
 .PHONY: clean-ours
 clean-ours:
 	find build -name 'xdsl_libxsmm.*' -exec rm -f {} + 2>/dev/null || true
-	find build -name 'compxsmm.*' -exec rm -f {} + 2>/dev/null || true
+	find build -name 'compxsmm*' -exec rm -f {} + 2>/dev/null || true
 	rm -f data/$(MACHINE)/*
 
 .PHONY: clean
