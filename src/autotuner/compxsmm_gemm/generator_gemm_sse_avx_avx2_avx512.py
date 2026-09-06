@@ -336,7 +336,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         raise NotImplementedError
 
     # Setting up the stack frame
-    rbp_val, rsp_val = libxsmm_generator_gemm_setup_stack_frame(
+    rbp_val, _ = libxsmm_generator_gemm_setup_stack_frame(
         generated_code, desc, gp_reg_mapping, micro_kernel_config
     )
 
@@ -408,8 +408,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             a_val,
             b_val,
             c_val,
-            rbp_val,
-            rsp_val,
             m=desc.m,
             n=desc.n,
             k=desc.k,
@@ -425,8 +423,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     a_val = matmul_n.a_out
     b_val = matmul_n.b_out
     c_val = matmul_n.c_out
-    rbp_val = matmul_n.rbp_out
-    rsp_val = matmul_n.rsp_out
 
     # In this case we vnni-format C from scratch
     if micro_kernel_config.vnni_format_C:

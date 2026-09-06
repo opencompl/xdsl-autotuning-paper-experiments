@@ -245,8 +245,6 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         result = MatmulRegValues(
             a,
             b,
-            values.rbp,
-            values.rsp,
             values.mask,
             tuple(
                 accumulators_by_index[vector_reg_count - tile.n + n]

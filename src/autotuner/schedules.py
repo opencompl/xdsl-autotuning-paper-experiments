@@ -21,8 +21,6 @@ def _matmul_like(
     a: ir.SSAValue | None = None,
     b: ir.SSAValue | None = None,
     c: ir.SSAValue | None = None,
-    rbp: ir.SSAValue | None = None,
-    rsp: ir.SSAValue | None = None,
     ins: Sequence[ir.SSAValue] | None = None,
     outs: Sequence[ir.SSAValue] | None = None,
     m: int | None = None,
@@ -37,8 +35,6 @@ def _matmul_like(
         op.a if a is None else a,
         op.b if b is None else b,
         op.c if c is None else c,
-        op.rbp if rbp is None else rbp,
-        op.rsp if rsp is None else rsp,
         op.ins if ins is None else ins,
         op.outs if outs is None else outs,
         m=op.m.value.data if m is None else m,
@@ -59,8 +55,6 @@ def _matmul_reg_like(
     *,
     a: ir.SSAValue | None = None,
     b: ir.SSAValue | None = None,
-    rbp: ir.SSAValue | None = None,
-    rsp: ir.SSAValue | None = None,
     ins: Sequence[ir.SSAValue] | None = None,
     outs: Sequence[ir.SSAValue] | None = None,
     m: int | None = None,
@@ -72,8 +66,6 @@ def _matmul_reg_like(
     return MatmulRegOp(
         op.a if a is None else a,
         op.b if b is None else b,
-        op.rbp if rbp is None else rbp,
-        op.rsp if rsp is None else rsp,
         op.ins if ins is None else ins,
         op.outs if outs is None else outs,
         m=op.m.value.data if m is None else m,
@@ -209,8 +201,6 @@ def split_matmul(
         a=first.a_out,
         b=first.b_out,
         c=first.c_out,
-        rbp=first.rbp_out,
-        rsp=first.rsp_out,
         outs=first.out_results,
         m=extent - first_size if iterator == MatmulIterator.M else None,
         n=extent - first_size if iterator == MatmulIterator.N else None,
@@ -236,16 +226,14 @@ def loop_matmul(
         return op
 
     init = x86.ops.DI_MovOp(0, destination=loop_register)
-    inputs = (op.a, op.b, op.c, op.rbp, op.rsp, *op.outs)
+    inputs = (op.a, op.b, op.c, *op.outs)
     body = ir.Block(arg_types=(init.destination.type, *(v.type for v in inputs)))
-    a, b, c, rbp, rsp, *outs = body.args[1:]
+    a, b, c, *outs = body.args[1:]
     tiled = _matmul_like(
         op,
         a=a,
         b=b,
         c=c,
-        rbp=rbp,
-        rsp=rsp,
         outs=outs,
         m=tile_size if iterator == MatmulIterator.M else None,
         n=tile_size if iterator == MatmulIterator.N else None,
@@ -295,8 +283,6 @@ def split_matmul_reg(
         op,
         a=first.a_out,
         b=first.b_out,
-        rbp=first.rbp_out,
-        rsp=first.rsp_out,
         outs=first.out_results,
         k=extent - first_size,
     )
@@ -317,15 +303,13 @@ def loop_matmul_reg(
         return op
 
     init = x86.ops.DI_MovOp(0, destination=loop_register)
-    inputs = (op.a, op.b, op.rbp, op.rsp, *op.outs)
+    inputs = (op.a, op.b, *op.outs)
     body = ir.Block(arg_types=(init.destination.type, *(v.type for v in inputs)))
-    a, b, rbp, rsp, *outs = body.args[1:]
+    a, b, *outs = body.args[1:]
     tiled = _matmul_reg_like(
         op,
         a=a,
         b=b,
-        rbp=rbp,
-        rsp=rsp,
         outs=outs,
         k=tile_size,
     )
