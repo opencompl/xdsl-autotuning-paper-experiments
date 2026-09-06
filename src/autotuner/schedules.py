@@ -364,32 +364,24 @@ def tile_matmul_reg(
 def attach_mask(
     rewriter: PatternRewriter,
     op: MatmulOp,
-    vectorize_dim: MatmulIterator,
     *,
+    tile_size: int,
+    vector_size: int,
     mask_tmp_reg: x86.registers.GeneralRegisterType,
     mask_reg: x86.registers.AVX512MaskRegisterType,
 ) -> MatmulOp:
     """
     Attach one loop-invariant AVX-512 tail mask as a read-only input, if necessary.
+
+    ``tile_size`` is the extent one nano-kernel tile covers in the vectorized
+    dimension and ``vector_lanes`` the capacity of the register bank the
+    nano-kernel lowers that tile to; the mask covers the lanes the tile leaves
+    unused. Both describe one tile rather than the op's whole extent, which is a
+    multiple of the tile and would round the wrong way.
     """
     assert not op.ins
-    match vectorize_dim:
-        case MatmulIterator.N:
-            active_elements = op.n.value.data
-        case MatmulIterator.M:
-            active_elements = op.m.value.data
-        case MatmulIterator.K:
-            active_elements = op.k.value.data
-        case MatmulIterator.NONE:
-            assert False
 
-    match op.datatype:
-        case builtin.Float64Type():
-            vector_length = 8
-        case builtin.Float32Type():
-            vector_length = 16
-
-    remainder = active_elements % vector_length
+    remainder = tile_size % vector_size
     if not remainder:
         return op
 
@@ -398,7 +390,7 @@ def attach_mask(
         InsertPoint.before(op),
         mask_tmp_reg,
         mask_reg,
-        vector_length - remainder,
+        vector_size - remainder,
         op.datatype,
     )
     masked = _matmul_like(op, ins=(mask,))

@@ -19,7 +19,6 @@ from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
 from autotuner.instructions import load_vector, store_vector
 from autotuner.nano_kernel import GemmDescriptor, ISAInfo, NanoKernel
 from autotuner.schedules import (
-    attach_mask,
     loop_matmul,
     set_matmul_iterator,
     split_matmul,
@@ -34,6 +33,7 @@ def _tile_n_m(
     rewriter: PatternRewriter,
     op: MatmulOp,
     strategy: TilingStrategy,
+    nano_kernel: NanoKernel,
     *,
     nloop_register: x86.registers.GeneralRegisterType,
     mloop_register: x86.registers.GeneralRegisterType,
@@ -67,10 +67,9 @@ def _tile_n_m(
         blocked_end = m // m_blocking * m_blocking
         if remainder := m % m_blocking:
             tiled_m, remainder_m = split_matmul(rewriter, matmul_m, blocked_end)
-            remainder_m = attach_mask(
+            remainder_m = nano_kernel.attach_mask(
                 rewriter,
                 remainder_m,
-                vectorize_dim=MatmulIterator.M,
                 mask_tmp_reg=mask_tmp_register,
                 mask_reg=mask_register,
             )
@@ -84,10 +83,9 @@ def _tile_n_m(
             tiled_m = matmul_m
             remainder_m = None
 
-        tiled_m = attach_mask(
+        tiled_m = nano_kernel.attach_mask(
             rewriter,
             tiled_m,
-            vectorize_dim=MatmulIterator.M,
             mask_tmp_reg=mask_tmp_register,
             mask_reg=mask_register,
         )
@@ -280,6 +278,7 @@ class ApplySchedulePattern(RewritePattern):
             rewriter,
             op,
             strategy,
+            self.nano_kernel,
             nloop_register=nloop_register,
             mloop_register=mloop_register,
             mask_tmp_register=mask_tmp_reg,
