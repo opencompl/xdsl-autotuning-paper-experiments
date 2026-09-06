@@ -258,7 +258,7 @@ rule arith_to_llvm:
             --convert-func-to-llvm=use-bare-ptr-memref-call-conv \
             --finalize-memref-to-llvm \
             --canonicalize --cse --sccp \
-            --convert-vector-to-llvm=enable-x86vector \
+            --convert-vector-to-llvm=enable-x86 \
             --convert-index-to-llvm \
             --convert-arith-to-llvm \
             --convert-ub-to-llvm \
@@ -446,7 +446,7 @@ rule libxtcmm_s:
         {params.mlir_bin}/mlir-translate --mlir-to-llvmir {output}.llvm.mlir -o {output}.ll
         {params.mlir_bin}/opt -O2 --fp-contract=fast --disable-loop-unrolling \
             -mtriple={params.triple} -mcpu={params.march} {output}.ll -o {output}.bc
-        {params.mlir_bin}/llc -O2 -filetype=asm -pre-RA-sched=list-ilp \
+        {params.mlir_bin}/llc -O2 -filetype=asm -pre-RA-sched=list-ilp -align-all-functions=4 \
             -mtriple={params.triple} -mcpu={params.march} {output}.bc -o {output}
         """
 
