@@ -2,7 +2,7 @@
 // RUN: compxsmm-gemm dense %t matmul_bac 16 3 25 16 25 16 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
 
 // CHECK:       x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
-// CHECK-NEXT:    %3, %4, %5 = "xsmm.matmul"(%0, %1, %2) <{m = 16 : i64, n = 3 : i64, k = 25 : i64, lda = 16 : i64, ldb = 25 : i64, ldc = 16 : i64, datatype = f64, aligned_a = true, aligned_c = true, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
+// CHECK-NEXT:    %3, %4, %5 = xsmm.matmul %0, %1, %2 {m = 16 : i64, n = 3 : i64, k = 25 : i64, lda = 16 : i64, ldb = 25 : i64, ldc = 16 : i64, datatype = f64, aligned_a = true, aligned_c = true, iterator = "n"} : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
 // CHECK-NEXT:    x86_func.ret
 // CHECK-NEXT:  }
 
