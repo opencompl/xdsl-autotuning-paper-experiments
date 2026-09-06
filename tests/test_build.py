@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 from pathlib import Path
 
@@ -186,15 +187,22 @@ def test_an_unknown_variant_has_no_recipe(tool: build.Toolchain) -> None:
 @pytest.mark.skipif(shutil.which("clang") is None, reason="needs a C compiler")
 def test_a_kernel_builds_and_then_stays_built(tmp_path: Path) -> None:
     sample = Sample(4, 4, 4, "naive_c", "f32")
+    system_and_arch = (platform.system(), platform.machine())
+    machine = {
+        ("Darwin", "arm64"): "neon",
+        ("Linux", "x86_64"): "ci",
+    }.get(system_and_arch)
+    if machine is None:
+        pytest.skip(f"no machine configuration for {system_and_arch}")
 
-    build.build([sample], "ci", root=tmp_path, jobs=2, quiet=True)
+    build.build([sample], machine, root=tmp_path, jobs=2, quiet=True)
 
-    binary = tmp_path / Path(sample.path("ci", "time.o")).relative_to("build")
+    binary = tmp_path / Path(sample.path(machine, "time.o")).relative_to("build")
     assert binary.exists()
     stamped = binary.stat().st_mtime_ns
 
     # A second run has nothing to do, and above all does not disturb the binary.
-    build.build([sample], "ci", root=tmp_path, jobs=2, quiet=True)
+    build.build([sample], machine, root=tmp_path, jobs=2, quiet=True)
     assert binary.stat().st_mtime_ns == stamped
 
 
