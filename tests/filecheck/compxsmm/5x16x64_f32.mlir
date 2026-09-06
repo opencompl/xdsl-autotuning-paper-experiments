@@ -1,4 +1,4 @@
-// RUN: compxsmm-gemm dense %t matmul_bac 16 5 64 16 64 16 1 1 1 1 skx nopf SP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
+// RUN: compxsmm-gemm dense %t matmul_bac 16 5 64 16 64 16 1 1 1 1 skx nopf SP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-REGALLOC-STRUCTURE,CHECK-MANUAL-REGALLOC
 // RUN: compxsmm-gemm dense %t matmul_bac 16 5 64 16 64 16 1 1 1 1 skx nopf SP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
 
 // This exercises the unmasked single-precision fsdbcst path with four accumulator
@@ -8,12 +8,7 @@
 // CHECK-REGALLOC-STRUCTURE-NEXT:  .text
 // CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul_bac
 // CHECK-REGALLOC-STRUCTURE-NEXT:  matmul_bac:
-// CHECK-REGALLOC-STRUCTURE-NEXT:      push rbp
-// CHECK-REGALLOC-STRUCTURE:           push rbp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov rbp, rsp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      sub rsp, 192
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[STACK_ALIGN:\S+]], -64
-// CHECK-REGALLOC-STRUCTURE-NEXT:      and rsp, [[STACK_ALIGN]]
+// CHECK-MANUAL-REGALLOC-NEXT:      push r12
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovaps [[ACC0:\S+]], [rdx]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovaps [[ACC1:\S+]], [rdx+64]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovaps [[ACC2:\S+]], [rdx+128]
@@ -91,7 +86,5 @@
 // CHECK-REGALLOC-STRUCTURE-NEXT:      sub rdi, 64
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add rsi, 1280
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add rdx, 256
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov rsp, rbp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      pop rbp
-// CHECK-REGALLOC-STRUCTURE:           pop rbp
+// CHECK-MANUAL-REGALLOC-NEXT:      pop r12
 // CHECK-REGALLOC-STRUCTURE-NEXT:      ret

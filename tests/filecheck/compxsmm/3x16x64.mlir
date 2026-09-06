@@ -1,5 +1,5 @@
 // RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && cat %t | filecheck %s
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
+// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-REGALLOC-STRUCTURE,CHECK-MANUAL-REGALLOC
 // RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
 // RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
 
@@ -7,16 +7,7 @@
 // registers. CHECK-REGALLOC below pins the automatic allocator's exact choices.
 
 // CHECK:       x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
-// CHECK-NEXT:    %3 = x86.get_register : !x86.reg64<rbp>
-// CHECK-NEXT:    %4 = x86.get_register : !x86.reg64<rsp>
-// CHECK-NEXT:    %5 = x86.s.push %4, %3 : (!x86.reg64<rsp>, !x86.reg64<rbp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %6 = x86.ds.mov %5 : (!x86.reg64<rsp>) -> !x86.reg64<rbp>
-// CHECK-NEXT:    %7 = x86.ri.sub %5, 192 : (!x86.reg64<rsp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %8 = x86.di.mov -64 : () -> !x86.reg64<r10>
-// CHECK-NEXT:    %9 = x86.rs.and %7, %8 : (!x86.reg64<rsp>, !x86.reg64<r10>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %10, %11, %12 = "xsmm.matmul"(%0, %1, %2) <{m = 16 : i64, n = 3 : i64, k = 64 : i64, lda = 16 : i64, ldb = 64 : i64, ldc = 16 : i64, datatype = f64, aligned_a = true, aligned_c = true, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
-// CHECK-NEXT:    %13 = x86.ds.mov %6 : (!x86.reg64<rbp>) -> !x86.reg64<rsp>
-// CHECK-NEXT:    %14, %15 = x86.d.pop %13 : (!x86.reg64<rsp>) -> (!x86.reg64<rsp>, !x86.reg64<rbp>)
+// CHECK-NEXT:    %3, %4, %5 = "xsmm.matmul"(%0, %1, %2) <{m = 16 : i64, n = 3 : i64, k = 64 : i64, lda = 16 : i64, ldb = 64 : i64, ldc = 16 : i64, datatype = f64, aligned_a = true, aligned_c = true, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
 // CHECK-NEXT:    x86_func.ret
 // CHECK-NEXT:  }
 
@@ -24,12 +15,6 @@
 // CHECK-REGALLOC-NEXT:  .text
 // CHECK-REGALLOC-NEXT:  .globl matmul_bac
 // CHECK-REGALLOC-NEXT:  matmul_bac:
-// CHECK-REGALLOC-NEXT:      push rbp
-// CHECK-REGALLOC-NEXT:      push rbp
-// CHECK-REGALLOC-NEXT:      mov rbp, rsp
-// CHECK-REGALLOC-NEXT:      sub rsp, 192
-// CHECK-REGALLOC-NEXT:      mov r10, -64
-// CHECK-REGALLOC-NEXT:      and rsp, r10
 // CHECK-REGALLOC-NEXT:      vmovapd zmm5, [rdx]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm4, [rdx+64]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm3, [rdx+128]
@@ -105,21 +90,13 @@
 // CHECK-REGALLOC-NEXT:      sub rdi, 128
 // CHECK-REGALLOC-NEXT:      add rsi, 1536
 // CHECK-REGALLOC-NEXT:      add rdx, 256
-// CHECK-REGALLOC-NEXT:      mov rsp, rbp
-// CHECK-REGALLOC-NEXT:      pop rbp
-// CHECK-REGALLOC-NEXT:      pop rbp
 // CHECK-REGALLOC-NEXT:      ret
 
 // CHECK-REGALLOC-STRUCTURE:       .intel_syntax noprefix
 // CHECK-REGALLOC-STRUCTURE-NEXT:  .text
 // CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul_bac
 // CHECK-REGALLOC-STRUCTURE-NEXT:  matmul_bac:
-// CHECK-REGALLOC-STRUCTURE-NEXT:      push rbp
-// CHECK-REGALLOC-STRUCTURE:           push rbp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov rbp, rsp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      sub rsp, 192
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov [[STACK_ALIGN:\S+]], -64
-// CHECK-REGALLOC-STRUCTURE-NEXT:      and rsp, [[STACK_ALIGN]]
+// CHECK-MANUAL-REGALLOC-NEXT:      push r12
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC0:\S+]], [rdx]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC1:\S+]], [rdx+64]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC2:\S+]], [rdx+128]
@@ -195,7 +172,5 @@
 // CHECK-REGALLOC-STRUCTURE-NEXT:      sub rdi, 128
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add rsi, 1536
 // CHECK-REGALLOC-STRUCTURE-NEXT:      add rdx, 256
-// CHECK-REGALLOC-STRUCTURE-NEXT:      mov rsp, rbp
-// CHECK-REGALLOC-STRUCTURE-NEXT:      pop rbp
-// CHECK-REGALLOC-STRUCTURE:           pop rbp
+// CHECK-MANUAL-REGALLOC-NEXT:      pop r12
 // CHECK-REGALLOC-STRUCTURE-NEXT:      ret

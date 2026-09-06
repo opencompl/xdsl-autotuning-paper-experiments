@@ -7,13 +7,13 @@
 // CHECK-MANUAL-NEXT:  .text
 // CHECK-MANUAL-NEXT:  .globl matmul_bac
 // CHECK-MANUAL-NEXT:  matmul_bac:
-// CHECK-MANUAL-NEXT:      push rbp
+// CHECK-LIBXSMM-NEXT:      push rbp
 // CHECK-MANUAL-NEXT:      push r12
-// CHECK-MANUAL-NEXT:      push rbp
-// CHECK-MANUAL-NEXT:      mov rbp, rsp
-// CHECK-MANUAL-NEXT:      sub rsp, 192
-// CHECK-MANUAL-NEXT:      mov r10, -64
-// CHECK-MANUAL-NEXT:      and rsp, r10
+// CHECK-LIBXSMM-NEXT:      push rbp
+// CHECK-LIBXSMM-NEXT:      mov rbp, rsp
+// CHECK-LIBXSMM-NEXT:      sub rsp, 192
+// CHECK-LIBXSMM-NEXT:      mov r10, -64
+// CHECK-LIBXSMM-NEXT:      and rsp, r10
 // CHECK-MANUAL-NEXT:      mov r11, 0
 // CHECK-MANUAL-NEXT:  [[SCF_N_BODY_0:^\S+]]:
 // CHECK-MANUAL-NEXT:      add r11, 6
@@ -422,10 +422,10 @@
 // CHECK-LIBXSMM-NEXT:     cmp r11, 38
 // CHECK-COMPXSMM-NEXT:    cmp r11, 20
 // CHECK-MANUAL-NEXT:      jl [[SCF_N_BODY_1]]
-// CHECK-MANUAL-NEXT:      mov rsp, rbp
-// CHECK-MANUAL-NEXT:      pop rbp
+// CHECK-LIBXSMM-NEXT:      mov rsp, rbp
+// CHECK-LIBXSMM-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      pop r12
-// CHECK-MANUAL-NEXT:      pop rbp
+// CHECK-LIBXSMM-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      ret
 
 // CHECK:       builtin.module {
@@ -864,13 +864,7 @@
 // CHECK-REGALLOC-NEXT:  .text
 // CHECK-REGALLOC-NEXT:  .globl matmul_bac
 // CHECK-REGALLOC-NEXT:  matmul_bac:
-// CHECK-REGALLOC-NEXT:      push rbp
 // CHECK-REGALLOC-NEXT:      push rbx
-// CHECK-REGALLOC-NEXT:      push rbp
-// CHECK-REGALLOC-NEXT:      mov rbp, rsp
-// CHECK-REGALLOC-NEXT:      sub rsp, 192
-// CHECK-REGALLOC-NEXT:      mov r10, -64
-// CHECK-REGALLOC-NEXT:      and rsp, r10
 // CHECK-REGALLOC-NEXT:      mov rax, 0
 // CHECK-REGALLOC-NEXT:  scf_body_2_for:
 // CHECK-REGALLOC-NEXT:      add rax, 6
@@ -1269,8 +1263,5 @@
 // CHECK-REGALLOC-NEXT:      add rdx, 2048
 // CHECK-REGALLOC-NEXT:      cmp rax, 20
 // CHECK-REGALLOC-NEXT:      jl scf_body_5_for
-// CHECK-REGALLOC-NEXT:      mov rsp, rbp
-// CHECK-REGALLOC-NEXT:      pop rbp
 // CHECK-REGALLOC-NEXT:      pop rbx
-// CHECK-REGALLOC-NEXT:      pop rbp
 // CHECK-REGALLOC-NEXT:      ret

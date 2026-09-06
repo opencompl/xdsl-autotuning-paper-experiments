@@ -6,12 +6,12 @@
 // CHECK-MANUAL-NEXT:  .text
 // CHECK-MANUAL-NEXT:  .globl matmul_bac
 // CHECK-MANUAL-NEXT:  matmul_bac:
-// CHECK-MANUAL-NEXT:      push rbp
-// CHECK-MANUAL-NEXT:      push rbp
-// CHECK-MANUAL-NEXT:      mov rbp, rsp
-// CHECK-MANUAL-NEXT:      sub rsp, 192
-// CHECK-MANUAL-NEXT:      mov r10, -64
-// CHECK-MANUAL-NEXT:      and rsp, r10
+// CHECK-LIBXSMM-NEXT:      push rbp
+// CHECK-LIBXSMM-NEXT:      push rbp
+// CHECK-LIBXSMM-NEXT:      mov rbp, rsp
+// CHECK-LIBXSMM-NEXT:      sub rsp, 192
+// CHECK-LIBXSMM-NEXT:      mov r10, -64
+// CHECK-LIBXSMM-NEXT:      and rsp, r10
 // CHECK-LIBXSMM-NEXT:      mov r11, 0
 // CHECK-LIBXSMM-NEXT:  [[SCF_N_BODY:^\S+]]:
 // CHECK-LIBXSMM-NEXT:      add r11, 1
@@ -38,9 +38,9 @@
 // CHECK-COMPXSMM-NEXT:    add rdx, 0
 // CHECK-LIBXSMM-NEXT:      cmp r11, 1
 // CHECK-LIBXSMM-NEXT:      jl [[SCF_N_BODY]]
-// CHECK-MANUAL-NEXT:      mov rsp, rbp
-// CHECK-MANUAL-NEXT:      pop rbp
-// CHECK-MANUAL-NEXT:      pop rbp
+// CHECK-LIBXSMM-NEXT:      mov rsp, rbp
+// CHECK-LIBXSMM-NEXT:      pop rbp
+// CHECK-LIBXSMM-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      ret
 
 // CHECK:       builtin.module {
