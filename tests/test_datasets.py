@@ -48,6 +48,7 @@ def test_the_path_helper_still_spells_out_wildcards() -> None:
 
 def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
     assert dataset_samples("neon")["f64.squares"] == []
+    assert dataset_samples("neon")["f64.mnk_grid"] == []
 
 
 def test_the_square_sweep_keeps_every_dimension_equal() -> None:
@@ -56,3 +57,11 @@ def test_the_square_sweep_keeps_every_dimension_equal() -> None:
     assert len(samples) == 64 * 4
     assert all(s.m == s.n == s.k for s in samples)
     assert {s.m for s in samples} == set(range(1, 65))
+
+
+def test_the_grid_sweeps_every_dimension() -> None:
+    samples = dataset_samples("rapper")["f64.mnk_grid"]
+
+    assert len(samples) == 16 * 16 * 16 * 3
+    assert {s.m for s in samples} == {s.n for s in samples} == set(range(1, 17))
+    assert {s.k for s in samples} == set(range(1, 17))
