@@ -94,6 +94,12 @@ PLOTS += plots/rapper/f64.ttile_combined.png
 PLOTS += plots/rapper/f64.heatmap.png
 PLOTS += plots/f64.squares.rapper.pdf
 
+# The grid takes ~25 min per machine to measure and is not committed until a
+# machine has actually run it, so plot whichever machines have the data.  Naming
+# them outright breaks `make plots` everywhere else: a pattern rule whose
+# prerequisite cannot be built is "No rule to make target".
+PLOTS += $(patsubst data/%.jsonl,plots/%.pdf,$(wildcard data/*/f64.mnk_grid.jsonl))
+
 PLOTS += plots/ttile.pdf
 
 # `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
@@ -117,6 +123,10 @@ plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 # includes it; here `%` is the machine on its own.
 plots/f64.squares.%.pdf: data/%/f64.squares.jsonl src/autotuner/plot_squares.py src/autotuner/plot_style.py
 	uv run plot-squares $< --output $@
+
+# Two columns wide, so a PDF rather than a PNG: LaTeX gets the vector text.
+plots/%.mnk_grid.pdf: data/%.mnk_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py
+	uv run plot-grid $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)
