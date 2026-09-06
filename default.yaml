@@ -66,7 +66,7 @@ libxtcmm-gemm-passes:
     - "cse"
     - "sccp"
     - "convert-math-to-llvm"
-    - "convert-vector-to-llvm{enable-x86vector=true}"
+    - "convert-vector-to-llvm"
     - "convert-index-to-llvm"
     - "convert-arith-to-llvm"
     - "convert-ub-to-llvm"
