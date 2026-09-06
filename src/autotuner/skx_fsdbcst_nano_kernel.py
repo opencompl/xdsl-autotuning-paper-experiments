@@ -16,10 +16,12 @@ from autotuner.instructions import (
     zero_vector,
 )
 from autotuner.nano_kernel import (
+    FloatingPointType,
     GemmDescriptor,
     NanoKernel,
     RegisterCount,
     ISAInfo,
+    SupportedTile,
     TileSizes,
 )
 from autotuner.schedules import attach_mask
@@ -38,6 +40,18 @@ class SkxFsdbcstNanoKernel(NanoKernel):
     @property
     def name(self) -> str:
         return "libxsmm-skx-fsdbcst"
+
+    def supported_tile_sizes(
+        self,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> frozenset[SupportedTile]:
+        vector_length = isa_info.vector_length(datatype)
+        return frozenset(
+            SupportedTile(m, n)
+            for m in range(1, vector_length + 1)
+            for n in range(1, 29)
+        )
 
     @staticmethod
     def _accumulator_sets(tile: TileSizes) -> int:

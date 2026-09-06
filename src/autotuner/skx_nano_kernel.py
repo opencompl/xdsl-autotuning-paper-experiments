@@ -15,6 +15,7 @@ from autotuner.nano_kernel import (
     ISAInfo,
     NanoKernel,
     RegisterCount,
+    SupportedTile,
     TileSizes,
 )
 from autotuner.schedules import attach_mask
@@ -56,6 +57,15 @@ class SkxNanoKernel(NanoKernel):
     @property
     def name(self) -> str:
         return "libxsmm-skx"
+
+    def supported_tile_sizes(
+        self,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> frozenset[SupportedTile]:
+        return self._fsdbcst.supported_tile_sizes(
+            datatype, isa_info
+        ) | self._nofsdbcst.supported_tile_sizes(datatype, isa_info)
 
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
         return isa_info.isa == "avx512" and isinstance(
