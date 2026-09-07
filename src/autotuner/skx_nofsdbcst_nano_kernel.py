@@ -13,10 +13,12 @@ from autotuner.instructions import (
     multiply_add_registers,
 )
 from autotuner.nano_kernel import (
+    FloatingPointType,
     GemmDescriptor,
     NanoKernel,
     RegisterCount,
     ISAInfo,
+    SupportedTile,
     TileSizes,
 )
 from autotuner.schedules import attach_mask
@@ -36,6 +38,26 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
     def name(self) -> str:
         return "libxsmm-skx-nofsdbcst"
 
+    def supported_tile_sizes(
+        self,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> frozenset[SupportedTile]:
+        vector_length = isa_info.vector_length(datatype)
+        vector_registers = isa_info.register_capacity.vector
+        return frozenset(
+            SupportedTile(m, n)
+            for m_vectors in range(1, 5)
+            for m in range(
+                (m_vectors - 1) * vector_length + 1,
+                m_vectors * vector_length + 1,
+            )
+            for n in range(
+                1,
+                (vector_registers - m_vectors - 1) // m_vectors + 1,
+            )
+        )
+
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
         return isa_info.isa == "avx512" and isinstance(
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type
@@ -53,7 +75,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
             return False
         vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
-        return m_vectors >= 2
+        return m_vectors >= 1
 
     def supports_tile(
         self,

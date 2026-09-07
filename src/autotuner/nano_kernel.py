@@ -13,6 +13,14 @@ from autotuner.dialects.xsmm import MatmulOp, MatmulRegOp
 FloatingPointType: TypeAlias = builtin.Float32Type | builtin.Float64Type
 
 
+@dataclass(frozen=True, order=True)
+class SupportedTile:
+    """An M-by-N tile supported by a nano-kernel."""
+
+    m: int
+    n: int
+
+
 @dataclass(frozen=True)
 class TileSizes:
     """The M, N, and K sizes computed by one nano-kernel invocation."""
@@ -79,6 +87,14 @@ class NanoKernel(ABC):
     @abstractmethod
     def name(self) -> str:
         """Stable name used to select and benchmark this nano-kernel."""
+
+    @abstractmethod
+    def supported_tile_sizes(
+        self,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> frozenset[SupportedTile]:
+        """Return the supported M-by-N tile shapes."""
 
     @abstractmethod
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
