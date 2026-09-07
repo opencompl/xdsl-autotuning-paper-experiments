@@ -73,6 +73,12 @@ GENERATOR_MODULES = {
     "generate:libxtcmm": "autotuner.libxtcmm_gemm.libxtcmm_generator_gemm_driver",
 }
 
+# The compxsmm variants xDSL allocates registers for, so the generator has to
+# leave them unassigned.
+COMPXSMM_XDSL_REGALLOC = frozenset(
+    {"compxsmm", "compxsmm_fsdbcst", "compxsmm_nofsdbcst"}
+)
+
 MANIFEST = ".build-manifest.json"
 
 console = Console()
@@ -265,6 +271,8 @@ def toolchain(
         "xdsl_libxsmm": ",".join(settings["libxsmm-gemm-passes"]),
         "compxsmm": per_isa("compxsmm-gemm-passes"),
         "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
+        "compxsmm_fsdbcst": per_isa("compxsmm-fsdbcst-gemm-passes"),
+        "compxsmm_nofsdbcst": per_isa("compxsmm-nofsdbcst-gemm-passes"),
         "libxtcmm": per_isa("libxtcmm-gemm-passes"),
     }
 
@@ -430,12 +438,23 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
             )
             return Artifact(out, steps)
 
-        case "xdsl_libxsmm" | "compxsmm" | "compxsmm_manual":
+        case (
+            "xdsl_libxsmm"
+            | "compxsmm"
+            | "compxsmm_manual"
+            | "compxsmm_fsdbcst"
+            | "compxsmm_nofsdbcst"
+        ):
             generator = "libxsmm" if sample.variant == "xdsl_libxsmm" else "compxsmm"
             mlir = here / f"{sample.variant}.{dtype}.{generator}.mlir"
             # xDSL only has registers to allocate if the generator leaves them
-            # unassigned; `compxsmm_manual` keeps the generator's own choice.
-            extra = ("--disable-regalloc",) if sample.variant == "compxsmm" else ()
+            # unassigned; `compxsmm_manual` keeps the generator's own choice, and
+            # `xdsl_libxsmm` uses the other generator, which has no such flag.
+            extra = (
+                ("--disable-regalloc",)
+                if sample.variant in COMPXSMM_XDSL_REGALLOC
+                else ()
+            )
             steps = (
                 Step("remove", (str(mlir),)),
                 Step(
