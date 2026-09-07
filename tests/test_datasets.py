@@ -3,7 +3,14 @@ from pathlib import Path
 
 import pytest
 
-from autotuner.datasets import Sample, dataset_samples, machine_file
+from autotuner.datasets import (
+    NANOKERNEL_GRID_K,
+    NANOKERNEL_GRID_M,
+    NANOKERNEL_GRID_N,
+    Sample,
+    dataset_samples,
+    machine_file,
+)
 
 # Datasets committed to the repo, which the sample order has to keep matching.
 COMMITTED = [
@@ -48,6 +55,7 @@ def test_the_path_helper_still_spells_out_wildcards() -> None:
 def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
     assert dataset_samples("neon")["f64.squares"] == []
     assert dataset_samples("neon")["f64.mnk_grid"] == []
+    assert dataset_samples("neon")["f64.nanokernel_grid"] == []
 
 
 def test_the_square_sweep_keeps_every_dimension_equal() -> None:
@@ -64,3 +72,21 @@ def test_the_grid_sweeps_every_dimension() -> None:
     assert len(samples) == 16 * 16 * 16 * 3
     assert {s.m for s in samples} == {s.n for s in samples} == set(range(1, 17))
     assert {s.k for s in samples} == set(range(1, 17))
+
+
+def test_the_nanokernel_grid_only_measures_supported_tiles() -> None:
+    samples = dataset_samples("rapper")["f64.nanokernel_grid"]
+    n_by_variant = {
+        variant: {s.n for s in samples if s.variant == variant}
+        for variant in ("compxsmm_fsdbcst", "compxsmm_nofsdbcst")
+    }
+
+    # The tile's M is the matrix's N: one f64 vector of it for fsdbcst, two to
+    # four for nofsdbcst, so between them they cover each swept N exactly once.
+    assert n_by_variant["compxsmm_fsdbcst"] == {2, 4, 6, 8}
+    assert n_by_variant["compxsmm_nofsdbcst"] == set(NANOKERNEL_GRID_N) - {2, 4, 6, 8}
+    assert {s.m for s in samples} == set(NANOKERNEL_GRID_M)
+    assert {s.k for s in samples} == set(NANOKERNEL_GRID_K)
+    assert len(samples) == len(NANOKERNEL_GRID_M) * len(NANOKERNEL_GRID_N) * len(
+        NANOKERNEL_GRID_K
+    )
