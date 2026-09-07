@@ -99,6 +99,7 @@ PLOTS += plots/f64.squares.rapper.pdf
 # them outright breaks `make plots` everywhere else: a pattern rule whose
 # prerequisite cannot be built is "No rule to make target".
 PLOTS += $(patsubst data/%.jsonl,plots/%.pdf,$(wildcard data/*/f64.mnk_grid.jsonl))
+PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard data/*/f64.nanokernel_grid.jsonl)),plots/f64.nanokernel_grid.$(m).pdf)
 
 PLOTS += plots/ttile.pdf
 
@@ -127,6 +128,14 @@ plots/f64.squares.%.pdf: data/%/f64.squares.jsonl src/autotuner/plot_squares.py 
 # Two columns wide, so a PDF rather than a PNG: LaTeX gets the vector text.
 plots/%.mnk_grid.pdf: data/%.mnk_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py
 	uv run plot-grid $< --output $@
+
+# The same grid over the nano-kernels rather than the libraries.  The panels are
+# the same shape as the mnk grid's: five M values down the rows against sixteen
+# N values across, so the figure comes out a page wide and a fifth as tall.
+# A paper figure, so like the squares plot it goes straight in plots/ with the
+# machine last in the name; here `%` is the machine on its own.
+plots/f64.nanokernel_grid.%.pdf: data/%/f64.nanokernel_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py
+	uv run plot-grid $< --variant compxsmm_fsdbcst --variant compxsmm_nofsdbcst --output $@
 
 .PHONY: plots
 plots: $(PLOTS)

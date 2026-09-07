@@ -39,6 +39,9 @@ _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     BASELINE: ("LIBXSMM", "#a6cee3", "none", "-"),
     "compxsmm": ("CompXSMM", "#4a3aa7", "D", "-."),
     "compxsmm_manual": ("CompXSMM (no regalloc)", "#cab2d6", "d", (0, (2, 1))),
+    # The two nano-kernels, each pinned instead of chosen by the heuristic.
+    "compxsmm_fsdbcst": ("fsdbcst", "#1f78b4", "o", "-"),
+    "compxsmm_nofsdbcst": ("nofsdbcst", "#33a02c", "s", "-."),
     "aocl": ("AOCL", "#ff7f00", "s", (0, (5, 2))),
     "mkl": ("MKL", "#008300", "^", ":"),
     "naive_c": ("naive C", "#e34948", "v", (0, (3, 1, 1, 1))),
