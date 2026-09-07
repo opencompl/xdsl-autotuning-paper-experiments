@@ -6,11 +6,12 @@ import pytest
 from autotuner.datasets import Sample, dataset_samples, machine_file
 
 # Datasets committed to the repo, which the sample order has to keep matching.
-# Everything but the square sweep still holds row-major shapes -- the switch to
-# column major transposed M and N -- so those files are stale until the machine
-# that owns them is re-measured, and are left out until they are.
+# Every one of these was measured after the switch to column major, so they all
+# hold column-major shapes.  The other machines have no data checked in.
 COMMITTED = [
-    ("rapper", "f64.squares"),
+    (machine, dataset)
+    for machine in ("rapper", "tower")
+    for dataset in ("f32.ttile", "f64.ttile", "f64.small_matrices", "f64.squares")
 ]
 
 
