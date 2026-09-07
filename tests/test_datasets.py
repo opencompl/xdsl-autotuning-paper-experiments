@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from pathlib import Path
 
 import pytest
@@ -67,17 +68,28 @@ def test_the_square_sweep_keeps_every_dimension_equal() -> None:
 
 def test_the_nanokernel_grid_only_measures_supported_tiles() -> None:
     samples = dataset_samples("rapper")["f64.nanokernel_grid"]
-    n_by_variant = {
-        variant: {s.n for s in samples if s.variant == variant}
+    swept = {(m, n) for m in NANOKERNEL_GRID_M for n in NANOKERNEL_GRID_N}
+    k_by_tile: defaultdict[tuple[str, int, int], set[int]] = defaultdict(set)
+    for s in samples:
+        k_by_tile[s.variant, s.m, s.n].add(s.k)
+    tiles = {
+        variant: {(m, n) for v, m, n in k_by_tile if v == variant}
         for variant in ("compxsmm_fsdbcst", "compxsmm_nofsdbcst")
     }
 
-    # The tile's M is the matrix's N: one f64 vector of it for fsdbcst, two to
-    # four for nofsdbcst, so between them they cover each swept N exactly once.
-    assert n_by_variant["compxsmm_fsdbcst"] == {2, 4, 6, 8}
-    assert n_by_variant["compxsmm_nofsdbcst"] == set(NANOKERNEL_GRID_N) - {2, 4, 6, 8}
-    assert {s.m for s in samples} == set(NANOKERNEL_GRID_M)
-    assert {s.k for s in samples} == set(NANOKERNEL_GRID_K)
-    assert len(samples) == len(NANOKERNEL_GRID_M) * len(NANOKERNEL_GRID_N) * len(
-        NANOKERNEL_GRID_K
-    )
+    # The tile's M is the matrix's N.  fsdbcst spans one f64 vector of it, so
+    # it reaches only the leftmost columns of the grid; nofsdbcst spans up to
+    # four, which covers those columns too, so the two overlap there rather
+    # than dividing the sweep between them.  Both share a 28-column limit on
+    # the tile's N, which is the matrix's M.
+    assert tiles["compxsmm_fsdbcst"] == {(m, n) for m, n in swept if n <= 8 and m <= 28}
+    # Once the tile's M takes four vectors, at a matrix N above 24, only six
+    # accumulator columns are left, so the widest tiles stop short of the
+    # bottom rows of the grid.
+    assert swept - tiles["compxsmm_nofsdbcst"] == {
+        (m, n) for m, n in swept if n > 24 and m > 6
+    }
+
+    # Every tile that is measured is measured over the whole of K.
+    assert all(ks == set(NANOKERNEL_GRID_K) for ks in k_by_tile.values())
+    assert len(samples) == len(k_by_tile) * len(NANOKERNEL_GRID_K)
