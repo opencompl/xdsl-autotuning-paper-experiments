@@ -128,21 +128,42 @@ def test_skx_nofsdbcst_supported_tiles() -> None:
     descriptor = _descriptor(m=40, n=6, k=2, datatype=builtin.f64)
 
     assert kernel.supports_tile(descriptor, TileSizes(32, 6, 2), isa_info)
+    assert kernel.supports_tile(descriptor, TileSizes(8, 1, 2), isa_info)
     assert kernel.register_usage(
         descriptor, TileSizes(40, 5, 2), isa_info
     ) == RegisterCount(general=5, vector=31, mask=0)
     assert not kernel.supports_tile(descriptor, TileSizes(40, 5, 2), isa_info)
     assert not kernel.supports_tile(descriptor, TileSizes(40, 6, 2), isa_info)
-    assert not kernel.supports_tile(descriptor, TileSizes(8, 1, 2), isa_info)
 
     supported = kernel.supported_tile_sizes(builtin.f64, isa_info)
-    assert len(supported) == 8 * 14 + 8 * 9 + 8 * 6
+    # num C-registers: (M // 8) * N
+    # num A-registers: (M // 8)
+    # num B-registers: 1
+    # 32 total registers
+    #
+    # M = 8:   N + 1 + 1 <= 32 ==> N = 30
+    # M = 16: 2N + 2 + 1 <= 32 ==> N = 14
+    # M = 24: 3N + 3 + 1 <= 32 ==> N =  9
+    # M = 32: 4N + 4 + 1 <= 32 ==> N =  6
+    assert len(supported) == 8 * (30 + 14 + 9 + 6)
     assert SupportedTile(9, 14) in supported
     assert SupportedTile(17, 9) in supported
     assert SupportedTile(25, 6) in supported
     assert SupportedTile(16, 15) not in supported
     assert SupportedTile(33, 1) not in supported
-    assert len(kernel.supported_tile_sizes(builtin.f32, isa_info)) == 16 * (14 + 9 + 6)
+
+    # num C-registers: (M // 16) * N
+    # num A-registers: (M // 16)
+    # num B-registers: 1
+    # 32 total registers
+    #
+    # M = 16:  N + 1 + 1 <= 32 ==> N = 30
+    # M = 32: 2N + 2 + 1 <= 32 ==> N = 14
+    # M = 48: 3N + 3 + 1 <= 32 ==> N =  9
+    # M = 64: 4N + 4 + 1 <= 32 ==> N =  6
+    assert len(kernel.supported_tile_sizes(builtin.f32, isa_info)) == 16 * (
+        30 + 14 + 9 + 6
+    )
 
 
 def test_skx_composite_retains_libxsmm_tiling_heuristics() -> None:
