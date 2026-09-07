@@ -22,7 +22,7 @@ SQUARE_RANGE = range(1, 65)
 # four for nofsdbcst -- so N is the dimension swept out to four f64 vectors,
 # in twos to keep the figure a page wide rather than a page long, and M is kept
 # inside the tile-N limit every nano-kernel shares.
-NANOKERNEL_GRID_M = range(1, 6)
+NANOKERNEL_GRID_M = range(1, 8)
 NANOKERNEL_GRID_N = range(2, 33, 2)
 NANOKERNEL_GRID_K = range(1, 17)
 
