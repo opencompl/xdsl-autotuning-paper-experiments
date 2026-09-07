@@ -6,8 +6,9 @@ samples, and `autotuner.evaluate`, which times them, so the two cannot drift.
 
 from dataclasses import dataclass
 
-# Every dataset measures the row-major matmul.
-KERNEL = "matmul_rowmaj"
+# Every dataset measures the column-major matmul, so M is the contiguous
+# dimension -- the one a kernel vectorizes -- and N is the one it blocks.
+KERNEL = "matmul_colmaj"
 
 # Sizes swept by the square dataset, which sets M = N = K to each of them.
 SQUARE_RANGE = range(1, 65)
@@ -169,14 +170,17 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
             for variant in variants[key]
         ]
 
+    # The sweeps vary N, the blocked dimension, and hold the contiguous M fixed:
+    # M is what a column-major kernel vectorizes, so it is the register block
+    # size rather than the trip count these figures are about.
     return {
         "f32.ttile": by_variant(
-            "f32", [(m, 128, 128) for m in range(8, 50, 2)], "ttile"
+            "f32", [(128, n, 128) for n in range(8, 50, 2)], "ttile"
         ),
-        "f64.ttile": by_variant("f64", [(m, 64, 64) for m in range(9, 63, 3)], "ttile"),
+        "f64.ttile": by_variant("f64", [(64, n, 64) for n in range(9, 63, 3)], "ttile"),
         "f64.small_matrices": by_shape(
             "f64",
-            [(m, n, 64) for m in range(1, 17) for n in range(1, 17)],
+            [(m, n, 64) for n in range(1, 17) for m in range(1, 17)],
             "f64.small_matrices",
         ),
         "f64.squares": by_shape(

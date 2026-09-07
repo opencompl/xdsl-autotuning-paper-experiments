@@ -18,11 +18,11 @@
 #endif
 
 void matmul(MKL_DTYPE *A, MKL_DTYPE *B, MKL_DTYPE *C) {
-  GEMM(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+  GEMM(CblasColMajor, CblasNoTrans, CblasNoTrans,
        MKL_M, MKL_N, MKL_K,
        ALPHA,
-       A, MKL_K,
-       B, MKL_N,
+       A, MKL_M,
+       B, MKL_K,
        BETA,
-       C, MKL_N);
+       C, MKL_M);
 }

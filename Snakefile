@@ -118,7 +118,7 @@ LIBXTCMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
 
 wildcard_constraints:
     dtype = "f32|f64",
-    kernel="matmul_(rowmaj|colmaj)",
+    kernel="matmul_colmaj",
     executable="time|test",
     machine="|".join(MACHINES),
     variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_manual|libxtcmm"
@@ -254,7 +254,7 @@ rule asm_c:
     shell:
         "{params.cc} -O3 -DCROWS={wildcards.m} -DCCOLS={wildcards.n} -DINNER={wildcards.k} -DDTYPE={params.dtype} -S -target {params.target_triple} -march={params.compiler_march} -o {output} {input}"
 
-rule libxsmm_colmaj_c:
+rule libxsmm_c:
     output: machine_file(kernel='matmul_colmaj',variant='libxsmm',ext='c')
     params:
         libxsmm_arch=libxsmm_arch,
@@ -263,37 +263,22 @@ rule libxsmm_colmaj_c:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
-        libxsmm_gemm_generator dense {output} matmul_colmaj \
+        # libxsmm is column-major, so this is our ABI too: it emits
+        # `void matmul(A, B, C)` directly, with no wrapper.
+        libxsmm_gemm_generator dense {output} matmul \
             {wildcards.m} {wildcards.n} {wildcards.k} \
             {wildcards.m} {wildcards.k} {wildcards.m} \
-            1 1 0 0 {params.libxsmm_arch} nopf {params.dtype}
-        """
-
-rule libxsmm_rowmaj_c:
-    output: machine_file(kernel='matmul_rowmaj',variant='libxsmm',ext='c')
-    params:
-        libxsmm_arch=libxsmm_arch,
-        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
-        c_dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
-    shell:
-        """
-        # A = M * K, B = K * N, C = M * N    <- dimensions
-        #     ^          ^          ^        <- leading dimensions
-        libxsmm_gemm_generator dense {output} matmul_bac \
-            {wildcards.n} {wildcards.m} {wildcards.k} \
-            {wildcards.n} {wildcards.k} {wildcards.n} \
             1 1 \
             1 1 \
             {params.libxsmm_arch} \
             nopf \
-            {params.dtype} && \
-        echo 'void matmul({params.c_dtype} *A, {params.c_dtype} *B, {params.c_dtype} *C) {{matmul_bac(B, A, C);}}' >> {output}
+            {params.dtype}
         """
 
 
-rule xdsl_libxsmm_rowmaj_mlir:
+rule xdsl_libxsmm_mlir:
     input: ["pyproject.toml"] + LIBXSMM_GEMM_SOURCES
-    output: machine_file(kernel='matmul_rowmaj',variant='xdsl_libxsmm',ext='libxsmm.mlir')
+    output: machine_file(kernel='matmul_colmaj',variant='xdsl_libxsmm',ext='libxsmm.mlir')
     params:
         libxsmm_arch=libxsmm_arch,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
@@ -302,9 +287,9 @@ rule xdsl_libxsmm_rowmaj_mlir:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
-        SWAP_A_B=1 libxsmm-gemm dense {output} matmul \
-            {wildcards.n} {wildcards.m} {wildcards.k} \
-            {wildcards.n} {wildcards.k} {wildcards.n} \
+        libxsmm-gemm dense {output} matmul \
+            {wildcards.m} {wildcards.n} {wildcards.k} \
+            {wildcards.m} {wildcards.k} {wildcards.m} \
             1 1 \
             1 1 \
             {params.libxsmm_arch} \
@@ -324,9 +309,9 @@ rule xdsl_libxsmm_s:
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
-rule compxsmm_rowmaj_mlir:
+rule compxsmm_mlir:
     input: ["pyproject.toml"] + COMPXSMM_GEMM_SOURCES
-    output: machine_file(kernel='matmul_rowmaj',variant='compxsmm',ext='compxsmm.mlir')
+    output: machine_file(kernel='matmul_colmaj',variant='compxsmm',ext='compxsmm.mlir')
     params:
         libxsmm_arch=libxsmm_arch,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
@@ -335,9 +320,9 @@ rule compxsmm_rowmaj_mlir:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
-        SWAP_A_B=1 compxsmm-gemm dense {output} matmul \
-            {wildcards.n} {wildcards.m} {wildcards.k} \
-            {wildcards.n} {wildcards.k} {wildcards.n} \
+        compxsmm-gemm dense {output} matmul \
+            {wildcards.m} {wildcards.n} {wildcards.k} \
+            {wildcards.m} {wildcards.k} {wildcards.m} \
             1 1 \
             1 1 \
             {params.libxsmm_arch} \
@@ -361,9 +346,9 @@ rule compxsmm_s:
 # The same kernel with the registers assigned by the generator and the schedule
 # rather than by xDSL, so a figure can put the two side by side.
 
-rule compxsmm_manual_rowmaj_mlir:
+rule compxsmm_manual_mlir:
     input: ["pyproject.toml"] + COMPXSMM_GEMM_SOURCES
-    output: machine_file(kernel='matmul_rowmaj',variant='compxsmm_manual',ext='compxsmm.mlir')
+    output: machine_file(kernel='matmul_colmaj',variant='compxsmm_manual',ext='compxsmm.mlir')
     params:
         libxsmm_arch=libxsmm_arch,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
@@ -371,9 +356,9 @@ rule compxsmm_manual_rowmaj_mlir:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
-        SWAP_A_B=1 compxsmm-gemm dense {output} matmul \
-            {wildcards.n} {wildcards.m} {wildcards.k} \
-            {wildcards.n} {wildcards.k} {wildcards.n} \
+        compxsmm-gemm dense {output} matmul \
+            {wildcards.m} {wildcards.n} {wildcards.k} \
+            {wildcards.m} {wildcards.k} {wildcards.m} \
             1 1 \
             1 1 \
             {params.libxsmm_arch} \
@@ -393,9 +378,9 @@ rule compxsmm_manual_s:
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
-rule libxtcmm_rowmaj_mlir:
+rule libxtcmm_mlir:
     input: ["pyproject.toml"] + LIBXTCMM_GEMM_SOURCES
-    output: machine_file(kernel='matmul_rowmaj',variant='libxtcmm',ext='xtcmm.mlir')
+    output: machine_file(kernel='matmul_colmaj',variant='libxtcmm',ext='xtcmm.mlir')
     params:
         libxsmm_arch=libxsmm_arch,
         dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
@@ -403,11 +388,11 @@ rule libxtcmm_rowmaj_mlir:
         """
         # A = M * K, B = K * N, C = M * N    <- dimensions
         #     ^          ^          ^        <- leading dimensions
-        # Emits `void matmul(A, B, C)` with the direct row-major ABI, so it links
+        # Emits `void matmul(A, B, C)` with the direct column-major ABI, so it links
         # into the timing/validation drivers exactly like the other variants.
         libxtcmm-gemm dense {output} matmul \
-            {wildcards.n} {wildcards.m} {wildcards.k} \
-            {wildcards.n} {wildcards.k} {wildcards.n} \
+            {wildcards.m} {wildcards.n} {wildcards.k} \
+            {wildcards.m} {wildcards.k} {wildcards.m} \
             1 1 \
             1 1 \
             {params.libxsmm_arch} \
@@ -442,28 +427,28 @@ rule libxtcmm_s:
             -mtriple={params.triple} -mcpu={params.march} {output}.bc -o {output}
         """
 
-rule mkl_rowmaj_s:
-    output: machine_file(kernel='matmul_rowmaj',variant='mkl',ext='S')
+rule mkl_s:
+    output: machine_file(kernel='matmul_colmaj',variant='mkl',ext='S')
     params:
         target_triple=target_triple,
         compiler_march=compiler_march,
         cc=config["cc"],
         dtype_flag=lambda w: "-DMKL_DTYPE_IS_FLOAT=1" if w.dtype=="f32" else "-DMKL_DTYPE_IS_DOUBLE=1",
     shell:
-        "{params.cc} -O3 kernels/matmul_rowmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
+        "{params.cc} -O3 kernels/matmul_colmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
-rule aocl_rowmaj_s:
-    output: machine_file(kernel='matmul_rowmaj',variant='aocl',ext='S')
+rule aocl_s:
+    output: machine_file(kernel='matmul_colmaj',variant='aocl',ext='S')
     params:
         target_triple=target_triple,
         compiler_march=compiler_march,
         cc=config["cc"],
         dtype_flag=lambda w: "-DAOCL_DTYPE_IS_FLOAT=1" if w.dtype=="f32" else "-DAOCL_DTYPE_IS_DOUBLE=1",
     shell:
-        "{params.cc} -O3 kernels/matmul_rowmaj/aocl.c {AOCL_CFLAGS} -DAOCL_M={wildcards.m} -DAOCL_N={wildcards.n} -DAOCL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
+        "{params.cc} -O3 kernels/matmul_colmaj/aocl.c {AOCL_CFLAGS} -DAOCL_M={wildcards.m} -DAOCL_N={wildcards.n} -DAOCL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
-rule llvm_intrinsics_rowmaj_s:
-    output: machine_file(kernel='matmul_rowmaj',variant='llvm_intrinsics',ext='S')
+rule llvm_intrinsics_s:
+    output: machine_file(kernel='matmul_colmaj',variant='llvm_intrinsics',ext='S')
     params:
         target_triple=target_triple,
         compiler_march=compiler_march,
@@ -471,33 +456,33 @@ rule llvm_intrinsics_rowmaj_s:
         cc=CC_ASM,
         dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
     shell:
-        "{params.cc} -O3 -c kernels/matmul_rowmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.compiler_march} -mtune={params.compiler_mtune} -o {output} -ffp-contract=fast -ffast-math -mprefer-vector-width=512"
+        "{params.cc} -O3 -c kernels/matmul_colmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.compiler_march} -mtune={params.compiler_mtune} -o {output} -ffp-contract=fast -ffast-math -mprefer-vector-width=512"
 
-rule tvm_rowmaj_c:
-    output: machine_file(kernel='matmul_rowmaj',variant='tvm',ext='c')
+rule tvm_c:
+    output: machine_file(kernel='matmul_colmaj',variant='tvm',ext='c')
     params:
         compiler_march=compiler_march,
         dtype=lambda wildcards: {"f32": "float32", "f64": "float64"}[wildcards.dtype],
     shell:
         """
         {{
-            TVM_NUM_THREADS=1 python3.12 kernels/matmul_rowmaj/tvm_matmul_row_major.py \
+            TVM_NUM_THREADS=1 python3.12 kernels/matmul_colmaj/tvm_matmul.py \
                 --M {wildcards.m} --N {wildcards.n} --K {wildcards.k} \
                 --dtype {params.dtype} --symbol {TVM_FUNC_NAME} --cpu {params.compiler_march}
-            cat kernels/matmul_rowmaj/tvm_matmul_wrapper.c
+            cat kernels/matmul_colmaj/tvm_matmul_wrapper.c
         }} > {output}
         """
 
-rule tvm_rowmaj_s:
-    input: machine_file(kernel='matmul_rowmaj',variant='tvm',ext='c')
-    output: machine_file(kernel='matmul_rowmaj',variant='tvm',ext='S')
+rule tvm_s:
+    input: machine_file(kernel='matmul_colmaj',variant='tvm',ext='c')
+    output: machine_file(kernel='matmul_colmaj',variant='tvm',ext='S')
     params:
         target_triple=target_triple,
         compiler_march=compiler_march,
         cc=config["cc"],
         dtype=lambda wildcards: {"f32": "MM_DTYPE_float", "f64": "MM_DTYPE_double"}[wildcards.dtype],
     shell:
-                "{params.cc} -O3 -c {input} -DKERNEL_FUNC=matmul -DPACKED_FUNC={TVM_FUNC_NAME} -DMM_I={wildcards.m} -DMM_J={wildcards.n} -DMM_K={wildcards.k} -DMM_DTYPE={params.dtype} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
+                "{params.cc} -O3 -c {input} -DKERNEL_FUNC=matmul -DPACKED_FUNC={TVM_FUNC_NAME} -DMM_M={wildcards.m} -DMM_N={wildcards.n} -DMM_K={wildcards.k} -DMM_DTYPE={params.dtype} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
 rule libxsmm_s:
     input: machine_file(variant='libxsmm',ext='c')
@@ -589,8 +574,6 @@ class Kernel3D(NamedTuple):
     k: int
 
 KERNELS_CI = [
-    Kernel3D("matmul_rowmaj", 4, 4, 4),
-    Kernel3D("matmul_rowmaj", 5, 6, 7),
     Kernel3D("matmul_colmaj", 4, 4, 4),
     Kernel3D("matmul_colmaj", 5, 6, 7),
 ]
@@ -614,7 +597,7 @@ def testset_ci(machine: str, ext: str):
 # Exercise XTC's F32 emitter and the complete MLIR/LLVM lowering without
 # requiring the CI host to execute AVX-512 instructions.
 LIBXTCMM_COMPILE_SMOKE = machine_file(
-    kernel="matmul_rowmaj", m="29", n="16", k="25",
+    kernel="matmul_colmaj", m="16", n="29", k="25",
     variant="libxtcmm", dtype="f32", machine="tower", ext="S"
 )
 
@@ -622,29 +605,29 @@ TESTSET_MAC = [
     # Validate CI test set neon executables
     *testset_ci(machine="neon", ext="test.log"),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="transform_mlir", dtype="f32", machine="neon", ext="test.log"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="transform_mlir", dtype="f32", machine="neon", ext="time.txt"
     ),
     # Generate CI test set x86 assembly
     *testset_ci(machine="ci", ext="S"),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="transform_mlir", dtype="f32", machine="ci", ext="S"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="vector_intrinsic", dtype="f32", machine="ci", ext="S"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="3", n="16", k="5",
+        kernel="matmul_colmaj", m="16", n="3", k="5",
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="6", n="32", k="5",
+        kernel="matmul_colmaj", m="32", n="6", k="5",
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
     LIBXTCMM_COMPILE_SMOKE,
@@ -654,51 +637,51 @@ TESTSET_CI = [
     # Generate CI test set neon assembly
     *testset_ci(machine="neon", ext="S"),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="transform_mlir", dtype="f32", machine="neon", ext="S"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="vector_intrinsic", dtype="f32", machine="neon", ext="S"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="3", n="16", k="5",
+        kernel="matmul_colmaj", m="16", n="3", k="5",
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
     LIBXTCMM_COMPILE_SMOKE,
     # Validate CI test set x86 executables
     *testset_ci(machine="ci", ext="test.log"),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="transform_mlir", dtype="f32", machine="ci", ext="test.log"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="transform_mlir", dtype="f32", machine="ci", ext="time.txt"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="8", n="8", k="8",
+        kernel="matmul_colmaj", m="8", n="8", k="8",
         variant="vector_intrinsic", dtype="f32", machine="ci", ext="time.txt"
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="5", n="6", k="7",
+        kernel="matmul_colmaj", m="5", n="6", k="7",
         variant="transform_mlir", dtype="f32", machine="ci", ext="time.txt"
     ),
 ]
 
 # Functional coverage for the Python XSMM generators.
 KERNELS_XSMM_AVX512 = [
-    Kernel3D("matmul_rowmaj", 5, 34, 16),  # fully unrolled K, multiple M tiles
-    Kernel3D("matmul_rowmaj", 29, 16, 16),  # fully unrolled K, multiple N blocks
-    Kernel3D("matmul_rowmaj", 5, 34, 24),  # exact tiled K loop
-    Kernel3D("matmul_rowmaj", 5, 34, 25),  # tiled K loop plus remainder
+    Kernel3D("matmul_colmaj", 34, 5, 16),  # fully unrolled K, multiple M tiles
+    Kernel3D("matmul_colmaj", 16, 29, 16),  # fully unrolled K, multiple N blocks
+    Kernel3D("matmul_colmaj", 34, 5, 24),  # exact tiled K loop
+    Kernel3D("matmul_colmaj", 34, 5, 25),  # tiled K loop plus remainder
 ]
 
 # For machines that can execute the AVX-512 ISA
 TESTSET_AVX512 = [
     *expand(
         machine_file(
-            kernel="matmul_rowmaj", m="3", n="16", k="5", dtype="f64",
+            kernel="matmul_colmaj", m="16", n="3", k="5", dtype="f64",
             machine=THIS_MACHINE,
             ext="test.log",
         ),
@@ -714,7 +697,7 @@ TESTSET_AVX512 = [
         ],
     ),
     machine_file(
-        kernel="matmul_rowmaj", m="29", n="16", k="25", dtype="f64",
+        kernel="matmul_colmaj", m="16", n="29", k="25", dtype="f64",
         machine=THIS_MACHINE, variant="libxtcmm", ext="test.log",
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.

@@ -47,6 +47,18 @@ non-libxsmm strategies without confusing a policy with the machine's ISA.
 Likewise, the llvm-mca analyzer exposes `arch` and `cpu`, matching llvm-mca's
 `-march` and `-mcpu` options; those names are local to that tool boundary.
 
+### Matrix layout
+
+Every kernel is column-major, the layout libxsmm and the BLAS baselines use, so
+a shape `MxNxK` names one GEMM for all of them: `A` is `M*K` with leading
+dimension `M`, `B` is `K*N` with leading dimension `K`, and `C` is `M*N` with
+leading dimension `M`. `M` is therefore the contiguous dimension -- the one a
+nano-kernel vectorizes -- and `N` the one it blocks into columns. Every
+generator is handed `m n k lda ldb ldc` as `M N K M K M` and emits
+`void matmul(A, B, C)` directly, so nothing is transposed or wrapped on the way
+into the timing and validation drivers. Kernel sources live in
+`kernels/matmul_colmaj/`.
+
 ### Setting up a new machine
 
 When running on a new machine, please create a `.env` file with the format:
@@ -112,7 +124,7 @@ runtime code path:
 ```sh
 pkg-config --modversion blis
 BLIS_ARCH_DEBUG=1 uv run snakemake --cores 1 --forceall \
-  build/tower/matmul_rowmaj/3x16x5/aocl.f64.test.log \
+  build/tower/matmul_colmaj/16x3x5/aocl.f64.test.log \
   --config target=tower
 ```
 

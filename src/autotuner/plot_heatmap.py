@@ -23,7 +23,9 @@ def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
 
     valid_data["perf"] = (valid_data["throughput"] / peak) * 100
 
-    heatmap_data = valid_data.pivot(index="M", columns="N", values="perf")
+    # M across: it is the contiguous dimension of these column-major matmuls,
+    # so it is the one a kernel vectorizes.
+    heatmap_data = valid_data.pivot(index="N", columns="M", values="perf")
 
     im = ax.imshow(heatmap_data, cmap="YlOrRd", aspect="auto", vmin=0, vmax=100)
 
@@ -46,8 +48,8 @@ def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
     #                 color="black",
     #             )
 
-    ax.set_xlabel("N")
-    ax.set_ylabel("M")
+    ax.set_xlabel("M")
+    ax.set_ylabel("N")
     ax.set_title(title)
 
     return im
@@ -81,7 +83,7 @@ def plot_heatmap_throughput_over_peak(
         axes.flat[j].axis("off")
 
     fig.suptitle(
-        "Performance of small square matrix multiplication kernels, for 1 ≤ M ≤ 16, 1 ≤ N ≤ 16, K = 64",
+        "Performance of small matrix multiplication kernels, for 1 ≤ M ≤ 16, 1 ≤ N ≤ 16, K = 64",
         y=1.02,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.96))

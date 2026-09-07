@@ -1,15 +1,15 @@
-// RUN: compxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP && cat %t | filecheck %s
-// RUN: compxsmm-gemm dense %t matmul_bac 7 5 16 7 16 7 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
+// RUN: compxsmm-gemm dense %t matmul 7 5 16 7 16 7 1 1 1 1 skx nopf DP && cat %t | filecheck %s
+// RUN: compxsmm-gemm dense %t matmul 7 5 16 7 16 7 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
 
-// CHECK:       x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
+// CHECK:       x86_func.func public @matmul(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
 // CHECK-NEXT:    %3, %4, %5 = xsmm.matmul %0, %1, %2 {m = 7 : i64, n = 5 : i64, k = 16 : i64, lda = 7 : i64, ldb = 16 : i64, ldc = 7 : i64, datatype = f64, aligned_a = false, aligned_c = false, iterator = "n"} : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
 // CHECK-NEXT:    x86_func.ret
 // CHECK-NEXT:  }
 
 // CHECK-REGALLOC:       .intel_syntax noprefix
 // CHECK-REGALLOC-NEXT:  .text
-// CHECK-REGALLOC-NEXT:  .globl matmul_bac
-// CHECK-REGALLOC-NEXT:  matmul_bac:
+// CHECK-REGALLOC-NEXT:  .globl matmul
+// CHECK-REGALLOC-NEXT:  matmul:
 // CHECK-REGALLOC-NEXT:      mov rax, 127
 // CHECK-REGALLOC-NEXT:      kmovb k1, eax
 // CHECK-REGALLOC-NEXT:      vmovupd zmm4 {k1}{z}, [rdx]

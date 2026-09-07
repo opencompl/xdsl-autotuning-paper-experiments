@@ -15,11 +15,11 @@
 #endif
 
 void matmul(AOCL_DTYPE *A, AOCL_DTYPE *B, AOCL_DTYPE *C) {
-  GEMM(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+  GEMM(CblasColMajor, CblasNoTrans, CblasNoTrans,
        AOCL_M, AOCL_N, AOCL_K,
        ALPHA,
-       A, AOCL_K,
-       B, AOCL_N,
+       A, AOCL_M,
+       B, AOCL_K,
        BETA,
-       C, AOCL_N);
+       C, AOCL_M);
 }

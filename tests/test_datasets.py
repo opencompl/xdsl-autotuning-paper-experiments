@@ -6,10 +6,10 @@ import pytest
 from autotuner.datasets import Sample, dataset_samples, machine_file
 
 # Datasets committed to the repo, which the sample order has to keep matching.
+# Everything but the square sweep still holds row-major shapes -- the switch to
+# column major transposed M and N -- so those files are stale until the machine
+# that owns them is re-measured, and are left out until they are.
 COMMITTED = [
-    ("tower", "f64.small_matrices"),
-    ("tower", "f64.ttile"),
-    ("tower", "f32.ttile"),
     ("rapper", "f64.squares"),
 ]
 
@@ -35,7 +35,7 @@ def test_a_sample_knows_where_its_files_live() -> None:
     sample = Sample(3, 5, 7, "libxsmm", "f64")
 
     assert sample.path("rapper", "time.o") == (
-        "build/rapper/matmul_rowmaj/3x5x7/libxsmm.f64.time.o"
+        "build/rapper/matmul_colmaj/3x5x7/libxsmm.f64.time.o"
     )
 
 

@@ -1,12 +1,12 @@
-// RUN: libxsmm-gemm dense %t matmul_bac 128 38 128  128 128 128  1 1  1 1  skx  nopf  SP && xdsl-opt %t -f mlir | filecheck %s
-// RUN: libxsmm-gemm dense %t matmul_bac 128 38 128  128 128 128  1 1  1 1  skx  nopf  SP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
-// RUN: compxsmm-gemm dense %t matmul_bac 128 38 128  128 128 128  1 1  1 1  skx  nopf  SP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
-// RUN: compxsmm-gemm dense %t matmul_bac 128 38 128  128 128 128  1 1  1 1  skx  nopf  SP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
+// RUN: libxsmm-gemm dense %t matmul 128 38 128  128 128 128  1 1  1 1  skx  nopf  SP && xdsl-opt %t -f mlir | filecheck %s
+// RUN: libxsmm-gemm dense %t matmul 128 38 128  128 128 128  1 1  1 1  skx  nopf  SP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
+// RUN: compxsmm-gemm dense %t matmul 128 38 128  128 128 128  1 1  1 1  skx  nopf  SP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
+// RUN: compxsmm-gemm dense %t matmul 128 38 128  128 128 128  1 1  1 1  skx  nopf  SP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
 
 // CHECK-MANUAL:       .intel_syntax noprefix
 // CHECK-MANUAL-NEXT:  .text
-// CHECK-MANUAL-NEXT:  .globl matmul_bac
-// CHECK-MANUAL-NEXT:  matmul_bac:
+// CHECK-MANUAL-NEXT:  .globl matmul
+// CHECK-MANUAL-NEXT:  matmul:
 // CHECK-LIBXSMM-NEXT:      push rbp
 // CHECK-MANUAL-NEXT:      push r12
 // CHECK-LIBXSMM-NEXT:      push rbp
@@ -429,7 +429,7 @@
 // CHECK-MANUAL-NEXT:      ret
 
 // CHECK:       builtin.module {
-// CHECK-NEXT:    x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
+// CHECK-NEXT:    x86_func.func public @matmul(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
 // CHECK-NEXT:      %3 = x86.get_register : !x86.reg64<rbp>
 // CHECK-NEXT:      %4 = x86.get_register : !x86.reg64<rsp>
 // CHECK-NEXT:      %5 = x86.s.push %4, %3 : (!x86.reg64<rsp>, !x86.reg64<rbp>) -> !x86.reg64<rsp>
@@ -862,8 +862,8 @@
 
 // CHECK-REGALLOC:       .intel_syntax noprefix
 // CHECK-REGALLOC-NEXT:  .text
-// CHECK-REGALLOC-NEXT:  .globl matmul_bac
-// CHECK-REGALLOC-NEXT:  matmul_bac:
+// CHECK-REGALLOC-NEXT:  .globl matmul
+// CHECK-REGALLOC-NEXT:  matmul:
 // CHECK-REGALLOC-NEXT:      push rbx
 // CHECK-REGALLOC-NEXT:      mov rax, 0
 // CHECK-REGALLOC-NEXT:  scf_body_2_for:

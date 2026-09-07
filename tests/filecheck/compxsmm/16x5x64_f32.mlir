@@ -1,13 +1,13 @@
-// RUN: compxsmm-gemm dense %t matmul_bac 16 5 64 16 64 16 1 1 1 1 skx nopf SP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-REGALLOC-STRUCTURE,CHECK-MANUAL-REGALLOC
-// RUN: compxsmm-gemm dense %t matmul_bac 16 5 64 16 64 16 1 1 1 1 skx nopf SP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
+// RUN: compxsmm-gemm dense %t matmul 16 5 64 16 64 16 1 1 1 1 skx nopf SP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-REGALLOC-STRUCTURE,CHECK-MANUAL-REGALLOC
+// RUN: compxsmm-gemm dense %t matmul 16 5 64 16 64 16 1 1 1 1 skx nopf SP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
 
 // This exercises the unmasked single-precision fsdbcst path with four accumulator
 // sets and a K loop, including the vaddps accumulator reduction variant.
 
 // CHECK-REGALLOC-STRUCTURE:       .intel_syntax noprefix
 // CHECK-REGALLOC-STRUCTURE-NEXT:  .text
-// CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul_bac
-// CHECK-REGALLOC-STRUCTURE-NEXT:  matmul_bac:
+// CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul
+// CHECK-REGALLOC-STRUCTURE-NEXT:  matmul:
 // CHECK-MANUAL-REGALLOC-NEXT:      push r12
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovaps [[ACC0:\S+]], [rdx]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovaps [[ACC1:\S+]], [rdx+64]

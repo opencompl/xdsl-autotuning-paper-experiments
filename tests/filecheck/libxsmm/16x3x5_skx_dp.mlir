@@ -1,13 +1,11 @@
-// RUN: libxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s
-// RUN: libxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
-// RUN: env SWAP_A_B=1 libxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-SWAP,CHECK-SWAP-LIBXSMM
-// RUN: env SWAP_A_B=1 compxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-SWAP,CHECK-SWAP-COMPXSMM
+// RUN: libxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir | filecheck %s
+// RUN: libxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p x86-prologue-epilogue-insertion -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-LIBXSMM
+// RUN: compxsmm-gemm dense %t matmul 16 3 5 16 5 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-MANUAL,CHECK-COMPXSMM
 
 // CHECK-MANUAL:       .intel_syntax noprefix
 // CHECK-MANUAL-NEXT:  .text
-// CHECK-MANUAL-NEXT:  .globl matmul_bac
-// CHECK-MANUAL-NEXT:  matmul_bac:
+// CHECK-MANUAL-NEXT:  .globl matmul
+// CHECK-MANUAL-NEXT:  matmul:
 // CHECK-LIBXSMM-NEXT:      push rbp
 // CHECK-LIBXSMM-NEXT:      push rbp
 // CHECK-LIBXSMM-NEXT:      mov rbp, rsp
@@ -116,120 +114,8 @@
 // CHECK-LIBXSMM-NEXT:      pop rbp
 // CHECK-MANUAL-NEXT:      ret
 
-// CHECK-SWAP:       .intel_syntax noprefix
-// CHECK-SWAP-NEXT:  .text
-// CHECK-SWAP-NEXT:  .globl matmul
-// CHECK-SWAP-NEXT:  matmul:
-// CHECK-SWAP-LIBXSMM-NEXT:      push rbp
-// CHECK-SWAP-LIBXSMM-NEXT:      push rbp
-// CHECK-SWAP-LIBXSMM-NEXT:      mov rbp, rsp
-// CHECK-SWAP-LIBXSMM-NEXT:      sub rsp, 192
-// CHECK-SWAP-LIBXSMM-NEXT:      mov r10, -64
-// CHECK-SWAP-LIBXSMM-NEXT:      and rsp, r10
-// CHECK-SWAP-LIBXSMM-NEXT:      mov r11, 0
-// CHECK-SWAP-LIBXSMM-NEXT:  [[SCF_N_BODY:^\S+]]:
-// CHECK-SWAP-LIBXSMM-NEXT:      add r11, 3
-// CHECK-SWAP-LIBXSMM-NEXT:      mov r10, 0
-// CHECK-SWAP-LIBXSMM-NEXT:  [[SCF_M_BODY:^\S+]]:
-// CHECK-SWAP-LIBXSMM-NEXT:      add r10, 16
-// CHECK-SWAP-NEXT:      vmovapd zmm26, [rdx]
-// CHECK-SWAP-NEXT:      vmovapd zmm27, [rdx+64]
-// CHECK-SWAP-NEXT:      vmovapd zmm28, [rdx+128]
-// CHECK-SWAP-NEXT:      vmovapd zmm29, [rdx+192]
-// CHECK-SWAP-NEXT:      vmovapd zmm30, [rdx+256]
-// CHECK-SWAP-NEXT:      vmovapd zmm31, [rdx+320]
-// CHECK-SWAP-NEXT:      vmovapd zmm1, [rsi]
-// CHECK-SWAP-NEXT:      vmovapd zmm2, [rsi+64]
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+40]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+80]
-// CHECK-SWAP-NEXT:      add rdi, 8
-// CHECK-SWAP-NEXT:      add rsi, 128
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vmovapd zmm1, [rsi]
-// CHECK-SWAP-NEXT:      vmovapd zmm2, [rsi+64]
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+40]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+80]
-// CHECK-SWAP-NEXT:      add rdi, 8
-// CHECK-SWAP-NEXT:      add rsi, 128
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vmovapd zmm1, [rsi]
-// CHECK-SWAP-NEXT:      vmovapd zmm2, [rsi+64]
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+40]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+80]
-// CHECK-SWAP-NEXT:      add rdi, 8
-// CHECK-SWAP-NEXT:      add rsi, 128
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vmovapd zmm1, [rsi]
-// CHECK-SWAP-NEXT:      vmovapd zmm2, [rsi+64]
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+40]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+80]
-// CHECK-SWAP-NEXT:      add rdi, 8
-// CHECK-SWAP-NEXT:      add rsi, 128
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vmovapd zmm1, [rsi]
-// CHECK-SWAP-NEXT:      vmovapd zmm2, [rsi+64]
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm26, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm27, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+40]
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm28, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm29, zmm2, zmm0
-// CHECK-SWAP-NEXT:      vbroadcastsd zmm0, [rdi+80]
-// CHECK-SWAP-NEXT:      add rdi, 8
-// CHECK-SWAP-NEXT:      add rsi, 128
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm30, zmm1, zmm0
-// CHECK-SWAP-NEXT:      vfmadd231pd zmm31, zmm2, zmm0
-// CHECK-SWAP-LIBXSMM-NEXT:     sub rdi, 40
-// CHECK-SWAP-NEXT:      vmovapd [rdx], zmm26
-// CHECK-SWAP-NEXT:      vmovapd [rdx+64], zmm27
-// CHECK-SWAP-NEXT:      vmovapd [rdx+128], zmm28
-// CHECK-SWAP-NEXT:      vmovapd [rdx+192], zmm29
-// CHECK-SWAP-NEXT:      vmovapd [rdx+256], zmm30
-// CHECK-SWAP-NEXT:      vmovapd [rdx+320], zmm31
-// CHECK-SWAP-COMPXSMM-NEXT:    sub rsi, 512
-// CHECK-SWAP-COMPXSMM-NEXT:    sub rdi, 40
-// CHECK-SWAP-NEXT:      add rdx, 128
-// CHECK-SWAP-LIBXSMM-NEXT:     sub rsi, 512
-// CHECK-SWAP-LIBXSMM-NEXT:      cmp r10, 16
-// CHECK-SWAP-LIBXSMM-NEXT:      jl [[SCF_M_BODY]]
-// CHECK-SWAP-LIBXSMM-NEXT:     add rdx, 256
-// CHECK-SWAP-COMPXSMM-NEXT:    sub rsi, 128
-// CHECK-SWAP-NEXT:              add rdi, 120
-// CHECK-SWAP-LIBXSMM-NEXT:     sub rsi, 128
-// CHECK-SWAP-COMPXSMM-NEXT:    add rdx, 256
-// CHECK-SWAP-LIBXSMM-NEXT:      cmp r11, 3
-// CHECK-SWAP-LIBXSMM-NEXT:      jl [[SCF_N_BODY]]
-// CHECK-SWAP-LIBXSMM-NEXT:      mov rsp, rbp
-// CHECK-SWAP-LIBXSMM-NEXT:      pop rbp
-// CHECK-SWAP-LIBXSMM-NEXT:      pop rbp
-// CHECK-SWAP-NEXT:      ret
-
 // CHECK:       builtin.module {
-// CHECK-NEXT:    x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
+// CHECK-NEXT:    x86_func.func public @matmul(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
 // CHECK-NEXT:      %3 = x86.get_register : !x86.reg64<rbp>
 // CHECK-NEXT:      %4 = x86.get_register : !x86.reg64<rsp>
 // CHECK-NEXT:      %5 = x86.s.push %4, %3 : (!x86.reg64<rsp>, !x86.reg64<rbp>) -> !x86.reg64<rsp>

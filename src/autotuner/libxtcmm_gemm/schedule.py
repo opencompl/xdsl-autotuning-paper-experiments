@@ -2,15 +2,17 @@
 scheduler and write the resulting XTC source IR (the linalg payload plus the
 schedule as the transform dialect, before it is applied).
 
-Dimension mapping. LIBXSMM is column-major; XTC's ``linalg.matmul``
-``C[I,J] += A[I,K] * B[K,J]`` is row-major, so J (the last dim) is contiguous and
-is the axis we vectorize. Hence:
+Dimension mapping. Both LIBXSMM and this benchmark are column-major, so M is
+contiguous; XTC's ``linalg.matmul`` ``C[I,J] += A[I,K] * B[K,J]`` is row-major,
+so J (the last dim) is contiguous and is the axis we vectorize. Hence:
 
     LIBXSMM M (vectorized)      -> XTC J (contiguous, named "M")
     LIBXSMM N (split / blocked) -> XTC I (rows, named "N")
     K                           -> K
 
-so the tensors are ``A=(n, k)``, ``B=(k, m)`` -> ``C=(n, m)`` and we vectorize M.
+A column-major matrix is the transpose of the row-major one filling the same
+buffer, and ``C^T = B^T A^T``, so the row-major payload multiplies
+``B^T=(n, k)`` by ``A^T=(k, m)`` into ``C^T=(n, m)`` and we vectorize M.
 
 Loop nest: N, M and K are each split into their tiers, nested outer-to-inner,
 matching LIBXSMM's ``for n: for m: for k:`` structure -- N into equalized
@@ -120,16 +122,17 @@ def emit_mlir(
     The source IR is the ``linalg.matmul`` payload plus the schedule expressed
     as the transform dialect, before it is applied: a declarative record of the
     LIBXSMM schedule (tiling, splitting, vectorization, unrolling). The emitted
-    function is named ``routine_name`` and has the direct row-major ABI
+    function is named ``routine_name`` and has the direct column-major ABI
     ``void routine_name(A[M*K], B[K*N], C[M*N])`` computing ``C += A*B``, so the
     benchmark harness links it as ``matmul`` with no wrapper.
     """
     dtype = _XTC_DTYPE[desc.datatype.a]
-    # Row-major swap: XTC I = LIBXSMM N (rows), XTC J = LIBXSMM M (contiguous).
-    a = O.tensor((desc.n, desc.k), dtype, name="A")
-    b = O.tensor((desc.k, desc.m), dtype, name="B")
+    # The parameters follow the order the tensors are declared in, so A comes
+    # first even though the row-major payload multiplies B^T by A^T.
+    a = O.tensor((desc.k, desc.m), dtype, name="A")
+    b = O.tensor((desc.n, desc.k), dtype, name="B")
     with O.graph(name=routine_name) as graph_builder:
-        O.matmul(a, b, name="C")
+        O.matmul(b, a, name="C")
     backend = Backend(graph_builder.graph)
 
     # LIBXSMM's ABI is beta=1 (C += A*B); drop the graph matmul's zero-fill of C.

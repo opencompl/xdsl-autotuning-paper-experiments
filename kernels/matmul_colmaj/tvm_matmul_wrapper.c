@@ -1,17 +1,23 @@
 /*
  * Defines a wrapper function for calling a TVM generated PackedFunc (type erased function working on dlpack tensor handles).
  *
- * Compile with, for instance with a generated matmul __tvm_main__ of size IxJxK == 256x1024x128:
- * gcc -O2 -DKERNEL_FUNC=matmul -DPACKED_FUNC=__tvm_main__ -DMM_I=256 -DMM_J=1024 -DMM_K=128 -c -o tvm_matmul_256_1024_128.o tvm_matmul_wrapper.c
+ * Compile with, for instance with a generated matmul MxNxK == 256x1024x128:
+ * gcc -O2 -DKERNEL_FUNC=matmul -DPACKED_FUNC=__tvm_main__ -DMM_M=256 -DMM_N=1024 -DMM_K=128 -c -o tvm_matmul_256_1024_128.o tvm_matmul_wrapper.c
  *
  * Note that the KERNEL_FUNC that will be defined is suppose to be:
  * extern void KERNEL_FUNC(const DTYPE *A, const DTYPE *B, DTYPE *C);
  *
- * Where A, B, C are continuous buffers of dimentsions A[MM_I, MM_K], B[MM_K, MM_J], C[MM_I, MM_J].
+ * Where A, B, C are continuous buffers holding the COLUMN-MAJOR matrices
+ * A[MM_M, MM_K], B[MM_K, MM_N], C[MM_M, MM_N].  A column-major matrix is the
+ * transpose of the row-major matrix occupying the same buffer, and
+ * C^T = B^T * A^T, so the row-major tensors handed to TVM are
+ * A^T[MM_K, MM_M], B^T[MM_N, MM_K], C^T[MM_N, MM_M] and the packed function is
+ * called with B^T first.
  *
  * Default DTYPE is float, to change to double pass -DMM_DTYPE=MM_DTYPE_double.
  *
- * Also the TVM packed function PACKED_FUNC is supposed to be generated with arguments orders A, B, C.
+ * Also the TVM packed function PACKED_FUNC is supposed to be generated for the
+ * transposed problem, i.e. with arguments orders B^T, A^T, C^T.
  *
  * Change below if arguments orders of KERNEL_FUNC and/or PACKED_FUNC differ.
  *
@@ -31,11 +37,11 @@
 #ifndef PACKED_FUNC
 #error "Pass -DPACKED_FUNC=<tvm_pack_func> for the packed function name"
 #endif
-#ifndef MM_I
-#error "Pass -DMM_I=<I_size> for the I matmul dimension size"
+#ifndef MM_M
+#error "Pass -DMM_M=<M_size> for the M matmul dimension size"
 #endif
-#ifndef MM_J
-#error "Pass -DMM_J=<J_size> for the J matmul dimension size"
+#ifndef MM_N
+#error "Pass -DMM_N=<N_size> for the N matmul dimension size"
 #endif
 #ifndef MM_K
 #error "Pass -DMM_K=<K_size> for the K matmul dimension size"
@@ -102,13 +108,13 @@ void KERNEL_FUNC(const DTYPE *A, const DTYPE *B, DTYPE *C) {
     static const DLDataType dtype = { kDLFloat, 64, 1 };
 #endif
     static const DLDevice dev = { kDLCPU, 0 };
-    static const int64_t DL_A_shape[2] = { MM_I, MM_K };
-    static const int64_t DL_B_shape[2] = { MM_K, MM_J };
-    static const int64_t DL_C_shape[2] = { MM_I, MM_J };
+    static const int64_t DL_A_shape[2] = { MM_K, MM_M };
+    static const int64_t DL_B_shape[2] = { MM_N, MM_K };
+    static const int64_t DL_C_shape[2] = { MM_N, MM_M };
     DLTensor DL_A = { (void *)A, dev, 2, dtype, (int64_t *)DL_A_shape, NULL, 0 };
     DLTensor DL_B = { (void *)B, dev, 2, dtype, (int64_t *)DL_B_shape, NULL, 0 };
     DLTensor DL_C = { (void *)C, dev, 2, dtype, (int64_t *)DL_C_shape, NULL, 0 };
-    void *args[3] = { &DL_A, &DL_B, &DL_C };
+    void *args[3] = { &DL_B, &DL_A, &DL_C };
     const int32_t types[3] = { kTVMDLTensorHandle, kTVMDLTensorHandle, kTVMDLTensorHandle };
     int64_t res;
     int32_t res_type = kTVMArgInt;
