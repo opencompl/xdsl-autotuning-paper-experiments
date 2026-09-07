@@ -69,17 +69,17 @@ data/$(MACHINE)/f64.bars.jsonl:
 
 PLOTS =
 
-PLOTS += plots/neon/f32.ttile.png
-PLOTS += plots/neon/f64.ttile.png
+# PLOTS += plots/neon/f32.ttile.png
+# PLOTS += plots/neon/f64.ttile.png
 # PLOTS += plots/neon/f64.ttile_squares.png
 # PLOTS += plots/neon/f64.ttile_combined.png
 # PLOTS += plots/neon/f64.heatmap.png
 
-PLOTS += plots/tower/f32.ttile.png
-PLOTS += plots/tower/f64.ttile.png
-PLOTS += plots/tower/f64.ttile_squares.png
-PLOTS += plots/tower/f64.ttile_combined.png
-PLOTS += plots/tower/f64.heatmap.png
+# PLOTS += plots/tower/f32.ttile.png
+# PLOTS += plots/tower/f64.ttile.png
+# PLOTS += plots/tower/f64.ttile_squares.png
+# PLOTS += plots/tower/f64.ttile_combined.png
+# PLOTS += plots/tower/f64.heatmap.png
 
 # PLOTS += plots/pinocchio/f32.ttile.png
 # PLOTS += plots/pinocchio/f64.ttile.png
@@ -94,7 +94,7 @@ PLOTS += plots/rapper/f64.ttile_combined.png
 PLOTS += plots/rapper/f64.heatmap.png
 PLOTS += plots/f64.squares.rapper.pdf
 
-PLOTS += plots/ttile.pdf
+# PLOTS += plots/ttile.pdf
 
 # `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
 plots/%.ttile.png: data/%.ttile.jsonl src/autotuner/plot_ttile.py
