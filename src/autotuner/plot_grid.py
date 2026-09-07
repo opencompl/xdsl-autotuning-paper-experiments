@@ -1,11 +1,17 @@
-"""A grid of K sweeps, one small panel per (M, N) shape.
+"""A grid of K sweeps over the nano-kernels, one small panel per (M, N) shape.
 
-    uv run plot-grid data/tower/f64.mnk_grid.jsonl --output plots/tower/f64.mnk_grid.pdf
+    uv run plot-grid data/rapper/f64.nanokernel_grid.jsonl \\
+        --output plots/f64.nanokernel_grid.rapper.pdf
 
 The figure spans both columns of the paper template: M runs down the rows, N
 runs across the columns, and inside every panel the x axis is K.  All panels
 share their limits, so only the bottom-left one is ticked and the rest are
 read off the M and N headers around the grid.
+
+Each curve is one nano-kernel, pinned rather than picked by the heuristic, so
+which of them wins at a given tile shape can be read off the grid.  fsdbcst
+supports one f64 vector of tile M, which is the matrix's N, so it appears only
+in the leftmost columns; the rest of the grid is nofsdbcst on its own.
 """
 
 from collections.abc import Sequence
@@ -28,8 +34,8 @@ from autotuner.plot_style import (
     variant_style,
 )
 
-# The implementations this figure puts side by side, in legend order.
-VARIANTS = ("aocl", "libxsmm", "compxsmm")
+# The nano-kernels this figure puts side by side, in legend order.
+VARIANTS = ("compxsmm_fsdbcst", "compxsmm_nofsdbcst")
 
 # Top of the % of peak axis, and the ticks drawn below it.
 Y_TOP = 112.0
@@ -53,7 +59,7 @@ HEADER_SIZE = 5.0
 INDEX_SIZE = 8.0
 
 # Curves are thinner than in a single-panel figure, where a panel is ten times
-# this wide, but not so thin that three of them stop being separable.
+# this wide, but not so thin that two of them stop being separable.
 LINE_WIDTH = 0.65
 
 
