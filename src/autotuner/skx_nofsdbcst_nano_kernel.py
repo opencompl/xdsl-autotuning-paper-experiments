@@ -47,7 +47,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         vector_registers = isa_info.register_capacity.vector
         return frozenset(
             SupportedTile(m, n)
-            for m_vectors in range(2, 5)
+            for m_vectors in range(1, 5)
             for m in range(
                 (m_vectors - 1) * vector_length + 1,
                 m_vectors * vector_length + 1,
@@ -75,7 +75,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
             return False
         vector_length = isa_info.vector_length(descriptor.datatype)
         m_vectors = (tile.m + vector_length - 1) // vector_length
-        return m_vectors >= 2
+        return m_vectors >= 1
 
     def supports_tile(
         self,
