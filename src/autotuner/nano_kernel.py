@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 from xdsl.dialects import builtin
-from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
+from xdsl.dialects.x86.registers import (
+    AVX512MaskRegisterType,
+    GeneralRegisterType,
+    X86VectorRegisterType,
+)
 from xdsl.pattern_rewriter import PatternRewriter
 
 from autotuner.dialects.xsmm import MatmulOp, MatmulRegOp
@@ -75,9 +79,14 @@ class ISAInfo(ABC):
     def register_capacity(self) -> RegisterCount:
         """Registers available to the generated kernel."""
 
+    @property
+    @abstractmethod
+    def vector_bank(self) -> type[X86VectorRegisterType]:
+        """The widest vector register bank generated code may use."""
+
     @abstractmethod
     def vector_length(self, datatype: FloatingPointType) -> int:
-        """Number of ``datatype`` elements in one vector register."""
+        """Number of ``datatype`` elements in one full vector register."""
 
 
 class NanoKernel(ABC):
@@ -96,20 +105,20 @@ class NanoKernel(ABC):
     ) -> frozenset[SupportedTile]:
         """Return the supported M-by-N tile shapes."""
 
-    def vector_lanes(
+    def vector_bank(
         self,
         m: int,
         datatype: FloatingPointType,
         isa_info: ISAInfo,
-    ) -> int:
-        """Return the lane count of the bank one M vector of an ``m`` tile occupies.
+    ) -> type[X86VectorRegisterType]:
+        """Return the register bank one M vector of an ``m`` tile occupies.
 
-        The ISA's full vector length by default, so a tile shorter than that
+        The ISA's widest bank by default, so a tile shorter than a full vector
         leaves the surplus lanes masked off. A kernel that lowers a short M tile
-        to a narrower register bank -- masking fewer lanes, or none -- overrides
-        this; the schedule loads and stores the C accumulators in the same bank.
+        to a narrower bank -- masking fewer lanes, or none -- overrides this; the
+        schedule loads and stores the C accumulators in the same bank.
         """
-        return isa_info.vector_length(datatype)
+        return isa_info.vector_bank
 
     @abstractmethod
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:

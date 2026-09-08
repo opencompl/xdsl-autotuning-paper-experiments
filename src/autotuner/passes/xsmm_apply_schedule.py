@@ -24,7 +24,7 @@ from autotuner.schedules import (
     split_matmul,
     tile_matmul_reg,
 )
-from autotuner.skx_nano_kernel_utils import vector_bank, vector_register
+from autotuner.skx_nano_kernel_utils import bank_lanes, vector_register
 from autotuner.strategy import get_xsmm_strategy
 from autotuner.tiling import BlockingRange, TilingStrategy, compute_tiling_strategy
 
@@ -128,8 +128,8 @@ def _matmul_k_to_reg(
     m_blocking = op.m.value.data
     # The nano-kernel picks the register bank one M vector lands in, so the C
     # accumulators are loaded and stored in that same bank.
-    vector_length = nano_kernel.vector_lanes(m_blocking, op.datatype, isa_info)
-    bank = vector_bank(op.datatype, vector_length)
+    bank = nano_kernel.vector_bank(m_blocking, op.datatype, isa_info)
+    vector_length = bank_lanes(bank, op.datatype)
     if m_blocking % vector_length and not op.ins:
         raise PassFailedException(
             "xsmm-apply-schedule requires a mask for a partial M vector"
@@ -162,8 +162,8 @@ def _matmul_k_to_reg(
             offset,
             destination=vector_register(
                 accumulator_start + index,
+                bank,
                 disable_regalloc=disable_regalloc,
-                bank=bank,
             ),
             aligned=bool(op.aligned_c),
             mask=access_mask,

@@ -1,6 +1,11 @@
 from typing_extensions import override
 from xdsl.dialects import builtin
-from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
+from xdsl.dialects.x86.registers import (
+    AVX512MaskRegisterType,
+    AVX512RegisterType,
+    GeneralRegisterType,
+    X86VectorRegisterType,
+)
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
@@ -24,12 +29,12 @@ from autotuner.nano_kernel import (
 )
 from autotuner.schedules import attach_mask
 from autotuner.skx_nano_kernel_utils import (
-    VECTOR_BANK_BY_BITWIDTH,
+    VECTOR_BANK_BITWIDTH,
     MatmulRegValues,
+    bank_lanes,
     descriptor_from_op,
     tile_sizes_from_op,
     values_from_op,
-    vector_bank,
     vector_register,
 )
 
@@ -38,22 +43,26 @@ from autotuner.skx_nano_kernel_utils import (
 _A_VECTORS = 2
 
 
-def _narrow_lanes(m: int, datatype: FloatingPointType, vector_length: int) -> int:
-    """Return the lane count of the narrowest bank that covers an ``m`` tile.
+def _narrow_bank(
+    m: int,
+    datatype: FloatingPointType,
+    widest: type[X86VectorRegisterType],
+) -> type[X86VectorRegisterType]:
+    """Return the narrowest bank up to ``widest`` that covers an ``m`` tile.
 
-    Banks narrower than 128 bits do not exist, so a one-lane tile still lands
-    in the narrowest vector bank with the surplus lanes masked off rather than
-    in the scalar form LLVM uses there.
+    There is no bank below 128 bits, so a one-lane tile still lands in an xmm
+    with the surplus lanes masked off rather than in the scalar form LLVM uses
+    there.
     """
+    widest_lanes = bank_lanes(widest, datatype)
     return min(
         (
-            lanes
-            for lanes in (
-                bitwidth // datatype.bitwidth for bitwidth in VECTOR_BANK_BY_BITWIDTH
-            )
-            if m <= lanes <= vector_length
+            bank
+            for bank in VECTOR_BANK_BITWIDTH
+            if m <= bank_lanes(bank, datatype) <= widest_lanes
         ),
-        default=vector_length,
+        key=VECTOR_BANK_BITWIDTH.__getitem__,
+        default=widest,
     )
 
 
@@ -106,14 +115,14 @@ class SkxNarrowFsdbcstNanoKernel(NanoKernel):
         )
 
     @override
-    def vector_lanes(
+    def vector_bank(
         self,
         m: int,
         datatype: FloatingPointType,
         isa_info: ISAInfo,
-    ) -> int:
-        """Return the lane count of the narrowest bank that covers ``m``."""
-        return _narrow_lanes(m, datatype, isa_info.vector_length(datatype))
+    ) -> type[X86VectorRegisterType]:
+        """Return the narrowest bank that covers ``m``."""
+        return _narrow_bank(m, datatype, isa_info.vector_bank)
 
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
         return isa_info.isa == "avx512" and isinstance(
@@ -154,7 +163,10 @@ class SkxNarrowFsdbcstNanoKernel(NanoKernel):
         if not self._supports_tile_shape(descriptor, tile, isa_info):
             raise ValueError("unsupported SKX narrow fsdbcst nano-kernel tile")
 
-        lanes = self.vector_lanes(tile.m, descriptor.datatype, isa_info)
+        lanes = bank_lanes(
+            self.vector_bank(tile.m, descriptor.datatype, isa_info),
+            descriptor.datatype,
+        )
         return RegisterCount(
             general=5,
             vector=tile.n + min(tile.k, _A_VECTORS),
@@ -174,8 +186,9 @@ class SkxNarrowFsdbcstNanoKernel(NanoKernel):
             rewriter,
             op,
             tile_size=op.m.value.data,
-            vector_size=_narrow_lanes(
-                op.m.value.data, op.datatype, 512 // op.datatype.bitwidth
+            vector_size=bank_lanes(
+                _narrow_bank(op.m.value.data, op.datatype, AVX512RegisterType),
+                op.datatype,
             ),
             mask_tmp_reg=mask_tmp_reg,
             mask_reg=mask_reg,
@@ -195,9 +208,8 @@ class SkxNarrowFsdbcstNanoKernel(NanoKernel):
             raise PassFailedException("unsupported SKX narrow fsdbcst nano-kernel tile")
 
         insert_point = InsertPoint.before(op)
-        lanes = self.vector_lanes(tile.m, op.datatype, isa_info)
-        bank = vector_bank(op.datatype, lanes)
-        values = values_from_op(op, lanes)
+        bank = self.vector_bank(tile.m, op.datatype, isa_info)
+        values = values_from_op(op, bank)
         element_size = op.datatype.size
 
         accumulators = list(values.accumulators)
@@ -212,8 +224,8 @@ class SkxNarrowFsdbcstNanoKernel(NanoKernel):
                 op.lda.value.data * k * element_size,
                 vector_register(
                     k % _A_VECTORS,
+                    bank,
                     disable_regalloc=disable_regalloc,
-                    bank=bank,
                 ),
                 aligned=bool(op.aligned_a.value.data),
                 mask=values.mask,

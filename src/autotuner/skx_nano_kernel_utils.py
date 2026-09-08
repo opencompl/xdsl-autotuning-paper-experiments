@@ -9,27 +9,33 @@ from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.instructions import MaskValue, PointerValue, VectorValue
 from autotuner.nano_kernel import FloatingPointType, GemmDescriptor, TileSizes
 
-VECTOR_BANK_BY_BITWIDTH: Mapping[int, type[x86.registers.X86VectorRegisterType]] = {
-    128: x86.registers.SSERegisterType,
-    256: x86.registers.AVX2RegisterType,
-    512: x86.registers.AVX512RegisterType,
+VECTOR_BANK_BITWIDTH: Mapping[type[x86.registers.X86VectorRegisterType], int] = {
+    bank: bank.bitwidth()
+    for bank in (
+        x86.registers.SSERegisterType,
+        x86.registers.AVX2RegisterType,
+        x86.registers.AVX512RegisterType,
+    )
 }
-"""The x86 vector register banks, by width in bits."""
+"""Width in bits of each x86 vector register bank, narrowest first.
+
+Doubles as the inventory of banks this lowering knows about, so iterating it
+walks them in widening order.
+"""
 
 
-def vector_bank(
-    datatype: FloatingPointType, lanes: int
-) -> type[x86.registers.X86VectorRegisterType]:
-    """Return the register bank that holds exactly ``lanes`` ``datatype`` elements."""
-    bitwidth = lanes * datatype.bitwidth
+def bank_lanes(
+    bank: type[x86.registers.X86VectorRegisterType], datatype: FloatingPointType
+) -> int:
+    """Return how many ``datatype`` elements one ``bank`` register holds."""
     try:
-        return VECTOR_BANK_BY_BITWIDTH[bitwidth]
+        bitwidth = VECTOR_BANK_BITWIDTH[bank]
     except KeyError:
-        widths = ", ".join(str(width) for width in sorted(VECTOR_BANK_BY_BITWIDTH))
+        banks = ", ".join(known.name for known in VECTOR_BANK_BITWIDTH)
         raise PassFailedException(
-            f"no x86 vector register bank is {bitwidth} bits wide "
-            f"({lanes} lanes of {datatype}); banks are {widths} bits"
+            f"unknown x86 vector register bank {bank.name}; banks are {banks}"
         ) from None
+    return bitwidth // datatype.bitwidth
 
 
 def tile_sizes_from_op(op: MatmulRegOp) -> TileSizes:
@@ -70,7 +76,10 @@ class MatmulRegValues:
         )
 
 
-def values_from_op(op: MatmulRegOp, vector_lanes: int) -> MatmulRegValues:
+def values_from_op(
+    op: MatmulRegOp, bank: type[x86.registers.X86VectorRegisterType]
+) -> MatmulRegValues:
+    vector_lanes = bank_lanes(bank, op.datatype)
     m_vectors = (op.m.value.data + vector_lanes - 1) // vector_lanes
     expected_accumulators = m_vectors * op.n.value.data
     if len(op.outs) != expected_accumulators:
@@ -103,9 +112,9 @@ def values_from_op(op: MatmulRegOp, vector_lanes: int) -> MatmulRegValues:
 
 def vector_register(
     index: int,
+    bank: type[x86.registers.X86VectorRegisterType],
     *,
     disable_regalloc: bool,
-    bank: type[x86.registers.X86VectorRegisterType] = x86.registers.AVX512RegisterType,
 ) -> x86.registers.X86VectorRegisterType:
     if disable_regalloc:
         return bank.unallocated()

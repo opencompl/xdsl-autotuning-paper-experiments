@@ -4,7 +4,12 @@ from typing import Literal
 from typing_extensions import override
 
 from xdsl.dialects import builtin
-from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
+from xdsl.dialects.x86.registers import (
+    AVX512MaskRegisterType,
+    AVX512RegisterType,
+    GeneralRegisterType,
+    X86VectorRegisterType,
+)
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.exceptions import PassFailedException
 
@@ -21,6 +26,7 @@ from autotuner.nano_kernel import (
 from autotuner.schedules import attach_mask
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel_utils import (
+    bank_lanes,
     descriptor_from_op,
     tile_sizes_from_op,
 )
@@ -40,13 +46,12 @@ class AVX512Info(ISAInfo):
     def register_capacity(self) -> RegisterCount:
         return RegisterCount(general=16, vector=32, mask=8)
 
+    @property
+    def vector_bank(self) -> type[X86VectorRegisterType]:
+        return AVX512RegisterType
+
     def vector_length(self, datatype: FloatingPointType) -> int:
-        match datatype:
-            case builtin.Float32Type():
-                return 16
-            case builtin.Float64Type():
-                return 8
-        raise ValueError(f"unsupported AVX-512 datatype {datatype}")
+        return bank_lanes(self.vector_bank, datatype)
 
 
 class SkxNanoKernel(NanoKernel):

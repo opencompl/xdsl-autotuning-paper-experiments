@@ -1,4 +1,9 @@
 from xdsl.dialects import builtin
+from xdsl.dialects.x86.registers import (
+    AVX2RegisterType,
+    AVX512RegisterType,
+    SSERegisterType,
+)
 
 from autotuner.nano_kernel import (
     GemmDescriptor,
@@ -13,6 +18,7 @@ from autotuner.skx_nano_kernel import (
     SkxNanoKernel,
     get_skx_nano_kernel,
 )
+from autotuner.skx_nano_kernel_utils import VECTOR_BANK_BITWIDTH, bank_lanes
 from autotuner.skx_narrow_fsdbcst_nano_kernel import SkxNarrowFsdbcstNanoKernel
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 from autotuner.strategy import XSMM_STRATEGIES, get_xsmm_strategy
@@ -170,32 +176,53 @@ def test_skx_nofsdbcst_supported_tiles() -> None:
     )
 
 
+def test_vector_bank_bitwidths_match_the_register_types() -> None:
+    assert VECTOR_BANK_BITWIDTH == {
+        SSERegisterType: 128,
+        AVX2RegisterType: 256,
+        AVX512RegisterType: 512,
+    }
+    # Narrowest first, so iterating the map walks the banks in widening order.
+    assert list(VECTOR_BANK_BITWIDTH.values()) == sorted(VECTOR_BANK_BITWIDTH.values())
+    assert bank_lanes(SSERegisterType, builtin.f64) == 2
+    assert bank_lanes(AVX512RegisterType, builtin.f32) == 16
+
+
+def test_avx512_isa_info_vector_length_follows_its_bank() -> None:
+    isa_info = AVX512Info()
+    assert isa_info.vector_bank is AVX512RegisterType
+    for datatype in (builtin.f32, builtin.f64):
+        assert isa_info.vector_length(datatype) == bank_lanes(
+            isa_info.vector_bank, datatype
+        )
+
+
 def test_skx_narrow_fsdbcst_picks_the_narrowest_bank() -> None:
     isa_info = AVX512Info()
     kernel = SkxNarrowFsdbcstNanoKernel()
 
     # 128 bits is the narrowest bank there is, so a one-lane tile still lands in
     # an xmm rather than in a scalar register.
-    assert [kernel.vector_lanes(m, builtin.f64, isa_info) for m in range(1, 9)] == [
-        2,
-        2,
-        4,
-        4,
-        8,
-        8,
-        8,
-        8,
+    assert [kernel.vector_bank(m, builtin.f64, isa_info) for m in range(1, 9)] == [
+        SSERegisterType,
+        SSERegisterType,
+        AVX2RegisterType,
+        AVX2RegisterType,
+        AVX512RegisterType,
+        AVX512RegisterType,
+        AVX512RegisterType,
+        AVX512RegisterType,
     ]
-    assert [kernel.vector_lanes(m, builtin.f32, isa_info) for m in range(1, 17)] == (
-        [4, 4, 4, 4] + [8] * 4 + [16] * 8
+    assert [kernel.vector_bank(m, builtin.f32, isa_info) for m in range(1, 17)] == (
+        [SSERegisterType] * 4 + [AVX2RegisterType] * 4 + [AVX512RegisterType] * 8
     )
 
     # The nano-kernel the LIBXSMM heuristic reaches for at these M is the
     # full-width one, which masks every lane the tile does not fill.
     assert (
-        SkxFsdbcstNanoKernel().vector_lanes(2, builtin.f64, isa_info)
-        == isa_info.vector_length(builtin.f64)
-        == 8
+        SkxFsdbcstNanoKernel().vector_bank(2, builtin.f64, isa_info)
+        is isa_info.vector_bank
+        is AVX512RegisterType
     )
 
 
