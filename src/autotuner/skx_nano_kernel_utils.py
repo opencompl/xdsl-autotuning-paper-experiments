@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from xdsl import ir
@@ -6,7 +7,29 @@ from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.instructions import MaskValue, PointerValue, VectorValue
-from autotuner.nano_kernel import GemmDescriptor, TileSizes
+from autotuner.nano_kernel import FloatingPointType, GemmDescriptor, TileSizes
+
+VECTOR_BANK_BY_BITWIDTH: Mapping[int, type[x86.registers.X86VectorRegisterType]] = {
+    128: x86.registers.SSERegisterType,
+    256: x86.registers.AVX2RegisterType,
+    512: x86.registers.AVX512RegisterType,
+}
+"""The x86 vector register banks, by width in bits."""
+
+
+def vector_bank(
+    datatype: FloatingPointType, lanes: int
+) -> type[x86.registers.X86VectorRegisterType]:
+    """Return the register bank that holds exactly ``lanes`` ``datatype`` elements."""
+    bitwidth = lanes * datatype.bitwidth
+    try:
+        return VECTOR_BANK_BY_BITWIDTH[bitwidth]
+    except KeyError:
+        widths = ", ".join(str(width) for width in sorted(VECTOR_BANK_BY_BITWIDTH))
+        raise PassFailedException(
+            f"no x86 vector register bank is {bitwidth} bits wide "
+            f"({lanes} lanes of {datatype}); banks are {widths} bits"
+        ) from None
 
 
 def tile_sizes_from_op(op: MatmulRegOp) -> TileSizes:
@@ -47,9 +70,8 @@ class MatmulRegValues:
         )
 
 
-def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
-    vector_length = 512 // op.datatype.bitwidth
-    m_vectors = (op.m.value.data + vector_length - 1) // vector_length
+def values_from_op(op: MatmulRegOp, vector_lanes: int) -> MatmulRegValues:
+    m_vectors = (op.m.value.data + vector_lanes - 1) // vector_lanes
     expected_accumulators = m_vectors * op.n.value.data
     if len(op.outs) != expected_accumulators:
         raise PassFailedException(
@@ -57,7 +79,7 @@ def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
             f"{expected_accumulators} accumulator outs, got {len(op.outs)}"
         )
 
-    needs_mask = op.m.value.data % vector_length != 0
+    needs_mask = op.m.value.data % vector_lanes != 0
     if len(op.ins) != int(needs_mask):
         raise PassFailedException(
             "SKX matmul_reg expects one mask in exactly when M has a partial vector"
@@ -73,15 +95,18 @@ def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
         ir.SSAValue.get(op.b, type=x86.registers.GeneralRegisterType),
         mask,
         tuple(
-            ir.SSAValue.get(acc, type=x86.registers.AVX512RegisterType)
+            ir.SSAValue.get(acc, type=x86.registers.X86VectorRegisterType)
             for acc in op.outs
         ),
     )
 
 
 def vector_register(
-    index: int, *, disable_regalloc: bool
-) -> x86.registers.AVX512RegisterType:
+    index: int,
+    *,
+    disable_regalloc: bool,
+    bank: type[x86.registers.X86VectorRegisterType] = x86.registers.AVX512RegisterType,
+) -> x86.registers.X86VectorRegisterType:
     if disable_regalloc:
-        return x86.registers.AVX512RegisterType.unallocated()
-    return x86.registers.AVX512RegisterType.from_index(index)
+        return bank.unallocated()
+    return bank.from_index(index)

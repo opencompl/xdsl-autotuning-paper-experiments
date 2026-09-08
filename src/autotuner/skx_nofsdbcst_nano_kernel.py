@@ -146,8 +146,8 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
             raise PassFailedException("unsupported SKX nofsdbcst nano-kernel tile")
 
         insert_point = InsertPoint.before(op)
-        values = values_from_op(op)
         vector_length = isa_info.vector_length(op.datatype)
+        values = values_from_op(op, vector_length)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         element_size = op.datatype.size
         accumulators = list(values.accumulators)

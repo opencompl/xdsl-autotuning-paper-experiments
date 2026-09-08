@@ -24,6 +24,7 @@ from autotuner.skx_nano_kernel_utils import (
     descriptor_from_op,
     tile_sizes_from_op,
 )
+from autotuner.skx_narrow_fsdbcst_nano_kernel import SkxNarrowFsdbcstNanoKernel
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 
 
@@ -158,6 +159,7 @@ SKX_NANO_KERNELS: Mapping[str, NanoKernel] = {
         SkxNanoKernel(),
         SkxFsdbcstNanoKernel(),
         SkxNofsdbcstNanoKernel(),
+        SkxNarrowFsdbcstNanoKernel(),
     )
 }
 

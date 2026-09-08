@@ -24,7 +24,7 @@ from autotuner.schedules import (
     split_matmul,
     tile_matmul_reg,
 )
-from autotuner.skx_nano_kernel_utils import vector_register
+from autotuner.skx_nano_kernel_utils import vector_bank, vector_register
 from autotuner.strategy import get_xsmm_strategy
 from autotuner.tiling import BlockingRange, TilingStrategy, compute_tiling_strategy
 
@@ -105,6 +105,8 @@ def _tile_n_m(
 def _matmul_k_to_reg(
     rewriter: PatternRewriter,
     op: MatmulOp,
+    nano_kernel: NanoKernel,
+    isa_info: ISAInfo,
     *,
     disable_regalloc: bool,
 ) -> MatmulRegOp:
@@ -124,7 +126,10 @@ def _matmul_k_to_reg(
             "xsmm-apply-schedule currently supports only one mask in"
         )
     m_blocking = op.m.value.data
-    vector_length = 512 // op.datatype.bitwidth
+    # The nano-kernel picks the register bank one M vector lands in, so the C
+    # accumulators are loaded and stored in that same bank.
+    vector_length = nano_kernel.vector_lanes(m_blocking, op.datatype, isa_info)
+    bank = vector_bank(op.datatype, vector_length)
     if m_blocking % vector_length and not op.ins:
         raise PassFailedException(
             "xsmm-apply-schedule requires a mask for a partial M vector"
@@ -158,6 +163,7 @@ def _matmul_k_to_reg(
             destination=vector_register(
                 accumulator_start + index,
                 disable_regalloc=disable_regalloc,
+                bank=bank,
             ),
             aligned=bool(op.aligned_c),
             mask=access_mask,
@@ -189,7 +195,7 @@ def _matmul_k_to_reg(
             op.datatype,
             c_val,
             offset,
-            ir.SSAValue.get(accumulator, type=x86.registers.AVX512RegisterType),
+            ir.SSAValue.get(accumulator, type=x86.registers.X86VectorRegisterType),
             aligned=bool(op.aligned_c),
             mask=access_mask,
         )
@@ -283,6 +289,8 @@ class ApplySchedulePattern(RewritePattern):
             matmul_reg = _matmul_k_to_reg(
                 rewriter,
                 tiled_m,
+                self.nano_kernel,
+                self.isa_info,
                 disable_regalloc=self.disable_regalloc,
             )
             for tiled_k in _tile_k(
