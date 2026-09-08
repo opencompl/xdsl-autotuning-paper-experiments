@@ -13,6 +13,7 @@ from autotuner.skx_nano_kernel import (
     SkxNanoKernel,
     get_skx_nano_kernel,
 )
+from autotuner.skx_narrow_fsdbcst_nano_kernel import SkxNarrowFsdbcstNanoKernel
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 from autotuner.strategy import XSMM_STRATEGIES, get_xsmm_strategy
 from autotuner.tiling import BlockingRange, TilingStrategy, compute_tiling_strategy
@@ -49,6 +50,7 @@ def test_skx_nano_kernel_names() -> None:
         "libxsmm-skx",
         "libxsmm-skx-fsdbcst",
         "libxsmm-skx-nofsdbcst",
+        "llvm-skx-narrow-fsdbcst",
     }
     for name, nano_kernel in SKX_NANO_KERNELS.items():
         assert nano_kernel.name == name
@@ -61,7 +63,8 @@ def test_unknown_skx_nano_kernel() -> None:
     except ValueError as error:
         assert str(error) == (
             "unknown SKX nano-kernel 'unknown'; expected one of: "
-            "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst"
+            "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, "
+            "llvm-skx-narrow-fsdbcst"
         )
     else:
         raise AssertionError("expected an unknown nano-kernel to be rejected")
@@ -80,7 +83,8 @@ def test_unknown_xsmm_strategy() -> None:
     except ValueError as error:
         assert str(error) == (
             "unknown XSMM strategy 'unknown'; expected one of: "
-            "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst"
+            "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, "
+            "llvm-skx-narrow-fsdbcst"
         )
     else:
         raise AssertionError("expected an unknown strategy to be rejected")
@@ -164,6 +168,82 @@ def test_skx_nofsdbcst_supported_tiles() -> None:
     assert len(kernel.supported_tile_sizes(builtin.f32, isa_info)) == 16 * (
         30 + 14 + 9 + 6
     )
+
+
+def test_skx_narrow_fsdbcst_picks_the_narrowest_bank() -> None:
+    isa_info = AVX512Info()
+    kernel = SkxNarrowFsdbcstNanoKernel()
+
+    # 128 bits is the narrowest bank there is, so a one-lane tile still lands in
+    # an xmm rather than in a scalar register.
+    assert [kernel.vector_lanes(m, builtin.f64, isa_info) for m in range(1, 9)] == [
+        2,
+        2,
+        4,
+        4,
+        8,
+        8,
+        8,
+        8,
+    ]
+    assert [kernel.vector_lanes(m, builtin.f32, isa_info) for m in range(1, 17)] == (
+        [4, 4, 4, 4] + [8] * 4 + [16] * 8
+    )
+
+    # The nano-kernel the LIBXSMM heuristic reaches for at these M is the
+    # full-width one, which masks every lane the tile does not fill.
+    assert (
+        SkxFsdbcstNanoKernel().vector_lanes(2, builtin.f64, isa_info)
+        == isa_info.vector_length(builtin.f64)
+        == 8
+    )
+
+
+def test_skx_narrow_fsdbcst_supported_tiles() -> None:
+    isa_info = AVX512Info()
+    kernel = SkxNarrowFsdbcstNanoKernel()
+    descriptor = _descriptor(m=2, n=12, k=64, datatype=builtin.f64)
+
+    # One accumulator per N column, plus the two rotating A columns; no
+    # duplicated accumulator sets, and a mask only when M misses its bank.
+    assert kernel.register_usage(
+        descriptor, TileSizes(2, 12, 64), isa_info
+    ) == RegisterCount(general=5, vector=14, mask=0)
+    assert kernel.register_usage(
+        descriptor, TileSizes(1, 12, 64), isa_info
+    ) == RegisterCount(general=5, vector=14, mask=1)
+    assert kernel.supports_tile(descriptor, TileSizes(2, 30, 2), isa_info)
+    assert not kernel.supports_tile(descriptor, TileSizes(2, 31, 2), isa_info)
+    # More than one M vector is the wide nano-kernel's business.
+    assert not kernel.supports_tile(descriptor, TileSizes(9, 1, 2), isa_info)
+
+    supported = kernel.supported_tile_sizes(builtin.f64, isa_info)
+    assert len(supported) == 8 * 30
+    assert SupportedTile(1, 1) in supported
+    assert SupportedTile(8, 30) in supported
+    assert SupportedTile(8, 31) not in supported
+    assert SupportedTile(9, 1) not in supported
+    assert len(kernel.supported_tile_sizes(builtin.f32, isa_info)) == 16 * 30
+
+
+def test_skx_narrow_fsdbcst_tiles_like_the_wide_kernel() -> None:
+    """From the vector length up, the narrow kernel *is* the wide one.
+
+    Both cover M one vector at a time, so both settle on an M tile of the
+    vector length; there the narrow bank is the full vector and the two emit
+    the same instructions. N of 12 keeps ``fsdbcst`` on a single accumulator
+    set, which is all the narrow kernel ever uses.
+    """
+    isa_info = AVX512Info()
+    kernel = SkxNarrowFsdbcstNanoKernel()
+
+    for m in (8, 16, 64):
+        descriptor = _descriptor(m=m, n=12, k=64, datatype=builtin.f64)
+        strategy = compute_tiling_strategy(descriptor, isa_info, kernel)
+        assert strategy.m_tile_size == isa_info.vector_length(builtin.f64)
+        assert strategy == compute_tiling_strategy(
+            descriptor, isa_info, SkxFsdbcstNanoKernel()
+        )
 
 
 def test_skx_composite_retains_libxsmm_tiling_heuristics() -> None:
