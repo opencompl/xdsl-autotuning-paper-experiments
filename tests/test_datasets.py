@@ -8,6 +8,7 @@ from autotuner.datasets import (
     NANOKERNEL_GRID_K,
     NANOKERNEL_GRID_M,
     NANOKERNEL_GRID_N,
+    NANOKERNEL_VARIANTS,
     Sample,
     dataset_samples,
     machine_file,
@@ -75,7 +76,7 @@ def test_the_nanokernel_grid_only_measures_supported_tiles() -> None:
         k_by_tile[s.variant, s.m, s.n].add(s.k)
     tiles = {
         variant: {(m, n) for v, m, n in k_by_tile if v == variant}
-        for variant in ("compxsmm_fsdbcst", "compxsmm_nofsdbcst")
+        for variant in NANOKERNEL_VARIANTS
     }
 
     # The tile's M is the matrix's M.  fsdbcst spans one f64 vector of it, so
@@ -83,10 +84,12 @@ def test_the_nanokernel_grid_only_measures_supported_tiles() -> None:
     # which covers those rows too, so the two overlap there rather than
     # dividing the sweep between them.  The 28-column limit both share on the
     # tile's N never binds here: the grid sweeps N no further than 7.
-    assert tiles["compxsmm_fsdbcst"] == {(m, n) for m, n in swept if m <= 8 and n <= 28}
+    assert tiles["libxsmm-skx-fsdbcst"] == {
+        (m, n) for m, n in swept if m <= 8 and n <= 28
+    }
     # Once the tile's M takes four vectors, above 24, only six accumulator
     # columns are left, so the tallest tiles stop short of the last column.
-    assert swept - tiles["compxsmm_nofsdbcst"] == {
+    assert swept - tiles["libxsmm-skx-nofsdbcst"] == {
         (m, n) for m, n in swept if m > 24 and n > 6
     }
 

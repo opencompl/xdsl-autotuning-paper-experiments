@@ -25,12 +25,12 @@ NANOKERNEL_GRID_M = range(2, 33, 2)
 NANOKERNEL_GRID_N = range(1, 8)
 NANOKERNEL_GRID_K = range(1, 17)
 
-# The nano-kernel each variant of that grid pins the schedule to, by the name
-# `xsmm-apply-schedule`'s `strategy` option takes.
-NANOKERNEL_STRATEGIES = {
-    "compxsmm_fsdbcst": "libxsmm-skx-fsdbcst",
-    "compxsmm_nofsdbcst": "libxsmm-skx-nofsdbcst",
-}
+# The pinned variants use the names that `xsmm-apply-schedule`'s `strategy`
+# option takes, so no second variant-to-strategy mapping is needed.
+NANOKERNEL_VARIANTS = (
+    "libxsmm-skx-fsdbcst",
+    "libxsmm-skx-nofsdbcst",
+)
 
 # Which implementations each machine has to compare, per dataset.
 VARIANTS = {
@@ -63,7 +63,7 @@ VARIANTS = {
             "compxsmm",
             "compxsmm_manual",
         ],
-        "f64.nanokernel_grid": ["compxsmm_fsdbcst", "compxsmm_nofsdbcst"],
+        "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
@@ -96,7 +96,7 @@ VARIANTS = {
             "compxsmm",
             "compxsmm_manual",
         ],
-        "f64.nanokernel_grid": ["compxsmm_fsdbcst", "compxsmm_nofsdbcst"],
+        "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "ci": {
         "ttile": ["naive_c"],
@@ -186,7 +186,7 @@ def nanokernel_grid_shapes(variant: str) -> tuple[tuple[int, int, int], ...]:
     from autotuner.nano_kernel import SupportedTile
     from autotuner.skx_nano_kernel import AVX512Info, get_skx_nano_kernel
 
-    nano_kernel = get_skx_nano_kernel(NANOKERNEL_STRATEGIES[variant])
+    nano_kernel = get_skx_nano_kernel(variant)
     supported = nano_kernel.supported_tile_sizes(builtin.f64, AVX512Info())
     return tuple(
         (m, n, k)

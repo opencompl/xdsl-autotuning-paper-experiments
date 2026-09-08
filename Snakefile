@@ -5,6 +5,7 @@ import os
 import shutil
 
 from autotuner.datasets import (
+    NANOKERNEL_VARIANTS,
     dataset_samples,
     machine_base,
     machine_file,
@@ -114,6 +115,24 @@ LIBXTCMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
     glob.glob("src/autotuner/libxtcmm_gemm/**/*.py", recursive=True)
 )
 
+BUILD_VARIANTS = (
+    "naive_c",
+    "naive_mlir",
+    "vector_intrinsic",
+    "transform_mlir",
+    "transform_xdsl",
+    "libxsmm",
+    "mkl",
+    "aocl",
+    "llvm_intrinsics",
+    "tvm",
+    "xdsl_libxsmm",
+    "compxsmm",
+    "compxsmm_manual",
+    "libxtcmm",
+    *NANOKERNEL_VARIANTS,
+)
+
 # Rules
 
 wildcard_constraints:
@@ -121,9 +140,8 @@ wildcard_constraints:
     kernel="matmul_colmaj",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_manual|compxsmm_fsdbcst|compxsmm_nofsdbcst|libxtcmm",
-    # Constrained, or `compxsmm_manual` would match `compxsmm_{nanokernel}` too.
-    nanokernel="fsdbcst|nofsdbcst"
+    variant="|".join(BUILD_VARIANTS),
+    nanokernel="|".join(NANOKERNEL_VARIANTS)
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -380,39 +398,15 @@ rule compxsmm_manual_s:
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
-# The same kernel with the nano-kernel pinned rather than picked by the SKX
-# heuristic, so the nano-kernel grid can measure one nano-kernel at a time.
-# Registers are still xDSL's to assign, as in `compxsmm`.
-
-rule compxsmm_pinned_mlir:
-    input: ["pyproject.toml"] + COMPXSMM_GEMM_SOURCES
-    output: machine_file(kernel='matmul_colmaj',variant='compxsmm_{nanokernel}',ext='compxsmm.mlir')
-    params:
-        libxsmm_arch=libxsmm_arch,
-        dtype=lambda wildcards: {"f32": "SP", "f64": "DP"}[wildcards.dtype],
-    shell:
-        """
-        # A = M * K, B = K * N, C = M * N    <- dimensions
-        #     ^          ^          ^        <- leading dimensions
-        compxsmm-gemm dense {output} matmul \
-            {wildcards.m} {wildcards.n} {wildcards.k} \
-            {wildcards.m} {wildcards.k} {wildcards.m} \
-            1 1 \
-            1 1 \
-            {params.libxsmm_arch} \
-            nopf \
-            {params.dtype} \
-            --disable-regalloc
-        """
-
-rule compxsmm_pinned_s:
+rule compxsmm_nanokernel_s:
     input:
-        mlir=machine_file(variant='compxsmm_{nanokernel}',ext='compxsmm.mlir'),
+        mlir=machine_file(variant='compxsmm',ext='compxsmm.mlir'),
         sources=["pyproject.toml"] + COMPXSMM_GEMM_SOURCES,
-    output: machine_file(variant='compxsmm_{nanokernel}',ext='S')
+    output: machine_file(variant='{nanokernel}',ext='S')
     params:
         passes=lambda wc: ",".join(
-            config[f"compxsmm-{wc.nanokernel}-gemm-passes"][machine_isa(wc)]
+            [f"xsmm-apply-schedule{{strategy={wc.nanokernel} disable-regalloc=true disable-loop-construction=true}}"]
+            + config["compxsmm-nanokernel-passes"][machine_isa(wc)]
         )
     shell:
         """
@@ -746,11 +740,11 @@ TESTSET_AVX512 = [
     # nofsdbcst spans two to four and takes M=16 as a single two-vector tile.
     machine_file(
         kernel="matmul_colmaj", m="34", n="5", k="16", dtype="f64",
-        machine=THIS_MACHINE, variant="compxsmm_fsdbcst", ext="test.log",
+        machine=THIS_MACHINE, variant="libxsmm-skx-fsdbcst", ext="test.log",
     ),
     machine_file(
         kernel="matmul_colmaj", m="16", n="29", k="16", dtype="f64",
-        machine=THIS_MACHINE, variant="compxsmm_nofsdbcst", ext="test.log",
+        machine=THIS_MACHINE, variant="libxsmm-skx-nofsdbcst", ext="test.log",
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
     *expand(

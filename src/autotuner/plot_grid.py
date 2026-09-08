@@ -26,6 +26,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
+from autotuner.datasets import NANOKERNEL_VARIANTS
 from autotuner.plot_style import (
     COLUMN_WIDTH,
     GRID,
@@ -37,7 +38,7 @@ from autotuner.plot_style import (
 )
 
 # The nano-kernels this figure puts side by side, in legend order.
-VARIANTS = ("compxsmm_fsdbcst", "compxsmm_nofsdbcst")
+VARIANTS = NANOKERNEL_VARIANTS
 
 # Top of the % of peak axis, and the ticks drawn below it.
 Y_TOP = 112.0

@@ -41,20 +41,10 @@ compxsmm-manual-gemm-passes:
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
 
-# The same schedule with the nano-kernel pinned instead of picked by the SKX
-# heuristic, one key per nano-kernel, so the nano-kernel grid can measure each
-# on its own.  Registers are still xDSL's to assign, as in `compxsmm`.
-compxsmm-fsdbcst-gemm-passes:
+# The common lowering after a nano-kernel has been pinned instead of picked by
+# the SKX heuristic. Registers are still xDSL's to assign, as in `compxsmm`.
+compxsmm-nanokernel-passes:
   avx512:
-    - xsmm-apply-schedule{strategy=libxsmm-skx-fsdbcst disable-regalloc=true}
-    - x86-regalloc-verify-liveness
-    - x86-allocate-registers{arch=avx512}
-    - convert-x86-scf-to-x86
-    - x86-prologue-epilogue-insertion
-
-compxsmm-nofsdbcst-gemm-passes:
-  avx512:
-    - xsmm-apply-schedule{strategy=libxsmm-skx-nofsdbcst disable-regalloc=true}
     - x86-regalloc-verify-liveness
     - x86-allocate-registers{arch=avx512}
     - convert-x86-scf-to-x86

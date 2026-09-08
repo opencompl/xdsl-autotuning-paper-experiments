@@ -49,7 +49,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from autotuner.datasets import Sample, dataset_samples
+from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
 from autotuner.machines import MACHINES
 
 # The C spelling of each dtype, and how the XSMM generators name it.
@@ -73,11 +73,10 @@ GENERATOR_MODULES = {
     "generate:libxtcmm": "autotuner.libxtcmm_gemm.libxtcmm_generator_gemm_driver",
 }
 
-# The compxsmm variants xDSL allocates registers for, so the generator has to
-# leave them unassigned.
-COMPXSMM_XDSL_REGALLOC = frozenset(
-    {"compxsmm", "compxsmm_fsdbcst", "compxsmm_nofsdbcst"}
-)
+# These all lower the same schedule-neutral CompXSMM IR. The ordinary variant
+# lets the SKX heuristic choose a nano-kernel; the others pin one by name.
+COMPXSMM_SHARED_VARIANTS = frozenset(("compxsmm", *NANOKERNEL_VARIANTS))
+COMPXSMM_VARIANTS = COMPXSMM_SHARED_VARIANTS | {"compxsmm_manual"}
 
 MANIFEST = ".build-manifest.json"
 
@@ -265,14 +264,26 @@ def toolchain(
         by_isa = settings.get(setting, {})
         return ",".join(by_isa[spec.isa]) if spec.isa in by_isa else ""
 
-    # Keyed by variant, not by generator: the two compxsmm variants come out of
-    # the same generator and differ only in who assigns the registers.
+    nanokernel_tail = per_isa("compxsmm-nanokernel-passes")
+
+    # Keyed by variant, not by generator: CompXSMM variants share generated IR
+    # and differ in the pass pipeline that lowers it.
     pipelines = {
         "xdsl_libxsmm": ",".join(settings["libxsmm-gemm-passes"]),
         "compxsmm": per_isa("compxsmm-gemm-passes"),
         "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
-        "compxsmm_fsdbcst": per_isa("compxsmm-fsdbcst-gemm-passes"),
-        "compxsmm_nofsdbcst": per_isa("compxsmm-nofsdbcst-gemm-passes"),
+        **{
+            variant: ",".join(
+                filter(
+                    None,
+                    (
+                        f"xsmm-apply-schedule{{strategy={variant} disable-regalloc=true disable-loop-construction=true}}",
+                        nanokernel_tail,
+                    ),
+                )
+            )
+            for variant in NANOKERNEL_VARIANTS
+        },
         "libxtcmm": per_isa("libxtcmm-gemm-passes"),
     }
 
@@ -438,22 +449,14 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
             )
             return Artifact(out, steps)
 
-        case (
-            "xdsl_libxsmm"
-            | "compxsmm"
-            | "compxsmm_manual"
-            | "compxsmm_fsdbcst"
-            | "compxsmm_nofsdbcst"
-        ):
-            generator = "libxsmm" if sample.variant == "xdsl_libxsmm" else "compxsmm"
-            mlir = here / f"{sample.variant}.{dtype}.{generator}.mlir"
-            # xDSL only has registers to allocate if the generator leaves them
-            # unassigned; `compxsmm_manual` keeps the generator's own choice, and
-            # `xdsl_libxsmm` uses the other generator, which has no such flag.
+        case variant if variant == "xdsl_libxsmm" or variant in COMPXSMM_VARIANTS:
+            generator = "libxsmm" if variant == "xdsl_libxsmm" else "compxsmm"
+            mlir_variant = (
+                "compxsmm" if variant in COMPXSMM_SHARED_VARIANTS else variant
+            )
+            mlir = here / f"{mlir_variant}.{dtype}.{generator}.mlir"
             extra = (
-                ("--disable-regalloc",)
-                if sample.variant in COMPXSMM_XDSL_REGALLOC
-                else ()
+                ("--disable-regalloc",) if variant in COMPXSMM_SHARED_VARIANTS else ()
             )
             steps = (
                 Step("remove", (str(mlir),)),
@@ -484,7 +487,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                     (
                         str(mlir),
                         "-p",
-                        tool.pipelines[sample.variant],
+                        tool.pipelines[variant],
                         "-t",
                         "x86-asm",
                         "-o",
