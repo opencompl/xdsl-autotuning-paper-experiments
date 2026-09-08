@@ -94,13 +94,13 @@ PLOTS += plots/rapper/f64.ttile_combined.png
 PLOTS += plots/rapper/f64.heatmap.png
 PLOTS += plots/f64.squares.rapper.pdf
 
-# PLOTS += plots/ttile.pdf
+PLOTS += plots/ttile.pdf
 
 # `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
 plots/%.ttile.png: data/%.ttile.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile $< --output $@
 
-plots/ttile.pdf: data/tower/f32.ttile.jsonl data/tower/f64.ttile.jsonl data/pinocchio/f32.ttile.jsonl data/pinocchio/f64.ttile.jsonl src/autotuner/plot_ttile.py
+plots/ttile.pdf: data/tower/f32.ttile.jsonl data/tower/f64.ttile.jsonl data/rapper/f32.ttile.jsonl data/rapper/f64.ttile.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile --output $@
 
 plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_squares.py
