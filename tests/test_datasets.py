@@ -6,8 +6,6 @@ import pytest
 from autotuner.datasets import Sample, dataset_samples, machine_file
 
 # Datasets committed to the repo, which the sample order has to keep matching.
-# Every one of these was measured after the switch to column major, so they all
-# hold column-major shapes.  The other machines have no data checked in.
 COMMITTED = [
     (machine, dataset)
     for machine in ("rapper", "tower")
