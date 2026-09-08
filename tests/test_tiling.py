@@ -18,7 +18,6 @@ from autotuner.skx_nano_kernel import (
     SkxNanoKernel,
     get_skx_nano_kernel,
 )
-from autotuner.skx_nano_kernel_utils import VECTOR_BANK_BITWIDTH, bank_lanes
 from autotuner.skx_narrow_fsdbcst_nano_kernel import SkxNarrowFsdbcstNanoKernel
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 from autotuner.strategy import XSMM_STRATEGIES, get_xsmm_strategy
@@ -176,34 +175,30 @@ def test_skx_nofsdbcst_supported_tiles() -> None:
     )
 
 
-def test_vector_bank_bitwidths_match_the_register_types() -> None:
-    assert VECTOR_BANK_BITWIDTH == {
-        SSERegisterType: 128,
-        AVX2RegisterType: 256,
-        AVX512RegisterType: 512,
-    }
-    # Narrowest first, so iterating the map walks the banks in widening order.
-    assert list(VECTOR_BANK_BITWIDTH.values()) == sorted(VECTOR_BANK_BITWIDTH.values())
-    assert bank_lanes(SSERegisterType, builtin.f64) == 2
-    assert bank_lanes(AVX512RegisterType, builtin.f32) == 16
+def test_vector_register_type_widths() -> None:
+    """The lane arithmetic everywhere here rests on these three widths."""
+    assert SSERegisterType.bitwidth() == 128
+    assert AVX2RegisterType.bitwidth() == 256
+    assert AVX512RegisterType.bitwidth() == 512
 
 
-def test_avx512_isa_info_vector_length_follows_its_bank() -> None:
+def test_avx512_isa_info_vector_length_follows_its_vector_type() -> None:
     isa_info = AVX512Info()
-    assert isa_info.vector_bank is AVX512RegisterType
+    assert isa_info.vector_type is AVX512RegisterType
     for datatype in (builtin.f32, builtin.f64):
-        assert isa_info.vector_length(datatype) == bank_lanes(
-            isa_info.vector_bank, datatype
+        assert (
+            isa_info.vector_length(datatype)
+            == isa_info.vector_type.bitwidth() // datatype.bitwidth
         )
 
 
-def test_skx_narrow_fsdbcst_picks_the_narrowest_bank() -> None:
+def test_skx_narrow_fsdbcst_picks_the_narrowest_vector_type() -> None:
     isa_info = AVX512Info()
     kernel = SkxNarrowFsdbcstNanoKernel()
 
-    # 128 bits is the narrowest bank there is, so a one-lane tile still lands in
-    # an xmm rather than in a scalar register.
-    assert [kernel.vector_bank(m, builtin.f64, isa_info) for m in range(1, 9)] == [
+    # An xmm is the narrowest there is, so a one-lane tile still lands in one
+    # rather than in a scalar register.
+    assert [kernel.vector_type(m, builtin.f64, isa_info) for m in range(1, 9)] == [
         SSERegisterType,
         SSERegisterType,
         AVX2RegisterType,
@@ -213,15 +208,15 @@ def test_skx_narrow_fsdbcst_picks_the_narrowest_bank() -> None:
         AVX512RegisterType,
         AVX512RegisterType,
     ]
-    assert [kernel.vector_bank(m, builtin.f32, isa_info) for m in range(1, 17)] == (
+    assert [kernel.vector_type(m, builtin.f32, isa_info) for m in range(1, 17)] == (
         [SSERegisterType] * 4 + [AVX2RegisterType] * 4 + [AVX512RegisterType] * 8
     )
 
     # The nano-kernel the LIBXSMM heuristic reaches for at these M is the
     # full-width one, which masks every lane the tile does not fill.
     assert (
-        SkxFsdbcstNanoKernel().vector_bank(2, builtin.f64, isa_info)
-        is isa_info.vector_bank
+        SkxFsdbcstNanoKernel().vector_type(2, builtin.f64, isa_info)
+        is isa_info.vector_type
         is AVX512RegisterType
     )
 
@@ -232,7 +227,7 @@ def test_skx_narrow_fsdbcst_supported_tiles() -> None:
     descriptor = _descriptor(m=2, n=12, k=64, datatype=builtin.f64)
 
     # One accumulator per N column, plus the two rotating A columns; no
-    # duplicated accumulator sets, and a mask only when M misses its bank.
+    # duplicated accumulator sets, and a mask only when M misses its register.
     assert kernel.register_usage(
         descriptor, TileSizes(2, 12, 64), isa_info
     ) == RegisterCount(general=5, vector=14, mask=0)
@@ -257,7 +252,7 @@ def test_skx_narrow_fsdbcst_tiles_like_the_wide_kernel() -> None:
     """From the vector length up, the narrow kernel *is* the wide one.
 
     Both cover M one vector at a time, so both settle on an M tile of the
-    vector length; there the narrow bank is the full vector and the two emit
+    vector length; there the narrow type is the full vector and the two emit
     the same instructions. N of 12 keeps ``fsdbcst`` on a single accumulator
     set, which is all the narrow kernel ever uses.
     """

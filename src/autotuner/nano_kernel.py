@@ -81,8 +81,8 @@ class ISAInfo(ABC):
 
     @property
     @abstractmethod
-    def vector_bank(self) -> type[X86VectorRegisterType]:
-        """The widest vector register bank generated code may use."""
+    def vector_type(self) -> type[X86VectorRegisterType]:
+        """The widest vector register type generated code may use."""
 
     @abstractmethod
     def vector_length(self, datatype: FloatingPointType) -> int:
@@ -105,20 +105,20 @@ class NanoKernel(ABC):
     ) -> frozenset[SupportedTile]:
         """Return the supported M-by-N tile shapes."""
 
-    def vector_bank(
+    def vector_type(
         self,
         m: int,
         datatype: FloatingPointType,
         isa_info: ISAInfo,
     ) -> type[X86VectorRegisterType]:
-        """Return the register bank one M vector of an ``m`` tile occupies.
+        """Return the register type one M vector of an ``m`` tile occupies.
 
-        The ISA's widest bank by default, so a tile shorter than a full vector
-        leaves the surplus lanes masked off. A kernel that lowers a short M tile
-        to a narrower bank -- masking fewer lanes, or none -- overrides this; the
-        schedule loads and stores the C accumulators in the same bank.
+        The ISA's widest by default, so a tile shorter than a full vector leaves
+        the surplus lanes masked off. A kernel that lowers a short M tile to a
+        narrower register type -- masking fewer lanes, or none -- overrides
+        this; the schedule loads and stores the C accumulators in the same type.
         """
-        return isa_info.vector_bank
+        return isa_info.vector_type
 
     @abstractmethod
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:

@@ -26,7 +26,6 @@ from autotuner.nano_kernel import (
 from autotuner.schedules import attach_mask
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel_utils import (
-    bank_lanes,
     descriptor_from_op,
     tile_sizes_from_op,
 )
@@ -47,11 +46,11 @@ class AVX512Info(ISAInfo):
         return RegisterCount(general=16, vector=32, mask=8)
 
     @property
-    def vector_bank(self) -> type[X86VectorRegisterType]:
+    def vector_type(self) -> type[X86VectorRegisterType]:
         return AVX512RegisterType
 
     def vector_length(self, datatype: FloatingPointType) -> int:
-        return bank_lanes(self.vector_bank, datatype)
+        return self.vector_type.bitwidth() // datatype.bitwidth
 
 
 class SkxNanoKernel(NanoKernel):

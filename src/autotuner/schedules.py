@@ -358,13 +358,13 @@ def attach_mask(
     Attach one loop-invariant AVX-512 tail mask as a read-only input, if necessary.
 
     ``tile_size`` is the extent one nano-kernel tile covers in the vectorized
-    dimension and ``vector_size`` the capacity of the register bank the
+    dimension and ``vector_size`` the capacity of the vector register the
     nano-kernel lowers that tile to; the mask covers the lanes the tile leaves
     unused. Both describe one tile rather than the op's whole extent, which is a
     multiple of the tile and would round the wrong way.
 
     A mask register is as wide as a full ISA vector has lanes, and the lanes past
-    the end of a narrower bank are simply ignored, so the bits to clear are
+    the end of a narrower register are simply ignored, so the bits to clear are
     counted from that width rather than from ``vector_size``.
     """
     assert not op.ins

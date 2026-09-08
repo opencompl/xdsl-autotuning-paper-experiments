@@ -1,4 +1,3 @@
-from collections.abc import Mapping
 from dataclasses import dataclass
 
 from xdsl import ir
@@ -7,35 +6,7 @@ from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulRegOp
 from autotuner.instructions import MaskValue, PointerValue, VectorValue
-from autotuner.nano_kernel import FloatingPointType, GemmDescriptor, TileSizes
-
-VECTOR_BANK_BITWIDTH: Mapping[type[x86.registers.X86VectorRegisterType], int] = {
-    bank: bank.bitwidth()
-    for bank in (
-        x86.registers.SSERegisterType,
-        x86.registers.AVX2RegisterType,
-        x86.registers.AVX512RegisterType,
-    )
-}
-"""Width in bits of each x86 vector register bank, narrowest first.
-
-Doubles as the inventory of banks this lowering knows about, so iterating it
-walks them in widening order.
-"""
-
-
-def bank_lanes(
-    bank: type[x86.registers.X86VectorRegisterType], datatype: FloatingPointType
-) -> int:
-    """Return how many ``datatype`` elements one ``bank`` register holds."""
-    try:
-        bitwidth = VECTOR_BANK_BITWIDTH[bank]
-    except KeyError:
-        banks = ", ".join(known.name for known in VECTOR_BANK_BITWIDTH)
-        raise PassFailedException(
-            f"unknown x86 vector register bank {bank.name}; banks are {banks}"
-        ) from None
-    return bitwidth // datatype.bitwidth
+from autotuner.nano_kernel import GemmDescriptor, TileSizes
 
 
 def tile_sizes_from_op(op: MatmulRegOp) -> TileSizes:
@@ -77,9 +48,9 @@ class MatmulRegValues:
 
 
 def values_from_op(
-    op: MatmulRegOp, bank: type[x86.registers.X86VectorRegisterType]
+    op: MatmulRegOp, vector_type: type[x86.registers.X86VectorRegisterType]
 ) -> MatmulRegValues:
-    vector_lanes = bank_lanes(bank, op.datatype)
+    vector_lanes = vector_type.bitwidth() // op.datatype.bitwidth
     m_vectors = (op.m.value.data + vector_lanes - 1) // vector_lanes
     expected_accumulators = m_vectors * op.n.value.data
     if len(op.outs) != expected_accumulators:
@@ -112,10 +83,10 @@ def values_from_op(
 
 def vector_register(
     index: int,
-    bank: type[x86.registers.X86VectorRegisterType],
+    vector_type: type[x86.registers.X86VectorRegisterType],
     *,
     disable_regalloc: bool,
 ) -> x86.registers.X86VectorRegisterType:
     if disable_regalloc:
-        return bank.unallocated()
-    return bank.from_index(index)
+        return vector_type.unallocated()
+    return vector_type.from_index(index)

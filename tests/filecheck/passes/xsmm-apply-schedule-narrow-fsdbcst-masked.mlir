@@ -1,10 +1,10 @@
 // RUN: xdsl-opt %s -p 'xsmm-apply-schedule{strategy=llvm-skx-narrow-fsdbcst},x86-regalloc-verify-liveness' -t x86-asm | filecheck %s
 // RUN: xdsl-opt %s -p 'xsmm-apply-schedule{strategy=libxsmm-skx-fsdbcst},x86-regalloc-verify-liveness' -t x86-asm | filecheck %s --check-prefix WIDE
 
-// An M of three f64 lanes has no exact bank, so it masks -- but on the ymm
-// that covers it rather than on a zmm, and the mask covers that bank's four
-// lanes instead of a full vector's eight.  The libxsmm nano-kernel run below
-// is the same tile on the wide bank, for contrast.
+// An M of three f64 lanes fills no register type exactly, so it masks -- but
+// on the ymm that covers it rather than on a zmm, and the mask covers that
+// register's four lanes instead of a full vector's eight.  The libxsmm
+// nano-kernel run below is the same tile on the wide type, for contrast.
 
 // CHECK:       matmul_masked:
 // CHECK-NEXT:      mov r15, 7

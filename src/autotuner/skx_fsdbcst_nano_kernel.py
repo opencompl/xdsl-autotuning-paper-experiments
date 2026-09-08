@@ -148,8 +148,8 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             raise PassFailedException("unsupported SKX fsdbcst nano-kernel tile")
 
         insert_point = InsertPoint.before(op)
-        bank = isa_info.vector_bank
-        values = values_from_op(op, bank)
+        vector_type = isa_info.vector_type
+        values = values_from_op(op, vector_type)
         vector_reg_count = isa_info.register_capacity.vector
         element_size = op.datatype.size
 
@@ -163,7 +163,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             for n in range(tile.n):
                 register_index = vector_reg_count - tile.n * (accumulator_set + 1) + n
                 register = vector_register(
-                    register_index, bank, disable_regalloc=disable_regalloc
+                    register_index, vector_type, disable_regalloc=disable_regalloc
                 )
                 accumulators_by_index[register_index] = zero_vector(
                     rewriter, insert_point, register
@@ -181,7 +181,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     a,
                     0,
                     vector_register(
-                        register_index, bank, disable_regalloc=disable_regalloc
+                        register_index, vector_type, disable_regalloc=disable_regalloc
                     ),
                     aligned=bool(op.aligned_a.value.data),
                     mask=values.mask,
@@ -195,7 +195,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                         a,
                         op.lda.value.data * element_size,
                         vector_register(
-                            register_index, bank, disable_regalloc=disable_regalloc
+                            register_index,
+                            vector_type,
+                            disable_regalloc=disable_regalloc,
                         ),
                         aligned=bool(op.aligned_a.value.data),
                         mask=values.mask,
@@ -209,7 +211,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     a,
                     op.lda.value.data * (k + 1) * element_size,
                     vector_register(
-                        register_index, bank, disable_regalloc=disable_regalloc
+                        register_index, vector_type, disable_regalloc=disable_regalloc
                     ),
                     aligned=bool(op.aligned_a.value.data),
                     mask=values.mask,
@@ -259,7 +261,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     source,
                     main,
                     vector_register(
-                        main_index, bank, disable_regalloc=disable_regalloc
+                        main_index, vector_type, disable_regalloc=disable_regalloc
                     ),
                 )
 

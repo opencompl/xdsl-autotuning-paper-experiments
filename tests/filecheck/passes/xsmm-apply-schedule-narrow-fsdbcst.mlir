@@ -2,7 +2,7 @@
 // RUN: xdsl-opt %s -p 'xsmm-apply-schedule{strategy=llvm-skx-narrow-fsdbcst disable-regalloc=true}' | filecheck %s --check-prefix AUTO
 
 // An M of two f64 lanes fits an xmm exactly, so neither the accumulators nor
-// the A column touch a wider bank and no tail mask is needed.
+// the A column touch a wider register type and no tail mask is needed.
 
 // AUTO-LABEL:   x86_func.func @narrow_fsdbcst
 // AUTO-NOT:     !x86.avx512reg
