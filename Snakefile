@@ -734,15 +734,14 @@ TESTSET_AVX512 = [
         kernel="matmul_colmaj", m="16", n="29", k="25", dtype="f64",
         machine=THIS_MACHINE, variant="libxtcmm", ext="test.log",
     ),
-    # One shape per pinned nano-kernel, each on an M the kernel can carry:
-    # fsdbcst spans one M vector, so M=34 is several of its tiles, while
-    # nofsdbcst spans two to four and takes M=16 as a single two-vector tile.
+    # One directly supported tile per pinned nano-kernel. Loop construction is
+    # disabled for these variants, so each shape must fit one invocation.
     machine_file(
-        kernel="matmul_colmaj", m="34", n="5", k="16", dtype="f64",
+        kernel="matmul_colmaj", m="8", n="28", k="16", dtype="f64",
         machine=THIS_MACHINE, variant="libxsmm-skx-fsdbcst", ext="test.log",
     ),
     machine_file(
-        kernel="matmul_colmaj", m="16", n="29", k="16", dtype="f64",
+        kernel="matmul_colmaj", m="16", n="14", k="16", dtype="f64",
         machine=THIS_MACHINE, variant="libxsmm-skx-nofsdbcst", ext="test.log",
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
