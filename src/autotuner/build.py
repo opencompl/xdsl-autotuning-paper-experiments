@@ -264,7 +264,7 @@ def toolchain(
         by_isa = settings.get(setting, {})
         return ",".join(by_isa[spec.isa]) if spec.isa in by_isa else ""
 
-    nanokernel_tail = per_isa("compxsmm-nanokernel-passes")
+    nanokernel_pipeline = per_isa("compxsmm-nanokernel-passes")
 
     # Keyed by variant, not by generator: CompXSMM variants share generated IR
     # and differ in the pass pipeline that lowers it.
@@ -273,15 +273,7 @@ def toolchain(
         "compxsmm": per_isa("compxsmm-gemm-passes"),
         "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
         **{
-            variant: ",".join(
-                filter(
-                    None,
-                    (
-                        f"xsmm-apply-schedule{{strategy={variant} disable-regalloc=true disable-loop-construction=true}}",
-                        nanokernel_tail,
-                    ),
-                )
-            )
+            variant: nanokernel_pipeline.replace("{nanokernel}", variant)
             for variant in NANOKERNEL_VARIANTS
         },
         "libxtcmm": per_isa("libxtcmm-gemm-passes"),

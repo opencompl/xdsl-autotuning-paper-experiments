@@ -242,6 +242,7 @@ def test_pinned_compxsmm_schedules_run_distinct_pipelines(
 ) -> None:
     for variant in ("libxsmm-skx-fsdbcst", "libxsmm-skx-nofsdbcst"):
         assert f"strategy={variant}" in tool.pipelines[variant]
+        assert "{nanokernel}" not in tool.pipelines[variant]
         assert "disable-loop-construction=true" in tool.pipelines[variant]
         assert "x86-allocate-registers" in tool.pipelines[variant]
 

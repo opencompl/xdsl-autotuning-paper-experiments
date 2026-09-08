@@ -405,9 +405,8 @@ rule compxsmm_nanokernel_s:
     output: machine_file(variant='{nanokernel}',ext='S')
     params:
         passes=lambda wc: ",".join(
-            [f"xsmm-apply-schedule{{strategy={wc.nanokernel} disable-regalloc=true disable-loop-construction=true}}"]
-            + config["compxsmm-nanokernel-passes"][machine_isa(wc)]
-        )
+            config["compxsmm-nanokernel-passes"][machine_isa(wc)]
+        ).replace("{nanokernel}", wc.nanokernel)
     shell:
         """
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}

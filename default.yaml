@@ -41,10 +41,12 @@ compxsmm-manual-gemm-passes:
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
 
-# The common lowering after a nano-kernel has been pinned instead of picked by
-# the SKX heuristic. Registers are still xDSL's to assign, as in `compxsmm`.
+# The pipeline template for a nano-kernel pinned instead of picked by the SKX
+# heuristic. Each consumer replaces `{nanokernel}` with the strategy name.
+# Registers are still xDSL's to assign, as in `compxsmm`.
 compxsmm-nanokernel-passes:
   avx512:
+    - xsmm-apply-schedule{strategy={nanokernel} disable-regalloc=true disable-loop-construction=true}
     - x86-regalloc-verify-liveness
     - x86-allocate-registers{arch=avx512}
     - convert-x86-scf-to-x86
