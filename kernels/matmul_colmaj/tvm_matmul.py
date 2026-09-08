@@ -1,3 +1,10 @@
+"""Tune a row-major TE matmul with AutoTVM and print its assembly.
+
+TVM's tensors are row-major, so a column-major GEMM ``C[M,N] += A[M,K] B[K,N]``
+is tuned here as its transpose: pass ``--M N --N M --K K``, and
+``tvm_matmul_wrapper.c`` hands the packed function ``B^T, A^T, C^T``.
+"""
+
 import argparse
 import tvm
 from tvm import te, autotvm

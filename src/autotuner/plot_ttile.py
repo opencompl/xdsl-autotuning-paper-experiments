@@ -110,21 +110,21 @@ def plot_axis_throughput(
 def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
     """Plot FLOPs per time for each kernel variant."""
 
-    ns = set(df.N)
+    ms = set(df.M)
     ks = set(df.K)
     dtypes = set(df["dtype"])
-    assert len(ns) == len(ks) == len(dtypes) == 1
-    (n,) = ns
+    assert len(ms) == len(ks) == len(dtypes) == 1
+    (m,) = ms
     (k,) = ks
-    assert n == k
+    assert m == k
     (dtype,) = dtypes
     _, machine_label = result_machine_label(df)
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    plot_axis_throughput(df, ax, x_row="M")
+    plot_axis_throughput(df, ax, x_row="N")
 
-    ax.set_title(f"N = K = {n}, {dtype}, {machine_label}")
+    ax.set_title(f"M = K = {m}, {dtype}, {machine_label}")
     ax.legend(title="Variant")
     plt.tight_layout()
 
@@ -154,20 +154,20 @@ def plot_combined(output_file: Path | None):
 
     # Determine consistent axis labels, titles, and variant names
     titles = []
-    nks = []
+    mks = []
     dtypes = []
     for df, (_, prefix) in zip(dfs, input_files):
-        ns = set(df.N)
+        ms = set(df.M)
         ks = set(df.K)
         dts = set(df["dtype"])
-        assert len(ns) == len(ks) == len(dts) == 1
-        (n,) = ns
+        assert len(ms) == len(ks) == len(dts) == 1
+        (m,) = ms
         (k,) = ks
         (dtype,) = dts
         _, machine_label = result_machine_label(df)
-        nks.append((n, k))
+        mks.append((m, k))
         dtypes.append(dtype)
-        titles.append(f"{prefix}N = K = {n}, {dtype}, {machine_label}")
+        titles.append(f"{prefix}M = K = {m}, {dtype}, {machine_label}")
 
     fig, axs = plt.subplots(2, 2, figsize=(7, 7), sharex=True, sharey=True)
     plt.subplots_adjust(hspace=0.35)
@@ -179,7 +179,7 @@ def plot_combined(output_file: Path | None):
         plot_axis_throughput(
             df,
             ax,
-            x_row="M",
+            x_row="N",
             show_xlabel=bool(idx // 2),
             show_ylabel=False,  # We'll add a custom label above the axis
         )

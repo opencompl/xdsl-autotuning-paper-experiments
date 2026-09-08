@@ -1,5 +1,3 @@
-import os
-
 from xdsl.builder import Builder
 from xdsl.dialects.x86.registers import (
     R10,
@@ -54,17 +52,10 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
 
     # Define GP register mapping
 
-    if os.environ.get("SWAP_A_B") == "1":
-        gp_reg_a = RSI
-        gp_reg_b = RDI
-    else:
-        gp_reg_a = RDI
-        gp_reg_b = RSI
-
-    gp_reg_mapping.gp_reg_param_struct = gp_reg_a
+    gp_reg_mapping.gp_reg_param_struct = RDI
 
     gp_reg_mapping.gp_reg_a = gp_reg_mapping.gp_reg_param_struct
-    gp_reg_mapping.gp_reg_b = gp_reg_b
+    gp_reg_mapping.gp_reg_b = RSI
     gp_reg_mapping.gp_reg_c = RDX
     gp_reg_mapping.gp_reg_a_prefetch = RCX
     gp_reg_mapping.gp_reg_b_prefetch = R8
@@ -128,7 +119,6 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
 
     generated_code = GeneratedCode(builder, arch)
 
-    # Respect SWAP_A_B
     arg_by_reg = {arg.type: arg for arg in func_op.body.block.args}
     a_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_a], type=GeneralRegisterType)
     b_val = SSAValue.get(arg_by_reg[gp_reg_mapping.gp_reg_b], type=GeneralRegisterType)

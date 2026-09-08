@@ -99,11 +99,10 @@ class Step:
     """One command in a recipe.
 
     `kind` picks the executor: "run" shells out, the "generate:*" kinds call a
-    generator's `main` in this process, "xdsl-opt" drives xDSLOptMain, "remove"
-    clears an output the XSMM generators would otherwise append to, and
-    "append" adds the row-major wrapper to libxsmm's generated C.  Everything
-    is plain strings so a plan pickles cheaply into a worker -- and so the same
-    tuple can be hashed into the artifact's key.
+    generator's `main` in this process, "xdsl-opt" drives xDSLOptMain, and
+    "remove" clears an output the XSMM generators would otherwise append to.
+    Everything is plain strings so a plan pickles cheaply into a worker -- and
+    so the same tuple can be hashed into the artifact's key.
     """
 
     kind: str
@@ -387,8 +386,9 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
             return Artifact(out, steps, (digest([source]),))
 
         case "libxsmm":
-            # A = M*K, B = K*N, C = M*N, and the row-major kernel is the
-            # column-major one with A and B swapped, wrapped back up in C.
+            # A = M*K, B = K*N, C = M*N column-major, so the leading dimensions
+            # are M, K and M and libxsmm's own ABI is the one we benchmark: it
+            # emits `void matmul(A, B, C)` and needs no wrapper.
             generated = here / f"libxsmm.{dtype}.c"
             steps = (
                 Step("remove", (str(generated),)),
@@ -398,13 +398,13 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         tool.libxsmm_generator,
                         "dense",
                         str(generated),
-                        "matmul_bac",
+                        "matmul",
+                        str(m),
                         str(n),
+                        str(k),
                         str(m),
                         str(k),
-                        str(n),
-                        str(k),
-                        str(n),
+                        str(m),
                         "1",
                         "1",
                         "1",
@@ -412,16 +412,6 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         str(tool.libxsmm_arch),
                         "nopf",
                         XSMM_PRECISION[dtype],
-                    ),
-                ),
-                Step(
-                    "append",
-                    (
-                        str(generated),
-                        (
-                            f"void matmul({C_TYPE[dtype]} *A, {C_TYPE[dtype]} *B, "
-                            f"{C_TYPE[dtype]} *C) {{matmul_bac(B, A, C);}}\n"
-                        ),
                     ),
                 ),
                 Step(
@@ -454,12 +444,12 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         "dense",
                         str(mlir),
                         "matmul",
+                        str(m),
                         str(n),
+                        str(k),
                         str(m),
                         str(k),
-                        str(n),
-                        str(k),
-                        str(n),
+                        str(m),
                         "1",
                         "1",
                         "1",
@@ -469,8 +459,6 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         XSMM_PRECISION[dtype],
                         *extra,
                     ),
-                    # The generators read this to emit the row-major ABI.
-                    env=(("SWAP_A_B", "1"),),
                 ),
                 Step(
                     "xdsl-opt",
@@ -501,12 +489,12 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         "dense",
                         str(mlir),
                         "matmul",
+                        str(m),
                         str(n),
+                        str(k),
                         str(m),
                         str(k),
-                        str(n),
-                        str(k),
-                        str(n),
+                        str(m),
                         "1",
                         "1",
                         "1",
@@ -688,10 +676,6 @@ def run_step(step: Step) -> None:
             # The XSMM generators append to their output; a stale file left by
             # an interrupted run would otherwise be built on top of.
             Path(step.args[0]).unlink(missing_ok=True)
-
-        case "append":
-            with open(step.args[0], "a") as out:
-                out.write(step.args[1])
 
         case "generate:libxsmm" | "generate:compxsmm" | "generate:libxtcmm":
             module = import_module(GENERATOR_MODULES[step.kind])

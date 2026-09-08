@@ -1,4 +1,6 @@
-func.func public @matmul_colmaj(
+// A column-major M*K by K*N matmul, expressed on the buffers as they are laid
+// out: A is a K*M array, B an N*K one and C an N*M one, and C^T = B^T * A^T.
+func.func public @matmul(
     %arg0: tensor<{{wildcards.k}}x{{wildcards.m}}x{{wildcards.dtype}}> {llvm.noalias},
     %arg1: tensor<{{wildcards.n}}x{{wildcards.k}}x{{wildcards.dtype}}> {llvm.noalias},
     %arg2: tensor<{{wildcards.n}}x{{wildcards.m}}x{{wildcards.dtype}}> {llvm.noalias}

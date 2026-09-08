@@ -69,8 +69,8 @@ data/$(MACHINE)/f64.bars.jsonl:
 
 PLOTS =
 
-PLOTS += plots/neon/f32.ttile.png
-PLOTS += plots/neon/f64.ttile.png
+# PLOTS += plots/neon/f32.ttile.png
+# PLOTS += plots/neon/f64.ttile.png
 # PLOTS += plots/neon/f64.ttile_squares.png
 # PLOTS += plots/neon/f64.ttile_combined.png
 # PLOTS += plots/neon/f64.heatmap.png
@@ -100,7 +100,7 @@ PLOTS += plots/ttile.pdf
 plots/%.ttile.png: data/%.ttile.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile $< --output $@
 
-plots/ttile.pdf: data/tower/f32.ttile.jsonl data/tower/f64.ttile.jsonl data/pinocchio/f32.ttile.jsonl data/pinocchio/f64.ttile.jsonl src/autotuner/plot_ttile.py
+plots/ttile.pdf: data/tower/f32.ttile.jsonl data/tower/f64.ttile.jsonl data/rapper/f32.ttile.jsonl data/rapper/f64.ttile.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile --output $@
 
 plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_squares.py

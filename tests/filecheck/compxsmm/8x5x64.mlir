@@ -1,5 +1,5 @@
-// RUN: compxsmm-gemm dense %t matmul_bac 8 5 64 8 64 8 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-REGALLOC-STRUCTURE,CHECK-MANUAL-REGALLOC
-// RUN: compxsmm-gemm dense %t matmul_bac 8 5 64 8 64 8 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
+// RUN: compxsmm-gemm dense %t matmul 8 5 64 8 64 8 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-REGALLOC-STRUCTURE,CHECK-MANUAL-REGALLOC
+// RUN: compxsmm-gemm dense %t matmul 8 5 64 8 64 8 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
 
 // This exercises the unmasked double-precision fsdbcst path with four accumulator
 // sets and a K loop. The shared check verifies that automatic allocation preserves
@@ -7,8 +7,8 @@
 
 // CHECK-REGALLOC-STRUCTURE:       .intel_syntax noprefix
 // CHECK-REGALLOC-STRUCTURE-NEXT:  .text
-// CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul_bac
-// CHECK-REGALLOC-STRUCTURE-NEXT:  matmul_bac:
+// CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul
+// CHECK-REGALLOC-STRUCTURE-NEXT:  matmul:
 // CHECK-MANUAL-REGALLOC-NEXT:      push r12
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC0:\S+]], [rdx]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC1:\S+]], [rdx+64]

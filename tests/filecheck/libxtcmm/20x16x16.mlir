@@ -1,5 +1,5 @@
-// RUN: libxtcmm-gemm dense %t matmul_bac 20 16 16 20 16 20 1 1 1 1 skx nopf DP && cat %t | filecheck %s
-// RUN: libxtcmm-gemm dense %t matmul_bac 20 16 16 20 16 20 1 1 1 1 skx nopf DP --mask-tail && cat %t | filecheck %s --check-prefix MASK
+// RUN: libxtcmm-gemm dense %t matmul 20 16 16 20 16 20 1 1 1 1 skx nopf DP && cat %t | filecheck %s
+// RUN: libxtcmm-gemm dense %t matmul 20 16 16 20 16 20 1 1 1 1 skx nopf DP --mask-tail && cat %t | filecheck %s --check-prefix MASK
 
 // XTC source IR (linalg payload + transform-dialect schedule, before it is
 // applied) reproducing LIBXSMM's 20x16x16 DP microkernel schedule where M is
@@ -8,7 +8,7 @@
 //   * --mask-tail pins the vector width to 8 so the tail is masked
 //   * K = 16 <= 23 is fully unrolled
 
-// CHECK:      func.func @matmul_bac({{.*}}memref<16x20xf64>
+// CHECK:      func.func @matmul({{.*}}memref<16x20xf64>
 // CHECK:        linalg.matmul
 // CHECK:      transform.structured.vectorize {{%.*}} : !transform.any_op
 

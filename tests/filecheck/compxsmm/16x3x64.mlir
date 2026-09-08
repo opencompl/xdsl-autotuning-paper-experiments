@@ -1,20 +1,20 @@
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && cat %t | filecheck %s
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-REGALLOC-STRUCTURE,CHECK-MANUAL-REGALLOC
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
-// RUN: compxsmm-gemm dense %t matmul_bac 16 3 64 16 64 16 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
+// RUN: compxsmm-gemm dense %t matmul 16 3 64 16 64 16 1 1 1 1 skx nopf DP && cat %t | filecheck %s
+// RUN: compxsmm-gemm dense %t matmul 16 3 64 16 64 16 1 1 1 1 skx nopf DP && xdsl-opt %t -f mlir -p COMPXSMM_MANUAL_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefixes CHECK-REGALLOC-STRUCTURE,CHECK-MANUAL-REGALLOC
+// RUN: compxsmm-gemm dense %t matmul 16 3 64 16 64 16 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC-STRUCTURE
+// RUN: compxsmm-gemm dense %t matmul 16 3 64 16 64 16 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p COMPXSMM_AUTO_REGALLOC_PIPELINE -t x86-asm | filecheck %s --check-prefix CHECK-REGALLOC
 
 // CHECK-REGALLOC-STRUCTURE names logical values while abstracting their physical
 // registers. CHECK-REGALLOC below pins the automatic allocator's exact choices.
 
-// CHECK:       x86_func.func public @matmul_bac(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
+// CHECK:       x86_func.func public @matmul(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
 // CHECK-NEXT:    %3, %4, %5 = xsmm.matmul %0, %1, %2 {m = 16 : i64, n = 3 : i64, k = 64 : i64, lda = 16 : i64, ldb = 64 : i64, ldc = 16 : i64, datatype = f64, aligned_a = true, aligned_c = true, iterator = "n"} : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
 // CHECK-NEXT:    x86_func.ret
 // CHECK-NEXT:  }
 
 // CHECK-REGALLOC:       .intel_syntax noprefix
 // CHECK-REGALLOC-NEXT:  .text
-// CHECK-REGALLOC-NEXT:  .globl matmul_bac
-// CHECK-REGALLOC-NEXT:  matmul_bac:
+// CHECK-REGALLOC-NEXT:  .globl matmul
+// CHECK-REGALLOC-NEXT:  matmul:
 // CHECK-REGALLOC-NEXT:      vmovapd zmm5, [rdx]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm4, [rdx+64]
 // CHECK-REGALLOC-NEXT:      vmovapd zmm3, [rdx+128]
@@ -94,8 +94,8 @@
 
 // CHECK-REGALLOC-STRUCTURE:       .intel_syntax noprefix
 // CHECK-REGALLOC-STRUCTURE-NEXT:  .text
-// CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul_bac
-// CHECK-REGALLOC-STRUCTURE-NEXT:  matmul_bac:
+// CHECK-REGALLOC-STRUCTURE-NEXT:  .globl matmul
+// CHECK-REGALLOC-STRUCTURE-NEXT:  matmul:
 // CHECK-MANUAL-REGALLOC-NEXT:      push r12
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC0:\S+]], [rdx]
 // CHECK-REGALLOC-STRUCTURE-NEXT:      vmovapd [[ACC1:\S+]], [rdx+64]

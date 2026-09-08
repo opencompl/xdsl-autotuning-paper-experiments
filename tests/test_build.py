@@ -128,7 +128,7 @@ def test_samples_of_one_shape_share_a_task() -> None:
     assert [len(v) for v in grouped.values()] == [2, 1]
 
 
-def test_a_generated_file_is_cleared_before_it_is_appended_to(
+def test_a_generated_file_is_cleared_before_it_is_written(
     tmp_path: Path,
 ) -> None:
     # The XSMM generators append, so a file left by an interrupted run would
@@ -137,18 +137,17 @@ def test_a_generated_file_is_cleared_before_it_is_appended_to(
     generated.write_text("stale\n")
 
     build.run_step(build.Step("remove", (str(generated),)))
-    build.run_step(build.Step("append", (str(generated), "fresh\n")))
 
-    assert generated.read_text() == "fresh\n"
+    assert not generated.exists()
 
 
 def test_a_step_environment_is_put_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SWAP_A_B", "0")
+    monkeypatch.setenv("XTC_MLIR_PREFIX", "before")
 
-    with build.environment({"SWAP_A_B": "1"}):
-        assert os.environ["SWAP_A_B"] == "1"
+    with build.environment({"XTC_MLIR_PREFIX": "during"}):
+        assert os.environ["XTC_MLIR_PREFIX"] == "during"
 
-    assert os.environ["SWAP_A_B"] == "0"
+    assert os.environ["XTC_MLIR_PREFIX"] == "before"
 
 
 def test_a_failing_step_is_reported_against_its_artifact(tmp_path: Path) -> None:

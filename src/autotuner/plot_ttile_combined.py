@@ -13,7 +13,7 @@ from autotuner.plot_ttile import (
 
 
 def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> None:
-    """One 4×4 figure per machine: all variants on each subplot, M = 1..16 vs N."""
+    """One 4×4 figure per machine: all variants on each subplot, N = 1..16 vs M."""
     if df.empty:
         return
 
@@ -24,17 +24,17 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
 
     fig, axes = plt.subplots(4, 4, figsize=(14, 14), sharex=True, sharey=True)
     fig.suptitle(
-        f"{dtype}, {machine_label} — K = 64, 1 ≤ N ≤ 16 (all variants)",
+        f"{dtype}, {machine_label} — K = 64, 1 ≤ M ≤ 16 (all variants)",
         fontsize=14,
     )
 
     legend_handles: list | None = None
     legend_labels: list[str] | None = None
 
-    for m in range(1, 17):
-        row, col = (m - 1) // 4, (m - 1) % 4
+    for n in range(1, 17):
+        row, col = (n - 1) // 4, (n - 1) % 4
         ax = axes[row, col]
-        sub = df[df["M"] == m]
+        sub = df[df["N"] == n]
         assert isinstance(sub, pd.DataFrame)
         show_xlabel = row == 3
         show_ylabel = col == 0
@@ -51,7 +51,7 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
             plot_axis_throughput(
                 sub,
                 ax,
-                x_row="N",
+                x_row="M",
                 show_xlabel=show_xlabel,
                 show_ylabel=show_ylabel,
             )
@@ -59,7 +59,7 @@ def plot_ttile_combined(df: pd.DataFrame, output_path: Path | None = None) -> No
                 h, lbls = ax.get_legend_handles_labels()
                 if h:
                     legend_handles, legend_labels = list(h), list(lbls)
-        ax.set_title(f"M = {m}", fontsize=9)
+        ax.set_title(f"N = {n}", fontsize=9)
 
     if legend_handles is not None and legend_labels is not None:
         ncol = min(4, len(legend_labels))
