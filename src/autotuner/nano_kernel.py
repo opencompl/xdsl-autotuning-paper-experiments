@@ -96,6 +96,21 @@ class NanoKernel(ABC):
     ) -> frozenset[SupportedTile]:
         """Return the supported M-by-N tile shapes."""
 
+    def vector_lanes(
+        self,
+        m: int,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> int:
+        """Return the lane count of the bank one M vector of an ``m`` tile occupies.
+
+        The ISA's full vector length by default, so a tile shorter than that
+        leaves the surplus lanes masked off. A kernel that lowers a short M tile
+        to a narrower register bank -- masking fewer lanes, or none -- overrides
+        this; the schedule loads and stores the C accumulators in the same bank.
+        """
+        return isa_info.vector_length(datatype)
+
     @abstractmethod
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
         """Return whether this kernel supports the GEMM configuration."""
