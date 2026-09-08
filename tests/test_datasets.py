@@ -18,7 +18,8 @@ COMMITTED = [
     (machine, dataset)
     for machine in ("rapper", "tower")
     for dataset in ("f32.ttile", "f64.ttile", "f64.small_matrices", "f64.squares")
-]
+    # Only rapper has run the grid, and the test skips a dataset that is absent.
+] + [("rapper", "f64.nanokernel_grid")]
 
 
 @pytest.mark.parametrize(("machine", "dataset"), COMMITTED)
@@ -77,17 +78,16 @@ def test_the_nanokernel_grid_only_measures_supported_tiles() -> None:
         for variant in ("compxsmm_fsdbcst", "compxsmm_nofsdbcst")
     }
 
-    # The tile's M is the matrix's N.  fsdbcst spans one f64 vector of it, so
-    # it reaches only the leftmost columns of the grid; nofsdbcst spans up to
-    # four, which covers those columns too, so the two overlap there rather
-    # than dividing the sweep between them.  Both share a 28-column limit on
-    # the tile's N, which is the matrix's M.
-    assert tiles["compxsmm_fsdbcst"] == {(m, n) for m, n in swept if n <= 8 and m <= 28}
-    # Once the tile's M takes four vectors, at a matrix N above 24, only six
-    # accumulator columns are left, so the widest tiles stop short of the
-    # bottom rows of the grid.
+    # The tile's M is the matrix's M.  fsdbcst spans one f64 vector of it, so
+    # it reaches only the top rows of the grid; nofsdbcst spans up to four,
+    # which covers those rows too, so the two overlap there rather than
+    # dividing the sweep between them.  The 28-column limit both share on the
+    # tile's N never binds here: the grid sweeps N no further than 7.
+    assert tiles["compxsmm_fsdbcst"] == {(m, n) for m, n in swept if m <= 8 and n <= 28}
+    # Once the tile's M takes four vectors, above 24, only six accumulator
+    # columns are left, so the tallest tiles stop short of the last column.
     assert swept - tiles["compxsmm_nofsdbcst"] == {
-        (m, n) for m, n in swept if n > 24 and m > 6
+        (m, n) for m, n in swept if m > 24 and n > 6
     }
 
     # Every tile that is measured is measured over the whole of K.

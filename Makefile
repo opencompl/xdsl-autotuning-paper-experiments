@@ -124,11 +124,11 @@ plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 plots/f64.squares.%.pdf: data/%/f64.squares.jsonl src/autotuner/plot_squares.py src/autotuner/plot_style.py
 	uv run plot-squares $< --output $@
 
-# A grid of K sweeps over the nano-kernels: five M values down the rows against
-# sixteen N values across, so the figure comes out a page wide and a fifth as
-# tall.  Two columns wide, so a PDF rather than a PNG: LaTeX gets the vector
-# text.  A paper figure, so like the squares plot it goes straight in plots/
-# with the machine last in the name; here `%` is the machine on its own.
+# A grid of K sweeps over the nano-kernels: sixteen M values down the rows
+# against seven N values across, so M keeps the y axis and the figure comes out
+# one column wide and tall.  A PDF rather than a PNG so LaTeX gets the vector
+# text at that size.  A paper figure, so like the squares plot it goes straight
+# in plots/ with the machine last in the name; here `%` is the machine alone.
 plots/f64.nanokernel_grid.%.pdf: data/%/f64.nanokernel_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py
 	uv run plot-grid $< --output $@
 

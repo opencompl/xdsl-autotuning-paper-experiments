@@ -3,15 +3,17 @@
     uv run plot-grid data/rapper/f64.nanokernel_grid.jsonl \\
         --output plots/f64.nanokernel_grid.rapper.pdf
 
-The figure spans both columns of the paper template: M runs down the rows, N
-runs across the columns, and inside every panel the x axis is K.  All panels
-share their limits, so only the bottom-left one is ticked and the rest are
-read off the M and N headers around the grid.
+The figure fits one column of the paper template: M runs down the rows, N runs
+across the columns, and inside every panel the x axis is K.  All panels share
+their limits, so only the bottom-left one is ticked and the rest are read off
+the M and N headers around the grid.  M is the swept dimension and keeps the y
+axis, so its sixteen values take the rows and N's seven take the columns: the
+figure comes out a column wide and tall rather than a page wide and squat.
 
 Each curve is one nano-kernel, pinned rather than picked by the heuristic, so
 which of them wins at a given tile shape can be read off the grid.  fsdbcst
-supports one f64 vector of tile M, which is the matrix's N, so it appears only
-in the leftmost columns; the rest of the grid is nofsdbcst on its own.
+supports one f64 vector of tile M, which is the matrix's M, so it appears only
+in the top rows; the rest of the grid is nofsdbcst on its own.
 """
 
 from collections.abc import Sequence
@@ -25,10 +27,10 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from autotuner.plot_style import (
+    COLUMN_WIDTH,
     GRID,
     INK,
     INK_MUTED,
-    PAGE_WIDTH,
     save,
     use_paper_style,
     variant_style,
@@ -80,9 +82,9 @@ def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def grid_figure(
-    nrows: int, ncols: int, *, width: float = PAGE_WIDTH
+    nrows: int, ncols: int, *, width: float = COLUMN_WIDTH
 ) -> tuple[Figure, Any]:
-    """A page-wide grid of panels, with the margins sized in inches.
+    """A column-wide grid of panels, with the margins sized in inches.
 
     ``tight_layout`` is deliberately not used: the M and N headers are figure
     text placed against these margins, so they have to stay put.
@@ -154,7 +156,11 @@ def draw_panel(
 
 
 def label_grid(fig: Figure, axs: Any, ms: Sequence[int], ns: Sequence[int]) -> None:
-    """Write the M and N indices in the margins around the grid."""
+    """Write the M and N indices in the margins around the grid.
+
+    ``ms`` indexes the rows and ``ns`` the columns, the way the panels are laid
+    out: M is the swept dimension and keeps the y axis.
+    """
     width, height = fig.get_size_inches()
 
     # Column headers, sitting on top of the first row of panels.
@@ -242,7 +248,7 @@ def plot_grid(
     df: pd.DataFrame,
     *,
     variants: Sequence[str] = VARIANTS,
-    width: float = PAGE_WIDTH,
+    width: float = COLUMN_WIDTH,
     output_path: Path | None = None,
 ) -> None:
     """Plot % of peak against K for every (M, N) in the dataset."""
@@ -292,8 +298,8 @@ def main():
     parser.add_argument(
         "--width",
         type=float,
-        default=PAGE_WIDTH,
-        help="Figure width in inches (default: the two-column text width)",
+        default=COLUMN_WIDTH,
+        help="Figure width in inches (default: one column of the template)",
     )
     parser.add_argument(
         "--output",

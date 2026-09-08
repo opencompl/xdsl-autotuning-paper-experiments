@@ -16,14 +16,13 @@ SQUARE_RANGE = range(1, 65)
 
 # Sizes swept by the nano-kernel grid.
 #
-# The row-major kernel is generated as a column-major one with A and B swapped,
-# so a nano-kernel tile's M is the matrix's N and its N is the matrix's M.  It
-# is the tile's M that spans the vector registers -- one for fsdbcst, two to
-# four for nofsdbcst -- so N is the dimension swept out to four f64 vectors,
-# in twos to keep the figure a page wide rather than a page long, and M is kept
+# A nano-kernel tile's M is the matrix's M, the contiguous dimension, and it is
+# that M which spans the vector registers -- one for fsdbcst, two to four for
+# nofsdbcst -- so M is the dimension swept out to four f64 vectors, in twos to
+# keep the figure sixteen rows tall rather than thirty-two, and N is kept
 # inside the tile-N limit every nano-kernel shares.
-NANOKERNEL_GRID_M = range(1, 8)
-NANOKERNEL_GRID_N = range(2, 33, 2)
+NANOKERNEL_GRID_M = range(2, 33, 2)
+NANOKERNEL_GRID_N = range(1, 8)
 NANOKERNEL_GRID_K = range(1, 17)
 
 # The nano-kernel each variant of that grid pins the schedule to, by the name
@@ -193,8 +192,7 @@ def nanokernel_grid_shapes(variant: str) -> tuple[tuple[int, int, int], ...]:
         (m, n, k)
         for m in NANOKERNEL_GRID_M
         for n in NANOKERNEL_GRID_N
-        # Swapped: the tile's M is the matrix's N.  See NANOKERNEL_GRID_M.
-        if SupportedTile(n, m) in supported
+        if SupportedTile(m, n) in supported
         for k in NANOKERNEL_GRID_K
     )
 
