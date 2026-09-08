@@ -9,7 +9,7 @@ from xdsl.rewriter import InsertPoint
 
 from autotuner.dialects.xsmm import AccumulatorAddpdOp, AccumulatorAddpsOp
 
-VectorValue = ir.SSAValue[x86.registers.AVX512RegisterType]
+VectorValue = ir.SSAValue[x86.registers.X86VectorRegisterType]
 PointerValue = ir.SSAValue[x86.registers.GeneralRegisterType]
 MaskValue = ir.SSAValue[x86.registers.AVX512MaskRegisterType]
 
@@ -47,7 +47,7 @@ def load_vector(
     datatype: builtin.Float32Type | builtin.Float64Type,
     pointer: PointerValue,
     offset: int,
-    destination: x86.registers.AVX512RegisterType,
+    destination: x86.registers.X86VectorRegisterType,
     *,
     aligned: bool,
     mask: MaskValue | None,
@@ -149,7 +149,7 @@ def broadcast_scalar(
     datatype: builtin.Float32Type | builtin.Float64Type,
     pointer: PointerValue,
     offset: int,
-    destination: x86.registers.AVX512RegisterType,
+    destination: x86.registers.X86VectorRegisterType,
 ) -> VectorValue:
     match datatype:
         case builtin.Float32Type():
@@ -171,7 +171,7 @@ def broadcast_scalar(
 def zero_vector(
     rewriter: PatternRewriter,
     insert_point: InsertPoint,
-    register: x86.registers.AVX512RegisterType,
+    register: x86.registers.X86VectorRegisterType,
 ) -> VectorValue:
     register_value = rewriter.insert(
         x86.ops.GetAVXRegisterOp(register), insertion_point=insert_point
@@ -242,7 +242,7 @@ def add_vectors(
     datatype: builtin.Float32Type | builtin.Float64Type,
     lhs: VectorValue,
     rhs: VectorValue,
-    destination: x86.registers.AVX512RegisterType,
+    destination: x86.registers.X86VectorRegisterType,
 ) -> VectorValue:
     match datatype:
         case builtin.Float32Type():
@@ -263,7 +263,7 @@ def add_accumulator_vectors(
     datatype: builtin.Float32Type | builtin.Float64Type,
     source: VectorValue,
     accumulator: VectorValue,
-    destination: x86.registers.AVX512RegisterType,
+    destination: x86.registers.X86VectorRegisterType,
 ) -> VectorValue:
     """Add into an accumulator with an explicit source/destination reuse constraint."""
     match datatype:
