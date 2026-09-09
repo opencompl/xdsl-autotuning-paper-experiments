@@ -35,6 +35,7 @@ _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     OURS: ("x86 dialect (ours)", "#b2df8a", "none", "-"),
     BASELINE: ("LIBXSMM", "#a6cee3", "none", "-"),
     "compxsmm": ("CompXSMM", "#4a3aa7", "D", "-."),
+    "libxtcmm": ("XTC", "#b15928", "o", (0, (4, 1))),
     "compxsmm_manual": ("CompXSMM (no regalloc)", "#cab2d6", "d", (0, (2, 1))),
     # The two nano-kernels, each pinned instead of chosen by the heuristic.
     "libxsmm-skx-fsdbcst": ("fsdbcst", "#1f78b4", "o", "-"),

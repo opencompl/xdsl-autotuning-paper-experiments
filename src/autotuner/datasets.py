@@ -14,6 +14,14 @@ KERNEL = "matmul_colmaj"
 # Sizes swept by the square dataset, which sets M = N = K to each of them.
 SQUARE_RANGE = range(1, 65)
 
+# Sizes swept by the two tile sweeps, which set N to each of them and hold
+# M = K at the tile in the dataset's name.  Every N up to the tile edge, so the
+# curve is sampled at the same density everywhere rather than dense at the small
+# end and coarse at the large one.  The steps of 2 and 3 these sweeps were first
+# measured at are subsets of this, so every committed measurement is reused.
+TTILE_F32_RANGE = range(1, 49)
+TTILE_F64_RANGE = range(1, 61)
+
 # Sizes swept by the nano-kernel grid.
 #
 # A nano-kernel tile's M is the matrix's M, the contiguous dimension, and it is
@@ -223,9 +231,9 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
     # size rather than the trip count these figures are about.
     return {
         "f32.ttile": by_variant(
-            "f32", [(128, n, 128) for n in range(8, 50, 2)], "ttile"
+            "f32", [(128, n, 128) for n in TTILE_F32_RANGE], "ttile"
         ),
-        "f64.ttile": by_variant("f64", [(64, n, 64) for n in range(9, 63, 3)], "ttile"),
+        "f64.ttile": by_variant("f64", [(64, n, 64) for n in TTILE_F64_RANGE], "ttile"),
         "f64.small_matrices": by_shape(
             "f64",
             [(m, n, 64) for n in range(1, 17) for m in range(1, 17)],

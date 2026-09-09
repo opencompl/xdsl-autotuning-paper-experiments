@@ -100,14 +100,20 @@ PLOTS += plots/f64.squares.rapper.pdf
 # "No rule to make target".
 PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard data/*/f64.nanokernel_grid.jsonl)),plots/f64.nanokernel_grid.$(m).pdf)
 
-PLOTS += plots/ttile.pdf
+# One paper figure per machine, its two data types side by side, with the
+# machine in the file name rather than in the figure.
+PLOTS += plots/ttile.tower.pdf
+PLOTS += plots/ttile.rapper.pdf
 
 # `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
 plots/%.ttile.png: data/%.ttile.jsonl src/autotuner/plot_ttile.py
 	uv run plot-ttile $< --output $@
 
-plots/ttile.pdf: data/tower/f32.ttile.jsonl data/tower/f64.ttile.jsonl data/rapper/f32.ttile.jsonl data/rapper/f64.ttile.jsonl src/autotuner/plot_ttile.py
-	uv run plot-ttile --output $@
+# A paper figure, so a PDF rather than a PNG, straight in plots/ with the
+# machine last in the name; here `%` is the machine on its own.  One machine per
+# figure: its two data types are the two panels.
+plots/ttile.%.pdf: data/%/f32.ttile.jsonl data/%/f64.ttile.jsonl src/autotuner/plot_ttile_sweep.py src/autotuner/plot_style.py
+	uv run plot-ttile-sweep data/$*/f32.ttile.jsonl data/$*/f64.ttile.jsonl --output $@
 
 plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_squares.py
 	uv run plot-ttile-squares $< --output $@

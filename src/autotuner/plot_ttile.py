@@ -1,10 +1,9 @@
 # uv run plot-ttile data/neon/f32.ttile.jsonl
 
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.artist import Artist
 from matplotlib.axes import Axes
 import pandas as pd
 
@@ -135,107 +134,11 @@ def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
         plt.show()
 
 
-def plot_combined(output_file: Path | None):
-    """
-    Plot a combined 2x2 subplot of the four ttile data files, matching axis scales and sharing a legend.
-    """
-    # Hardcode input files
-    input_files = [
-        ("data/tower/f32.ttile.jsonl", "(a) "),
-        ("data/tower/f64.ttile.jsonl", "(b) "),
-        ("data/rapper/f32.ttile.jsonl", "(c) "),
-        ("data/rapper/f64.ttile.jsonl", "(d) "),
-    ]
-
-    dfs = []
-    for path, _ in input_files:
-        df = pd.read_json(path, lines=True)
-        dfs.append(df)
-
-    # Determine consistent axis labels, titles, and variant names
-    titles = []
-    mks = []
-    dtypes = []
-    for df, (_, prefix) in zip(dfs, input_files):
-        ms = set(df.M)
-        ks = set(df.K)
-        dts = set(df["dtype"])
-        assert len(ms) == len(ks) == len(dts) == 1
-        (m,) = ms
-        (k,) = ks
-        (dtype,) = dts
-        _, machine_label = result_machine_label(df)
-        mks.append((m, k))
-        dtypes.append(dtype)
-        titles.append(f"{prefix}M = K = {m}, {dtype}, {machine_label}")
-
-    fig, axs = plt.subplots(2, 2, figsize=(7, 7), sharex=True, sharey=True)
-    plt.subplots_adjust(hspace=0.35)
-    axs = axs.flatten()
-
-    # For legend
-    handles_labels: tuple[Iterable[Artist], Collection[str]] | None = None
-    for idx, (df, ax, title) in enumerate(zip(dfs, axs, titles)):
-        plot_axis_throughput(
-            df,
-            ax,
-            x_row="N",
-            show_xlabel=bool(idx // 2),
-            show_ylabel=False,  # We'll add a custom label above the axis
-        )
-        # Add horizontal Y-axis label above the axis for top-left plot only
-        if idx == 0:
-            ax.set_ylabel("% of Peak", rotation=0, ha="left", va="bottom")
-            ax.yaxis.set_label_coords(-0.12, 1.02)
-        # Place label below the chart
-        ax.text(
-            0.5,
-            -0.18,
-            title,
-            transform=ax.transAxes,
-            ha="center",
-            va="top",
-            fontsize=10,
-        )
-        # Only gather legend once
-        if handles_labels is None:
-            handles_labels = ax.get_legend_handles_labels()
-
-    # Hide legends for all axes
-    for ax in axs:
-        ax.legend_.remove() if ax.get_legend() else None
-
-    # Place one shared legend in the bottom right
-    assert handles_labels is not None
-    handles, labels = handles_labels
-    fig.legend(
-        handles,
-        labels,
-        title="Variant",
-        loc="lower right",
-        ncol=2,
-        bbox_to_anchor=(0.98, 0.12),
-    )
-    plt.tight_layout()
-
-    if output_file:
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_file, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
-
-
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Plot ttile performance data.")
-    parser.add_argument(
-        "input",
-        type=Path,
-        nargs="?",
-        default=None,
-        help="Input JSONL data file (optional)",
-    )
+    parser.add_argument("input", type=Path, help="Input JSONL data file")
     parser.add_argument(
         "--output",
         type=Path,
@@ -243,10 +146,6 @@ def main():
         help="Output plot file (optional, if not set the plot is only shown)",
     )
     args = parser.parse_args()
-
-    if args.input is None:
-        plot_combined(args.output)
-        return
 
     df = pd.read_json(args.input, lines=True)
     plot_flops_per_time(df, output_file=args.output)
