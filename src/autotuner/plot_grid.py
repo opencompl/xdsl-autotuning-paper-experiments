@@ -11,9 +11,14 @@ axis, so its sixteen values take the rows and N's seven take the columns: the
 figure comes out a column wide and tall rather than a page wide and squat.
 
 Each curve is one nano-kernel, pinned rather than picked by the heuristic, so
-which of them wins at a given tile shape can be read off the grid.  fsdbcst
-supports one f64 vector of tile M, which is the matrix's M, so it appears only
-in the top rows; the rest of the grid is nofsdbcst on its own.
+which of them wins at a given tile shape can be read off the grid.  fsdbcst and
+narrow fsdbcst both support one f64 vector of tile M, which is the matrix's M,
+so they appear only in the top rows; the rest of the grid is nofsdbcst on its
+own.  The two one-vector kernels run the same dataflow on different register
+banks, so the top rows are where the narrow bank is paid for or is not: from a
+full M vector up the narrowest bank covering the tile *is* the full vector and
+the two differ only in fsdbcst's duplicated accumulators, while below it narrow
+fsdbcst does useful work in every lane where fsdbcst masks lanes off.
 """
 
 from collections.abc import Sequence
