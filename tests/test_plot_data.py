@@ -1,6 +1,6 @@
 import pandas as pd
 
-from autotuner.plot_grid import best_of_repeats, percent_of_peak
+from autotuner.plot_data import best_of_repeats, percent_of_peak
 
 VARIANT = "libxsmm-skx-fsdbcst"
 

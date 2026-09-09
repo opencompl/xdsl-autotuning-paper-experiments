@@ -22,7 +22,7 @@ fsdbcst does useful work in every lane where fsdbcst masks lanes off.
 
 A panel's points are tens of cycles apiece, so the dataset holds several passes
 over every sample and this figure draws the fastest of them -- see
-`best_of_repeats`.
+`plot_data.best_of_repeats`.
 """
 
 from collections.abc import Sequence
@@ -36,6 +36,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from autotuner.datasets import NANOKERNEL_VARIANTS
+from autotuner.plot_data import best_of_repeats, percent_of_peak
 from autotuner.plot_style import (
     COLUMN_WIDTH,
     GRID,
@@ -48,10 +49,6 @@ from autotuner.plot_style import (
 
 # The nano-kernels this figure puts side by side, in legend order.
 VARIANTS = NANOKERNEL_VARIANTS
-
-# What identifies one measurement, so what the repeated passes of the dataset
-# have in common and `best_of_repeats` groups by.
-SAMPLE_KEY = ("variant", "M", "N", "K")
 
 # Top of the % of peak axis, and the ticks drawn below it.
 Y_TOP = 112.0
@@ -77,41 +74,6 @@ INDEX_SIZE = 8.0
 # Curves are thinner than in a single-panel figure, where a panel is ten times
 # this wide, but not so thin that two of them stop being separable.
 LINE_WIDTH = 0.65
-
-
-def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:
-    """Add a ``percent`` column holding throughput as a share of machine peak."""
-    measured = df[df["time"] > 0].copy()
-    assert isinstance(measured, pd.DataFrame)
-
-    peaks = measured["peak"].dropna().unique()
-    if len(peaks) != 1:
-        raise ValueError(f"expected one peak in the dataset, found {sorted(peaks)}")
-    peak = float(peaks[0])
-    if peak == 0.0:
-        raise ValueError("the dataset has no peak, so % of peak is undefined")
-
-    measured["percent"] = (measured["flops"] / measured["time"]) / peak * 100
-    return measured
-
-
-def best_of_repeats(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep each sample's fastest pass, dropping the rest.
-
-    The grid is swept several times over -- `datasets.DATASET_REPEATS` -- because
-    a single nano-kernel invocation is short enough that anything else the
-    machine happens to be doing shows up in the number.  That noise is
-    one-sided: it can only ever make a kernel look slower than it is, never
-    faster, so the fastest pass is the least disturbed estimate of the kernel
-    rather than a lucky outlier.  A dataset with one pass per sample comes
-    through unchanged.
-    """
-    # Sort and deduplicate rather than group and take the minimum: this keeps
-    # the whole row of the pass that won, and it does not care whether the
-    # frame's index labels are unique the way a read straight from jsonl is.
-    kept = df.sort_values("time").drop_duplicates(list(SAMPLE_KEY))
-    assert isinstance(kept, pd.DataFrame)
-    return kept
 
 
 def grid_figure(

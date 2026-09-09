@@ -63,11 +63,13 @@ def test_the_path_helper_still_spells_out_wildcards() -> None:
     )
 
 
-def test_only_the_nanokernel_grid_is_measured_more_than_once() -> None:
-    # The grid's samples are single nano-kernel invocations, tens of cycles
-    # apiece, so they are the ones noisy enough to need repeating.
+def test_only_the_short_running_datasets_are_measured_more_than_once() -> None:
+    # The grid's samples are single nano-kernel invocations and the square
+    # sweep starts as small as a 1x1x1 matmul, tens of cycles apiece, so those
+    # are the ones noisy enough to need repeating; the tile sweeps hold M = K
+    # at a full tile throughout and are long enough to be quiet.
     assert dataset_repeats("f64.nanokernel_grid") == 3
-    assert dataset_repeats("f64.squares") == 1
+    assert dataset_repeats("f64.squares") == 3
     assert dataset_repeats("f32.ttile") == 1
 
 

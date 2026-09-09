@@ -7,6 +7,11 @@ set to each of 1..64, and the y axis is throughput as a share of machine peak.
 It puts LIBXSMM next to the two things we generate from it -- the x86 dialect
 kernel, and CompXSMM with and without xDSL's register allocator -- so the price
 of allocating registers rather than assigning them by hand is visible.
+
+The small end of the sweep is tens of cycles per point, short enough that
+anything else the machine is doing lands in the number, so the dataset holds
+several passes over every sample and this figure draws the fastest of them --
+see `plot_data.best_of_repeats`.
 """
 
 from collections.abc import Sequence
@@ -15,6 +20,7 @@ from pathlib import Path
 import pandas as pd
 from matplotlib.axes import Axes
 
+from autotuner.plot_data import best_of_repeats, percent_of_peak
 from autotuner.plot_style import (
     COLUMN_WIDTH,
     column_figure,
@@ -41,22 +47,6 @@ X_TICKS = (1, 16, 32, 48, 64)
 # later ones instead of being painted over.
 WIDEST = 1.8
 NARROWING = 0.4
-
-
-def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:
-    """Add a ``percent`` column holding throughput as a share of machine peak."""
-    measured = df[df["time"] > 0].copy()
-    assert isinstance(measured, pd.DataFrame)
-
-    peaks = measured["peak"].dropna().unique()
-    if len(peaks) != 1:
-        raise ValueError(f"expected one peak in the dataset, found {sorted(peaks)}")
-    peak = float(peaks[0])
-    if peak == 0.0:
-        raise ValueError("the dataset has no peak, so % of peak is undefined")
-
-    measured["percent"] = (measured["flops"] / measured["time"]) / peak * 100
-    return measured
 
 
 def sizes(df: pd.DataFrame) -> list[int]:
@@ -101,7 +91,9 @@ def plot_squares(
     output_path: Path | None = None,
 ) -> None:
     """Plot % of peak against square problem size, one curve per variant."""
-    df = percent_of_peak(df)
+    # The minimum is taken after the measured rows are picked out, so an
+    # unmeasured 0 cannot win a sample's minimum.
+    df = best_of_repeats(percent_of_peak(df))
     missing = [v for v in variants if v not in set(df["variant"])]
     if missing:
         raise ValueError(f"the dataset has no samples for {missing}")
