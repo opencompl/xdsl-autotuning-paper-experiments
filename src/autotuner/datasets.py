@@ -26,10 +26,14 @@ NANOKERNEL_GRID_N = range(1, 8)
 NANOKERNEL_GRID_K = range(1, 17)
 
 # The pinned variants use the names that `xsmm-apply-schedule`'s `strategy`
-# option takes, so no second variant-to-strategy mapping is needed.
+# option takes, so no second variant-to-strategy mapping is needed.  A new one
+# is appended rather than interleaved: `dataset_samples` writes the jsonl
+# variant-major, so its rows land after the ones already committed and leave
+# those untouched.
 NANOKERNEL_VARIANTS = (
     "libxsmm-skx-fsdbcst",
     "libxsmm-skx-nofsdbcst",
+    "llvm-skx-narrow-fsdbcst",
 )
 
 # Which implementations each machine has to compare, per dataset.

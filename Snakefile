@@ -744,6 +744,12 @@ TESTSET_AVX512 = [
         kernel="matmul_colmaj", m="16", n="14", k="16", dtype="f64",
         machine=THIS_MACHINE, variant="libxsmm-skx-nofsdbcst", ext="test.log",
     ),
+    # M=2 is a whole xmm tile for narrow fsdbcst, rather than the masked zmm
+    # one the other two would make of it.
+    machine_file(
+        kernel="matmul_colmaj", m="2", n="5", k="16", dtype="f64",
+        machine=THIS_MACHINE, variant="llvm-skx-narrow-fsdbcst", ext="test.log",
+    ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
     *expand(
         "build/"
