@@ -156,12 +156,16 @@ taskset -c "$PIN_CPU" make dataset MACHINE="$MACHINE" EVAL_FLAGS=--no-build
 
 say "collecting into $OUT"
 mkdir -p "$OUT/data"
-cp -a "data/$MACHINE/." "$OUT/data/"
+# Not `cp -a`: that preserves ownership, and $OUT is the site's NFS home, which
+# Grid'5000 exports with root_squash -- the container is root, so the chown is
+# refused. The copy itself succeeds, but cp still exits non-zero, and `set -e`
+# would end the run here, just short of everything below.
+cp -R --preserve=timestamps "data/$MACHINE/." "$OUT/data/"
 # The per-kernel cycle counts behind the jsonl: cheap to keep, and the only way
 # to spot a single outlier after the fact.
 find "build/$MACHINE" -name 'time.txt' -print0 \
   | tar czf "$OUT/time-txt.tar.gz" --null -T - 2>/dev/null || true
-cp -a .snakemake/log "$OUT/snakemake-log" 2>/dev/null || true
+cp -R --preserve=timestamps .snakemake/log "$OUT/snakemake-log" 2>/dev/null || true
 
 find "$OUT" -maxdepth 2 | sort
 echo
