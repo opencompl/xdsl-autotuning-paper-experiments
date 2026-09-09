@@ -252,7 +252,10 @@ def test_skx_narrow_fsdbcst_tiles_like_the_wide_kernel() -> None:
     for m in (8, 16, 64):
         descriptor = _descriptor(m=m, n=12, k=64, datatype=builtin.f64)
         strategy = compute_tiling_strategy(descriptor, isa_info, kernel)
-        assert strategy.m_tile_size == isa_info.vector_length(builtin.f64)
+        assert (
+            strategy.m_tile_size
+            == isa_info.vector_type.bitwidth() // builtin.f64.bitwidth
+        )
         assert strategy == compute_tiling_strategy(
             descriptor, isa_info, SkxFsdbcstNanoKernel()
         )

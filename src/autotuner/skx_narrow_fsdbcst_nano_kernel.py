@@ -112,7 +112,7 @@ class SkxNarrowFsdbcstNanoKernel(NanoKernel):
         datatype: FloatingPointType,
         isa_info: ISAInfo,
     ) -> frozenset[SupportedTile]:
-        vector_length = isa_info.vector_length(datatype)
+        vector_length = isa_info.vector_type.bitwidth() // datatype.bitwidth
         accumulators = isa_info.register_capacity.vector - _A_VECTORS
         return frozenset(
             SupportedTile(m, n)
@@ -146,7 +146,9 @@ class SkxNarrowFsdbcstNanoKernel(NanoKernel):
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
         # One M vector, in whichever register type covers it.
-        return tile.m <= isa_info.vector_length(descriptor.datatype)
+        return tile.m <= (
+            isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
+        )
 
     def supports_tile(
         self,

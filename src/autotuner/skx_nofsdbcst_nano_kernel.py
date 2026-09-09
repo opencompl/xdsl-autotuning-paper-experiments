@@ -43,7 +43,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         datatype: FloatingPointType,
         isa_info: ISAInfo,
     ) -> frozenset[SupportedTile]:
-        vector_length = isa_info.vector_length(datatype)
+        vector_length = isa_info.vector_type.bitwidth() // datatype.bitwidth
         vector_registers = isa_info.register_capacity.vector
         return frozenset(
             SupportedTile(m, n)
@@ -73,7 +73,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
             return False
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return m_vectors >= 1
 
@@ -85,7 +85,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
     ) -> bool:
         if not self._supports_tile_shape(descriptor, tile, isa_info):
             return False
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         # TODO: The translated LIBXSMM implementation currently asserts at most four
         # M vectors. Once that implementation restriction is removed, use only register
@@ -106,7 +106,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
         if not self._supports_tile_shape(descriptor, tile, isa_info):
             raise ValueError("unsupported SKX nofsdbcst nano-kernel tile")
 
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return RegisterCount(
             general=5,
@@ -147,7 +147,7 @@ class SkxNofsdbcstNanoKernel(NanoKernel):
 
         insert_point = InsertPoint.before(op)
         vector_type = isa_info.vector_type
-        vector_length = isa_info.vector_length(op.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // op.datatype.bitwidth
         values = values_from_op(op, vector_type)
         m_vectors = (tile.m + vector_length - 1) // vector_length
         element_size = op.datatype.size

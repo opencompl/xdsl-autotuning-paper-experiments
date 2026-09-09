@@ -80,7 +80,7 @@ class SkxNanoKernel(NanoKernel):
         tile: TileSizes,
         isa_info: ISAInfo,
     ) -> NanoKernel:
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return self._fsdbcst if m_vectors == 1 else self._nofsdbcst
 
@@ -94,7 +94,7 @@ class SkxNanoKernel(NanoKernel):
             return False
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         if m_vectors > 4 or tile.n > 28:
             return False

@@ -59,7 +59,7 @@ def compute_tiling_strategy(
     if not nano_kernel.supports(descriptor, isa_info):
         raise ValueError("nano-kernel does not support the GEMM descriptor")
 
-    vector_length = isa_info.vector_length(descriptor.datatype)
+    vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
     max_m_candidate = min(
         descriptor.m, isa_info.register_capacity.vector * vector_length
     )
