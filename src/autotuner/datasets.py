@@ -5,6 +5,7 @@ samples, and `autotuner.evaluate`, which times them, so the two cannot drift.
 """
 
 from dataclasses import dataclass
+from functools import cache
 
 # Every dataset measures the column-major matmul, so M is the contiguous
 # dimension -- the one a kernel vectorizes -- and N is the one it blocks.
@@ -13,12 +14,31 @@ KERNEL = "matmul_colmaj"
 # Sizes swept by the square dataset, which sets M = N = K to each of them.
 SQUARE_RANGE = range(1, 65)
 
+# Sizes swept by the nano-kernel grid.
+#
+# A nano-kernel tile's M is the matrix's M, the contiguous dimension, and it is
+# that M which spans the vector registers -- one for fsdbcst, two to four for
+# nofsdbcst -- so M is the dimension swept out to four f64 vectors, in twos to
+# keep the figure sixteen rows tall rather than thirty-two, and N is kept
+# inside the tile-N limit every nano-kernel shares.
+NANOKERNEL_GRID_M = range(2, 33, 2)
+NANOKERNEL_GRID_N = range(1, 8)
+NANOKERNEL_GRID_K = range(1, 17)
+
+# The pinned variants use the names that `xsmm-apply-schedule`'s `strategy`
+# option takes, so no second variant-to-strategy mapping is needed.
+NANOKERNEL_VARIANTS = (
+    "libxsmm-skx-fsdbcst",
+    "libxsmm-skx-nofsdbcst",
+)
+
 # Which implementations each machine has to compare, per dataset.
 VARIANTS = {
     "neon": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
         "f64.squares": [],
+        "f64.nanokernel_grid": [],
     },
     "tower": {
         "ttile": [
@@ -43,13 +63,15 @@ VARIANTS = {
             "compxsmm",
             "compxsmm_manual",
         ],
+        "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "pinocchio": {
         "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
         # Neither of ours is generated for this target, so there is no
-        # register allocation to price here.
+        # register allocation to price here, and no nano-kernels to pin.
         "f64.squares": [],
+        "f64.nanokernel_grid": [],
     },
     "rapper": {
         "ttile": [
@@ -74,11 +96,13 @@ VARIANTS = {
             "compxsmm",
             "compxsmm_manual",
         ],
+        "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "ci": {
         "ttile": ["naive_c"],
         "f64.small_matrices": [],
         "f64.squares": [],
+        "f64.nanokernel_grid": [],
     },
 }
 
@@ -147,6 +171,32 @@ class Sample:
         )
 
 
+@cache
+def nanokernel_grid_shapes(variant: str) -> tuple[tuple[int, int, int], ...]:
+    """The (M, N, K) the nano-kernel grid measures ``variant`` at.
+
+    Only the M-by-N tiles the pinned nano-kernel actually supports: every point
+    of this figure is meant to be one nano-kernel invocation, so a shape the
+    kernel could reach only by looping smaller tiles is not its to draw.  The
+    xdsl imports are deferred because the Snakefile imports this module for its
+    path helpers alone.
+    """
+    from xdsl.dialects import builtin
+
+    from autotuner.nano_kernel import SupportedTile
+    from autotuner.skx_nano_kernel import AVX512Info, get_skx_nano_kernel
+
+    nano_kernel = get_skx_nano_kernel(variant)
+    supported = nano_kernel.supported_tile_sizes(builtin.f64, AVX512Info())
+    return tuple(
+        (m, n, k)
+        for m in NANOKERNEL_GRID_M
+        for n in NANOKERNEL_GRID_N
+        if SupportedTile(m, n) in supported
+        for k in NANOKERNEL_GRID_K
+    )
+
+
 def dataset_samples(machine: str) -> dict[str, list[Sample]]:
     """The samples each dataset measures, in the order its jsonl records them.
 
@@ -186,4 +236,11 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
         "f64.squares": by_shape(
             "f64", [(s, s, s) for s in SQUARE_RANGE], "f64.squares"
         ),
+        # Not `by_shape`: which shapes are measured depends on the variant, so
+        # the variants cannot share one shape list.
+        "f64.nanokernel_grid": [
+            Sample(m, n, k, variant, "f64")
+            for variant in variants["f64.nanokernel_grid"]
+            for m, n, k in nanokernel_grid_shapes(variant)
+        ],
     }

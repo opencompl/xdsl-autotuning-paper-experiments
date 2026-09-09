@@ -5,6 +5,7 @@ import os
 import shutil
 
 from autotuner.datasets import (
+    NANOKERNEL_VARIANTS,
     dataset_samples,
     machine_base,
     machine_file,
@@ -114,6 +115,24 @@ LIBXTCMM_GEMM_SOURCES = LIBXSMM_GEMM_SOURCES + sorted(
     glob.glob("src/autotuner/libxtcmm_gemm/**/*.py", recursive=True)
 )
 
+BUILD_VARIANTS = (
+    "naive_c",
+    "naive_mlir",
+    "vector_intrinsic",
+    "transform_mlir",
+    "transform_xdsl",
+    "libxsmm",
+    "mkl",
+    "aocl",
+    "llvm_intrinsics",
+    "tvm",
+    "xdsl_libxsmm",
+    "compxsmm",
+    "compxsmm_manual",
+    "libxtcmm",
+    *NANOKERNEL_VARIANTS,
+)
+
 # Rules
 
 wildcard_constraints:
@@ -121,7 +140,8 @@ wildcard_constraints:
     kernel="matmul_colmaj",
     executable="time|test",
     machine="|".join(MACHINES),
-    variant="naive_c|naive_mlir|vector_intrinsic|transform_mlir|transform_xdsl|libxsmm|mkl|aocl|llvm_intrinsics|tvm|xdsl_libxsmm|compxsmm|compxsmm_manual|libxtcmm"
+    variant="|".join(BUILD_VARIANTS),
+    nanokernel="|".join(NANOKERNEL_VARIANTS)
 
 VARIANTS_ARITH = "naive_mlir|vector_intrinsic|transform_mlir"
 
@@ -373,6 +393,20 @@ rule compxsmm_manual_s:
     output: machine_file(variant='compxsmm_manual',ext='S')
     params:
         passes=lambda wc: ",".join(config["compxsmm-manual-gemm-passes"][machine_isa(wc)])
+    shell:
+        """
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
+        """
+
+rule compxsmm_nanokernel_s:
+    input:
+        mlir=machine_file(variant='compxsmm',ext='compxsmm.mlir'),
+        sources=["pyproject.toml"] + COMPXSMM_GEMM_SOURCES,
+    output: machine_file(variant='{nanokernel}',ext='S')
+    params:
+        passes=lambda wc: ",".join(
+            config["compxsmm-nanokernel-passes"][machine_isa(wc)]
+        ).replace("{nanokernel}", wc.nanokernel)
     shell:
         """
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
@@ -699,6 +733,16 @@ TESTSET_AVX512 = [
     machine_file(
         kernel="matmul_colmaj", m="16", n="29", k="25", dtype="f64",
         machine=THIS_MACHINE, variant="libxtcmm", ext="test.log",
+    ),
+    # One directly supported tile per pinned nano-kernel. Loop construction is
+    # disabled for these variants, so each shape must fit one invocation.
+    machine_file(
+        kernel="matmul_colmaj", m="8", n="28", k="16", dtype="f64",
+        machine=THIS_MACHINE, variant="libxsmm-skx-fsdbcst", ext="test.log",
+    ),
+    machine_file(
+        kernel="matmul_colmaj", m="16", n="14", k="16", dtype="f64",
+        machine=THIS_MACHINE, variant="libxsmm-skx-nofsdbcst", ext="test.log",
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
     *expand(

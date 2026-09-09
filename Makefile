@@ -94,6 +94,12 @@ PLOTS += plots/rapper/f64.ttile_combined.png
 PLOTS += plots/rapper/f64.heatmap.png
 PLOTS += plots/f64.squares.rapper.pdf
 
+# The grid is not committed until a machine has actually run it, so plot
+# whichever machines have the data.  Naming them outright breaks `make plots`
+# everywhere else: a pattern rule whose prerequisite cannot be built is
+# "No rule to make target".
+PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard data/*/f64.nanokernel_grid.jsonl)),plots/f64.nanokernel_grid.$(m).pdf)
+
 PLOTS += plots/ttile.pdf
 
 # `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
@@ -117,6 +123,14 @@ plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 # includes it; here `%` is the machine on its own.
 plots/f64.squares.%.pdf: data/%/f64.squares.jsonl src/autotuner/plot_squares.py src/autotuner/plot_style.py
 	uv run plot-squares $< --output $@
+
+# A grid of K sweeps over the nano-kernels: sixteen M values down the rows
+# against seven N values across, so M keeps the y axis and the figure comes out
+# one column wide and tall.  A PDF rather than a PNG so LaTeX gets the vector
+# text at that size.  A paper figure, so like the squares plot it goes straight
+# in plots/ with the machine last in the name; here `%` is the machine alone.
+plots/f64.nanokernel_grid.%.pdf: data/%/f64.nanokernel_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py
+	uv run plot-grid $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)

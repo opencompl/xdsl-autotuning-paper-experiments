@@ -5,15 +5,12 @@ All figures are sized for a single column of the two-column LaTeX template
 LaTeX ``\\caption``, not in the image.
 """
 
-from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import numpy as np
 from matplotlib.axes import Axes
-from matplotlib.colors import Colormap, LinearSegmentedColormap, to_rgb
 from matplotlib.figure import Figure
 
 # Width of one column in the paper template, in inches.
@@ -39,6 +36,9 @@ _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     BASELINE: ("LIBXSMM", "#a6cee3", "none", "-"),
     "compxsmm": ("CompXSMM", "#4a3aa7", "D", "-."),
     "compxsmm_manual": ("CompXSMM (no regalloc)", "#cab2d6", "d", (0, (2, 1))),
+    # The two nano-kernels, each pinned instead of chosen by the heuristic.
+    "libxsmm-skx-fsdbcst": ("fsdbcst", "#1f78b4", "o", "-"),
+    "libxsmm-skx-nofsdbcst": ("nofsdbcst", "#33a02c", "s", "-."),
     "aocl": ("AOCL", "#ff7f00", "s", (0, (5, 2))),
     "mkl": ("MKL", "#008300", "^", ":"),
     "naive_c": ("naive C", "#e34948", "v", (0, (3, 1, 1, 1))),
@@ -50,115 +50,6 @@ _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     "vector_intrinsic": ("vector intrinsics", "#184f95", "h", (0, (3, 2))),
 }
 
-# One-hue sequential ramp (blue, light to dark) for the heatmaps.
-SEQUENTIAL = LinearSegmentedColormap.from_list(
-    "blue_sequential",
-    [
-        "#e8f1fd",
-        "#cde2fb",
-        "#9ec5f4",
-        "#6da7ec",
-        "#3987e5",
-        "#256abf",
-        "#184f95",
-        "#0d366b",
-    ],
-)
-
-
-# --- CIELAB / CIELCh, so ramps can be built in a perceptual space ----------
-
-# sRGB primaries -> CIE XYZ (D65) and back.
-_RGB_TO_XYZ = np.array(
-    [
-        [0.4124564, 0.3575761, 0.1804375],
-        [0.2126729, 0.7151522, 0.0721750],
-        [0.0193339, 0.1191920, 0.9503041],
-    ]
-)
-_XYZ_TO_RGB = np.linalg.inv(_RGB_TO_XYZ)
-# CIE standard illuminant D65, normalised to Y = 1.
-_WHITE = np.array([0.95047, 1.0, 1.08883])
-# The CIELAB kink, at (6/29)**3, below which the transfer is linear.
-_DELTA = 6.0 / 29.0
-
-
-def _srgb_to_lab(rgb: np.ndarray) -> np.ndarray:
-    """Convert sRGB in [0, 1] to CIELAB (L*, a*, b*)."""
-    rgb = np.asarray(rgb, dtype=float)
-    linear = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
-    xyz = linear @ _RGB_TO_XYZ.T / _WHITE
-    f = np.where(
-        xyz > _DELTA**3,
-        np.cbrt(np.clip(xyz, 0.0, None)),
-        xyz / (3 * _DELTA**2) + 4.0 / 29.0,
-    )
-    fx, fy, fz = f[..., 0], f[..., 1], f[..., 2]
-    return np.stack([116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)], axis=-1)
-
-
-def _lab_to_srgb(lab: np.ndarray) -> np.ndarray:
-    """Convert CIELAB to sRGB in [0, 1], clipping colors outside the gamut."""
-    lab = np.asarray(lab, dtype=float)
-    fy = (lab[..., 0] + 16) / 116
-    fx = fy + lab[..., 1] / 500
-    fz = fy - lab[..., 2] / 200
-    f = np.stack([fx, fy, fz], axis=-1)
-    xyz = np.where(f > _DELTA, f**3, 3 * _DELTA**2 * (f - 4.0 / 29.0)) * _WHITE
-    linear = xyz @ _XYZ_TO_RGB.T
-    srgb = np.where(
-        linear <= 0.0031308,
-        12.92 * linear,
-        1.055 * np.clip(linear, 0.0, None) ** (1 / 2.4) - 0.055,
-    )
-    return np.clip(srgb, 0.0, 1.0)
-
-
-def diverging_colormap(
-    low: str,
-    high: str,
-    *,
-    name: str = "diverging",
-    center_lightness: float = 97.5,
-    center_chroma: float = 1.5,
-    samples: int = 256,
-) -> Colormap:
-    """A two-armed diverging ramp from ``low`` through near-white to ``high``."""
-    center = np.array([center_lightness, 0.0, 0.0])
-    arms = []
-    for end_hex in (low, high):
-        end = _srgb_to_lab(np.array(to_rgb(end_hex)))
-        chroma = float(np.hypot(end[1], end[2]))
-        hue = float(np.arctan2(end[2], end[1]))
-        # Ramp lightness and chroma together, hue fixed:
-        t = np.linspace(0.0, 1.0, samples // 2)
-        lightness = center[0] + t * (end[0] - center[0])
-        chromas = center_chroma + t * (chroma - center_chroma)
-        arm = np.stack(
-            [lightness, chromas * np.cos(hue), chromas * np.sin(hue)], axis=-1
-        )
-        arms.append(_lab_to_srgb(arm))
-
-    low_arm, high_arm = arms
-    return LinearSegmentedColormap.from_list(
-        name, np.concatenate([low_arm[::-1], high_arm[1:]])
-    )
-
-
-DIVERGING = diverging_colormap("#1f78b4", "#33a02c", name="libxsmm_vs_ours")
-
-
-def contrasting_ink(color: Any) -> str:
-    """Black or white text, whichever stays legible on ``color``."""
-    lightness = float(_srgb_to_lab(np.array(to_rgb(color)))[0])
-    return "white" if lightness < 60.0 else INK
-
-
-def variant_label(variant: str) -> str:
-    """Human-readable name of a kernel variant."""
-    style = _STYLES.get(variant)
-    return style[0] if style else variant
-
 
 def variant_style(variant: str) -> dict[str, Any]:
     """Plot kwargs (color, marker, linestyle, label) for a kernel variant."""
@@ -167,16 +58,6 @@ def variant_style(variant: str) -> dict[str, Any]:
         return {"label": variant, "color": INK_MUTED, "marker": "o", "linestyle": "-"}
     label, color, marker, linestyle = style
     return {"label": label, "color": color, "marker": marker, "linestyle": linestyle}
-
-
-def sorted_variants(variants: Iterable[str]) -> list[str]:
-    """Order variants by their palette slot, unknown ones last."""
-    order = list(_STYLES)
-
-    def key(variant: str) -> tuple[int, str]:
-        return (order.index(variant) if variant in order else len(order), variant)
-
-    return sorted(set(variants), key=key)
 
 
 def use_paper_style() -> None:
@@ -267,25 +148,12 @@ def column_figure(
     )
 
 
-def sized_figure(width: float, height: float) -> Figure:
-    """An empty figure of an exact size, for axes placed by hand."""
-    use_paper_style()
-    return plt.figure(figsize=(width, height))
-
-
 def tidy_axes(ax: Axes) -> None:
     """Drop the top/right spines and put a recessive grid behind the data."""
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     ax.grid(True, linewidth=0.4, color=GRID)
     ax.set_axisbelow(True)
-
-
-def integer_ticks(values: Iterable[float], max_ticks: int = 8) -> list[int]:
-    """Tick positions taken from ``values``, thinned to at most ``max_ticks``."""
-    unique = sorted({int(v) for v in values})
-    step = max(1, -(-len(unique) // max_ticks))
-    return unique[::step]
 
 
 def save(fig: Figure, output_path: Path | None, *, tight: bool = True) -> None:
@@ -312,16 +180,3 @@ def legend_inside(fig: Figure, ax: Axes, *, loc: str = "lower right") -> None:
     """Put the legend in a corner of the axes, where the data leaves room."""
     ax.legend(loc=loc)
     fig.tight_layout(pad=0.1)
-
-
-def legend_below(fig: Figure, ax: Axes, *, ncol: int = 3) -> None:
-    """Put the legend under the axes so it never covers the data."""
-    handles, labels = ax.get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="upper center",
-        bbox_to_anchor=(0.5, 0.03),
-        ncol=ncol,
-    )
-    fig.tight_layout(pad=0.1, rect=(0, 0.06, 1, 1))

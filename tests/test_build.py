@@ -205,11 +205,11 @@ def test_a_kernel_builds_and_then_stays_built(tmp_path: Path) -> None:
     assert binary.stat().st_mtime_ns == stamped
 
 
-def test_only_the_allocated_compxsmm_asks_the_generator_to_stand_down(
+def test_only_the_manual_compxsmm_keeps_the_generators_registers(
     tool: build.Toolchain,
 ) -> None:
-    # `compxsmm` has xDSL allocate the registers, which only works if the
-    # generator leaves them unassigned; `compxsmm_manual` keeps its own.
+    # The shared CompXSMM IR leaves registers for xDSL to allocate, while the
+    # manual variant keeps the generator's assignment.
     def generate_args(variant: str) -> tuple[str, ...]:
         sample = Sample(3, 5, 7, variant, "f64")
         (step,) = [
@@ -221,6 +221,30 @@ def test_only_the_allocated_compxsmm_asks_the_generator_to_stand_down(
 
     assert "--disable-regalloc" in generate_args("compxsmm")
     assert "--disable-regalloc" not in generate_args("compxsmm_manual")
+
+
+def test_compxsmm_schedules_use_the_same_generated_mlir(tool: build.Toolchain) -> None:
+    variants = ("compxsmm", "libxsmm-skx-fsdbcst", "libxsmm-skx-nofsdbcst")
+    mlirs = [
+        next(
+            step.args[1]
+            for step in build.asm_artifact(tool, Sample(3, 5, 7, variant, "f64")).steps
+            if step.kind == "generate:compxsmm"
+        )
+        for variant in variants
+    ]
+
+    assert len(set(mlirs)) == 1
+
+
+def test_pinned_compxsmm_schedules_run_distinct_pipelines(
+    tool: build.Toolchain,
+) -> None:
+    for variant in ("libxsmm-skx-fsdbcst", "libxsmm-skx-nofsdbcst"):
+        assert f"strategy={variant}" in tool.pipelines[variant]
+        assert "{nanokernel}" not in tool.pipelines[variant]
+        assert "disable-loop-construction=true" in tool.pipelines[variant]
+        assert "x86-allocate-registers" in tool.pipelines[variant]
 
 
 def test_the_two_compxsmm_variants_run_different_pipelines(
