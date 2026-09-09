@@ -44,9 +44,12 @@ CONFIG_FILE = Path.home() / ".python-grid5000.yaml"
 # soon as a regular job wants the node, so they never delay an availability.
 BESTEFFORT_QUEUE = "besteffort"
 
-# A node whose `hard` state is not alive cannot be reserved at all, whatever
-# its reservation calendar says.
-ALIVE = "alive"
+# A node whose `hard` state is none of these cannot be reserved at all,
+# whatever its reservation calendar says. `standby` is a node Grid'5000 powered
+# down to save energy: it is idle and reservable, OAR just has to boot it
+# first, which costs a couple of minutes at the start of the job.
+STANDBY = "standby"
+RESERVABLE_STATES = ("alive", STANDBY)
 
 
 # --------------------------------------------------------------------------- #
@@ -176,15 +179,20 @@ class Machine:
 
     @property
     def queue(self) -> str:
-        """The OAR queue to reserve through.
+        """The OAR queue to reserve this node through."""
+        return preferred_queue(self.queues)
 
-        Production nodes are not in the default queue, so a reservation needs
-        an explicit ``-q production``; surfacing this avoids a puzzling refusal.
-        """
-        for candidate in ("default", "production", "testing"):
-            if candidate in self.queues:
-                return candidate
-        return self.queues[0] if self.queues else "unknown"
+
+def preferred_queue(queues: Sequence[str]) -> str:
+    """The OAR queue to reserve a node through, given the queues it accepts.
+
+    Production nodes are not in the default queue, so a reservation needs an
+    explicit ``-q production``; surfacing this avoids a puzzling refusal.
+    """
+    for candidate in ("default", "production", "testing"):
+        if candidate in queues:
+            return candidate
+    return queues[0] if queues else "unknown"
 
 
 def matches(microarchitecture: str | None, wanted: str) -> bool:
@@ -266,7 +274,7 @@ def discover(wanted: str, sites: Sequence[str], workers: int) -> list[Machine]:
 
 def blocking_reason(machine: Machine, walltime: int) -> str | None:
     """Why this node can never host the request, or None if it can."""
-    if machine.hard_state != ALIVE:
+    if machine.hard_state not in RESERVABLE_STATES:
         return machine.hard_state
     if machine.max_walltime is not None and walltime > machine.max_walltime:
         return f"max walltime {machine.max_walltime // 3600}h"
@@ -333,7 +341,8 @@ def format_when(machine: Machine, now: int) -> str:
         return f"unavailable ({machine.blocked_by or machine.hard_state})"
     delay = machine.available_at - now
     if delay <= 0:
-        return "now"
+        # Worth saying: a standby node has to boot before the job starts.
+        return "now (standby)" if machine.hard_state == STANDBY else "now"
     stamp = time.strftime("%Y-%m-%d %H:%M", time.localtime(machine.available_at))
     hours, remainder = divmod(delay, 3600)
     if hours >= 24:

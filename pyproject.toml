@@ -41,6 +41,7 @@ tvm = { index = "corse" }
 
 [project.scripts]
 hello = "autotuner.main:main"
+machine-profile = "autotuner.machine_profile:main"
 evaluate = "autotuner.evaluate:main"
 build-dataset = "autotuner.build:main"
 validate-dataset = "autotuner.validate:main"

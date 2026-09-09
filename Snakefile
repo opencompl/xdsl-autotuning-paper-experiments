@@ -581,8 +581,17 @@ rule time:
 ########################################################################################
 
 # Select the machine by passing `--config machine=NAME` to Snakemake, setting
-# MACHINE=NAME for Make, or adding MACHINE=NAME to .env.
+# MACHINE=NAME for Make, or adding MACHINE=NAME to .env. The name is either one
+# of the built-in machines or a detected profile under machines/ (see
+# `machine-profile`), which is how a Grid'5000 node gets measured without an
+# entry being written for it by hand.
 THIS_MACHINE = config["machine"]
+if THIS_MACHINE not in MACHINES:
+    raise ValueError(
+        f"unknown machine '{THIS_MACHINE}'. Known: {', '.join(sorted(MACHINES))}. "
+        "For a new machine, detect its profile first: "
+        f"`uv run machine-profile --name {THIS_MACHINE}`."
+    )
 
 ########################################################################################
 # CI
