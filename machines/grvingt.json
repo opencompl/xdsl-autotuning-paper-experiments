@@ -1,0 +1,41 @@
+{
+  "detected": {
+    "avx512_flags_present": [
+      "avx512bw",
+      "avx512dq",
+      "avx512f",
+      "avx512vl"
+    ],
+    "base_frequency_ghz": 2.1,
+    "clang_target_cpu": "skylake-avx512",
+    "cpu_model": "Intel(R) Xeon(R) Gold 6130 CPU @ 2.10GHz",
+    "cpu_vendor": "GenuineIntel",
+    "cpufreq": {
+      "no_turbo": "1",
+      "scaling_cur_freq": "1000000",
+      "scaling_governor": "performance"
+    },
+    "hostname": "60488740aeb8",
+    "papi_error": null,
+    "papi_usable": true,
+    "peak_note": "given as --peak-f32 64",
+    "perf_event_paranoid": "-1",
+    "uname": "Linux 60488740aeb8 6.12.101+deb13-amd64 #1+g5k1 SMP PREEMPT_DYNAMIC Mon Aug 17 10:16:56 CEST 2026 x86_64 x86_64"
+  },
+  "machine": {
+    "display_name": "Intel Xeon Gold 6130 (grvingt)",
+    "env": {},
+    "family": "skylake-avx512",
+    "freq": 2.1,
+    "isa": "avx512",
+    "libs": [
+      "papi"
+    ],
+    "libxsmm_arch": "skx",
+    "linker_flag": "-fuse-ld=lld",
+    "march": "skylake-avx512",
+    "mtune": "skylake-avx512",
+    "peak_f32": 64,
+    "target_triple": "x86_64-unknown-linux-gnu"
+  }
+}
