@@ -1,9 +1,12 @@
-# uv run plot-ttile data/neon/f32.ttile.jsonl
+"""Shared pieces of the exploratory throughput plots.
+
+The machine-metadata helpers and the one throughput axis that the small-matrix
+figures draw.  There is no figure of its own here: the paper's N sweep lives in
+``plot_baselines``, and these are what the PNG plots around it share.
+"""
 
 from collections.abc import Mapping
-from pathlib import Path
 
-import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 import pandas as pd
 
@@ -104,52 +107,3 @@ def plot_axis_throughput(
     ax.set_xlim(0, df[x_row].max() + 2)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-
-
-def plot_flops_per_time(df: pd.DataFrame, output_file: Path | None = None):
-    """Plot FLOPs per time for each kernel variant."""
-
-    ms = set(df.M)
-    ks = set(df.K)
-    dtypes = set(df["dtype"])
-    assert len(ms) == len(ks) == len(dtypes) == 1
-    (m,) = ms
-    (k,) = ks
-    assert m == k
-    (dtype,) = dtypes
-    _, machine_label = result_machine_label(df)
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-
-    plot_axis_throughput(df, ax, x_row="N")
-
-    ax.set_title(f"M = K = {m}, {dtype}, {machine_label}")
-    ax.legend(title="Variant")
-    plt.tight_layout()
-
-    if output_file:
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_file, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
-
-
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Plot ttile performance data.")
-    parser.add_argument("input", type=Path, help="Input JSONL data file")
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=None,
-        help="Output plot file (optional, if not set the plot is only shown)",
-    )
-    args = parser.parse_args()
-
-    df = pd.read_json(args.input, lines=True)
-    plot_flops_per_time(df, output_file=args.output)
-
-
-if __name__ == "__main__":
-    main()

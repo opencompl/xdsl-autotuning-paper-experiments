@@ -1,7 +1,7 @@
 """A sweep over the blocked dimension of one large tile, per data type.
 
-    uv run plot-ttile-sweep data/rapper/f32.ttile.jsonl data/rapper/f64.ttile.jsonl \\
-        --output plots/ttile.rapper.pdf
+    uv run plot-baselines data/rapper/f32.ttile.jsonl data/rapper/f64.ttile.jsonl \\
+        --output plots/baselines.rapper.pdf
 
 The figure is one column wide, with one panel per input file -- f32 and f64 of
 the same machine.  Inside a panel the x axis is N, the dimension the kernel
@@ -31,7 +31,7 @@ from autotuner.plot_style import (
     use_paper_style,
     variant_style,
 )
-from autotuner.plot_ttile import result_machine_label
+from autotuner.plot_throughput import result_machine_label
 
 # The implementations this figure puts side by side, in legend order: the
 # LIBXSMM family first -- the baseline and the three things we generate from
@@ -210,7 +210,7 @@ def legend_below_panels(fig: Figure, variants: Sequence[str], *, ncol: int = 4) 
     )
 
 
-def plot_ttile_sweep(
+def plot_baselines(
     dfs: Sequence[pd.DataFrame],
     *,
     variants: Sequence[str] = VARIANTS,
@@ -279,7 +279,7 @@ def main():
     args = parser.parse_args()
 
     dfs = [pd.read_json(path, lines=True) for path in args.inputs]
-    plot_ttile_sweep(
+    plot_baselines(
         dfs,
         variants=args.variant or VARIANTS,
         width=args.width,
