@@ -4,7 +4,12 @@ from typing import Literal
 from typing_extensions import override
 
 from xdsl.dialects import builtin
-from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
+from xdsl.dialects.x86.registers import (
+    AVX512MaskRegisterType,
+    AVX512RegisterType,
+    GeneralRegisterType,
+    X86VectorRegisterType,
+)
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.utils.exceptions import PassFailedException
 
@@ -24,6 +29,7 @@ from autotuner.skx_nano_kernel_utils import (
     descriptor_from_op,
     tile_sizes_from_op,
 )
+from autotuner.skx_narrow_fsdbcst_nano_kernel import SkxNarrowFsdbcstNanoKernel
 from autotuner.skx_nofsdbcst_nano_kernel import SkxNofsdbcstNanoKernel
 
 
@@ -39,13 +45,9 @@ class AVX512Info(ISAInfo):
     def register_capacity(self) -> RegisterCount:
         return RegisterCount(general=16, vector=32, mask=8)
 
-    def vector_length(self, datatype: FloatingPointType) -> int:
-        match datatype:
-            case builtin.Float32Type():
-                return 16
-            case builtin.Float64Type():
-                return 8
-        raise ValueError(f"unsupported AVX-512 datatype {datatype}")
+    @property
+    def vector_type(self) -> type[X86VectorRegisterType]:
+        return AVX512RegisterType
 
 
 class SkxNanoKernel(NanoKernel):
@@ -78,7 +80,7 @@ class SkxNanoKernel(NanoKernel):
         tile: TileSizes,
         isa_info: ISAInfo,
     ) -> NanoKernel:
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return self._fsdbcst if m_vectors == 1 else self._nofsdbcst
 
@@ -92,7 +94,7 @@ class SkxNanoKernel(NanoKernel):
             return False
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         if m_vectors > 4 or tile.n > 28:
             return False
@@ -158,6 +160,7 @@ SKX_NANO_KERNELS: Mapping[str, NanoKernel] = {
         SkxNanoKernel(),
         SkxFsdbcstNanoKernel(),
         SkxNofsdbcstNanoKernel(),
+        SkxNarrowFsdbcstNanoKernel(),
     )
 }
 

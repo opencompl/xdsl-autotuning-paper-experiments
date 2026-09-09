@@ -47,8 +47,10 @@ class MatmulRegValues:
         )
 
 
-def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
-    vector_length = 512 // op.datatype.bitwidth
+def values_from_op(
+    op: MatmulRegOp, vector_type: type[x86.registers.X86VectorRegisterType]
+) -> MatmulRegValues:
+    vector_length = vector_type.bitwidth() // op.datatype.bitwidth
     m_vectors = (op.m.value.data + vector_length - 1) // vector_length
     expected_accumulators = m_vectors * op.n.value.data
     if len(op.outs) != expected_accumulators:
@@ -73,15 +75,18 @@ def values_from_op(op: MatmulRegOp) -> MatmulRegValues:
         ir.SSAValue.get(op.b, type=x86.registers.GeneralRegisterType),
         mask,
         tuple(
-            ir.SSAValue.get(acc, type=x86.registers.AVX512RegisterType)
+            ir.SSAValue.get(acc, type=x86.registers.X86VectorRegisterType)
             for acc in op.outs
         ),
     )
 
 
 def vector_register(
-    index: int, *, disable_regalloc: bool
-) -> x86.registers.AVX512RegisterType:
+    index: int,
+    vector_type: type[x86.registers.X86VectorRegisterType],
+    *,
+    disable_regalloc: bool,
+) -> x86.registers.X86VectorRegisterType:
     if disable_regalloc:
-        return x86.registers.AVX512RegisterType.unallocated()
-    return x86.registers.AVX512RegisterType.from_index(index)
+        return vector_type.unallocated()
+    return vector_type.from_index(index)

@@ -358,15 +358,17 @@ def attach_mask(
     Attach one loop-invariant AVX-512 tail mask as a read-only input, if necessary.
 
     ``tile_size`` is the extent one nano-kernel tile covers in the vectorized
-    dimension and ``vector_lanes`` the capacity of the register bank the
-    nano-kernel lowers that tile to; the mask covers the lanes the tile leaves
-    unused. Both describe one tile rather than the op's whole extent, which is a
-    multiple of the tile and would round the wrong way.
+    dimension and ``vector_size`` the capacity of the vector register the
+    nano-kernel lowers that tile to. The nano-kernel covers the tile with full
+    vector registers plus, when the tile does not fill the last one, a tail
+    register holding the leftover lanes; the mask enables exactly those lanes.
+    Both arguments describe one tile rather than the op's whole extent, which is
+    a multiple of the tile and would round the wrong way.
     """
     assert not op.ins
 
-    remainder = tile_size % vector_size
-    if not remainder:
+    tail_lanes = tile_size % vector_size
+    if not tail_lanes:
         return op
 
     mask = load_mask(
@@ -374,7 +376,7 @@ def attach_mask(
         InsertPoint.before(op),
         mask_tmp_reg,
         mask_reg,
-        vector_size - remainder,
+        tail_lanes,
         op.datatype,
     )
     masked = _matmul_like(op, ins=(mask,))

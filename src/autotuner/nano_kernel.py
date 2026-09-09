@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
 from xdsl.dialects import builtin
-from xdsl.dialects.x86.registers import AVX512MaskRegisterType, GeneralRegisterType
+from xdsl.dialects.x86.registers import (
+    AVX512MaskRegisterType,
+    GeneralRegisterType,
+    X86VectorRegisterType,
+)
 from xdsl.pattern_rewriter import PatternRewriter
 
 from autotuner.dialects.xsmm import MatmulOp, MatmulRegOp
@@ -75,9 +79,10 @@ class ISAInfo(ABC):
     def register_capacity(self) -> RegisterCount:
         """Registers available to the generated kernel."""
 
+    @property
     @abstractmethod
-    def vector_length(self, datatype: FloatingPointType) -> int:
-        """Number of ``datatype`` elements in one vector register."""
+    def vector_type(self) -> type[X86VectorRegisterType]:
+        """The widest vector register type generated code may use."""
 
 
 class NanoKernel(ABC):
@@ -95,6 +100,21 @@ class NanoKernel(ABC):
         isa_info: ISAInfo,
     ) -> frozenset[SupportedTile]:
         """Return the supported M-by-N tile shapes."""
+
+    def vector_type(
+        self,
+        m: int,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> type[X86VectorRegisterType]:
+        """Return the register type one M vector of an ``m`` tile occupies.
+
+        The ISA's widest by default, so a tile shorter than a full vector leaves
+        the surplus lanes masked off. A kernel that lowers a short M tile to a
+        narrower register type -- masking fewer lanes, or none -- overrides
+        this; the schedule loads and stores the C accumulators in the same type.
+        """
+        return isa_info.vector_type
 
     @abstractmethod
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:

@@ -46,7 +46,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         datatype: FloatingPointType,
         isa_info: ISAInfo,
     ) -> frozenset[SupportedTile]:
-        vector_length = isa_info.vector_length(datatype)
+        vector_length = isa_info.vector_type.bitwidth() // datatype.bitwidth
         return frozenset(
             SupportedTile(m, n)
             for m in range(1, vector_length + 1)
@@ -78,7 +78,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             return False
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return m_vectors == 1
 
@@ -113,7 +113,11 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         return RegisterCount(
             general=5,
             vector=tile.n * accumulator_sets + min(tile.k, 2),
-            mask=int(tile.m % isa_info.vector_length(descriptor.datatype) != 0),
+            mask=int(
+                tile.m
+                % (isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth)
+                != 0
+            ),
         )
 
     @override
@@ -148,7 +152,8 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             raise PassFailedException("unsupported SKX fsdbcst nano-kernel tile")
 
         insert_point = InsertPoint.before(op)
-        values = values_from_op(op)
+        vector_type = isa_info.vector_type
+        values = values_from_op(op, vector_type)
         vector_reg_count = isa_info.register_capacity.vector
         element_size = op.datatype.size
 
@@ -162,7 +167,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             for n in range(tile.n):
                 register_index = vector_reg_count - tile.n * (accumulator_set + 1) + n
                 register = vector_register(
-                    register_index, disable_regalloc=disable_regalloc
+                    register_index, vector_type, disable_regalloc=disable_regalloc
                 )
                 accumulators_by_index[register_index] = zero_vector(
                     rewriter, insert_point, register
@@ -179,7 +184,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     op.datatype,
                     a,
                     0,
-                    vector_register(register_index, disable_regalloc=disable_regalloc),
+                    vector_register(
+                        register_index, vector_type, disable_regalloc=disable_regalloc
+                    ),
                     aligned=bool(op.aligned_a.value.data),
                     mask=values.mask,
                 )
@@ -192,7 +199,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                         a,
                         op.lda.value.data * element_size,
                         vector_register(
-                            register_index, disable_regalloc=disable_regalloc
+                            register_index,
+                            vector_type,
+                            disable_regalloc=disable_regalloc,
                         ),
                         aligned=bool(op.aligned_a.value.data),
                         mask=values.mask,
@@ -205,7 +214,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     op.datatype,
                     a,
                     op.lda.value.data * (k + 1) * element_size,
-                    vector_register(register_index, disable_regalloc=disable_regalloc),
+                    vector_register(
+                        register_index, vector_type, disable_regalloc=disable_regalloc
+                    ),
                     aligned=bool(op.aligned_a.value.data),
                     mask=values.mask,
                 )
@@ -253,7 +264,9 @@ class SkxFsdbcstNanoKernel(NanoKernel):
                     op.datatype,
                     source,
                     main,
-                    vector_register(main_index, disable_regalloc=disable_regalloc),
+                    vector_register(
+                        main_index, vector_type, disable_regalloc=disable_regalloc
+                    ),
                 )
 
         result = MatmulRegValues(

@@ -12,9 +12,9 @@ from xdsl.dialects.builtin import (
 )
 from xdsl.dialects.x86.ops import DSS_Operation
 from xdsl.dialects.x86.registers import (
-    AVX512RegisterType,
     GeneralRegisterType,
     X86RegisterType,
+    X86VectorRegisterType,
 )
 from xdsl.ir import Dialect, SSAValue
 from xdsl.irdl import (
@@ -75,7 +75,7 @@ def _print_variadic_operands(
 
 
 class AccumulatorAddOp(
-    DSS_Operation[AVX512RegisterType, AVX512RegisterType, AVX512RegisterType]
+    DSS_Operation[X86VectorRegisterType, X86VectorRegisterType, X86VectorRegisterType]
 ):
     """A vector add whose destination reuses the accumulator source register."""
 
