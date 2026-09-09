@@ -35,14 +35,13 @@ NANOKERNEL_VARIANTS = (
 # Which implementations each machine has to compare, per dataset.
 VARIANTS = {
     "neon": {
-        "ttile": ["naive_c"],
+        "ttile": [],
         "f64.small_matrices": [],
         "f64.squares": [],
         "f64.nanokernel_grid": [],
     },
     "tower": {
         "ttile": [
-            "naive_c",
             "libxsmm",
             "mkl",
             "aocl",
@@ -66,7 +65,7 @@ VARIANTS = {
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "pinocchio": {
-        "ttile": ["naive_c", "libxsmm", "mkl", "aocl"],
+        "ttile": ["libxsmm", "mkl", "aocl"],
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
         # Neither of ours is generated for this target, so there is no
         # register allocation to price here, and no nano-kernels to pin.
@@ -75,7 +74,6 @@ VARIANTS = {
     },
     "rapper": {
         "ttile": [
-            "naive_c",
             "libxsmm",
             "mkl",
             "aocl",
@@ -99,7 +97,7 @@ VARIANTS = {
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "ci": {
-        "ttile": ["naive_c"],
+        "ttile": [],
         "f64.small_matrices": [],
         "f64.squares": [],
         "f64.nanokernel_grid": [],

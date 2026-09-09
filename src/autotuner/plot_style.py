@@ -41,7 +41,6 @@ _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     "libxsmm-skx-nofsdbcst": ("nofsdbcst", "#33a02c", "s", "-."),
     "aocl": ("AOCL", "#ff7f00", "s", (0, (5, 2))),
     "mkl": ("MKL", "#008300", "^", ":"),
-    "naive_c": ("naive C", "#e34948", "v", (0, (3, 1, 1, 1))),
     "llvm_intrinsics": ("LLVM intrinsics", "#1baf7a", "P", (0, (5, 1))),
     "tvm": ("TVM", "#eda100", "X", (0, (1, 1))),
     "transform_xdsl": ("xDSL transform", "#e87ba4", "*", (0, (4, 1, 1, 1))),
