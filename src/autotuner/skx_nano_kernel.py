@@ -49,9 +49,6 @@ class AVX512Info(ISAInfo):
     def vector_type(self) -> type[X86VectorRegisterType]:
         return AVX512RegisterType
 
-    def vector_length(self, datatype: FloatingPointType) -> int:
-        return self.vector_type.bitwidth() // datatype.bitwidth
-
 
 class SkxNanoKernel(NanoKernel):
     """The LIBXSMM-compatible SKX nano-kernel selection heuristic."""

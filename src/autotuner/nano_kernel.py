@@ -84,10 +84,6 @@ class ISAInfo(ABC):
     def vector_type(self) -> type[X86VectorRegisterType]:
         """The widest vector register type generated code may use."""
 
-    @abstractmethod
-    def vector_length(self, datatype: FloatingPointType) -> int:
-        """Number of ``datatype`` elements in one full vector register."""
-
 
 class NanoKernel(ABC):
     """A parametric register-resident kernel and its planning contract."""

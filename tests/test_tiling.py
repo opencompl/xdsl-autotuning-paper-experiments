@@ -182,16 +182,6 @@ def test_vector_register_type_widths() -> None:
     assert AVX512RegisterType.bitwidth() == 512
 
 
-def test_avx512_isa_info_vector_length_follows_its_vector_type() -> None:
-    isa_info = AVX512Info()
-    assert isa_info.vector_type is AVX512RegisterType
-    for datatype in (builtin.f32, builtin.f64):
-        assert (
-            isa_info.vector_length(datatype)
-            == isa_info.vector_type.bitwidth() // datatype.bitwidth
-        )
-
-
 def test_skx_narrow_fsdbcst_picks_the_narrowest_vector_type() -> None:
     isa_info = AVX512Info()
     kernel = SkxNarrowFsdbcstNanoKernel()
