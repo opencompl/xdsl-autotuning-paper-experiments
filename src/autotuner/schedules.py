@@ -359,27 +359,24 @@ def attach_mask(
 
     ``tile_size`` is the extent one nano-kernel tile covers in the vectorized
     dimension and ``vector_size`` the capacity of the vector register the
-    nano-kernel lowers that tile to; the mask covers the lanes the tile leaves
-    unused. Both describe one tile rather than the op's whole extent, which is a
-    multiple of the tile and would round the wrong way.
-
-    A mask register is as wide as a full ISA vector has lanes, and the lanes past
-    the end of a narrower register are simply ignored, so the bits to clear are
-    counted from that width rather than from ``vector_size``.
+    nano-kernel lowers that tile to. The nano-kernel covers the tile with full
+    vector registers plus, when the tile does not fill the last one, a tail
+    register holding the leftover lanes; the mask enables exactly those lanes.
+    Both arguments describe one tile rather than the op's whole extent, which is
+    a multiple of the tile and would round the wrong way.
     """
     assert not op.ins
 
-    remainder = tile_size % vector_size
-    if not remainder:
+    tail_lanes = tile_size % vector_size
+    if not tail_lanes:
         return op
 
-    mask_bits = 512 // op.datatype.bitwidth
     mask = load_mask(
         rewriter,
         InsertPoint.before(op),
         mask_tmp_reg,
         mask_reg,
-        mask_bits - remainder,
+        tail_lanes,
         op.datatype,
     )
     masked = _matmul_like(op, ins=(mask,))
