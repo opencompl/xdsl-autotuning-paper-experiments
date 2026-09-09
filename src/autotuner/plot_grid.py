@@ -19,6 +19,10 @@ banks, so the top rows are where the narrow bank is paid for or is not: from a
 full M vector up the narrowest bank covering the tile *is* the full vector and
 the two differ only in fsdbcst's duplicated accumulators, while below it narrow
 fsdbcst does useful work in every lane where fsdbcst masks lanes off.
+
+A panel's points are tens of cycles apiece, so the dataset holds several passes
+over every sample and this figure draws the fastest of them -- see
+`best_of_repeats`.
 """
 
 from collections.abc import Sequence
@@ -44,6 +48,10 @@ from autotuner.plot_style import (
 
 # The nano-kernels this figure puts side by side, in legend order.
 VARIANTS = NANOKERNEL_VARIANTS
+
+# What identifies one measurement, so what the repeated passes of the dataset
+# have in common and `best_of_repeats` groups by.
+SAMPLE_KEY = ("variant", "M", "N", "K")
 
 # Top of the % of peak axis, and the ticks drawn below it.
 Y_TOP = 112.0
@@ -85,6 +93,25 @@ def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:
 
     measured["percent"] = (measured["flops"] / measured["time"]) / peak * 100
     return measured
+
+
+def best_of_repeats(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep each sample's fastest pass, dropping the rest.
+
+    The grid is swept several times over -- `datasets.DATASET_REPEATS` -- because
+    a single nano-kernel invocation is short enough that anything else the
+    machine happens to be doing shows up in the number.  That noise is
+    one-sided: it can only ever make a kernel look slower than it is, never
+    faster, so the fastest pass is the least disturbed estimate of the kernel
+    rather than a lucky outlier.  A dataset with one pass per sample comes
+    through unchanged.
+    """
+    # Sort and deduplicate rather than group and take the minimum: this keeps
+    # the whole row of the pass that won, and it does not care whether the
+    # frame's index labels are unique the way a read straight from jsonl is.
+    kept = df.sort_values("time").drop_duplicates(list(SAMPLE_KEY))
+    assert isinstance(kept, pd.DataFrame)
+    return kept
 
 
 def grid_figure(
@@ -258,7 +285,9 @@ def plot_grid(
     output_path: Path | None = None,
 ) -> None:
     """Plot % of peak against K for every (M, N) in the dataset."""
-    df = percent_of_peak(df)
+    # The minimum is taken after the measured rows are picked out, so an
+    # unmeasured 0 cannot win a sample's minimum.
+    df = best_of_repeats(percent_of_peak(df))
     missing = [v for v in variants if v not in set(df["variant"])]
     if missing:
         raise ValueError(f"the dataset has no samples for {missing}")
