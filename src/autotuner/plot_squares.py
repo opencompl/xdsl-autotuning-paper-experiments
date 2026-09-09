@@ -4,9 +4,12 @@
 
 The figure is one column wide: the x axis is the problem size, with M = N = K
 set to each of 1..64, and the y axis is throughput as a share of machine peak.
-It puts LIBXSMM next to the two things we generate from it -- the x86 dialect
+It puts LIBXSMM next to the things we generate from it -- the x86 dialect
 kernel, and CompXSMM with and without xDSL's register allocator -- so the price
-of allocating registers rather than assigning them by hand is visible.
+of allocating registers rather than assigning them by hand is visible.  The last
+curve, CompXSMM-plusnarrow, keeps that schedule but lowers an M tile shorter
+than half a vector to the narrowest register that covers it, which is where the
+sweep's small sizes live.
 """
 
 from collections.abc import Sequence
@@ -25,7 +28,13 @@ from autotuner.plot_style import (
 )
 
 # The implementations this figure puts side by side, in legend order.
-VARIANTS = ("libxsmm", "xdsl_libxsmm", "compxsmm", "compxsmm_manual")
+VARIANTS = (
+    "libxsmm",
+    "xdsl_libxsmm",
+    "compxsmm",
+    "compxsmm_manual",
+    "compxsmm_plusnarrow",
+)
 
 # Top of the % of peak axis: 100 is the top gridline, with just enough room
 # above it that the curves touching peak are not clipped by the frame.
@@ -35,12 +44,12 @@ Y_TICKS = (0, 25, 50, 75, 100)
 # Ticks on the size axis: the ends, and every sixteenth size between them.
 X_TICKS = (1, 16, 32, 48, 64)
 
-# Stroke widths, from the first variant to the last.  The four curves agree
-# almost everywhere, so each one is drawn thinner than the one it lands on:
-# where they coincide the earlier curves stay visible as a halo around the
-# later ones instead of being painted over.
+# Stroke widths, from the first variant to the last.  The curves agree almost
+# everywhere, so each one is drawn thinner than the one it lands on: where they
+# coincide the earlier curves stay visible as a halo around the later ones
+# instead of being painted over.  The last one stays visible at 1.8 - 4 * 0.35.
 WIDEST = 1.8
-NARROWING = 0.4
+NARROWING = 0.35
 
 
 def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:

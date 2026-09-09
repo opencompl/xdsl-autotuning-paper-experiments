@@ -23,7 +23,6 @@ from autotuner.nano_kernel import (
     SupportedTile,
     TileSizes,
 )
-from autotuner.schedules import attach_mask
 from autotuner.skx_fsdbcst_nano_kernel import SkxFsdbcstNanoKernel
 from autotuner.skx_nano_kernel_utils import (
     descriptor_from_op,
@@ -74,15 +73,29 @@ class SkxNanoKernel(NanoKernel):
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type
         )
 
+    def _select_for_m(
+        self,
+        m: int,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> NanoKernel:
+        """Return the nano-kernel an M tile of ``m`` lowers to.
+
+        Only M decides, which is what lets the mask and the accumulator
+        register type -- neither of which knows the tile's N or K -- ask the
+        same question the rewrite does.
+        """
+        vector_length = isa_info.vector_type.bitwidth() // datatype.bitwidth
+        m_vectors = (m + vector_length - 1) // vector_length
+        return self._fsdbcst if m_vectors == 1 else self._nofsdbcst
+
     def _select_nano_kernel(
         self,
         descriptor: GemmDescriptor,
         tile: TileSizes,
         isa_info: ISAInfo,
     ) -> NanoKernel:
-        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
-        m_vectors = (tile.m + vector_length - 1) // vector_length
-        return self._fsdbcst if m_vectors == 1 else self._nofsdbcst
+        return self._select_for_m(tile.m, descriptor.datatype, isa_info)
 
     def supports_tile(
         self,
@@ -117,6 +130,17 @@ class SkxNanoKernel(NanoKernel):
         )
 
     @override
+    def vector_type(
+        self,
+        m: int,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> type[X86VectorRegisterType]:
+        return self._select_for_m(m, datatype, isa_info).vector_type(
+            m, datatype, isa_info
+        )
+
+    @override
     def attach_mask(
         self,
         rewriter: PatternRewriter,
@@ -125,11 +149,15 @@ class SkxNanoKernel(NanoKernel):
         mask_tmp_reg: GeneralRegisterType,
         mask_reg: AVX512MaskRegisterType,
     ) -> MatmulOp:
-        return attach_mask(
+        # The mask covers the lanes the tile leaves over in the register the
+        # rewrite will put it in, so it is that nano-kernel's to attach.  Which
+        # ISA to ask is not in question: `supports` refuses anything but
+        # AVX-512.
+        return self._select_for_m(
+            op.m.value.data, op.datatype, AVX512Info()
+        ).attach_mask(
             rewriter,
             op,
-            tile_size=op.m.value.data,
-            vector_size=512 // op.datatype.bitwidth,
             mask_tmp_reg=mask_tmp_reg,
             mask_reg=mask_reg,
         )
@@ -154,10 +182,56 @@ class SkxNanoKernel(NanoKernel):
         )
 
 
+class SkxPlusNarrowNanoKernel(SkxNanoKernel):
+    """The SKX heuristic, with the narrow nano-kernel added to its choices.
+
+    LIBXSMM's heuristic knows two nano-kernels and picks between them on how
+    many vectors one M tile spans: ``fsdbcst`` for one, ``nofsdbcst`` for more.
+    An M tile shorter than a whole vector still goes to ``fsdbcst``, which
+    computes it in a full-width register with the surplus lanes masked off --
+    an M of two f64 spends a 512-bit FMA on two useful lanes.  This heuristic
+    hands those tiles to ``llvm-skx-narrow-fsdbcst`` instead, which puts them in
+    the narrowest register type that covers them, the way LLVM does; on Zen
+    that is where ``libxtcmm`` has been beating ``compxsmm``.
+
+    Nothing else moves.  The tile a short M lands in is exactly the one the
+    LIBXSMM heuristic would have chosen -- the two kernels agree on which M-by-N
+    tiles are legal and on how many registers one costs, so `compute_tiling_strategy`
+    returns the same M tile, the same N ranges and the same K blocking as
+    ``libxsmm-skx`` does.  Only the instructions inside the tile change, which
+    is what makes the two comparable in a figure.
+
+    From half a vector up the narrow kernel *is* the full-width one, so those M
+    keep LIBXSMM's choice, duplicated accumulator sets and all.
+    """
+
+    _narrow = SkxNarrowFsdbcstNanoKernel()
+
+    @property
+    def name(self) -> str:
+        return "libxsmm-skx-plusnarrow"
+
+    # `supported_tile_sizes` is inherited: the narrow kernel takes over tiles
+    # the wide one already supports rather than adding any of its own.
+
+    @override
+    def _select_for_m(
+        self,
+        m: int,
+        datatype: FloatingPointType,
+        isa_info: ISAInfo,
+    ) -> NanoKernel:
+        """Prefer the narrow kernel when it would use a narrower register."""
+        if self._narrow.vector_type(m, datatype, isa_info) is not isa_info.vector_type:
+            return self._narrow
+        return super()._select_for_m(m, datatype, isa_info)
+
+
 SKX_NANO_KERNELS: Mapping[str, NanoKernel] = {
     nano_kernel.name: nano_kernel
     for nano_kernel in (
         SkxNanoKernel(),
+        SkxPlusNarrowNanoKernel(),
         SkxFsdbcstNanoKernel(),
         SkxNofsdbcstNanoKernel(),
         SkxNarrowFsdbcstNanoKernel(),

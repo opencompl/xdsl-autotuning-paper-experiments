@@ -128,6 +128,7 @@ BUILD_VARIANTS = (
     "tvm",
     "xdsl_libxsmm",
     "compxsmm",
+    "compxsmm_plusnarrow",
     "compxsmm_manual",
     "libxtcmm",
     *NANOKERNEL_VARIANTS,
@@ -358,6 +359,22 @@ rule compxsmm_s:
     output: machine_file(variant='compxsmm',ext='S')
     params:
         passes=lambda wc: ",".join(config["compxsmm-gemm-passes"][machine_isa(wc)])
+    shell:
+        """
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
+        """
+
+# The same kernel, lowered by the schedule that additionally reaches for the
+# narrow nano-kernel when an M tile is shorter than half a vector.  The IR is
+# CompXSMM's, so the two differ in nothing but that choice.
+
+rule compxsmm_plusnarrow_s:
+    input:
+        mlir=machine_file(variant='compxsmm',ext='compxsmm.mlir'),
+        sources=["pyproject.toml"] + COMPXSMM_GEMM_SOURCES,
+    output: machine_file(variant='compxsmm_plusnarrow',ext='S')
+    params:
+        passes=lambda wc: ",".join(config["compxsmm-plusnarrow-gemm-passes"][machine_isa(wc)])
     shell:
         """
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
@@ -745,12 +762,30 @@ TESTSET_AVX512 = [
         machine=THIS_MACHINE, variant="libxsmm-skx-nofsdbcst", ext="test.log",
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
+    # `compxsmm_plusnarrow` shares that schedule, and the M of 34 also puts a
+    # narrow remainder tile after the wide ones.
     *expand(
         "build/"
         + THIS_MACHINE
         + "/{case.kernel}/{case.m}x{case.n}x{case.k}/{variant}.f64.test.log",
         case=KERNELS_XSMM_AVX512,
-        variant=["xdsl_libxsmm", "compxsmm", "compxsmm_manual"],
+        variant=[
+            "xdsl_libxsmm",
+            "compxsmm",
+            "compxsmm_manual",
+            "compxsmm_plusnarrow",
+        ],
+    ),
+    # Where plusnarrow parts company with the heuristic: an M tile of three f64
+    # lanes masked into a ymm, and one of a single lane in an xmm.
+    *expand(
+        "build/"
+        + THIS_MACHINE
+        + "/{case.kernel}/{case.m}x{case.n}x{case.k}/compxsmm_plusnarrow.f64.test.log",
+        case=[
+            Kernel3D("matmul_colmaj", 3, 9, 25),
+            Kernel3D("matmul_colmaj", 1, 7, 33),
+        ],
     ),
 ]
 

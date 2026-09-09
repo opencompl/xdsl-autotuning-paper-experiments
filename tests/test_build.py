@@ -224,7 +224,12 @@ def test_only_the_manual_compxsmm_keeps_the_generators_registers(
 
 
 def test_compxsmm_schedules_use_the_same_generated_mlir(tool: build.Toolchain) -> None:
-    variants = ("compxsmm", "libxsmm-skx-fsdbcst", "libxsmm-skx-nofsdbcst")
+    variants = (
+        "compxsmm",
+        "compxsmm_plusnarrow",
+        "libxsmm-skx-fsdbcst",
+        "libxsmm-skx-nofsdbcst",
+    )
     mlirs = [
         next(
             step.args[1]
@@ -245,6 +250,16 @@ def test_pinned_compxsmm_schedules_run_distinct_pipelines(
         assert "{nanokernel}" not in tool.pipelines[variant]
         assert "disable-loop-construction=true" in tool.pipelines[variant]
         assert "x86-allocate-registers" in tool.pipelines[variant]
+
+
+def test_plusnarrow_differs_from_compxsmm_only_in_its_strategy(
+    tool: build.Toolchain,
+) -> None:
+    # Same passes, same options; the figure the two appear in reads the
+    # difference between them as the nano-kernel's doing, so it has to be.
+    assert tool.pipelines["compxsmm_plusnarrow"] == tool.pipelines["compxsmm"].replace(
+        "strategy=libxsmm-skx ", "strategy=libxsmm-skx-plusnarrow "
+    )
 
 
 def test_the_two_compxsmm_variants_run_different_pipelines(
