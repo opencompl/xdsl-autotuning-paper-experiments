@@ -48,9 +48,11 @@ tests: pytest filecheck snakemake
 dataset_code:
 	uv run build-dataset $(if $(MACHINE),--machine $(MACHINE),)
 
+# Builds the same kernels against the test harness instead of the timing one,
+# then runs them all -- see src/autotuner/validate.py.
 .PHONY: dataset_validate
 dataset_validate:
-	uv run snakemake $(RATE_FLAG) $(SCHEDULER_FLAG) $(PROGRESS_FLAG) --cores all dataset_validate --forceall $(if $(MACHINE),--config machine=$(MACHINE),)
+	uv run validate-dataset $(if $(MACHINE),--machine $(MACHINE),)
 
 # --cores 1 to avoid contention issues when measuring performance.
 # Run `make clean` to re-measure everything.

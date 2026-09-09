@@ -6,7 +6,6 @@ import shutil
 
 from autotuner.datasets import (
     NANOKERNEL_VARIANTS,
-    dataset_samples,
     machine_base,
     machine_file,
     variant_filename,
@@ -561,39 +560,12 @@ rule time:
     shell: 'OMP_NUM_THREADS=1 BLIS_NUM_THREADS=1 {params.machine_env} {input} > {output}'
 
 ########################################################################################
-# Dataset
+# Datasets
 ########################################################################################
 
 # Select the machine by passing `--config machine=NAME` to Snakemake, setting
 # MACHINE=NAME for Make, or adding MACHINE=NAME to .env.
 THIS_MACHINE = config["machine"]
-
-# What each dataset measures lives in autotuner.datasets, which the evaluate
-# script shares; `uv run evaluate` builds these, times them and writes the
-# jsonl.  The build itself is `autotuner.build` rather than a rule here: at
-# ~37k sub-second jobs Snakemake's dispatch loop, not the machine, was the
-# limit.  What is left is validation, which is a handful of jobs per sample.
-DATASETS = dataset_samples(THIS_MACHINE)
-
-# `--config datasets=a,b` narrows the build to the datasets being evaluated.
-SELECTED = (
-    config["datasets"].split(",") if config.get("datasets") else list(DATASETS)
-)
-
-def dataset_files(ext):
-    """Every distinct file of this kind the selected datasets need."""
-    return list(dict.fromkeys(
-        sample.path(THIS_MACHINE, ext)
-        for name in SELECTED
-        for sample in DATASETS[name]
-    ))
-
-# The timing kernels are built by `uv run build-dataset` (see `make
-# dataset_code`); building them here as well would relink every binary and so
-# invalidate every cached measurement.
-
-rule dataset_validate:
-    input: dataset_files("test.log")
 
 ########################################################################################
 # CI
