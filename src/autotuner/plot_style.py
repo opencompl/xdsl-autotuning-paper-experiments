@@ -35,12 +35,13 @@ _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     OURS: ("x86 dialect (ours)", "#b2df8a", "none", "-"),
     BASELINE: ("LIBXSMM", "#a6cee3", "none", "-"),
     "compxsmm": ("CompXSMM", "#4a3aa7", "D", "-."),
+    "libxtcmm": ("XTC", "#b15928", "p", (0, (3, 1, 1, 1))),
     "compxsmm_manual": ("CompXSMM (no regalloc)", "#cab2d6", "d", (0, (2, 1))),
     "compxsmm_plusnarrow": ("CompXSMM-plusnarrow", "#e31a1c", "v", (0, (4, 1))),
-    "libxtcmm": ("XTC", "#b15928", "p", (0, (3, 1, 1, 1))),
-    # The two nano-kernels, each pinned instead of chosen by the heuristic.
+    # The nano-kernels, each pinned instead of chosen by the heuristic.
     "libxsmm-skx-fsdbcst": ("fsdbcst", "#1f78b4", "o", "-"),
     "libxsmm-skx-nofsdbcst": ("nofsdbcst", "#33a02c", "s", "-."),
+    "llvm-skx-narrow-fsdbcst": ("narrow fsdbcst", "#e31a1c", "^", (0, (3, 1))),
     "aocl": ("AOCL", "#ff7f00", "s", (0, (5, 2))),
     "mkl": ("MKL", "#008300", "^", ":"),
     "llvm_intrinsics": ("LLVM intrinsics", "#1baf7a", "P", (0, (5, 1))),

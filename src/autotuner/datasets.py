@@ -11,8 +11,17 @@ from functools import cache
 # dimension -- the one a kernel vectorizes -- and N is the one it blocks.
 KERNEL = "matmul_colmaj"
 
-# Sizes swept by the square dataset, which sets M = N = K to each of them.
+# Sizes swept by the two square sweeps, one per data type, which set
+# M = N = K to each of them.
 SQUARE_RANGE = range(1, 65)
+
+# Sizes swept by the two tile sweeps, which set N to each of them and hold
+# M = K at the tile in the dataset's name.  Every N up to the tile edge, so the
+# curve is sampled at the same density everywhere rather than dense at the small
+# end and coarse at the large one.  The steps of 2 and 3 these sweeps were first
+# measured at are subsets of this, so every committed measurement is reused.
+TTILE_F32_RANGE = range(1, 49)
+TTILE_F64_RANGE = range(1, 61)
 
 # Sizes swept by the nano-kernel grid.
 #
@@ -26,10 +35,14 @@ NANOKERNEL_GRID_N = range(1, 8)
 NANOKERNEL_GRID_K = range(1, 17)
 
 # The pinned variants use the names that `xsmm-apply-schedule`'s `strategy`
-# option takes, so no second variant-to-strategy mapping is needed.
+# option takes, so no second variant-to-strategy mapping is needed.  A new one
+# is appended rather than interleaved: `dataset_samples` writes the jsonl
+# variant-major, so its rows land after the ones already committed and leave
+# those untouched.
 NANOKERNEL_VARIANTS = (
     "libxsmm-skx-fsdbcst",
     "libxsmm-skx-nofsdbcst",
+    "llvm-skx-narrow-fsdbcst",
 )
 
 # Which implementations each machine has to compare, per dataset.
@@ -37,6 +50,7 @@ VARIANTS = {
     "neon": {
         "ttile": [],
         "f64.small_matrices": [],
+        "f32.squares": [],
         "f64.squares": [],
         "f64.nanokernel_grid": [],
     },
@@ -56,11 +70,29 @@ VARIANTS = {
             "compxsmm",
             "libxtcmm",
         ],
+        # The baselines figure draws the vendor libraries and XTC as well, so
+        # the square sweep measures every implementation the tile sweep does.
+        # New variants go last: appending leaves the committed measurements
+        # where they are.
+        "f32.squares": [
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm",
+            "libxtcmm",
+            "mkl",
+            "aocl",
+        ],
+        # f64 also feeds the squares figure, which prices xDSL's register
+        # allocator, so it adds the hand-assigned CompXSMM that figure
+        # compares against.
         "f64.squares": [
             "libxsmm",
             "xdsl_libxsmm",
             "compxsmm",
             "compxsmm_manual",
+            "libxtcmm",
+            "mkl",
+            "aocl",
         ],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
@@ -69,6 +101,7 @@ VARIANTS = {
         "f64.small_matrices": ["llvm_intrinsics", "libxsmm", "mkl", "aocl"],
         # Neither of ours is generated for this target, so there is no
         # register allocation to price here, and no nano-kernels to pin.
+        "f32.squares": [],
         "f64.squares": [],
         "f64.nanokernel_grid": [],
     },
@@ -88,23 +121,40 @@ VARIANTS = {
             "compxsmm",
             "libxtcmm",
         ],
-        # `compxsmm_plusnarrow` and `libxtcmm` are rapper's alone until another
-        # machine has measured them here: a variant listed here but missing
-        # from the committed jsonl is a dataset that no longer matches its own
-        # definition.
+        # The baselines figure draws the vendor libraries and XTC as well, so
+        # the square sweep measures every implementation the tile sweep does.
+        # New variants go last: appending leaves the committed measurements
+        # where they are.
+        "f32.squares": [
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm",
+            "libxtcmm",
+            "mkl",
+            "aocl",
+        ],
+        # f64 also feeds the squares figure, which prices xDSL's register
+        # allocator, so it adds the hand-assigned CompXSMM that figure
+        # compares against, plus the narrowed schedule.  `compxsmm_plusnarrow`
+        # is rapper's alone until another machine has measured it here: a
+        # variant listed here but missing from the committed jsonl is a
+        # dataset that no longer matches its own definition.
         "f64.squares": [
             "libxsmm",
             "xdsl_libxsmm",
             "compxsmm",
             "compxsmm_manual",
-            "compxsmm_plusnarrow",
             "libxtcmm",
+            "mkl",
+            "aocl",
+            "compxsmm_plusnarrow",
         ],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "ci": {
         "ttile": [],
         "f64.small_matrices": [],
+        "f32.squares": [],
         "f64.squares": [],
         "f64.nanokernel_grid": [],
     },
@@ -224,18 +274,22 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
             for variant in variants[key]
         ]
 
-    # The sweeps vary N, the blocked dimension, and hold the contiguous M fixed:
-    # M is what a column-major kernel vectorizes, so it is the register block
-    # size rather than the trip count these figures are about.
+    # The tile sweeps vary N, the blocked dimension, and hold the contiguous M
+    # fixed: M is what a column-major kernel vectorizes, so it is the register
+    # block size rather than the trip count those figures are about.  The
+    # square sweeps vary all three dimensions together.
     return {
         "f32.ttile": by_variant(
-            "f32", [(128, n, 128) for n in range(8, 50, 2)], "ttile"
+            "f32", [(128, n, 128) for n in TTILE_F32_RANGE], "ttile"
         ),
-        "f64.ttile": by_variant("f64", [(64, n, 64) for n in range(9, 63, 3)], "ttile"),
+        "f64.ttile": by_variant("f64", [(64, n, 64) for n in TTILE_F64_RANGE], "ttile"),
         "f64.small_matrices": by_shape(
             "f64",
             [(m, n, 64) for n in range(1, 17) for m in range(1, 17)],
             "f64.small_matrices",
+        ),
+        "f32.squares": by_shape(
+            "f32", [(s, s, s) for s in SQUARE_RANGE], "f32.squares"
         ),
         "f64.squares": by_shape(
             "f64", [(s, s, s) for s in SQUARE_RANGE], "f64.squares"

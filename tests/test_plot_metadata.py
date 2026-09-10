@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from autotuner.machines import MACHINES
-from autotuner.plot_ttile import machine_display_names, result_machine_label
+from autotuner.plot_throughput import machine_display_names, result_machine_label
 
 
 def test_machine_display_names_come_from_machine_config() -> None:
