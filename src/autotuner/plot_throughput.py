@@ -11,6 +11,7 @@ from matplotlib.axes import Axes
 import pandas as pd
 
 from autotuner.machines import MACHINES, Machine
+from autotuner.plot_style import variant_label
 
 
 def machine_display_names(
@@ -85,7 +86,7 @@ def plot_axis_throughput(
         ax.plot(
             group[x_row],
             group[y_col],
-            label=variant,
+            label=variant_label(str(variant)),
             color=color,
             marker=marker,
             linewidth=2,

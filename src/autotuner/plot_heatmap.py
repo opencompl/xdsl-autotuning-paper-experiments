@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 
 from pathlib import Path
 
+from autotuner.plot_style import variant_label
+
 
 def plot_axis_heatmap(valid_data: pd.DataFrame, ax: Subplot, title: str):
     if valid_data.empty:
@@ -77,7 +79,7 @@ def plot_heatmap_throughput_over_peak(
         valid_data = df[(df["variant"] == variant) & (df["time"] > 0)].copy()
         assert isinstance(valid_data, pd.DataFrame)
 
-        ims.append(plot_axis_heatmap(valid_data, ax, variant))
+        ims.append(plot_axis_heatmap(valid_data, ax, variant_label(variant)))
 
     for j in range(len(variants), len(axes.flat)):
         axes.flat[j].axis("off")

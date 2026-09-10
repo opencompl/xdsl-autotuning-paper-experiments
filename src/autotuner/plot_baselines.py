@@ -36,8 +36,8 @@ from autotuner.plot_throughput import result_machine_label
 
 # The implementations this figure puts side by side, in legend order: LIBXSMM
 # first, then the two compilers we generate from its schedule, then the vendor
-# libraries.  The x86 dialect kernel is not here: the squares figure is where
-# it is priced against LIBXSMM, and on this axis it lands on LIBXSMM.
+# libraries.  xdsl-LIBXSMM is not here: the squares figure is where it is
+# priced against LIBXSMM, and on this axis it lands on LIBXSMM.
 VARIANTS = (
     "libxsmm",
     "compxsmm",
