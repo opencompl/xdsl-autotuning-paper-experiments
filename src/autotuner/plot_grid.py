@@ -10,6 +10,11 @@ the M and N headers around the grid.  M is the swept dimension and keeps the y
 axis, so its sixteen values take the rows and N's seven take the columns: the
 figure comes out a column wide and tall rather than a page wide and squat.
 
+Sharing the limits also lets the panels butt up against each other with no
+whitespace between them.  Every cell tops out at peak, so the hairline two
+neighbours share is both their border and their 100% line, and the space the
+gaps and the old headroom took goes into the cells instead.
+
 Each curve is one nano-kernel, pinned rather than picked by the heuristic, so
 which of them wins at a given tile shape can be read off the grid.  fsdbcst and
 narrow fsdbcst both support one f64 vector of tile M, which is the matrix's M,
@@ -46,14 +51,17 @@ from autotuner.plot_style import (
 # The nano-kernels this figure puts side by side, in legend order.
 VARIANTS = NANOKERNEL_VARIANTS
 
-# Top of the % of peak axis, and the ticks drawn below it.
-Y_TOP = 112.0
+# Top of the % of peak axis, and the ticks drawn below it.  The axis stops at
+# peak, so the top of every panel *is* the 100% line and no headroom is spent
+# on a ceiling no sample reaches.
+Y_TOP = 100.0
 Y_TICKS = (0, 50, 100)
 
-# Panel height as a fraction of its width, and the gap between neighbouring
-# panels as a fraction of one panel.
-PANEL_ASPECT = 0.8
-PANEL_GAP = 0.18
+# Panel height as a fraction of its width.  The panels are butted together, so
+# a panel is as tall as it is wide minus the headroom the old ceiling wanted:
+# the grid reads as one block of cells rather than 112 scattered plots.
+PANEL_ASPECT = 0.7
+PANEL_GAP = 0.0
 
 # Margins in inches: the M header and the ticked panel's labels on the left,
 # the N header on top, the K label and the legend underneath.
@@ -128,10 +136,6 @@ def draw_panel(
     ax.set_xlim(min(ks) - 0.5, max(ks) + 0.5)
     ax.set_ylim(0, Y_TOP)
 
-    # Peak, as a hairline rather than the dashes a single-panel figure uses:
-    # at this size a dash pattern reads as another curve.
-    ax.axhline(100, linewidth=0.3, color=GRID, zorder=1)
-
     for variant in variants:
         group = panel[panel["variant"] == variant]
         assert isinstance(group, pd.DataFrame)
@@ -144,10 +148,11 @@ def draw_panel(
         }
         ax.plot(group["K"], group["percent"], zorder=2, **style)
 
-    for side in ("top", "right"):
-        ax.spines[side].set_visible(False)
-    for side in ("left", "bottom"):
+    # All four spines, hairline: with no gap between panels the box is both
+    # the cell's border and, along the top, the peak line the curves approach.
+    for side in ("top", "right", "bottom", "left"):
         ax.spines[side].set_linewidth(0.3)
+        ax.spines[side].set_color(GRID)
 
     ax.set_xticks([min(ks), (min(ks) + max(ks)) // 2, max(ks)])
     ax.set_yticks(Y_TICKS)
