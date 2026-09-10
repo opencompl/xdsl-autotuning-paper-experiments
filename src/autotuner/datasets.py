@@ -88,15 +88,17 @@ VARIANTS = {
             "compxsmm",
             "libxtcmm",
         ],
-        # `compxsmm_plusnarrow` is rapper's alone until another machine has
-        # measured it: a variant listed here but missing from the committed
-        # jsonl is a dataset that no longer matches its own definition.
+        # `compxsmm_plusnarrow` and `libxtcmm` are rapper's alone until another
+        # machine has measured them here: a variant listed here but missing
+        # from the committed jsonl is a dataset that no longer matches its own
+        # definition.
         "f64.squares": [
             "libxsmm",
             "xdsl_libxsmm",
             "compxsmm",
             "compxsmm_manual",
             "compxsmm_plusnarrow",
+            "libxtcmm",
         ],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },

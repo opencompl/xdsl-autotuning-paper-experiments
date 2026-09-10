@@ -9,7 +9,10 @@ kernel, and CompXSMM with and without xDSL's register allocator -- so the price
 of allocating registers rather than assigning them by hand is visible.  The last
 curve, CompXSMM-plusnarrow, keeps that schedule but lowers an M tile shorter
 than half a vector to the narrowest register that covers it, which is where the
-sweep's small sizes live.
+sweep's small sizes live.  Alongside them is libxtcmm, which hands the same
+LIBXSMM schedule to XTC and lets its compiler pick the registers: another way
+of not assigning them by hand, and the one CompXSMM-plusnarrow is chasing at
+short M.
 """
 
 from collections.abc import Sequence
@@ -34,6 +37,7 @@ VARIANTS = (
     "compxsmm",
     "compxsmm_manual",
     "compxsmm_plusnarrow",
+    "libxtcmm",
 )
 
 # Top of the % of peak axis: 100 is the top gridline, with just enough room
@@ -47,9 +51,9 @@ X_TICKS = (1, 16, 32, 48, 64)
 # Stroke widths, from the first variant to the last.  The curves agree almost
 # everywhere, so each one is drawn thinner than the one it lands on: where they
 # coincide the earlier curves stay visible as a halo around the later ones
-# instead of being painted over.  The last one stays visible at 1.8 - 4 * 0.35.
+# instead of being painted over.  The last one stays visible at 1.8 - 5 * 0.28.
 WIDEST = 1.8
-NARROWING = 0.35
+NARROWING = 0.28
 
 
 def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:

@@ -63,7 +63,7 @@ def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
 def test_the_square_sweep_keeps_every_dimension_equal() -> None:
     samples = dataset_samples("rapper")["f64.squares"]
 
-    assert len(samples) == 64 * 5
+    assert len(samples) == 64 * 6
     assert all(s.m == s.n == s.k for s in samples)
     assert {s.m for s in samples} == set(range(1, 65))
 
