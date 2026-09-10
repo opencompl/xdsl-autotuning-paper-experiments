@@ -722,6 +722,13 @@ CALLEE_SAVED = {
 # kernel wants them: the reload the wrapper does is a round trip to nowhere.
 ARGUMENT_REGISTERS = ("%rdi", "%rsi", "%rdx")
 
+# The frame LIBXSMM's own kernel opens -- 192 bytes of prefetch/scratch/eltwise
+# slots aligned to 64 -- and the teardown that matches it.  1.17 emitted
+# neither; the revision pinned in the flake emits both.  It is the generator's
+# frame, not clang's, so it is code under test and stays.
+OWN_FRAME_OPEN = re.compile(r"\A\tpushq\t%rbp\n\tmovq\t%rsp, %rbp\n")
+OWN_FRAME_CLOSE = re.compile(r"\tmovq\t%rbp, %rsp\n\tpopq\t%rbp\Z")
+
 
 def strip_asm_wrapper(path: Path) -> None:
     """Re-emit a `matmul` that is one inline-asm block as a bare function.
@@ -766,13 +773,22 @@ def strip_asm_wrapper(path: Path) -> None:
         return "" if source == match.group(2) else f"\tmovq\t{source}, {match.group(2)}"
 
     body = re.sub(r"\tmovq\t(-?\d+\(%rbp\)), (%r[a-z0-9]+)(?=\n)", reload, body)
-    if "%rbp" in body:
+
+    # A body that opens its own frame keeps `%rbp`, and preserves it itself, so
+    # asking for it back here would only pay for the save twice.  The frame has
+    # to be the first thing left in the body: a reload of one of clang's slots
+    # that the rewrite above did not answer would sit ahead of it, and then the
+    # mention of `%rbp` is the leftover this has always refused to emit.
+    body = body.lstrip("\n").rstrip()
+    own_frame = bool(OWN_FRAME_OPEN.match(body) and OWN_FRAME_CLOSE.search(body))
+    if not own_frame and "%rbp" in body:
         raise StepFailed(f"{path}: asm body still reaches for the frame pointer")
 
     mentioned = [
         name
         for name, aliases in CALLEE_SAVED.items()
-        if any(re.search(rf"%{alias}\b", body) for alias in aliases)
+        if not (own_frame and name == "rbp")
+        and any(re.search(rf"%{alias}\b", body) for alias in aliases)
     ]
     save = "".join(f"\tpushq\t%{name}\n" for name in mentioned)
     restore = "".join(f"\tpopq\t%{name}\n" for name in reversed(mentioned))
@@ -783,7 +799,7 @@ def strip_asm_wrapper(path: Path) -> None:
         "\t.type\tmatmul,@function\n"
         "matmul:\n"
         f"{save}"
-        f"{body.strip(chr(10))}\n"
+        f"{body}\n"
         f"{restore}"
         "\tretq\n"
         ".Lmatmul_end:\n"

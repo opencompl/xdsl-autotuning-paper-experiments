@@ -256,3 +256,76 @@ def test_the_two_compxsmm_variants_run_different_pipelines(
     assert "x86-allocate-registers" in allocated
     assert "x86-allocate-registers" not in manual
     assert manual
+
+
+def wrapped_asm(body: str) -> str:
+    """Clang's shape for a `matmul` whose whole body is one inline-asm block."""
+    return (
+        "\t.text\n"
+        "\t.globl\tmatmul\n"
+        "matmul:\n"
+        "\tpushq\t%rbp\n"
+        "\tmovq\t%rsp, %rbp\n"
+        "\tpushq\t%r15\n"
+        "\tmovq\t%rdi, -64(%rbp)\n"
+        "\tmovq\t%rsi, -56(%rbp)\n"
+        "\tmovq\t%rdx, -48(%rbp)\n"
+        "\t#APP\n"
+        "\tmovq\t-64(%rbp), %rdi\n"
+        "\tmovq\t-56(%rbp), %rsi\n"
+        "\tmovq\t-48(%rbp), %rdx\n"
+        f"{body}"
+        "\n\t#NO_APP\n"
+        "\tpopq\t%r15\n"
+        "\tpopq\t%rbp\n"
+        "\tretq\n"
+    )
+
+
+def test_the_kernels_own_frame_survives_the_wrapper_being_stripped(
+    tmp_path: Path,
+) -> None:
+    # The pinned LIBXSMM revision opens a 192-byte frame of its own, which 1.17
+    # did not; that frame is the generator's, so it is code under test and it
+    # preserves `%rbp` itself.  Saving `%rbp` again around it would put back
+    # part of the wrapper this step exists to remove.
+    asm = tmp_path / "libxsmm.f64.S"
+    asm.write_text(
+        wrapped_asm(
+            "\tpushq\t%rbp\n"
+            "\tmovq\t%rsp, %rbp\n"
+            "\tsubq\t$192, %rsp\n"
+            "\tvaddpd\t%zmm0, %zmm1, %zmm2\n"
+            "\tmovq\t%r12, %rax\n"
+            "\tmovq\t%rbp, %rsp\n"
+            "\tpopq\t%rbp"
+        )
+    )
+
+    build.strip_asm_wrapper(asm)
+    text = asm.read_text()
+
+    assert text.count("pushq\t%rbp") == 1
+    assert text.count("popq\t%rbp") == 1
+    assert "subq\t$192, %rsp" in text
+    # `%r12` is the body's, so it is the one the ABI still asks us to save.
+    assert text.index("pushq\t%r12") < text.index("pushq\t%rbp")
+    assert text.index("popq\t%rbp") < text.index("popq\t%r12")
+
+
+def test_a_leftover_reach_into_clangs_frame_is_refused(tmp_path: Path) -> None:
+    # A read of a wrapper slot that the argument rewrite did not answer would
+    # be reading a frame that no longer exists.
+    asm = tmp_path / "libxsmm.f64.S"
+    asm.write_text(
+        wrapped_asm(
+            "\tvmovsd\t-72(%rbp), %xmm0\n"
+            "\tpushq\t%rbp\n"
+            "\tmovq\t%rsp, %rbp\n"
+            "\tmovq\t%rbp, %rsp\n"
+            "\tpopq\t%rbp"
+        )
+    )
+
+    with pytest.raises(build.StepFailed, match="frame pointer"):
+        build.strip_asm_wrapper(asm)
