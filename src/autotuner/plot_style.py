@@ -26,18 +26,18 @@ GRID = "#dcdbd6"
 # A dash pattern, either a named style or an (offset, on/off sequence) pair.
 LineStyle = str | tuple[int, tuple[int, ...]]
 
-# The two variants the paper puts head to head, ours and the baseline.
+# The two variants the paper puts head to head, xdsl-LIBXSMM and the baseline.
 OURS = "xdsl_libxsmm"
 BASELINE = "libxsmm"
 
 _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     # variant: (label, color, marker, linestyle)
-    OURS: ("x86 dialect (ours)", "#b2df8a", "none", "-"),
+    OURS: ("xdsl-LIBXSMM", "#b2df8a", "none", "-"),
     BASELINE: ("LIBXSMM", "#a6cee3", "none", "-"),
     "compxsmm": ("CompXSMM", "#4a3aa7", "D", "-."),
     "libxtcmm": ("XTC", "#b15928", "p", (0, (3, 1, 1, 1))),
-    "compxsmm_manual": ("CompXSMM (no regalloc)", "#cab2d6", "d", (0, (2, 1))),
-    "compxsmm_plusnarrow": ("CompXSMM-plusnarrow", "#e31a1c", "v", (0, (4, 1))),
+    "compxsmm_manual": ("CompXSMM - RA", "#cab2d6", "d", (0, (2, 1))),
+    "compxsmm_plusnarrow": ("CompXSMM + narrow", "#e31a1c", "v", (0, (4, 1))),
     # The nano-kernels, each pinned instead of chosen by the heuristic.
     "libxsmm-skx-fsdbcst": ("fsdbcst", "#1f78b4", "o", "-"),
     "libxsmm-skx-nofsdbcst": ("nofsdbcst", "#33a02c", "s", "-."),
@@ -60,6 +60,12 @@ def variant_style(variant: str) -> dict[str, Any]:
         return {"label": variant, "color": INK_MUTED, "marker": "o", "linestyle": "-"}
     label, color, marker, linestyle = style
     return {"label": label, "color": color, "marker": marker, "linestyle": linestyle}
+
+
+def variant_label(variant: str) -> str:
+    """The paper's display name for a kernel variant, or the key when unnamed."""
+    style = _STYLES.get(variant)
+    return variant if style is None else style[0]
 
 
 def use_paper_style() -> None:

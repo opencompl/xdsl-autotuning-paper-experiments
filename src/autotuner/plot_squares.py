@@ -4,15 +4,14 @@
 
 The figure is one column wide: the x axis is the problem size, with M = N = K
 set to each of 1..64, and the y axis is throughput as a share of machine peak.
-It puts LIBXSMM next to the things we generate from it -- the x86 dialect
-kernel, and CompXSMM with and without xDSL's register allocator -- so the price
-of allocating registers rather than assigning them by hand is visible.  The last
-curve, CompXSMM-plusnarrow, keeps that schedule but lowers an M tile shorter
-than half a vector to the narrowest register that covers it, which is where the
-sweep's small sizes live.  Alongside them is libxtcmm, which hands the same
-LIBXSMM schedule to XTC and lets its compiler pick the registers: another way
-of not assigning them by hand, and the one CompXSMM-plusnarrow is chasing at
-short M.
+It puts LIBXSMM next to the things we generate from it -- xdsl-LIBXSMM, and
+CompXSMM with and without xDSL's register allocator (CompXSMM - RA) -- so the
+price of allocating registers rather than assigning them by hand is visible.
+The last curve, CompXSMM + narrow, keeps that schedule but lowers an M tile
+shorter than half a vector to the narrowest register that covers it, which is
+where the sweep's small sizes live.  Alongside them is XTC, which hands the same
+LIBXSMM schedule to LLVM and lets it pick the registers: another way of not
+assigning them by hand, and the one CompXSMM + narrow is chasing at short M.
 """
 
 from collections.abc import Sequence
