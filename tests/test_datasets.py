@@ -18,7 +18,13 @@ from autotuner.datasets import (
 COMMITTED = [
     (machine, dataset)
     for machine in ("rapper", "tower")
-    for dataset in ("f32.ttile", "f64.ttile", "f64.small_matrices", "f64.squares")
+    for dataset in (
+        "f32.ttile",
+        "f64.ttile",
+        "f64.small_matrices",
+        "f32.squares",
+        "f64.squares",
+    )
     # Only rapper has run the grid, and the test skips a dataset that is absent.
 ] + [("rapper", "f64.nanokernel_grid")]
 
@@ -61,14 +67,20 @@ def test_the_path_helper_still_spells_out_wildcards() -> None:
 
 
 def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
+    assert dataset_samples("neon")["f32.squares"] == []
     assert dataset_samples("neon")["f64.squares"] == []
     assert dataset_samples("neon")["f64.nanokernel_grid"] == []
 
 
-def test_the_square_sweep_keeps_every_dimension_equal() -> None:
-    samples = dataset_samples("rapper")["f64.squares"]
+@pytest.mark.parametrize(
+    ("dataset", "variants"), [("f32.squares", 6), ("f64.squares", 7)]
+)
+def test_the_square_sweep_keeps_every_dimension_equal(
+    dataset: str, variants: int
+) -> None:
+    samples = dataset_samples("rapper")[dataset]
 
-    assert len(samples) == 64 * 4
+    assert len(samples) == 64 * variants
     assert all(s.m == s.n == s.k for s in samples)
     assert {s.m for s in samples} == set(range(1, 65))
 

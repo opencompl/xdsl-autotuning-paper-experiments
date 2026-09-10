@@ -105,12 +105,12 @@ BASELINES_SRC = src/autotuner/plot_baselines.py src/autotuner/plot_style.py
 
 # A paper figure, so a PDF rather than a PNG, straight in plots/ with the
 # machine last in the name; here `%` is the machine on its own.  One machine per
-# figure: its two data types are the two panels.
-plots/baselines.%.pdf: data/%/f32.ttile.jsonl data/%/f64.ttile.jsonl $(BASELINES_SRC)
-	uv run plot-baselines data/$*/f32.ttile.jsonl data/$*/f64.ttile.jsonl --output $@
+# figure: its two data types are the two panels, each a square sweep.
+plots/baselines.%.pdf: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASELINES_SRC)
+	uv run plot-baselines data/$*/f32.squares.jsonl data/$*/f64.squares.jsonl --output $@
 
-plots/baselines.%.png: data/%/f32.ttile.jsonl data/%/f64.ttile.jsonl $(BASELINES_SRC)
-	uv run plot-baselines data/$*/f32.ttile.jsonl data/$*/f64.ttile.jsonl --output $@
+plots/baselines.%.png: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASELINES_SRC)
+	uv run plot-baselines data/$*/f32.squares.jsonl data/$*/f64.squares.jsonl --output $@
 
 plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_squares.py
 	uv run plot-ttile-squares $< --output $@

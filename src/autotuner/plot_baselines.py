@@ -1,11 +1,11 @@
-"""A sweep over the blocked dimension of one large tile, per data type.
+"""A sweep over square matmuls, per data type.
 
-    uv run plot-baselines data/rapper/f32.ttile.jsonl data/rapper/f64.ttile.jsonl \\
+    uv run plot-baselines data/rapper/f32.squares.jsonl data/rapper/f64.squares.jsonl \\
         --output plots/baselines.rapper.pdf
 
 The figure is one column wide, with one panel per input file -- f32 and f64 of
-the same machine.  Inside a panel the x axis is N, the dimension the kernel
-blocks, with M = K fixed at the tile the dataset measured, and the y axis is
+the same machine.  Inside a panel the x axis is the problem size, with
+M = N = K set to each of the sizes the dataset measured, and the y axis is
 throughput as a share of machine peak.  All of the machine's implementations
 share the panel, so which of them the generated kernels land on can be read off
 directly.
@@ -33,17 +33,16 @@ from autotuner.plot_style import (
 )
 from autotuner.plot_throughput import result_machine_label
 
-# The implementations this figure puts side by side, in legend order: the
-# LIBXSMM family first -- the baseline and the three things we generate from
-# its schedule -- then the vendor libraries and the unscheduled C.
+# The implementations this figure puts side by side, in legend order: LIBXSMM
+# first, then the two compilers we generate from its schedule, then the vendor
+# libraries.  The x86 dialect kernel is not here: the squares figure is where
+# it is priced against LIBXSMM, and on this axis it lands on LIBXSMM.
 VARIANTS = (
     "libxsmm",
-    "xdsl_libxsmm",
     "compxsmm",
     "libxtcmm",
     "mkl",
     "aocl",
-    "naive_c",
 )
 
 # Top of the % of peak axis: 100 is the top gridline, with just enough room
@@ -57,26 +56,25 @@ PANEL_ASPECT = 0.85
 PANEL_GAP = 0.12
 
 # Margins in inches: the y label and its ticks on the left, the panel titles on
-# top, the N label and the legend underneath.
+# top, the size label and the legend underneath.
 MARGIN_LEFT = 0.40
 MARGIN_RIGHT = 0.12
 MARGIN_TOP = 0.16
 MARGIN_BOTTOM = 0.58
 
-# Stroke widths, from the first variant to the last.  The LIBXSMM family -- the
-# baseline and the three kernels generated from its schedule -- agrees almost
-# everywhere, so each of those curves is drawn thinner than the one it lands on:
-# where they coincide the earlier curves stay visible as a halo around the later
-# ones instead of being painted over.  The narrowing bottoms out at ``THINNEST``,
-# so the variants past that family are all drawn at one hairline width.
+# Stroke widths, from the first variant to the last.  LIBXSMM and the kernels
+# generated from its schedule agree almost everywhere, so each of those curves
+# is drawn thinner than the one it lands on: where they coincide the earlier
+# curves stay visible as a halo around the later ones instead of being painted
+# over.  The narrowing bottoms out at ``THINNEST``, so the vendor libraries
+# past that family are all drawn at one hairline width.
 WIDEST = 1.8
 NARROWING = 0.35
 THINNEST = 0.7
 
-# Ticks on the N axis: where the sweep starts, then every ``X_TICK_STEP`` up to
-# where it ends.  The two panels sweep different ranges, so the ticks are per
-# panel and the shared y axis is what ties them together.
-X_TICK_STEP = 20
+# Ticks on the size axis: the ends, and every sixteenth size between them.  A
+# panel that swept a shorter range simply shows the ticks that fall inside it.
+X_TICKS = (1, 16, 32, 48, 64)
 
 
 def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:
@@ -96,18 +94,19 @@ def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def panel_title(df: pd.DataFrame) -> str:
-    """The data type and the tile the panel holds fixed, e.g. ``f64, M = K = 64``."""
+    """The data type the panel holds fixed, e.g. ``f64``."""
     dtypes = set(df["dtype"])
-    ms = set(df["M"])
-    ks = set(df["K"])
-    if not len(dtypes) == len(ms) == len(ks) == 1:
-        raise ValueError("a panel needs one dtype and one M = K tile per file")
+    if len(dtypes) != 1:
+        raise ValueError("a panel needs one dtype per file")
     (dtype,) = dtypes
-    (m,) = ms
-    (k,) = ks
-    if m != k:
-        raise ValueError(f"this figure needs M = K, got M = {m}, K = {k}")
-    return f"{dtype}, M = K = {m}"
+    return str(dtype)
+
+
+def sizes(df: pd.DataFrame) -> list[int]:
+    """The sizes the dataset measured, refusing one that is not square."""
+    if not (df["M"].eq(df["N"]) & df["M"].eq(df["K"])).all():
+        raise ValueError("this figure needs a dataset whose shapes all have M = N = K")
+    return sorted(df["M"].unique())
 
 
 def sweep_figure(ncols: int, *, width: float = COLUMN_WIDTH) -> tuple[Figure, Any]:
@@ -143,9 +142,9 @@ def draw_panel(
     variants: Sequence[str],
     ticked: bool,
 ) -> None:
-    """Draw one N sweep, y-labelled only on the panel that carries the axis."""
-    ns = sorted(df["N"].unique())
-    ax.set_xlim(ns[0], ns[-1])
+    """Draw one square sweep, y-labelled only on the panel that carries the axis."""
+    measured = sizes(df)
+    ax.set_xlim(measured[0], measured[-1])
     ax.set_ylim(0, Y_TOP)
 
     # Peak, as a hairline rather than a dashed key of its own: at this size a
@@ -157,18 +156,18 @@ def draw_panel(
         assert isinstance(group, pd.DataFrame)
         if group.empty:
             continue
-        group = group.sort_values("N")
-        # No markers: twenty of them per curve would cover the curve itself, so
-        # color, dash pattern and stroke width carry the distinction.
+        group = group.sort_values("M")
+        # No markers: sixty-four of them per curve would cover the curve itself,
+        # so color, dash pattern and stroke width carry the distinction.
         style = variant_style(variant) | {
             "marker": "none",
             "linewidth": max(WIDEST - NARROWING * index, THINNEST),
         }
-        ax.plot(group["N"], group["percent"], zorder=2, **style)
+        ax.plot(group["M"], group["percent"], zorder=2, **style)
 
-    ax.set_xticks([ns[0], *range(X_TICK_STEP, ns[-1] + 1, X_TICK_STEP)])
+    ax.set_xticks(list(X_TICKS))
     ax.set_yticks(list(Y_TICKS))
-    ax.set_xlabel("N")
+    ax.set_xlabel("M = N = K")
     if ticked:
         ax.set_ylabel("% of peak")
 
@@ -178,7 +177,7 @@ def draw_panel(
     ax.set_axisbelow(True)
 
 
-def legend_below_panels(fig: Figure, variants: Sequence[str], *, ncol: int = 4) -> None:
+def legend_below_panels(fig: Figure, variants: Sequence[str], *, ncol: int = 3) -> None:
     """One legend for both panels, in the bottom margin.
 
     The keys are built from the palette rather than harvested from a panel, so
@@ -217,7 +216,7 @@ def plot_baselines(
     width: float = COLUMN_WIDTH,
     output_path: Path | None = None,
 ) -> None:
-    """Plot % of peak against N, one panel per dataset and one curve per variant."""
+    """Plot % of peak against square problem size, one panel per dataset."""
     if not dfs:
         raise ValueError("this figure needs at least one dataset")
 
@@ -250,7 +249,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Plot % of peak against N, one panel per input file."
+        description="Plot % of peak against square problem size, one panel per file."
     )
     parser.add_argument(
         "inputs",
