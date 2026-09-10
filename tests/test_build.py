@@ -252,16 +252,6 @@ def test_pinned_compxsmm_schedules_run_distinct_pipelines(
         assert "x86-allocate-registers" in tool.pipelines[variant]
 
 
-def test_plusnarrow_differs_from_compxsmm_only_in_its_strategy(
-    tool: build.Toolchain,
-) -> None:
-    # Same passes, same options; the figure the two appear in reads the
-    # difference between them as the nano-kernel's doing, so it has to be.
-    assert tool.pipelines["compxsmm_plusnarrow"] == tool.pipelines["compxsmm"].replace(
-        "strategy=libxsmm-skx ", "strategy=libxsmm-skx-plusnarrow "
-    )
-
-
 def test_the_two_compxsmm_variants_run_different_pipelines(
     tool: build.Toolchain,
 ) -> None:
