@@ -165,6 +165,9 @@ class Machine:
     exotic: bool
     sockets: int = 1
     queues: list[str] = field(default_factory=list)
+    # The reference API's per-node walltime cap, in seconds. It reports 0 for a
+    # node with no cap of its own (most default-queue clusters), so only a
+    # positive value is a limit.
     max_walltime: int | None = None
     hard_state: str = "unknown"
     soft_state: str = "unknown"
@@ -276,7 +279,7 @@ def blocking_reason(machine: Machine, walltime: int) -> str | None:
     """Why this node can never host the request, or None if it can."""
     if machine.hard_state not in RESERVABLE_STATES:
         return machine.hard_state
-    if machine.max_walltime is not None and walltime > machine.max_walltime:
+    if machine.max_walltime and walltime > machine.max_walltime:
         return f"max walltime {machine.max_walltime // 3600}h"
     return None
 
