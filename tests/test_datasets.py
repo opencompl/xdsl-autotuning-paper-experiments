@@ -87,6 +87,11 @@ def test_the_nanokernel_grid_only_measures_supported_tiles() -> None:
     assert tiles["libxsmm-skx-fsdbcst"] == {
         (m, n) for m, n in swept if m <= 8 and n <= 28
     }
+    # narrow fsdbcst spans one M vector too, just in the narrowest bank that
+    # covers it, so it draws the same top rows as fsdbcst -- which is what
+    # makes the pair comparable panel by panel.  Its N reaches 30 rather than
+    # 28, one accumulator per register left over, but the sweep stops at 7.
+    assert tiles["llvm-skx-narrow-fsdbcst"] == tiles["libxsmm-skx-fsdbcst"]
     # Once the tile's M takes four vectors, above 24, only six accumulator
     # columns are left, so the tallest tiles stop short of the last column.
     assert swept - tiles["libxsmm-skx-nofsdbcst"] == {
