@@ -37,7 +37,12 @@ def test_sample_order_matches_the_committed_dataset(machine: str, dataset: str) 
         (s.m, s.n, s.k, s.variant, s.dtype) for s in dataset_samples(machine)[dataset]
     ]
 
-    assert generated == recorded
+    # A dataset only has to hold samples the generator still asks for, in the
+    # order it asks for them: then re-deriving the file leaves every committed
+    # measurement where it is.  It may hold fewer -- widening a sweep leaves the
+    # machines that have not re-run it since with a subset -- but never a sample
+    # this machine no longer measures, and never in another order.
+    assert recorded == [s for s in generated if s in set(recorded)]
 
 
 def test_a_sample_knows_where_its_files_live() -> None:
