@@ -12,6 +12,11 @@ directly.
 
 One machine per figure: the machine's name goes in the file name, and its
 display name in the LaTeX caption, so nothing here has to label it.
+
+The small end of a sweep is tens of cycles per point, short enough that
+anything else the machine is doing lands in the number, so the datasets hold
+several passes over every sample and this figure draws the fastest of them --
+see `plot_data.best_of_repeats`.
 """
 
 from collections.abc import Sequence
@@ -24,6 +29,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
+from autotuner.plot_data import best_of_repeats, percent_of_peak
 from autotuner.plot_style import (
     COLUMN_WIDTH,
     GRID,
@@ -75,22 +81,6 @@ THINNEST = 0.7
 # Ticks on the size axis: the ends, and every sixteenth size between them.  A
 # panel that swept a shorter range simply shows the ticks that fall inside it.
 X_TICKS = (1, 16, 32, 48, 64)
-
-
-def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:
-    """Add a ``percent`` column holding throughput as a share of machine peak."""
-    measured = df[df["time"] > 0].copy()
-    assert isinstance(measured, pd.DataFrame)
-
-    peaks = measured["peak"].dropna().unique()
-    if len(peaks) != 1:
-        raise ValueError(f"expected one peak in the dataset, found {sorted(peaks)}")
-    peak = float(peaks[0])
-    if peak == 0.0:
-        raise ValueError("the dataset has no peak, so % of peak is undefined")
-
-    measured["percent"] = (measured["flops"] / measured["time"]) / peak * 100
-    return measured
 
 
 def panel_title(df: pd.DataFrame) -> str:
@@ -227,7 +217,9 @@ def plot_baselines(
             "plot each machine into its own file"
         )
 
-    panels = [percent_of_peak(df) for df in dfs]
+    # The minimum is taken after the measured rows are picked out, so an
+    # unmeasured 0 cannot win a sample's minimum.
+    panels = [best_of_repeats(percent_of_peak(df)) for df in dfs]
     # Only the variants this machine actually measured, in the caller's order.
     measured = {variant for panel in panels for variant in panel["variant"]}
     drawn = [variant for variant in variants if variant in measured]

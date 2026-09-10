@@ -108,6 +108,13 @@ setting in `default.yaml`); filenames use `<dtype>.<dataset>.jsonl` (for example
 `f32.ttile.jsonl`). Build artifacts go under `build/<MACHINE>/`. Each new result
 records its machine, family, ISA, compiler `march`, and libxsmm architecture.
 
+A dataset whose numbers are too short to be quiet is swept more than once --
+`DATASET_REPEATS` in `src/autotuner/datasets.py`, which asks for three passes
+over the nano-kernel grid and the square sweep. Such a jsonl then holds one row
+per pass, tagged with a `repeat`, and the plot keeps each sample's fastest pass:
+a single nano-kernel invocation is tens of cycles, and noise on that can only
+ever make a kernel look slower than it is.
+
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
 ### AOCL-BLAS baseline

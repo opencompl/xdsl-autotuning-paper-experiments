@@ -27,13 +27,14 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import import_module
 from pathlib import Path
 
@@ -312,7 +313,29 @@ def kernel_source(kernel: str, name: str) -> Path:
     return Path("kernels") / kernel / name
 
 
+# What every variant's `matmul` is aligned to, as a power of two.  The entry
+# point has to land on the same boundary for all of them or the comparison
+# measures code layout: at M = N = K = 14 the four variants emit an identical
+# vector instruction stream, yet LIBXSMM's -- inline asm inside a C function,
+# which clang aligns to 16 -- came out 10% slower than the same body emitted as
+# an aligned bare function, and padding CompXSMM's entry by 40 bytes moved it
+# 5% the other way.  A cache line settles it for all of them.
+ASM_ALIGNMENT = 6
+
+
 def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
+    """This sample's assembly, with its entry point aligned like every other's.
+
+    The alignment is a step of its own rather than a flag on each recipe:
+    the variants come out of clang, of xDSL and of llc, which agree on neither
+    the directive nor whether they emit one at all.
+    """
+    recipe = asm_recipe(tool, sample)
+    align = Step("align", (str(recipe.path), str(ASM_ALIGNMENT)))
+    return replace(recipe, steps=recipe.steps + (align,))
+
+
+def asm_recipe(tool: Toolchain, sample: Sample) -> Artifact:
     """How this sample's assembly is produced."""
     m, n, k, dtype = sample.m, sample.n, sample.k, sample.dtype
     here = tool.shape_dir(sample.kernel, m, n, k)
@@ -441,6 +464,10 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         str(out),
                     ),
                 ),
+                # The C is only a carrier for one asm block; keep the kernel
+                # and drop the frame clang had to build around it, so this
+                # variant is the same shape of function as the xDSL ones.
+                Step("bare", (str(out),)),
             )
             return Artifact(out, steps)
 
@@ -682,6 +709,143 @@ def run_command(args: Sequence[str], env: Mapping[str, str] | None = None) -> No
         raise StepFailed(f"{shlex.join(args)}\n{done.stderr.strip()}")
 
 
+# The registers a function must give back to its caller unchanged, with the
+# narrower names that alias them, so that scanning a kernel body for them is
+# enough to know what it has to save.
+CALLEE_SAVED = {
+    "rbx": ("rbx", "ebx", "bx", "bl"),
+    "rbp": ("rbp", "ebp", "bp", "bpl"),
+    "r12": ("r12", "r12d", "r12w", "r12b"),
+    "r13": ("r13", "r13d", "r13w", "r13b"),
+    "r14": ("r14", "r14d", "r14w", "r14b"),
+    "r15": ("r15", "r15d", "r15w", "r15b"),
+}
+
+# Where the System V ABI leaves `matmul(A, B, C)`, which is where LIBXSMM's
+# kernel wants them: the reload the wrapper does is a round trip to nowhere.
+ARGUMENT_REGISTERS = ("%rdi", "%rsi", "%rdx")
+
+# The frame LIBXSMM's own kernel opens -- 192 bytes of prefetch/scratch/eltwise
+# slots aligned to 64 -- and the teardown that matches it.  1.17 emitted
+# neither; the revision pinned in the flake emits both.  It is the generator's
+# frame, not clang's, so it is code under test and stays.
+OWN_FRAME_OPEN = re.compile(r"\A\tpushq\t%rbp\n\tmovq\t%rsp, %rbp\n")
+OWN_FRAME_CLOSE = re.compile(r"\tmovq\t%rbp, %rsp\n\tpopq\t%rbp\Z")
+
+
+def strip_asm_wrapper(path: Path) -> None:
+    """Re-emit a `matmul` that is one inline-asm block as a bare function.
+
+    LIBXSMM's generator hands us C whose entire body is a single `__asm__`
+    block with `"m"` operands and a clobber list naming every general-purpose
+    register there is.  Clang has to believe it: it opens a frame, spills the
+    three pointers to the stack for the asm to load straight back, and saves
+    five callee-saved registers the kernel never touches.  Called back to back
+    the way `time.c` calls it, that wrapper is not free -- each restore queues
+    behind the body's masked AVX-512 stores -- and at M = N = K = 14 it cost 52
+    of the 493 cycles measured, which was the whole of the gap to the variants
+    xDSL emits as bare functions.  So this drops the wrapper and puts back only
+    what the ABI actually asks of this body: whichever callee-saved registers
+    it mentions.
+
+    Only for a body that is one asm block.  A variant that is really compiled
+    -- `naive_c`, the vendor libraries, `libxtcmm` -- keeps its prologue,
+    because there the prologue is part of the code under test.
+    """
+    text = path.read_text()
+    if text.count("#APP") != 1 or text.count("#NO_APP") != 1:
+        raise StepFailed(f"{path} is not a single inline-asm body")
+
+    head, rest = text.split("#APP", 1)
+    body, _ = rest.split("#NO_APP", 1)
+
+    # Which stack slot clang put each argument in, so a reload of that slot can
+    # be answered from the register the ABI already has it in.
+    spills = {
+        match.group(2): match.group(1)
+        for match in re.finditer(r"movq\s+(%r[a-z0-9]+), (-?\d+\(%rbp\))", head)
+        if match.group(1) in ARGUMENT_REGISTERS
+    }
+
+    def reload(match: re.Match[str]) -> str:
+        source = spills.get(match.group(1))
+        if source is None:
+            raise StepFailed(
+                f"{path}: asm reads {match.group(1)}, which is not an argument slot"
+            )
+        return "" if source == match.group(2) else f"\tmovq\t{source}, {match.group(2)}"
+
+    body = re.sub(r"\tmovq\t(-?\d+\(%rbp\)), (%r[a-z0-9]+)(?=\n)", reload, body)
+
+    # A body that opens its own frame keeps `%rbp`, and preserves it itself, so
+    # asking for it back here would only pay for the save twice.  The frame has
+    # to be the first thing left in the body: a reload of one of clang's slots
+    # that the rewrite above did not answer would sit ahead of it, and then the
+    # mention of `%rbp` is the leftover this has always refused to emit.
+    body = body.lstrip("\n").rstrip()
+    own_frame = bool(OWN_FRAME_OPEN.match(body) and OWN_FRAME_CLOSE.search(body))
+    if not own_frame and "%rbp" in body:
+        raise StepFailed(f"{path}: asm body still reaches for the frame pointer")
+
+    mentioned = [
+        name
+        for name, aliases in CALLEE_SAVED.items()
+        if not (own_frame and name == "rbp")
+        and any(re.search(rf"%{alias}\b", body) for alias in aliases)
+    ]
+    save = "".join(f"\tpushq\t%{name}\n" for name in mentioned)
+    restore = "".join(f"\tpopq\t%{name}\n" for name in reversed(mentioned))
+
+    path.write_text(
+        "\t.text\n"
+        "\t.globl\tmatmul\n"
+        "\t.type\tmatmul,@function\n"
+        "matmul:\n"
+        f"{save}"
+        f"{body}\n"
+        f"{restore}"
+        "\tretq\n"
+        ".Lmatmul_end:\n"
+        "\t.size\tmatmul, .Lmatmul_end-matmul\n"
+        '\t.section\t".note.GNU-stack","",@progbits\n'
+    )
+
+
+def align_entry(path: Path, alignment: int) -> None:
+    """Align an assembly file's `matmul` label to 2**`alignment` bytes.
+
+    Whatever the producer emitted for that label is dropped first, so the
+    directive left behind is the only one and every variant's entry point lands
+    on the same boundary -- clang writes `.p2align 4`, xDSL writes nothing.
+    """
+    lines = path.read_text().splitlines(keepends=True)
+    label = next(
+        (i for i, line in enumerate(lines) if line.split("#")[0].strip() == "matmul:"),
+        None,
+    )
+    if label is None:
+        raise StepFailed(f"{path} defines no `matmul` label to align")
+
+    # The producer's own directive sits between `.globl matmul` and the label,
+    # among the `.type` and comment lines it also puts there.
+    start = next(
+        (
+            i
+            for i in range(label - 1, -1, -1)
+            if ".globl" in lines[i] and "matmul" in lines[i]
+        ),
+        label,
+    )
+    aligners = (".p2align", ".align", ".balign")
+    kept = [
+        line
+        for line in lines[start:label]
+        if not line.split("#")[0].strip().startswith(aligners)
+    ]
+    directive = f"    .p2align {alignment}\n"
+    path.write_text("".join(lines[:start] + kept + [directive] + lines[label:]))
+
+
 def run_step(step: Step) -> None:
     """Execute one step, in this process wherever that is possible."""
     env = dict(step.env)
@@ -703,6 +867,13 @@ def run_step(step: Step) -> None:
             from xdsl.xdsl_opt_main import xDSLOptMain
 
             xDSLOptMain(args=list(step.args)).run()
+
+        case "align":
+            path, alignment = step.args
+            align_entry(Path(path), int(alignment))
+
+        case "bare":
+            strip_asm_wrapper(Path(step.args[0]))
 
         case _:
             raise StepFailed(f"unknown step {step.kind!r}")

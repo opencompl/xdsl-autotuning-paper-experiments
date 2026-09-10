@@ -19,6 +19,10 @@ banks, so the top rows are where the narrow bank is paid for or is not: from a
 full M vector up the narrowest bank covering the tile *is* the full vector and
 the two differ only in fsdbcst's duplicated accumulators, while below it narrow
 fsdbcst does useful work in every lane where fsdbcst masks lanes off.
+
+A panel's points are tens of cycles apiece, so the dataset holds several passes
+over every sample and this figure draws the fastest of them -- see
+`plot_data.best_of_repeats`.
 """
 
 from collections.abc import Sequence
@@ -32,6 +36,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from autotuner.datasets import NANOKERNEL_VARIANTS
+from autotuner.plot_data import best_of_repeats, percent_of_peak
 from autotuner.plot_style import (
     COLUMN_WIDTH,
     GRID,
@@ -69,22 +74,6 @@ INDEX_SIZE = 8.0
 # Curves are thinner than in a single-panel figure, where a panel is ten times
 # this wide, but not so thin that two of them stop being separable.
 LINE_WIDTH = 0.65
-
-
-def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:
-    """Add a ``percent`` column holding throughput as a share of machine peak."""
-    measured = df[df["time"] > 0].copy()
-    assert isinstance(measured, pd.DataFrame)
-
-    peaks = measured["peak"].dropna().unique()
-    if len(peaks) != 1:
-        raise ValueError(f"expected one peak in the dataset, found {sorted(peaks)}")
-    peak = float(peaks[0])
-    if peak == 0.0:
-        raise ValueError("the dataset has no peak, so % of peak is undefined")
-
-    measured["percent"] = (measured["flops"] / measured["time"]) / peak * 100
-    return measured
 
 
 def grid_figure(
@@ -258,7 +247,9 @@ def plot_grid(
     output_path: Path | None = None,
 ) -> None:
     """Plot % of peak against K for every (M, N) in the dataset."""
-    df = percent_of_peak(df)
+    # The minimum is taken after the measured rows are picked out, so an
+    # unmeasured 0 cannot win a sample's minimum.
+    df = best_of_repeats(percent_of_peak(df))
     missing = [v for v in variants if v not in set(df["variant"])]
     if missing:
         raise ValueError(f"the dataset has no samples for {missing}")
