@@ -73,7 +73,7 @@ class SkxNanoKernel(NanoKernel):
             descriptor.datatype, builtin.Float32Type | builtin.Float64Type
         )
 
-    def _select_for_m(
+    def _select_nano_kernel(
         self,
         m: int,
         datatype: FloatingPointType,
@@ -89,14 +89,6 @@ class SkxNanoKernel(NanoKernel):
         m_vectors = (m + vector_length - 1) // vector_length
         return self._fsdbcst if m_vectors == 1 else self._nofsdbcst
 
-    def _select_nano_kernel(
-        self,
-        descriptor: GemmDescriptor,
-        tile: TileSizes,
-        isa_info: ISAInfo,
-    ) -> NanoKernel:
-        return self._select_for_m(tile.m, descriptor.datatype, isa_info)
-
     def supports_tile(
         self,
         descriptor: GemmDescriptor,
@@ -111,9 +103,9 @@ class SkxNanoKernel(NanoKernel):
         m_vectors = (tile.m + vector_length - 1) // vector_length
         if m_vectors > 4 or tile.n > 28:
             return False
-        return self._select_nano_kernel(descriptor, tile, isa_info).supports_tile(
-            descriptor, tile, isa_info
-        )
+        return self._select_nano_kernel(
+            tile.m, descriptor.datatype, isa_info
+        ).supports_tile(descriptor, tile, isa_info)
 
     def register_usage(
         self,
@@ -123,11 +115,9 @@ class SkxNanoKernel(NanoKernel):
     ) -> RegisterCount:
         if not self.supports_tile(descriptor, tile, isa_info):
             raise ValueError("unsupported SKX nano-kernel tile")
-        return self._select_nano_kernel(descriptor, tile, isa_info).register_usage(
-            descriptor,
-            tile,
-            isa_info,
-        )
+        return self._select_nano_kernel(
+            tile.m, descriptor.datatype, isa_info
+        ).register_usage(descriptor, tile, isa_info)
 
     @override
     def vector_type(
@@ -136,7 +126,7 @@ class SkxNanoKernel(NanoKernel):
         datatype: FloatingPointType,
         isa_info: ISAInfo,
     ) -> type[X86VectorRegisterType]:
-        return self._select_for_m(m, datatype, isa_info).vector_type(
+        return self._select_nano_kernel(m, datatype, isa_info).vector_type(
             m, datatype, isa_info
         )
 
@@ -153,7 +143,7 @@ class SkxNanoKernel(NanoKernel):
         # rewrite will put it in, so it is that nano-kernel's to attach.  Which
         # ISA to ask is not in question: `supports` refuses anything but
         # AVX-512.
-        return self._select_for_m(
+        return self._select_nano_kernel(
             op.m.value.data, op.datatype, AVX512Info()
         ).attach_mask(
             rewriter,
@@ -174,7 +164,7 @@ class SkxNanoKernel(NanoKernel):
         tile = tile_sizes_from_op(op)
         if not self.supports_tile(descriptor, tile, isa_info):
             raise PassFailedException("unsupported SKX nano-kernel tile")
-        self._select_nano_kernel(descriptor, tile, isa_info).rewrite(
+        self._select_nano_kernel(tile.m, descriptor.datatype, isa_info).rewrite(
             rewriter,
             op,
             isa_info,
@@ -215,7 +205,7 @@ class SkxPlusNarrowNanoKernel(SkxNanoKernel):
     # the wide one already supports rather than adding any of its own.
 
     @override
-    def _select_for_m(
+    def _select_nano_kernel(
         self,
         m: int,
         datatype: FloatingPointType,
@@ -224,7 +214,7 @@ class SkxPlusNarrowNanoKernel(SkxNanoKernel):
         """Prefer the narrow kernel when it would use a narrower register."""
         if self._narrow.vector_type(m, datatype, isa_info) is not isa_info.vector_type:
             return self._narrow
-        return super()._select_for_m(m, datatype, isa_info)
+        return super()._select_nano_kernel(m, datatype, isa_info)
 
 
 SKX_NANO_KERNELS: Mapping[str, NanoKernel] = {
