@@ -43,6 +43,7 @@ tvm = { index = "corse" }
 hello = "autotuner.main:main"
 evaluate = "autotuner.evaluate:main"
 build-dataset = "autotuner.build:main"
+validate-dataset = "autotuner.validate:main"
 plot-ttile-squares = "autotuner.plot_ttile_squares:main"
 plot-ttile-combined = "autotuner.plot_ttile_combined:main"
 plot-baselines = "autotuner.plot_baselines:main"
