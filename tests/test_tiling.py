@@ -16,6 +16,7 @@ from autotuner.skx_nano_kernel import (
     SKX_NANO_KERNELS,
     AVX512Info,
     SkxNanoKernel,
+    SkxPlusNarrowNanoKernel,
     get_skx_nano_kernel,
 )
 from autotuner.skx_narrow_fsdbcst_nano_kernel import SkxNarrowFsdbcstNanoKernel
@@ -53,6 +54,7 @@ def test_avx512_isa_info() -> None:
 def test_skx_nano_kernel_names() -> None:
     assert set(SKX_NANO_KERNELS) == {
         "libxsmm-skx",
+        "libxsmm-skx-plusnarrow",
         "libxsmm-skx-fsdbcst",
         "libxsmm-skx-nofsdbcst",
         "llvm-skx-narrow-fsdbcst",
@@ -69,7 +71,7 @@ def test_unknown_skx_nano_kernel() -> None:
         assert str(error) == (
             "unknown SKX nano-kernel 'unknown'; expected one of: "
             "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, "
-            "llvm-skx-narrow-fsdbcst"
+            "libxsmm-skx-plusnarrow, llvm-skx-narrow-fsdbcst"
         )
     else:
         raise AssertionError("expected an unknown nano-kernel to be rejected")
@@ -89,7 +91,7 @@ def test_unknown_xsmm_strategy() -> None:
         assert str(error) == (
             "unknown XSMM strategy 'unknown'; expected one of: "
             "libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, "
-            "llvm-skx-narrow-fsdbcst"
+            "libxsmm-skx-plusnarrow, llvm-skx-narrow-fsdbcst"
         )
     else:
         raise AssertionError("expected an unknown strategy to be rejected")
@@ -278,6 +280,64 @@ def test_skx_composite_retains_libxsmm_tiling_heuristics() -> None:
         SkxFsdbcstNanoKernel().supported_tile_sizes(builtin.f64, isa_info)
         | SkxNofsdbcstNanoKernel().supported_tile_sizes(builtin.f64, isa_info)
     )
+
+
+def test_skx_plusnarrow_lowers_short_m_to_the_narrow_kernel() -> None:
+    """A tile the wide kernel would mask into a zmm goes in a narrow register."""
+    isa_info = AVX512Info()
+    kernel = SkxPlusNarrowNanoKernel()
+    narrow = SkxNarrowFsdbcstNanoKernel()
+
+    # Up to half a vector the narrow kernel has a register type to itself, and
+    # from there up it *is* the wide one, so those M keep LIBXSMM's choice.
+    assert [kernel.vector_type(m, builtin.f64, isa_info) for m in range(1, 9)] == [
+        narrow.vector_type(m, builtin.f64, isa_info) for m in range(1, 9)
+    ]
+    assert [kernel.vector_type(m, builtin.f64, isa_info) for m in range(1, 9)] == (
+        [SSERegisterType] * 2 + [AVX2RegisterType] * 2 + [AVX512RegisterType] * 4
+    )
+    assert [kernel.vector_type(m, builtin.f32, isa_info) for m in range(1, 17)] == (
+        [SSERegisterType] * 4 + [AVX2RegisterType] * 4 + [AVX512RegisterType] * 8
+    )
+    # An M of more than one vector is still the multi-vector kernel's.
+    assert kernel.vector_type(16, builtin.f64, isa_info) is AVX512RegisterType
+
+    # Which kernel expands the tile shows in what it costs: the narrow one fills
+    # an xmm exactly and keeps a single set of accumulators, where `fsdbcst`
+    # masks six lanes of a zmm and, at this N, keeps four sets.
+    descriptor = _descriptor(m=2, n=4, k=8, datatype=builtin.f64)
+    tile = TileSizes(2, 4, 8)
+    assert kernel.register_usage(descriptor, tile, isa_info) == narrow.register_usage(
+        descriptor, tile, isa_info
+    )
+    assert kernel.register_usage(descriptor, tile, isa_info) == RegisterCount(
+        general=5, vector=6, mask=0
+    )
+    assert SkxNanoKernel().register_usage(descriptor, tile, isa_info) == RegisterCount(
+        general=5, vector=18, mask=1
+    )
+
+
+def test_skx_plusnarrow_keeps_the_libxsmm_tiling() -> None:
+    """Only the nano-kernel changes, so the two are comparable in a figure."""
+    isa_info = AVX512Info()
+    kernel = SkxPlusNarrowNanoKernel()
+    libxsmm = SkxNanoKernel()
+
+    assert kernel.supported_tile_sizes(
+        builtin.f64, isa_info
+    ) == libxsmm.supported_tile_sizes(builtin.f64, isa_info)
+
+    for datatype in (builtin.f32, builtin.f64):
+        for size in (1, 2, 3, 4, 5, 8, 9, 16, 33, 64):
+            descriptor = _descriptor(m=size, n=size, k=size, datatype=datatype)
+            tile = TileSizes(size, min(size, 28), size)
+            assert kernel.supports_tile(
+                descriptor, tile, isa_info
+            ) == libxsmm.supports_tile(descriptor, tile, isa_info)
+            assert compute_tiling_strategy(
+                descriptor, isa_info, kernel
+            ) == compute_tiling_strategy(descriptor, isa_info, libxsmm)
 
 
 def test_single_n_range_tiling_strategy() -> None:

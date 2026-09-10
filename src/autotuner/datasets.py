@@ -135,7 +135,10 @@ VARIANTS = {
         ],
         # f64 also feeds the squares figure, which prices xDSL's register
         # allocator, so it adds the hand-assigned CompXSMM that figure
-        # compares against.
+        # compares against, plus the narrowed schedule.  `compxsmm_plusnarrow`
+        # is rapper's alone until another machine has measured it here: a
+        # variant listed here but missing from the committed jsonl is a
+        # dataset that no longer matches its own definition.
         "f64.squares": [
             "libxsmm",
             "xdsl_libxsmm",
@@ -144,6 +147,7 @@ VARIANTS = {
             "libxtcmm",
             "mkl",
             "aocl",
+            "compxsmm_plusnarrow",
         ],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },

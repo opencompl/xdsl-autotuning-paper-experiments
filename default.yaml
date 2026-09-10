@@ -31,6 +31,18 @@ compxsmm-gemm-passes:
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
 
+# The same schedule, except that an M tile shorter than half a vector is lowered
+# to the narrowest register type that covers it instead of to a masked zmm.  The
+# tiling is the one `compxsmm` gets, so a figure putting the two side by side
+# prices the nano-kernel alone.
+compxsmm-plusnarrow-gemm-passes:
+  avx512:
+    - xsmm-apply-schedule{strategy=libxsmm-skx-plusnarrow disable-regalloc=true}
+    - x86-regalloc-verify-liveness
+    - x86-allocate-registers{arch=avx512}
+    - convert-x86-scf-to-x86
+    - x86-prologue-epilogue-insertion
+
 # The same schedule with the registers assigned by the schedule itself, the way
 # libxsmm hands them out, so the figures can price our register allocator.  The
 # generator has to keep its own assignment too: see `--disable-regalloc`.

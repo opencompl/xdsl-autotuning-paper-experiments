@@ -75,7 +75,9 @@ GENERATOR_MODULES = {
 
 # These all lower the same schedule-neutral CompXSMM IR. The ordinary variant
 # lets the SKX heuristic choose a nano-kernel; the others pin one by name.
-COMPXSMM_SHARED_VARIANTS = frozenset(("compxsmm", *NANOKERNEL_VARIANTS))
+COMPXSMM_SHARED_VARIANTS = frozenset(
+    ("compxsmm", "compxsmm_plusnarrow", *NANOKERNEL_VARIANTS)
+)
 COMPXSMM_VARIANTS = COMPXSMM_SHARED_VARIANTS | {"compxsmm_manual"}
 
 MANIFEST = ".build-manifest.json"
@@ -271,6 +273,7 @@ def toolchain(
     pipelines = {
         "xdsl_libxsmm": ",".join(settings["libxsmm-gemm-passes"]),
         "compxsmm": per_isa("compxsmm-gemm-passes"),
+        "compxsmm_plusnarrow": per_isa("compxsmm-plusnarrow-gemm-passes"),
         "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
         **{
             variant: nanokernel_pipeline.replace("{nanokernel}", variant)
