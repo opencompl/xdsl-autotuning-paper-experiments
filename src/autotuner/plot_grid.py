@@ -32,6 +32,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from autotuner.datasets import NANOKERNEL_VARIANTS
+from autotuner.plot_data import best_of_repeats
 from autotuner.plot_style import (
     COLUMN_WIDTH,
     GRID,
@@ -258,7 +259,9 @@ def plot_grid(
     output_path: Path | None = None,
 ) -> None:
     """Plot % of peak against K for every (M, N) in the dataset."""
-    df = percent_of_peak(df)
+    # The minimum is taken after the measured rows are picked out, so an
+    # unmeasured 0 cannot win a sample's minimum.
+    df = best_of_repeats(percent_of_peak(df))
     missing = [v for v in variants if v not in set(df["variant"])]
     if missing:
         raise ValueError(f"the dataset has no samples for {missing}")

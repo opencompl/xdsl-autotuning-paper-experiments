@@ -45,6 +45,23 @@ NANOKERNEL_VARIANTS = (
     "llvm-skx-narrow-fsdbcst",
 )
 
+# How many times a dataset's samples are measured; anything unlisted once.
+# These sweeps run for tens of cycles a point, short enough that whatever else
+# the machine is doing lands in the number.  That noise only ever makes a
+# kernel look slower, so they are swept several times and the plots keep the
+# fastest pass of each sample -- see `plot_data.best_of_repeats`.
+DATASET_REPEATS = {
+    "f64.nanokernel_grid": 3,
+    "f32.squares": 3,
+    "f64.squares": 3,
+}
+
+
+def dataset_repeats(name: str) -> int:
+    """How many times ``name``'s samples are measured."""
+    return DATASET_REPEATS.get(name, 1)
+
+
 # Which implementations each machine has to compare, per dataset.
 VARIANTS = {
     "neon": {

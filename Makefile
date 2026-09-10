@@ -96,12 +96,12 @@ PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard da
 
 # One paper figure per machine, its two data types side by side, with the
 # machine in the file name rather than in the figure.  The PDF is what LaTeX
-# includes; the PNG beside it is the same figure, for looking at outside the
-# paper.
+# includes; the PNG is the same figure, in the machine's directory with the
+# other PNGs, for looking at outside the paper.
 PLOTS += plots/baselines.tower.pdf
-PLOTS += plots/baselines.tower.png
+PLOTS += plots/tower/baselines.png
 PLOTS += plots/baselines.rapper.pdf
-PLOTS += plots/baselines.rapper.png
+PLOTS += plots/rapper/baselines.png
 
 BASELINES_SRC = src/autotuner/plot_baselines.py src/autotuner/plot_style.py
 
@@ -111,7 +111,9 @@ BASELINES_SRC = src/autotuner/plot_baselines.py src/autotuner/plot_style.py
 plots/baselines.%.pdf: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASELINES_SRC)
 	uv run plot-baselines data/$*/f32.squares.jsonl data/$*/f64.squares.jsonl --output $@
 
-plots/baselines.%.png: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASELINES_SRC)
+# The same figure as a PNG, which is not a paper file, so it goes in the
+# machine's directory the way the other PNGs do; here `%` is the machine.
+plots/%/baselines.png: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASELINES_SRC)
 	uv run plot-baselines data/$*/f32.squares.jsonl data/$*/f64.squares.jsonl --output $@
 
 plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_squares.py
