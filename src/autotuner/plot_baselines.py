@@ -24,6 +24,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
+from autotuner.plot_data import best_of_repeats
 from autotuner.plot_style import (
     COLUMN_WIDTH,
     GRID,
@@ -227,7 +228,9 @@ def plot_baselines(
             "plot each machine into its own file"
         )
 
-    panels = [percent_of_peak(df) for df in dfs]
+    # The minimum is taken after the measured rows are picked out, so an
+    # unmeasured 0 cannot win a sample's minimum.
+    panels = [best_of_repeats(percent_of_peak(df)) for df in dfs]
     # Only the variants this machine actually measured, in the caller's order.
     measured = {variant for panel in panels for variant in panel["variant"]}
     drawn = [variant for variant in variants if variant in measured]

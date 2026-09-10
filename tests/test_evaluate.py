@@ -32,6 +32,17 @@ def test_a_row_is_built_from_the_sample_and_the_machine() -> None:
     assert evaluate.as_json_line(row) == LINE
 
 
+def test_only_a_repeated_sample_records_which_pass_it_came_from() -> None:
+    sample = Sample(1, 1, 64, "aocl", "f64")
+
+    # A single-pass dataset keeps the schema it was committed with...
+    assert "repeat" not in evaluate.row(sample, "rapper", "457.750560")
+    # ...and the pass number goes last, so a repeated one's rows share that
+    # committed prefix rather than shifting every field along.
+    numbered = evaluate.row(sample, "rapper", "457.750560", repeat=2)
+    assert evaluate.as_json_line(numbered) == LINE[:-2] + ',"repeat":2}\n'
+
+
 def test_f64_peak_is_half_the_f32_peak() -> None:
     single = evaluate.row(Sample(1, 1, 1, "libxsmm", "f32"), "rapper", "1.0")["peak"]
     double = evaluate.row(Sample(1, 1, 1, "libxsmm", "f64"), "rapper", "1.0")["peak"]
@@ -49,6 +60,31 @@ def measured_pair(tmp_path: Path) -> tuple[Path, Path]:
     binary = tmp_path / "libxsmm.f64.time.o"
     binary.write_text("")
     return binary, tmp_path / "libxsmm.f64.time.txt"
+
+
+def test_each_pass_caches_its_own_measurement_beside_the_binary(
+    tmp_path: Path,
+) -> None:
+    binary = tmp_path / "libxsmm.f64.time.o"
+
+    # The first pass keeps the name the Snakefile's `time` rule writes.
+    assert evaluate.measurement_path(binary).name == "libxsmm.f64.time.txt"
+    assert evaluate.measurement_path(binary, 1).name == "libxsmm.f64.time.2.txt"
+    assert evaluate.measurement_path(binary, 2).name == "libxsmm.f64.time.3.txt"
+
+
+def test_a_later_pass_does_not_reuse_the_first_pass_number(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary, measured = measured_pair(tmp_path)
+    measured.write_text("1.0\n")
+    monkeypatch.setattr(evaluate, "run_kernel", lambda *_: "2.0")
+
+    assert evaluate.cycles(binary, MACHINES["rapper"], 1) == "2.0"
+    # Each pass is cached without disturbing the others, so an interrupted
+    # multi-pass run resumes where it stopped.
+    assert (tmp_path / "libxsmm.f64.time.2.txt").read_text() == "2.0\n"
+    assert measured.read_text() == "1.0\n"
 
 
 def test_a_measurement_newer_than_its_binary_is_reused(
@@ -96,7 +132,7 @@ def test_datasets_sharing_a_sample_measure_it_once(
     )
     timed: list[Path] = []
 
-    def record(binary: Path, _machine) -> str:
+    def record(binary: Path, _machine, _index: int = 0) -> str:
         timed.append(binary)
         return "1.0"
 
@@ -115,6 +151,77 @@ def test_datasets_sharing_a_sample_measure_it_once(
     assert len(written["b.jsonl"]) == 2
     # The shared sample is recorded in both datasets.
     assert written["a.jsonl"][0] == written["b.jsonl"][0]
+
+
+def test_a_repeated_dataset_is_swept_pass_by_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    small = Sample(2, 2, 2, "libxsmm", "f64")
+    large = Sample(3, 3, 3, "libxsmm", "f64")
+    monkeypatch.setattr(
+        evaluate, "dataset_samples", lambda _machine: {"grid": [small, large]}
+    )
+    monkeypatch.setattr(evaluate, "dataset_repeats", lambda _name: 3)
+    cycled = iter(["1.0", "2.0", "3.0", "4.0", "5.0", "6.0"])
+    order: list[tuple[str, int]] = []
+
+    def record(binary: Path, _machine, index: int = 0) -> str:
+        order.append((binary.parent.name, index))
+        return next(cycled)
+
+    monkeypatch.setattr(evaluate, "cycles", record)
+
+    evaluate.evaluate("rapper", data_dir=tmp_path, build=False)
+
+    # Whole passes over the samples, not each sample's three runs back to back.
+    assert order == [
+        ("2x2x2", 0),
+        ("3x3x3", 0),
+        ("2x2x2", 1),
+        ("3x3x3", 1),
+        ("2x2x2", 2),
+        ("3x3x3", 2),
+    ]
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "rapper" / "grid.jsonl").read_text().splitlines()
+    ]
+    assert [(r["M"], r["repeat"], r["time"]) for r in rows] == [
+        (2, 1, 1.0),
+        (3, 1, 2.0),
+        (2, 2, 3.0),
+        (3, 2, 4.0),
+        (2, 3, 5.0),
+        (3, 3, 6.0),
+    ]
+
+
+def test_a_shared_sample_is_measured_as_often_as_the_greedier_dataset_asks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    shared = Sample(2, 2, 2, "libxsmm", "f64")
+    monkeypatch.setattr(
+        evaluate,
+        "dataset_samples",
+        lambda _machine: {"once": [shared], "grid": [shared]},
+    )
+    monkeypatch.setattr(
+        evaluate, "dataset_repeats", lambda name: 3 if name == "grid" else 1
+    )
+    cycled = iter(["1.0", "2.0", "3.0"])
+    monkeypatch.setattr(evaluate, "cycles", lambda *_a: next(cycled))
+
+    evaluate.evaluate("rapper", data_dir=tmp_path, build=False)
+
+    written = {
+        p.name: p.read_text().splitlines()
+        for p in (tmp_path / "rapper").glob("*.jsonl")
+    }
+    # Three runs, and the dataset that wanted one keeps the first of them.
+    assert len(written["grid.jsonl"]) == 3
+    assert written["once.jsonl"] == [
+        written["grid.jsonl"][0].replace(',"repeat":1', "")
+    ]
 
 
 def test_the_build_only_sees_each_shared_sample_once(

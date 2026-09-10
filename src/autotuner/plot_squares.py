@@ -21,6 +21,7 @@ from pathlib import Path
 import pandas as pd
 from matplotlib.axes import Axes
 
+from autotuner.plot_data import best_of_repeats
 from autotuner.plot_style import (
     COLUMN_WIDTH,
     column_figure,
@@ -114,7 +115,9 @@ def plot_squares(
     output_path: Path | None = None,
 ) -> None:
     """Plot % of peak against square problem size, one curve per variant."""
-    df = percent_of_peak(df)
+    # The minimum is taken after the measured rows are picked out, so an
+    # unmeasured 0 cannot win a sample's minimum.
+    df = best_of_repeats(percent_of_peak(df))
     missing = [v for v in variants if v not in set(df["variant"])]
     if missing:
         raise ValueError(f"the dataset has no samples for {missing}")

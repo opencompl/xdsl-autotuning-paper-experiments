@@ -10,6 +10,7 @@ from autotuner.datasets import (
     NANOKERNEL_GRID_N,
     NANOKERNEL_VARIANTS,
     Sample,
+    dataset_repeats,
     dataset_samples,
     machine_file,
 )
@@ -48,7 +49,16 @@ def test_sample_order_matches_the_committed_dataset(machine: str, dataset: str) 
     # measurement where it is.  It may hold fewer -- widening a sweep leaves the
     # machines that have not re-run it since with a subset -- but never a sample
     # this machine no longer measures, and never in another order.
-    assert recorded == [s for s in generated if s in set(recorded)]
+    measured = [s for s in generated if s in set(recorded)]
+
+    # A repeated dataset is pass-major, so the file is that subset written out
+    # once per pass.  At most the passes the dataset asks for and at least one:
+    # a file collected before its repeat count went up holds fewer blocks.
+    assert measured
+    assert len(recorded) % len(measured) == 0
+    passes = len(recorded) // len(measured)
+    assert 1 <= passes <= dataset_repeats(dataset)
+    assert measured * passes == recorded
 
 
 def test_a_sample_knows_where_its_files_live() -> None:
@@ -64,6 +74,13 @@ def test_the_path_helper_still_spells_out_wildcards() -> None:
     assert (
         machine_file("S") == "build/{machine}/{kernel}/{m}x{n}x{k}/{variant}.{dtype}.S"
     )
+
+
+def test_only_the_short_running_datasets_are_measured_more_than_once() -> None:
+    assert dataset_repeats("f64.nanokernel_grid") == 3
+    assert dataset_repeats("f32.squares") == 3
+    assert dataset_repeats("f64.squares") == 3
+    assert dataset_repeats("f32.ttile") == 1
 
 
 def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
