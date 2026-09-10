@@ -19,7 +19,13 @@ from autotuner.datasets import (
 COMMITTED = [
     (machine, dataset)
     for machine in ("rapper", "tower")
-    for dataset in ("f32.ttile", "f64.ttile", "f64.small_matrices", "f64.squares")
+    for dataset in (
+        "f32.ttile",
+        "f64.ttile",
+        "f64.small_matrices",
+        "f32.squares",
+        "f64.squares",
+    )
     # Only rapper has run the grid, and the test skips a dataset that is absent.
 ] + [("rapper", "f64.nanokernel_grid")]
 
@@ -38,14 +44,22 @@ def test_sample_order_matches_the_committed_dataset(machine: str, dataset: str) 
         (s.m, s.n, s.k, s.variant, s.dtype) for s in dataset_samples(machine)[dataset]
     ]
 
-    # A repeated dataset is pass-major, so the file is the sweep written out
+    # A dataset only has to hold samples the generator still asks for, in the
+    # order it asks for them: then re-deriving the file leaves every committed
+    # measurement where it is.  It may hold fewer -- widening a sweep leaves the
+    # machines that have not re-run it since with a subset -- but never a sample
+    # this machine no longer measures, and never in another order.
+    measured = [s for s in generated if s in set(recorded)]
+
+    # A repeated dataset is pass-major, so the file is that subset written out
     # once per pass.  At most the passes the dataset asks for and at least one:
     # a file collected before its repeat count went up holds fewer blocks, and
     # the next run over that machine is what fills the rest in.
-    assert len(recorded) % len(generated) == 0
-    passes = len(recorded) // len(generated)
+    assert measured
+    assert len(recorded) % len(measured) == 0
+    passes = len(recorded) // len(measured)
     assert 1 <= passes <= dataset_repeats(dataset)
-    assert generated * passes == recorded
+    assert measured * passes == recorded
 
 
 def test_a_sample_knows_where_its_files_live() -> None:
@@ -65,23 +79,30 @@ def test_the_path_helper_still_spells_out_wildcards() -> None:
 
 def test_only_the_short_running_datasets_are_measured_more_than_once() -> None:
     # The grid's samples are single nano-kernel invocations and the square
-    # sweep starts as small as a 1x1x1 matmul, tens of cycles apiece, so those
+    # sweeps start as small as a 1x1x1 matmul, tens of cycles apiece, so those
     # are the ones noisy enough to need repeating; the tile sweeps hold M = K
     # at a full tile throughout and are long enough to be quiet.
     assert dataset_repeats("f64.nanokernel_grid") == 3
+    assert dataset_repeats("f32.squares") == 3
     assert dataset_repeats("f64.squares") == 3
     assert dataset_repeats("f32.ttile") == 1
 
 
 def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
+    assert dataset_samples("neon")["f32.squares"] == []
     assert dataset_samples("neon")["f64.squares"] == []
     assert dataset_samples("neon")["f64.nanokernel_grid"] == []
 
 
-def test_the_square_sweep_keeps_every_dimension_equal() -> None:
-    samples = dataset_samples("rapper")["f64.squares"]
+@pytest.mark.parametrize(
+    ("dataset", "variants"), [("f32.squares", 6), ("f64.squares", 8)]
+)
+def test_the_square_sweep_keeps_every_dimension_equal(
+    dataset: str, variants: int
+) -> None:
+    samples = dataset_samples("rapper")[dataset]
 
-    assert len(samples) == 64 * 4
+    assert len(samples) == 64 * variants
     assert all(s.m == s.n == s.k for s in samples)
     assert {s.m for s in samples} == set(range(1, 65))
 

@@ -46,7 +46,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         datatype: FloatingPointType,
         isa_info: ISAInfo,
     ) -> frozenset[SupportedTile]:
-        vector_length = isa_info.vector_length(datatype)
+        vector_length = isa_info.vector_type.bitwidth() // datatype.bitwidth
         return frozenset(
             SupportedTile(m, n)
             for m in range(1, vector_length + 1)
@@ -78,7 +78,7 @@ class SkxFsdbcstNanoKernel(NanoKernel):
             return False
         if tile.m <= 0 or tile.n <= 0 or tile.k <= 0:
             return False
-        vector_length = isa_info.vector_length(descriptor.datatype)
+        vector_length = isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth
         m_vectors = (tile.m + vector_length - 1) // vector_length
         return m_vectors == 1
 
@@ -113,7 +113,11 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         return RegisterCount(
             general=5,
             vector=tile.n * accumulator_sets + min(tile.k, 2),
-            mask=int(tile.m % isa_info.vector_length(descriptor.datatype) != 0),
+            mask=int(
+                tile.m
+                % (isa_info.vector_type.bitwidth() // descriptor.datatype.bitwidth)
+                != 0
+            ),
         )
 
     @override

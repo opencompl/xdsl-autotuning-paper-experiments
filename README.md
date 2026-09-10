@@ -132,7 +132,7 @@ runtime code path:
 pkg-config --modversion blis
 BLIS_ARCH_DEBUG=1 uv run snakemake --cores 1 --forceall \
   build/tower/matmul_colmaj/16x3x5/aocl.f64.test.log \
-  --config target=tower
+  --config machine=tower
 ```
 
 The debug run should report an architecture-specific path rather than `generic`.
@@ -140,8 +140,8 @@ Do not set `BLIS_ARCH_TYPE` for measured runs: it overrides AOCL's safety checks
 can force unsupported instructions. Measurements set both `OMP_NUM_THREADS=1` and
 `BLIS_NUM_THREADS=1`; the packaged library itself is also built without threading.
 
-Once this smoke test passes, `make dataset_validate TARGET=tower` validates the full
-tower dataset and `make dataset TARGET=tower` collects its measurements.
+Once this smoke test passes, `make dataset_validate MACHINE=tower` validates the full
+tower dataset and `make dataset MACHINE=tower` collects its measurements.
 
 ### Plotting
 

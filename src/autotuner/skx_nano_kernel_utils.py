@@ -50,8 +50,8 @@ class MatmulRegValues:
 def values_from_op(
     op: MatmulRegOp, vector_type: type[x86.registers.X86VectorRegisterType]
 ) -> MatmulRegValues:
-    vector_lanes = vector_type.bitwidth() // op.datatype.bitwidth
-    m_vectors = (op.m.value.data + vector_lanes - 1) // vector_lanes
+    vector_length = vector_type.bitwidth() // op.datatype.bitwidth
+    m_vectors = (op.m.value.data + vector_length - 1) // vector_length
     expected_accumulators = m_vectors * op.n.value.data
     if len(op.outs) != expected_accumulators:
         raise PassFailedException(
@@ -59,7 +59,7 @@ def values_from_op(
             f"{expected_accumulators} accumulator outs, got {len(op.outs)}"
         )
 
-    needs_mask = op.m.value.data % vector_lanes != 0
+    needs_mask = op.m.value.data % vector_length != 0
     if len(op.ins) != int(needs_mask):
         raise PassFailedException(
             "SKX matmul_reg expects one mask in exactly when M has a partial vector"

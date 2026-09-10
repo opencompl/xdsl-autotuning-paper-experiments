@@ -61,7 +61,7 @@ def compute_plan(desc: GEMMDescriptor, arch: Arch) -> XtcGemmPlan:
     assert arch == Arch.LIBXSMM_X86_AVX512_SKX, "libxtcmm-gemm supports skx only"
     isa_info = AVX512Info()
     datatype = desc.datatype.a.builtin_type
-    vector_length = isa_info.vector_length(datatype)
+    vector_length = isa_info.vector_type.bitwidth() // datatype.bitwidth
 
     nano_desc = NanoDescriptor(
         m=desc.m,

@@ -19,19 +19,19 @@ def load_mask(
     insert_point: InsertPoint,
     gp_reg_tmp: x86.registers.GeneralRegisterType,
     mask_reg: x86.registers.AVX512MaskRegisterType,
-    mask_count: int,
+    lanes: int,
     datatype: builtin.Float64Type | builtin.Float32Type,
 ) -> MaskValue:
-    """Materialize an AVX-512 mask with the requested number of high bits removed."""
+    """Materialize an AVX-512 mask enabling the ``lanes`` lowest lanes."""
     match datatype:
         case builtin.Float64Type():
-            mask = 0xFF
             op_type = x86.ops.KS_KMovBOp
         case builtin.Float32Type():
-            mask = 0xFFFF
             op_type = x86.ops.KS_KMovWOp
 
-    mask = mask >> mask_count
+    capacity = x86.registers.AVX512RegisterType.bitwidth() // datatype.bitwidth
+    assert 0 <= lanes <= capacity, f"Invalid lane count {lanes} for {datatype}"
+    mask = (1 << lanes) - 1
     mask_tmp_val = rewriter.insert(
         x86.ops.DI_MovOp(mask, destination=gp_reg_tmp), insertion_point=insert_point
     ).destination

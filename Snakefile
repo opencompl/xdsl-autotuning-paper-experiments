@@ -6,7 +6,6 @@ import shutil
 
 from autotuner.datasets import (
     NANOKERNEL_VARIANTS,
-    dataset_samples,
     machine_base,
     machine_file,
     variant_filename,
@@ -128,6 +127,7 @@ BUILD_VARIANTS = (
     "tvm",
     "xdsl_libxsmm",
     "compxsmm",
+    "compxsmm_plusnarrow",
     "compxsmm_manual",
     "libxtcmm",
     *NANOKERNEL_VARIANTS,
@@ -363,6 +363,22 @@ rule compxsmm_s:
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
         """
 
+# The same kernel, lowered by the schedule that additionally reaches for the
+# narrow nano-kernel when an M tile is shorter than half a vector.  The IR is
+# CompXSMM's, so the two differ in nothing but that choice.
+
+rule compxsmm_plusnarrow_s:
+    input:
+        mlir=machine_file(variant='compxsmm',ext='compxsmm.mlir'),
+        sources=["pyproject.toml"] + COMPXSMM_GEMM_SOURCES,
+    output: machine_file(variant='compxsmm_plusnarrow',ext='S')
+    params:
+        passes=lambda wc: ",".join(config["compxsmm-plusnarrow-gemm-passes"][machine_isa(wc)])
+    shell:
+        """
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
+        """
+
 # The same kernel with the registers assigned by the generator and the schedule
 # rather than by xDSL, so a figure can put the two side by side.
 
@@ -561,39 +577,12 @@ rule time:
     shell: 'OMP_NUM_THREADS=1 BLIS_NUM_THREADS=1 {params.machine_env} {input} > {output}'
 
 ########################################################################################
-# Dataset
+# Datasets
 ########################################################################################
 
 # Select the machine by passing `--config machine=NAME` to Snakemake, setting
 # MACHINE=NAME for Make, or adding MACHINE=NAME to .env.
 THIS_MACHINE = config["machine"]
-
-# What each dataset measures lives in autotuner.datasets, which the evaluate
-# script shares; `uv run evaluate` builds these, times them and writes the
-# jsonl.  The build itself is `autotuner.build` rather than a rule here: at
-# ~37k sub-second jobs Snakemake's dispatch loop, not the machine, was the
-# limit.  What is left is validation, which is a handful of jobs per sample.
-DATASETS = dataset_samples(THIS_MACHINE)
-
-# `--config datasets=a,b` narrows the build to the datasets being evaluated.
-SELECTED = (
-    config["datasets"].split(",") if config.get("datasets") else list(DATASETS)
-)
-
-def dataset_files(ext):
-    """Every distinct file of this kind the selected datasets need."""
-    return list(dict.fromkeys(
-        sample.path(THIS_MACHINE, ext)
-        for name in SELECTED
-        for sample in DATASETS[name]
-    ))
-
-# The timing kernels are built by `uv run build-dataset` (see `make
-# dataset_code`); building them here as well would relink every binary and so
-# invalidate every cached measurement.
-
-rule dataset_validate:
-    input: dataset_files("test.log")
 
 ########################################################################################
 # CI
@@ -751,12 +740,30 @@ TESTSET_AVX512 = [
         machine=THIS_MACHINE, variant="llvm-skx-narrow-fsdbcst", ext="test.log",
     ),
     # Exercise the Python generators across M/N blocking and all K-loop strategies.
+    # `compxsmm_plusnarrow` shares that schedule, and the M of 34 also puts a
+    # narrow remainder tile after the wide ones.
     *expand(
         "build/"
         + THIS_MACHINE
         + "/{case.kernel}/{case.m}x{case.n}x{case.k}/{variant}.f64.test.log",
         case=KERNELS_XSMM_AVX512,
-        variant=["xdsl_libxsmm", "compxsmm", "compxsmm_manual"],
+        variant=[
+            "xdsl_libxsmm",
+            "compxsmm",
+            "compxsmm_manual",
+            "compxsmm_plusnarrow",
+        ],
+    ),
+    # Where plusnarrow parts company with the heuristic: an M tile of three f64
+    # lanes masked into a ymm, and one of a single lane in an xmm.
+    *expand(
+        "build/"
+        + THIS_MACHINE
+        + "/{case.kernel}/{case.m}x{case.n}x{case.k}/compxsmm_plusnarrow.f64.test.log",
+        case=[
+            Kernel3D("matmul_colmaj", 3, 9, 25),
+            Kernel3D("matmul_colmaj", 1, 7, 33),
+        ],
     ),
 ]
 
