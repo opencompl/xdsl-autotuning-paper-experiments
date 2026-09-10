@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from pathlib import Path
 
-from autotuner.plot_ttile import (
+from autotuner.plot_throughput import (
     plot_axis_throughput,
     result_machine_label,
 )

@@ -71,26 +71,18 @@ data/$(MACHINE)/f64.bars.jsonl:
 
 PLOTS =
 
-# PLOTS += plots/neon/f32.ttile.png
-# PLOTS += plots/neon/f64.ttile.png
 # PLOTS += plots/neon/f64.ttile_squares.png
 # PLOTS += plots/neon/f64.ttile_combined.png
 # PLOTS += plots/neon/f64.heatmap.png
 
-PLOTS += plots/tower/f32.ttile.png
-PLOTS += plots/tower/f64.ttile.png
 PLOTS += plots/tower/f64.ttile_squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
 
-# PLOTS += plots/pinocchio/f32.ttile.png
-# PLOTS += plots/pinocchio/f64.ttile.png
 # PLOTS += plots/pinocchio/f64.ttile_squares.png
 # PLOTS += plots/pinocchio/f64.ttile_combined.png
 # PLOTS += plots/pinocchio/f64.heatmap.png
 
-PLOTS += plots/rapper/f32.ttile.png
-PLOTS += plots/rapper/f64.ttile.png
 PLOTS += plots/rapper/f64.ttile_squares.png
 PLOTS += plots/rapper/f64.ttile_combined.png
 PLOTS += plots/rapper/f64.heatmap.png
@@ -102,14 +94,25 @@ PLOTS += plots/f64.squares.rapper.pdf
 # "No rule to make target".
 PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard data/*/f64.nanokernel_grid.jsonl)),plots/f64.nanokernel_grid.$(m).pdf)
 
-PLOTS += plots/ttile.pdf
+# One paper figure per machine, its two data types side by side, with the
+# machine in the file name rather than in the figure.  The PDF is what LaTeX
+# includes; the PNG beside it is the same figure, for looking at outside the
+# paper.
+PLOTS += plots/baselines.tower.pdf
+PLOTS += plots/baselines.tower.png
+PLOTS += plots/baselines.rapper.pdf
+PLOTS += plots/baselines.rapper.png
 
-# `%` is e.g. neon/f32 or tower/f64 (dtype first in the basename)
-plots/%.ttile.png: data/%.ttile.jsonl src/autotuner/plot_ttile.py
-	uv run plot-ttile $< --output $@
+BASELINES_SRC = src/autotuner/plot_baselines.py src/autotuner/plot_style.py
 
-plots/ttile.pdf: data/tower/f32.ttile.jsonl data/tower/f64.ttile.jsonl data/rapper/f32.ttile.jsonl data/rapper/f64.ttile.jsonl src/autotuner/plot_ttile.py
-	uv run plot-ttile --output $@
+# A paper figure, so a PDF rather than a PNG, straight in plots/ with the
+# machine last in the name; here `%` is the machine on its own.  One machine per
+# figure: its two data types are the two panels, each a square sweep.
+plots/baselines.%.pdf: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASELINES_SRC)
+	uv run plot-baselines data/$*/f32.squares.jsonl data/$*/f64.squares.jsonl --output $@
+
+plots/baselines.%.png: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASELINES_SRC)
+	uv run plot-baselines data/$*/f32.squares.jsonl data/$*/f64.squares.jsonl --output $@
 
 plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_squares.py
 	uv run plot-ttile-squares $< --output $@
