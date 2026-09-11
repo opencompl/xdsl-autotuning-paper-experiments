@@ -102,7 +102,7 @@ def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
 
 
 @pytest.mark.parametrize(
-    ("dataset", "variants"), [("f32.squares", 6), ("f64.squares", 8)]
+    ("dataset", "variants"), [("f32.squares", 8), ("f64.squares", 8)]
 )
 def test_the_square_sweep_keeps_every_dimension_equal(
     dataset: str, variants: int

@@ -94,7 +94,9 @@ VARIANTS = {
         # The baselines figure draws the vendor libraries and XTC as well, so
         # the square sweep measures every implementation the tile sweep does.
         # New variants go last: appending leaves the committed measurements
-        # where they are.
+        # where they are.  The two CompXSMM schedules the squares figure
+        # compares are here too, so both data types carry the same eight
+        # implementations even though that figure is drawn from f64 alone.
         "f32.squares": [
             "libxsmm",
             "xdsl_libxsmm",
@@ -102,10 +104,12 @@ VARIANTS = {
             "libxtcmm",
             "mkl",
             "aocl",
+            "compxsmm_manual",
+            "compxsmm_plusnarrow",
         ],
         # f64 also feeds the squares figure, which prices xDSL's register
         # allocator, so it adds the hand-assigned CompXSMM that figure
-        # compares against.
+        # compares against, plus the narrowed schedule.
         "f64.squares": [
             "libxsmm",
             "xdsl_libxsmm",
@@ -114,6 +118,7 @@ VARIANTS = {
             "libxtcmm",
             "mkl",
             "aocl",
+            "compxsmm_plusnarrow",
         ],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
@@ -145,7 +150,9 @@ VARIANTS = {
         # The baselines figure draws the vendor libraries and XTC as well, so
         # the square sweep measures every implementation the tile sweep does.
         # New variants go last: appending leaves the committed measurements
-        # where they are.
+        # where they are.  The two CompXSMM schedules the squares figure
+        # compares are here too, so both data types carry the same eight
+        # implementations even though that figure is drawn from f64 alone.
         "f32.squares": [
             "libxsmm",
             "xdsl_libxsmm",
@@ -153,13 +160,12 @@ VARIANTS = {
             "libxtcmm",
             "mkl",
             "aocl",
+            "compxsmm_manual",
+            "compxsmm_plusnarrow",
         ],
         # f64 also feeds the squares figure, which prices xDSL's register
         # allocator, so it adds the hand-assigned CompXSMM that figure
-        # compares against, plus the narrowed schedule.  `compxsmm_plusnarrow`
-        # is rapper's alone until another machine has measured it here: a
-        # variant listed here but missing from the committed jsonl is a
-        # dataset that no longer matches its own definition.
+        # compares against, plus the narrowed schedule.
         "f64.squares": [
             "libxsmm",
             "xdsl_libxsmm",
