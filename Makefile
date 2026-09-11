@@ -78,6 +78,7 @@ PLOTS =
 PLOTS += plots/tower/f64.ttile_squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
+PLOTS += plots/f64.squares.tower.pdf
 
 # PLOTS += plots/pinocchio/f64.ttile_squares.png
 # PLOTS += plots/pinocchio/f64.ttile_combined.png

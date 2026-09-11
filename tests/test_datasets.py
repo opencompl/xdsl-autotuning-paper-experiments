@@ -25,9 +25,11 @@ COMMITTED = [
         "f64.small_matrices",
         "f32.squares",
         "f64.squares",
+        # Not every machine has run the grid yet, and the test skips a dataset
+        # that is absent.
+        "f64.nanokernel_grid",
     )
-    # Only rapper has run the grid, and the test skips a dataset that is absent.
-] + [("rapper", "f64.nanokernel_grid")]
+]
 
 
 @pytest.mark.parametrize(("machine", "dataset"), COMMITTED)
