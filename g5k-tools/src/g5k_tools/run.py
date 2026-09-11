@@ -284,12 +284,28 @@ def site_nodes(site: str) -> dict:
     return getattr(status, "nodes", None) or {}
 
 
-def verify_free(target: Target, walltime: int, wait: bool) -> None:
+def is_ours(reservation: dict, job_name: str, login: str) -> bool:
+    """Whether this reservation is the job this run would reload.
+
+    A job of our name is not a blocker: enoslib reloads it rather than
+    submitting a second one, which is the whole point of naming it -- and it is
+    what `--keep` leaves behind, so the retry after a failed run would
+    otherwise be refused by the node it is still holding.
+    """
+    return reservation.get("user") == login and reservation.get("name") == job_name
+
+
+def verify_free(
+    target: Target, walltime: int, wait: bool, job_name: str, login: str
+) -> None:
     """Refuse to reserve a node that is not free yet, unless asked to queue.
 
     OAR happily accepts a job for a busy node and starts it hours later, and
     enoslib then waits for it without a timeout, which looks exactly like a
     hang. Checking first turns that into an answer.
+
+    Only the explicit targets reach this; `--microarch` has already picked a
+    node that availability said was free.
     """
     if target.verified:
         return
@@ -305,7 +321,15 @@ def verify_free(target: Target, walltime: int, wait: bool) -> None:
         }
     now = int(time.time())
     free = {
-        fqdn: soonest_start(status.get("reservations") or [], now, walltime)
+        fqdn: soonest_start(
+            [
+                reservation
+                for reservation in status.get("reservations") or []
+                if not is_ours(reservation, job_name, login)
+            ],
+            now,
+            walltime,
+        )
         for fqdn, status in candidates.items()
         if status is not None and status.get("hard") in RESERVABLE_STATES
     }
@@ -1030,6 +1054,51 @@ def container_command(argv: Sequence[str]) -> list[str]:
     return words
 
 
+# Options of ours that cannot be a container command: the command runs a shell
+# and a script in the image, never this tool again.
+OUR_OPTIONS = (
+    "--mount",
+    "--workdir",
+    "--env",
+    "--docker-arg",
+    "--node-setup",
+    "--image",
+    "--pull",
+    "--keep",
+    "--walltime",
+    "--server",
+    "--cluster",
+    "--microarch",
+    "--queue",
+)
+
+
+def mangled_command(command: Sequence[str]) -> str | None:
+    r"""Why this container command can only be a mis-typed invocation.
+
+    The command is an `argparse.REMAINDER`, which hands us everything from the
+    first positional word on -- so a single stray word ahead of our own flags
+    turns all of them into arguments of the container, and the run dies inside
+    the image with something as unhelpful as `exec: : not found`. The classic
+    stray word is an escaped space: a `\` continuation with a space after it.
+    """
+    if not str(command[0]).strip():
+        return (
+            "the container command starts with a blank word, so our own "
+            "options after it were passed to the container instead: check for "
+            "a space after a `\\` at the end of a continuation line"
+        )
+    for word in command:
+        if word in OUR_OPTIONS:
+            return (
+                f"{word} was passed to the container rather than to us; every "
+                "option goes before the -- separator, and a stray word ahead "
+                "of them (an escaped space at the end of a continuation line) "
+                "puts the rest of the line after it"
+            )
+    return None
+
+
 def docker_arguments(args: argparse.Namespace, layout: Layout) -> list[str]:
     """Assemble the `docker run` arguments, results mount first."""
     arguments = ["-v", f"{layout.results}:/results"]
@@ -1056,6 +1125,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     command = container_command(args.command)
     if not command:
         return fail("nothing to run: put the container command after a -- separator")
+    problem = mangled_command(command)
+    if problem:
+        return fail(problem)
     try:
         walltime = parse_walltime(args.walltime)
     except ValueError as error:
@@ -1078,11 +1150,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         target = resolve_target(args, walltime)
-        verify_free(target, walltime, args.wait or bool(args.reservation))
+        # Named before the check, not after: the check has to know which job it
+        # is allowed to find already running on the node.
+        job_name = args.job_name or f"g5k-run-{target.label}"
+        verify_free(
+            target, walltime, args.wait or bool(args.reservation), job_name, login
+        )
     except (ValueError, SystemExit) as error:
         return fail(str(error))
 
-    job_name = args.job_name or f"g5k-run-{target.label}"
     run_id = f"{time.strftime('%Y%m%d-%H%M%S')}-{target.label}"
     layout = make_layout(login, args.remote_dir, run_id)
 

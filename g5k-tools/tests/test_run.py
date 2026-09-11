@@ -5,10 +5,12 @@ Everything here is about the strings we send to a node: the node script, the
 """
 
 import base64
+import time
 
 import pytest
 
 from g5k_tools.availability import preferred_queue
+from g5k_tools import run as run_module
 from g5k_tools.run import (
     container_command,
     docker_arguments,
@@ -16,8 +18,10 @@ from g5k_tools.run import (
     normalize_server,
     parse_args,
     parse_polled,
+    mangled_command,
     render_script,
     resolve_target,
+    verify_free,
 )
 
 LAYOUT = make_layout("alice", "g5k-run", "20260101-000000-gres-1")
@@ -241,3 +245,114 @@ def test_parse_polled_ignores_whatever_the_shell_says_around_it():
 
 def test_parse_polled_survives_a_truncated_read():
     assert parse_polled("@@LOG@@partial") == (b"", None)
+
+
+# --------------------------------------------------------------------------- #
+# Refusing a node that is not free
+# --------------------------------------------------------------------------- #
+
+
+def busy_with(reservations, monkeypatch):
+    """Stand in for OAR's status: chirop-3 alive, holding these reservations."""
+    monkeypatch.setattr(
+        run_module,
+        "site_nodes",
+        lambda site: {
+            "chirop-3.lille.grid5000.fr": {
+                "hard": "alive",
+                "reservations": reservations,
+            }
+        },
+    )
+
+
+def target() -> object:
+    return resolve_target(
+        parse_args(["--server", "chirop-3.lille", "--", "true"]), 3600
+    )
+
+
+def test_a_busy_node_is_refused_with_the_time_it_frees_up(monkeypatch):
+    busy_with(
+        [
+            {
+                "user": "bob",
+                "name": "bobs-job",
+                "started_at": int(time.time()),
+                "walltime": 7200,
+            }
+        ],
+        monkeypatch,
+    )
+    with pytest.raises(SystemExit, match="is busy; the next"):
+        verify_free(target(), 3600, False, "g5k-run-chirop-3", "alice")
+
+
+def test_our_own_job_is_not_a_blocker(monkeypatch):
+    # What `--keep` leaves behind: enoslib reloads a job of this name instead
+    # of submitting a second one, so the retry after a failed run must not be
+    # refused by the node its own job is still holding.
+    busy_with(
+        [
+            {
+                "user": "alice",
+                "name": "g5k-run-chirop-3",
+                "started_at": int(time.time()),
+                "walltime": 2700,
+            }
+        ],
+        monkeypatch,
+    )
+    verify_free(target(), 3600, False, "g5k-run-chirop-3", "alice")
+
+
+def test_someone_elses_job_of_the_same_name_still_blocks(monkeypatch):
+    # The name is only ours in combination with the login: OAR job names are
+    # not unique across users.
+    busy_with(
+        [
+            {
+                "user": "bob",
+                "name": "g5k-run-chirop-3",
+                "started_at": int(time.time()),
+                "walltime": 2700,
+            }
+        ],
+        monkeypatch,
+    )
+    with pytest.raises(SystemExit, match="is busy; the next"):
+        verify_free(target(), 3600, False, "g5k-run-chirop-3", "alice")
+
+
+def test_a_dead_node_says_so_rather_than_reporting_a_slot(monkeypatch):
+    monkeypatch.setattr(
+        run_module,
+        "site_nodes",
+        lambda site: {"chirop-3.lille.grid5000.fr": {"hard": "dead"}},
+    )
+    with pytest.raises(SystemExit, match="cannot be reserved"):
+        verify_free(target(), 3600, False, "g5k-run-chirop-3", "alice")
+
+
+# --------------------------------------------------------------------------- #
+# A mis-typed invocation
+# --------------------------------------------------------------------------- #
+
+
+def test_a_real_command_is_not_mangled():
+    assert mangled_command(["bash", "scripts/g5k-eval.sh"]) is None
+    assert mangled_command(["bash", "-lc", "lscpu | head"]) is None
+
+
+def test_a_blank_first_word_is_reported():
+    # What a `\` with a space after it leaves behind: REMAINDER starts at the
+    # escaped space, so every option after it reached the container.
+    problem = mangled_command([" ", "--mount", "/tmp/eval:/src"])
+    assert problem is not None
+    assert "continuation line" in problem
+
+
+def test_our_own_options_in_the_command_are_reported():
+    problem = mangled_command(["--env", "PEAK=64", "--", "bash", "run.sh"])
+    assert problem is not None
+    assert "--env" in problem

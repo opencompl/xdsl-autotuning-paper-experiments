@@ -145,7 +145,8 @@ uv run g5k-run --keep --microarch "zen 4" --walltime 6:00:00 \
     --node-setup 'sudo sysctl -w kernel.perf_event_paranoid=-1' \
     --node-setup 'echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null' \
     --node-setup 'echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost >/dev/null' \
-    --node-setup 'rsync -a --delete $HOME/xdsl-autotuning-paper-experiments/ /tmp/eval/' \
+    --node-setup 'sudo chown -R $(id -u):$(id -g) /tmp/eval || true' \
+    --node-setup 'rsync -a --delete --exclude build $HOME/xdsl-autotuning-paper-experiments/ /tmp/eval/' \
     --mount /tmp/eval:/src --workdir /src \
     --env IN_DOCKER=1 --env SNAKEMAKE_SCHEDULER=greedy \
     --docker-arg=--cap-add=SYS_ADMIN --docker-arg=--cap-add=PERFMON \
@@ -176,11 +177,22 @@ They are the things a container cannot do for itself:
   README's "Disabling Frequency Switching" section except `isolcpus` and
   `nohz_full` is reachable through sysfs as root; those two would need a
   `kadeploy` job with its own kernel command line.
-- The last line stages the source on the node's **local** disk. `build/` is
+- The last two lines stage the source on the node's **local** disk. `build/` is
   tens of thousands of small files, and writing that from a hundred parallel
   jobs onto the site's NFS server is both slow and antisocial. Results still
   come back, because the container copies them into `/results`, which is on the
   NFS home.
+
+  They are two lines because of who owns what. The container runs as root, so
+  everything it wrote into `/tmp/eval` last time -- `build/`, `.snakemake/`,
+  `data/<cluster>/`, the detected `machines/<cluster>.json` -- is root's, and
+  the rsync, which runs as you, cannot delete it: a re-run on a held node fails
+  in the setup with `delete_file: unlink(...) failed: Permission denied`. The
+  `chown` hands it back. `--exclude build` then keeps the build cache across
+  re-runs instead of deleting it for want of a copy in the source, which is
+  safe because `build.py` keys every artifact on a digest of the generator that
+  produced it -- a changed generator rebuilds, an unchanged one is reused. Drop
+  the exclude, or `sudo rm -rf /tmp/eval/build`, for a clean rebuild.
 
 `sudo` works on a reserved node because `g5k-setup-docker` has already called
 `sudo-g5k` by the time these run.
