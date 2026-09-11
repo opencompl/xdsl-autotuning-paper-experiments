@@ -9,15 +9,15 @@
 #
 #   uv run g5k-run --microarch "zen 5" ... -- bash scripts/g5k-eval.sh
 #
-# Knobs, all optional:
+# Knobs.  PEAK is required; the rest are optional:
 #   MACHINE   machine name (default: $G5K_CLUSTER, which g5k-run sets)
 #   OUT       where to leave results (default: /results, which g5k-run fetches)
 #   CORES     parallel code generation jobs (default: from RAM and thread count)
 #   PIN_CPU   the core the timed runs are pinned to (default: 2, as `make docker-run`)
 #   VALIDATE  check the kernels compute the right thing first (default: 1)
-#   PEAK      f32 flops per cycle, if known; left out, the ttile plots show
-#             absolute throughput, the % of peak figures cannot be drawn, and
-#             it can be filled into the profile later
+#   PEAK      f32 flops per cycle; required, because it cannot be detected and
+#             every row of every dataset records it -- see below.  PEAK=0 says
+#             the omission is deliberate and records no peak.
 
 set -euo pipefail
 
@@ -34,6 +34,33 @@ OUT="${OUT:-/results}"
 PIN_CPU="${PIN_CPU:-2}"
 VALIDATE="${VALIDATE:-1}"
 PEAK="${PEAK:-}"
+
+# The one thing about a node that nothing here can detect.  `evaluate` writes
+# `peak` into every row, so a run without it comes home with datasets the
+# three % of peak figures -- the squares sweep, the nano-kernel grid, the
+# baselines -- refuse to draw from, and those are the paper's.  Repairable, in
+# that `peak` is one constant per dtype, but only by editing the jsonl by hand
+# or by re-running `evaluate` where the build tree still is, which is the node
+# the job has since given back (machines/README.md assumes the latter).  So
+# ask in the first second instead.  And it is the *node's* number: 64 on a
+# part that can only do 32 is not an error anywhere downstream, just figures
+# at half scale, which is the reason to think about it here and not later.
+if [ -z "$PEAK" ]; then
+  cat >&2 <<'NOPEAK'
+error: PEAK is unset.
+
+Pass this node's f32 FLOP/cycle -- vector lanes * FMA pipes * 2:
+
+  64   Skylake-SP, Cascade Lake, Ice Lake, Sapphire Rapids, Emerald Rapids,
+       Zen 5 (two 512-bit FMA pipes)
+  32   Zen 4, Zen 4c (512-bit instructions over a 256-bit datapath)
+
+Check it against the node rather than against this list, which is only the
+microarchitectures already run.  PEAK=0 records no peak on purpose: the
+datasets are still collected, the % of peak figures are not drawable.
+NOPEAK
+  exit 2
+fi
 
 # One code generation job per two GiB, capped by the thread count: one worker
 # per hardware thread on a many-core node can ask for more memory than the node
@@ -52,15 +79,16 @@ mkdir -p "$OUT/sysinfo"
 say() { echo; echo "=== $* ==="; }
 
 say "machine '$MACHINE' on ${G5K_NODE:-unknown node} (job ${G5K_JOB_ID:-none})"
-echo "cores=$CORES  pin=$PIN_CPU  validate=$VALIDATE  peak=${PEAK:-unset}"
+echo "cores=$CORES  pin=$PIN_CPU  validate=$VALIDATE  peak=$PEAK"
 
 # --------------------------------------------------------------------------- #
 # What machine is this?
 # --------------------------------------------------------------------------- #
 
 say "detecting the profile"
-profile_args=(--name "$MACHINE")
-[ -n "$PEAK" ] && profile_args+=(--peak-f32 "$PEAK")
+# Always passed now that it is required, so the profile records where the
+# number came from even when it is the deliberate 0.
+profile_args=(--name "$MACHINE" --peak-f32 "$PEAK")
 uv run machine-profile "${profile_args[@]}"
 # The profile is an input to every number that follows, so it travels with them.
 cp "machines/$MACHINE.json" "$OUT/$MACHINE.json"
@@ -161,6 +189,19 @@ mkdir -p "$OUT/data"
 # refused. The copy itself succeeds, but cp still exits non-zero, and `set -e`
 # would end the run here, just short of everything below.
 cp -R --preserve=timestamps "data/$MACHINE/." "$OUT/data/"
+
+# What actually came out, in the log, so a short dataset is visible here
+# rather than at plotting time days later.  `datasets.default_variants` gives
+# an AVX-512 node the same comparison `rapper` measures, so this should read
+# the same as rapper's: six datasets, and every variant of each present.
+say "collected"
+for dataset in "$OUT"/data/*.jsonl; do
+  [ -e "$dataset" ] || continue
+  printf '%-26s %6d rows  %s\n' \
+    "$(basename "$dataset")" \
+    "$(wc -l < "$dataset")" \
+    "$(grep -o '"variant":"[^"]*"' "$dataset" | sort -u | sed 's/.*:"//;s/"$//' | paste -sd, -)"
+done
 # The per-kernel cycle counts behind the jsonl: cheap to keep, and the only way
 # to spot a single outlier after the fact.
 find "build/$MACHINE" -name 'time.txt' -print0 \

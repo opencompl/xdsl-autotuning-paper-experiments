@@ -20,18 +20,26 @@ from autotuner.datasets import (
 from autotuner.machines import NEON, RAPPER, TOWER, Machine
 
 # Datasets committed to the repo, which the sample order has to keep matching.
+# The Grid'5000 clusters belong here as much as the machines named in
+# `VARIANTS` do: what they measure is derived from rapper rather than written
+# out (`datasets.AVX512_REFERENCE`), so this is what catches the derivation
+# drifting away from what was actually measured.  `grvingt` is the one left
+# out: its committed run predates that derivation and still holds a `naive_c`
+# the definition no longer asks for, so it is a re-run away from belonging.
 COMMITTED = [
     (machine, dataset)
-    for machine in ("rapper", "tower")
+    for machine in ("rapper", "tower", "chirop")
+    # Not every machine has run every one of these -- the grid is rapper's and
+    # chirop's alone -- and the test skips a dataset that is absent.
     for dataset in (
         "f32.ttile",
         "f64.ttile",
         "f64.small_matrices",
         "f32.squares",
         "f64.squares",
+        "f64.nanokernel_grid",
     )
-    # Only rapper has run the grid, and the test skips a dataset that is absent.
-] + [("rapper", "f64.nanokernel_grid")]
+]
 
 
 @pytest.mark.parametrize(("machine", "dataset"), COMMITTED)

@@ -203,9 +203,18 @@ They are the things a container cannot do for itself:
 `/results/<cluster>.json`; records the system information it was detected from
 into `/results/sysinfo/`; runs the AOCL-BLAS smoke test from the main README;
 validates the kernels; generates code in parallel; then measures with the
-timing pinned to one core, as `make docker-run` does with `taskset`. Knobs are
-environment variables — `MACHINE`, `CORES`, `PIN_CPU`, `VALIDATE`, `PEAK` —
-passed with `--env`.
+timing pinned to one core, as `make docker-run` does with `taskset`; finally
+it prints the datasets it collected, one line each with the row count and the
+variants, which on an AVX-512 node should read the same as `data/rapper/`
+does. Knobs are environment variables — `MACHINE`, `CORES`, `PIN_CPU`,
+`VALIDATE`, `PEAK` — passed with `--env`.
+
+`PEAK` is the one it refuses to start without: the node's f32 FLOP/cycle is
+not detectable, `evaluate` writes it into every row, and the three % of peak
+figures cannot be drawn from a dataset that records none. It is 64 on the
+Intel AVX-512 parts and on Zen 5, and 32 on Zen 4 and Zen 4c, whose AVX-512 is
+256 bits wide underneath — so it has to be decided per cluster, not carried
+over from the last run. `PEAK=0` runs anyway and records no peak.
 
 Two of its defaults are worth knowing. `CORES` is derived from the node's RAM
 rather than its thread count, because the default of one worker per available
