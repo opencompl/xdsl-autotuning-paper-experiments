@@ -95,6 +95,18 @@ PLOTS += plots/f64.squares.rapper.pdf
 # "No rule to make target".
 PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard data/*/f64.nanokernel_grid.jsonl)),plots/f64.nanokernel_grid.$(m).pdf)
 
+# The f32 counterpart of the squares figure, for the machines whose f32 sweep
+# has actually been run with every implementation it draws.  Same reason the
+# grid is globbed rather than named -- a target whose data is absent stops
+# `make plots` everywhere -- except that here the file can also be present and
+# stale: f32 gained CompXSMM - RA and CompXSMM + narrow after it was last
+# swept, and `plot-squares` refuses a dataset missing a variant rather than
+# quietly drawing a thinner figure.  So this tests the contents, not the name,
+# and a machine joins the list once it has re-run `make dataset`.
+F32_SQUARES_READY = $(patsubst data/%/f32.squares.jsonl,%,\
+    $(shell grep -l compxsmm_plusnarrow data/*/f32.squares.jsonl 2>/dev/null))
+PLOTS += $(foreach m,$(F32_SQUARES_READY),plots/f32.squares.$(m).pdf)
+
 # One paper figure per machine, its two data types side by side, with the
 # machine in the file name rather than in the figure.  The PDF is what LaTeX
 # includes; the PNG is the same figure, in the machine's directory with the
@@ -126,10 +138,22 @@ plots/%.ttile_combined.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile
 plots/%.heatmap.png: data/%.small_matrices.jsonl src/autotuner/plot_heatmap.py
 	uv run plot-heatmap $< --output $@
 
+SQUARES_SRC = src/autotuner/plot_squares.py src/autotuner/plot_style.py
+
 # A paper figure, so a PDF rather than a PNG: LaTeX gets the vector text.  It
 # goes straight in plots/ with the machine last in the name, the way the paper
-# includes it; here `%` is the machine on its own.
-plots/f64.squares.%.pdf: data/%/f64.squares.jsonl src/autotuner/plot_squares.py src/autotuner/plot_style.py
+# includes it; here `%` is the machine on its own.  One rule per data type
+# rather than one shared rule: a pattern rule gets a single `%`, and the
+# machine has it, so the dtype has to be spelled out in the target.
+plots/f64.squares.%.pdf: data/%/f64.squares.jsonl $(SQUARES_SRC)
+	uv run plot-squares $< --output $@
+
+# The f32 counterpart, drawing the same six curves against the f32 peak, which
+# the dataset carries per row.  `plot-squares` refuses a dataset missing one of
+# them rather than quietly drawing a thinner figure, so this target fails until
+# the machine has swept f32 with CompXSMM - RA and CompXSMM + narrow in it --
+# which is what the readiness test above keeps out of `make plots`.
+plots/f32.squares.%.pdf: data/%/f32.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@
 
 # A grid of K sweeps over the nano-kernels: sixteen M values down the rows
