@@ -110,7 +110,7 @@ PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard da
 # has actually been run with every implementation it draws.  Same reason the
 # grid is globbed rather than named -- a target whose data is absent stops
 # `make plots` everywhere -- except that here the file can also be present and
-# stale: f32 gained CompXSMM - RA and CompXSMM + narrow after it was last
+# stale: f32 gained CompXSMM-RA and CompXSMM+narrow after it was last
 # swept, and `plot-squares` refuses a dataset missing a variant rather than
 # quietly drawing a thinner figure.  So this tests the contents, not the name,
 # and a machine joins the list once it has re-run `make dataset`.
@@ -176,10 +176,43 @@ plots/f64.squares.%.pdf: data/%/f64.squares.jsonl $(SQUARES_SRC)
 # The f32 counterpart, drawing the same six curves against the f32 peak, which
 # the dataset carries per row.  `plot-squares` refuses a dataset missing one of
 # them rather than quietly drawing a thinner figure, so this target fails until
-# the machine has swept f32 with CompXSMM - RA and CompXSMM + narrow in it --
+# the machine has swept f32 with CompXSMM-RA and CompXSMM+narrow in it --
 # which is what the readiness test above keeps out of `make plots`.
 plots/f32.squares.%.pdf: data/%/f32.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@
+
+SQUARES_BASELINES_SRC = src/autotuner/plot_squares_baselines.py src/autotuner/plot_style.py
+
+# The paper's 2x2 grid: the squares figure with MKL and AOCL in it, one panel
+# per (machine, data type), each half the page wide, plus the legend they share
+# as a fifth file to be set underneath them.  The grid puts the machines across
+# and the data types down -- $(PAPER_GRID_LEFT) left of $(PAPER_GRID_RIGHT),
+# f32 above f64 -- so only the left column names the y axis and only the bottom
+# row names the x axis.  Panels are drawn at a fixed size rather than cropped
+# to their ink, so dropping a label does not move the axes: include all four at
+# the same width and they line up.
+PAPER_GRID_LEFT  = rapper
+PAPER_GRID_RIGHT = larochette
+
+PLOTS += $(foreach m,$(PAPER_GRID_LEFT) $(PAPER_GRID_RIGHT),\
+    plots/f32.squares_baselines.$(m).pdf plots/f64.squares_baselines.$(m).pdf)
+PLOTS += plots/squares_baselines.legend.pdf
+
+# The right column of the grid inherits the left column's y axis, and the top
+# row the bottom row's x axis, so those panels are drawn without the label.
+$(foreach m,$(PAPER_GRID_RIGHT),plots/f32.squares_baselines.$(m).pdf plots/f64.squares_baselines.$(m).pdf): YLABEL_FLAG = --no-ylabel
+
+plots/f32.squares_baselines.%.pdf: data/%/f32.squares.jsonl $(SQUARES_BASELINES_SRC)
+	uv run plot-squares-baselines $< --output $@ --no-xlabel $(YLABEL_FLAG)
+
+plots/f64.squares_baselines.%.pdf: data/%/f64.squares.jsonl $(SQUARES_BASELINES_SRC)
+	uv run plot-squares-baselines $< --output $@ $(YLABEL_FLAG)
+
+# The legend of the grid above, on its own so it can sit under all four panels.
+# It draws from the palette rather than from a dataset, so it has no data
+# prerequisite.
+plots/squares_baselines.legend.pdf: $(SQUARES_BASELINES_SRC)
+	uv run plot-squares-baselines --legend-only --output $@
 
 # A grid of K sweeps over the nano-kernels: sixteen M values down the rows
 # against seven N values across, so M keeps the y axis and the figure comes out
