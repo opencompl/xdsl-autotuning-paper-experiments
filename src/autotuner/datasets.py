@@ -6,6 +6,10 @@ samples, and `autotuner.evaluate`, which times them, so the two cannot drift.
 
 from dataclasses import dataclass
 from functools import cache
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from autotuner.machines import Machine
 
 # Every dataset measures the column-major matmul, so M is the contiguous
 # dimension -- the one a kernel vectorizes -- and N is the one it blocks.
@@ -184,6 +188,61 @@ VARIANTS = {
 }
 
 
+# The machine whose comparison a detected avx512 machine inherits.  `rapper` is
+# the fuller of the two avx512 entries -- it adds `compxsmm_plusnarrow`, which
+# tower's frozen list lacks only because tower's committed measurements predate
+# it -- and a new machine has no committed data to keep, so it measures the lot.
+# `plot_squares` draws that variant unconditionally, so a machine without it has
+# datasets its own figures cannot be drawn from.  Deriving rather than repeating
+# means a variant added to a dataset reaches new machines too.
+AVX512_REFERENCE = "rapper"
+
+
+def default_variants(machine: "Machine") -> dict[str, list[str]]:
+    """The variants a machine we were not told about can actually run.
+
+    Which baselines and which of our own strategies belong in a dataset is not
+    a free choice per machine, it follows from what the hardware can do -- so
+    for a machine with no entry in `VARIANTS`, derive it rather than refuse.
+    `default.yaml` only defines avx512 pass pipelines for the xdsl backend and
+    for compxsmm, and the pinned nano-kernels are the skx ones, so without
+    avx512 none of our own variants can be generated and the datasets are
+    baselines only.
+    """
+    if machine.isa == "avx512" and machine.libxsmm_arch:
+        return {
+            dataset: list(variants)
+            for dataset, variants in VARIANTS[AVX512_REFERENCE].items()
+        }
+    return {
+        "ttile": ["mkl", "aocl"],
+        "f64.small_matrices": [],
+        "f32.squares": [],
+        "f64.squares": [],
+        "f64.nanokernel_grid": [],
+    }
+
+
+def variants_for(machine: str) -> dict[str, list[str]]:
+    """What `machine` compares, whether it is written out here or detected.
+
+    The machines import is deferred because it reads `machines/` off disk, and
+    the Snakefile imports this module for its path helpers alone.
+    """
+    if machine in VARIANTS:
+        return VARIANTS[machine]
+
+    from autotuner.machines import MACHINES
+
+    if machine not in MACHINES:
+        raise KeyError(
+            f"unknown machine {machine!r}; known: {', '.join(sorted(MACHINES))}. "
+            f"For a new machine, detect its profile first: "
+            f"`uv run machine-profile --name {machine}`."
+        )
+    return default_variants(MACHINES[machine])
+
+
 # Path management.  The defaults are Snakemake wildcards, so the Snakefile can
 # use these to spell out a rule's inputs and outputs as well as a real path.
 
@@ -281,7 +340,7 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
     order each committed dataset was first written in, so keeping it means
     re-deriving a file from unchanged measurements leaves it untouched.
     """
-    variants = VARIANTS[machine]
+    variants = variants_for(machine)
 
     def by_variant(dtype, shapes, key):
         return [
