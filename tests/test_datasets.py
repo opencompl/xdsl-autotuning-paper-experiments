@@ -29,8 +29,8 @@ from autotuner.machines import NEON, RAPPER, TOWER, Machine
 COMMITTED = [
     (machine, dataset)
     for machine in ("rapper", "tower", "chirop")
-    # Not every machine has run every one of these -- the grid is rapper's and
-    # chirop's alone -- and the test skips a dataset that is absent.
+    # Not every machine has run every one of these, and the test skips a
+    # dataset that is absent.
     for dataset in (
         "f32.ttile",
         "f64.ttile",
