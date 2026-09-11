@@ -192,8 +192,12 @@ cp -R --preserve=timestamps "data/$MACHINE/." "$OUT/data/"
 
 # What actually came out, in the log, so a short dataset is visible here
 # rather than at plotting time days later.  `datasets.default_variants` gives
-# an AVX-512 node the same comparison `rapper` measures, so this should read
-# the same as rapper's: six datasets, and every variant of each present.
+# an AVX-512 node the comparison `rapper` is configured for, so this should
+# list six datasets with every variant of each.  Compare it against the
+# definition rather than against `data/rapper/`, which lags it whenever a
+# sweep is widened and rapper has not been re-run since:
+#   uv run python -c 'from autotuner.datasets import dataset_samples as d; \
+#     print({k: sorted({s.variant for s in v}) for k, v in d("rapper").items()})'
 say "collected"
 for dataset in "$OUT"/data/*.jsonl; do
   [ -e "$dataset" ] || continue

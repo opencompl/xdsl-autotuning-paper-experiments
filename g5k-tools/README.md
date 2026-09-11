@@ -205,8 +205,10 @@ into `/results/sysinfo/`; runs the AOCL-BLAS smoke test from the main README;
 validates the kernels; generates code in parallel; then measures with the
 timing pinned to one core, as `make docker-run` does with `taskset`; finally
 it prints the datasets it collected, one line each with the row count and the
-variants, which on an AVX-512 node should read the same as `data/rapper/`
-does. Knobs are environment variables — `MACHINE`, `CORES`, `PIN_CPU`,
+variants, which on an AVX-512 node is the comparison `rapper` is configured
+for — check it against `datasets.VARIANTS`, not against `data/rapper/`, which
+lags the definition whenever a sweep is widened and rapper has not re-run
+since. Knobs are environment variables — `MACHINE`, `CORES`, `PIN_CPU`,
 `VALIDATE`, `PEAK` — passed with `--env`.
 
 `PEAK` is the one it refuses to start without: the node's f32 FLOP/cycle is
