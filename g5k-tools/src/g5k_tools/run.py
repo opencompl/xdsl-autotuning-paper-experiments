@@ -817,12 +817,29 @@ def push_image(
         [
             "rsync",
             "-a",
-            "--info=progress2",
+            *progress_arguments(),
             str(local),
             f"{login}@{ACCESS}:{remote_path}",
         ],
         check=True,
     )
+
+
+def progress_arguments() -> list[str]:
+    """``--info=progress2`` where rsync understands it, nothing where it does not.
+
+    macOS ships openrsync, which reports itself as "rsync version 2.6.9
+    compatible": ``--info`` arrived in rsync 3.1, and an unrecognised option
+    is a hard error rather than a warning, so a multi-gigabyte transfer would
+    fail on the flag that was only there to show its progress.
+    """
+    completed = subprocess.run(
+        ["rsync", "--version"], capture_output=True, text=True, check=False
+    )
+    match = re.search(r"version (\d+)\.(\d+)", completed.stdout or "")
+    if match and (int(match[1]), int(match[2])) >= (3, 1):
+        return ["--info=progress2"]
+    return []
 
 
 def fetch(login: str, site: str, layout: Layout, destination: Path) -> Path | None:

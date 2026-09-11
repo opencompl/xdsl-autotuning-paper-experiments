@@ -192,10 +192,15 @@ HALF_WIDTH_AVX512 = ("zen 4",)
 ONE_FMA_PIPE = ("bronze", "silver", "gold 5")
 
 
-def peak_for(microarchitecture: str | None, sku: str | None) -> tuple[int | None, str]:
-    """This node's f32 FLOP/cycle, and the reasoning, or None if unknown."""
-    name = (microarchitecture or "").strip().casefold()
-    version = (sku or "").strip().casefold()
+def peak_for(microarchitecture: str | None, sku: object) -> tuple[int | None, str]:
+    """This node's f32 FLOP/cycle, and the reasoning, or None if unknown.
+
+    The reference API reports `version` as a number where the SKU happens to
+    be one -- grdix's EPYC 9754 comes back as the integer 9754 -- so neither
+    field can be assumed to be a string.
+    """
+    name = str(microarchitecture or "").strip().casefold()
+    version = str(sku if sku is not None else "").strip().casefold()
     if any(name.startswith(prefix) for prefix in HALF_WIDTH_AVX512):
         return 32, f"{microarchitecture}: AVX-512 over a 256-bit datapath"
     if any(name.startswith(prefix) for prefix in TWO_FMA_PIPES):
@@ -260,7 +265,7 @@ def stage_source(
         "rsync",
         "-az",
         "--delete",
-        "--info=progress2",
+        *run_module.progress_arguments(),
         *(f"--exclude={pattern}" for pattern in STAGE_EXCLUDES),
         f"{root}/",
         f"{login}@{run_module.ACCESS}:{path}/",

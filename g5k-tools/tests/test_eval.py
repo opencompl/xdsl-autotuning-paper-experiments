@@ -70,6 +70,13 @@ def test_peak_follows_the_microarchitecture_and_the_sku(
     assert microarchitecture.casefold() in why.casefold()
 
 
+def test_a_numeric_sku_is_not_a_string():
+    # The reference API reports `version` as a number when the SKU is one:
+    # grdix's EPYC 9754 arrives as the integer 9754.
+    assert peak_for("Zen 4c", 9754)[0] == 32
+    assert peak_for("Sapphire Rapids", None)[0] == 64
+
+
 @pytest.mark.parametrize("microarchitecture", [None, "Broadwell", "Zen 2"])
 def test_peak_is_unknown_rather_than_guessed(microarchitecture):
     # A pre-AVX-512 machine cannot generate our variants at all, so there is no

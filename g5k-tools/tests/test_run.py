@@ -5,6 +5,7 @@ Everything here is about the strings we send to a node: the node script, the
 """
 
 import base64
+import subprocess
 import time
 
 import pytest
@@ -62,6 +63,27 @@ def test_layout_lives_under_the_site_home():
 )
 def test_normalize_server(given, expected):
     assert normalize_server(given) == expected
+
+
+@pytest.mark.parametrize(
+    "reported,expected",
+    [
+        ("rsync  version 3.2.7  protocol version 31", ["--info=progress2"]),
+        ("rsync  version 3.1.0  protocol version 31", ["--info=progress2"]),
+        # What macOS answers: openrsync, which predates --info.
+        ("openrsync: protocol version 29\nrsync version 2.6.9 compatible", []),
+        ("", []),
+    ],
+)
+def test_progress_is_only_asked_for_where_rsync_understands_it(
+    monkeypatch, reported, expected
+):
+    monkeypatch.setattr(
+        run_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, reported, ""),
+    )
+    assert run_module.progress_arguments() == expected
 
 
 def test_normalize_server_needs_a_site():
