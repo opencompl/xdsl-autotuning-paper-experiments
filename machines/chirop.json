@@ -1,0 +1,41 @@
+{
+  "detected": {
+    "avx512_flags_present": [
+      "avx512bw",
+      "avx512dq",
+      "avx512f",
+      "avx512vl"
+    ],
+    "base_frequency_ghz": 2.6,
+    "clang_target_cpu": "icelake-server",
+    "cpu_model": "Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz",
+    "cpu_vendor": "GenuineIntel",
+    "cpufreq": {
+      "no_turbo": "1",
+      "scaling_cur_freq": "800000",
+      "scaling_governor": "performance"
+    },
+    "hostname": "7b3a33edeb2e",
+    "papi_error": null,
+    "papi_usable": true,
+    "peak_note": "given as --peak-f32 64",
+    "perf_event_paranoid": "-1",
+    "uname": "Linux 7b3a33edeb2e 6.12.107+deb13-amd64 #1+g5k1 SMP PREEMPT_DYNAMIC Thu Sep  3 11:31:24 CEST 2026 x86_64 x86_64"
+  },
+  "machine": {
+    "display_name": "Intel Xeon Platinum 8358 (chirop)",
+    "env": {},
+    "family": "icelake-server",
+    "freq": 2.6,
+    "isa": "avx512",
+    "libs": [
+      "papi"
+    ],
+    "libxsmm_arch": "skx",
+    "linker_flag": "-fuse-ld=lld",
+    "march": "icelake-server",
+    "mtune": "icelake-server",
+    "peak_f32": 64,
+    "target_triple": "x86_64-unknown-linux-gnu"
+  }
+}
