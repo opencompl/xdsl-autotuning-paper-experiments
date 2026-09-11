@@ -1,4 +1,5 @@
 g5k-runs
+.g5k-revision
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

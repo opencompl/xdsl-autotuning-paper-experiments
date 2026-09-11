@@ -90,8 +90,10 @@ them. See [`machines/README.md`](machines/README.md), and note that `peak_f32`
 is deliberately left for later — the plots simply show absolute throughput
 until it is filled in.
 
-This is the route for a machine you do not control, a Grid'5000 node above all;
-see [`g5k-tools/README.md`](g5k-tools/README.md).
+This is the route for a machine you do not control, a Grid'5000 node above all:
+`g5k-tools/.venv/bin/g5k-eval <node>` stages this checkout on the site, reserves
+the node and runs the whole evaluation on it. See
+[`g5k-tools/README.md`](g5k-tools/README.md).
 
 **Written out (the machines the paper reports).** Add an entry to
 `STATIC_MACHINES` in

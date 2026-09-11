@@ -13,6 +13,7 @@ dependencies = ["enoslib>=10.9.0"]
 [project.scripts]
 g5k-availability = "g5k_tools.availability:main"
 g5k-run = "g5k_tools.run:main"
+g5k-eval = "g5k_tools.eval:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]

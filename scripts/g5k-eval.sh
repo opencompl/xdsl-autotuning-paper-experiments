@@ -7,6 +7,7 @@
 # CPU: the machine is named after the Grid'5000 cluster the job landed on, and
 # everything about it is detected on the spot.
 #
+#   g5k-tools/.venv/bin/g5k-eval <node>          # composes the invocation
 #   uv run g5k-run --microarch "zen 5" ... -- bash scripts/g5k-eval.sh
 #
 # Knobs.  PEAK is required; the rest are optional:

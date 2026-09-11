@@ -2,7 +2,8 @@
 
 Grid'5000 resource queries and job submission for the xDSL autotuning
 experiments: `g5k-availability` says which machines you can get, `g5k-run`
-reserves one and runs a command in a Docker container on it.
+reserves one and runs a command in a Docker container on it, and `g5k-eval`
+is the one command that runs the paper's evaluation on a named node.
 
 This is a **separate uv project with its own venv**, deliberately not part of
 the main `autotuner` environment: enoslib pins `rich ~= 12.0`, while the main
@@ -75,6 +76,61 @@ Notes on what the output means:
   reservable, so it counts as free; it shows as `now (standby)` because OAR has
   to boot it first, which costs a couple of minutes at the start of the job.
 
+## Usage: g5k-eval
+
+The evaluation, on one node, from one command:
+
+```sh
+# from anywhere in the repository
+g5k-tools/.venv/bin/g5k-eval chirop-3
+g5k-tools/.venv/bin/g5k-eval chirop-3 --walltime 3:00:00 --dry-run
+g5k-tools/.venv/bin/g5k-eval --microarch "zen 5" --walltime 6:00:00
+```
+
+A node name is enough: the site comes from the reference API, so `chirop-3`,
+`chirop-3.lille` and the full name all work, and `--cluster` or `--microarch`
+choose a node instead. It prints what it decided before it does anything:
+
+```
+source:   /home/you/xdsl-autotuning-paper-experiments @ 9f58150...
+image:    ghcr.io/opencompl/xdsl-autotuning-ci:0.33.0
+machine:  chirop (2x Intel(R) Xeon(R) Platinum 8358 CPU @ 2.60GHz)
+peak:     PEAK=64  [Ice Lake-SP: two 512-bit FMA pipes]
+```
+
+Then it stages this checkout on the site's home, reserves the node and runs
+`scripts/g5k-eval.sh` in the container, streaming the output and fetching the
+results into `g5k-runs/` — and finishes by printing the `cp` lines that fold
+the run into the repository.
+
+What it works out, so that it cannot be carried over from the last machine:
+
+- **the image**: the semver of the `v*` tag this checkout describes to, which
+  is the tag the publish workflow built the image from (`--image` overrides).
+- **`PEAK`**, the node's f32 FLOP/cycle, from the microarchitecture and the
+  SKU the reference API reports: 64 where there are two 512-bit FMA pipes, 32
+  on Zen 4 and Zen 4c (AVX-512 over a 256-bit datapath) and on the Intel SKUs
+  with one pipe (Bronze, Silver, Gold 5xxx). It is a guess from a table, which
+  is why it is printed with the CPU it was made for; `--peak N` overrides it,
+  and a microarchitecture the table does not know is an error rather than a
+  default. Check it against the node — see `machines/README.md`.
+- **turbo**: `intel_pstate`'s `no_turbo` or `cpufreq`'s `boost`, whichever
+  that node has, decided on the node.
+- **the revision**: `.g5k-revision`, since the staging rsync excludes `.git`.
+  A dirty worktree is recorded as such, because the sha alone would claim
+  more than the run can back up.
+
+Everything else is g5k-run's, and the useful options are forwarded:
+`--walltime`, `--queue`, `--wait`, `--reservation`, `--job-name`, `--dry-run`,
+`--no-fetch`, `--fetch-to`, `--verbose`, and `--env` for the container's own
+knobs (`--env VALIDATE=0`, `--env CORES=32`, `--env PIN_CPU=2`). An option it
+does not name goes through attached, as `--run-arg=--poll=30`. The node is
+held after the run, as `--keep` does, unless `--no-keep`; the source is staged
+every time unless `--no-stage`.
+
+`--dry-run` is the habit worth keeping: it prints the plan, the staging
+command and the node script, and reserves nothing.
+
 ## Usage: g5k-run
 
 Reserve one node and run a command in a Docker container on it. A single
@@ -120,7 +176,11 @@ name is read from what `docker load` reports. Note that Docker Hub rate-limits
 pulls from Grid'5000's address space, which is the reason the tarball route
 exists at all; ghcr.io is fine.
 
-### Running the evaluation
+### Running the evaluation by hand
+
+`g5k-eval` is the g5k-run invocation below, filled in. It is worth reading
+once, and it is what to fall back to for a run that needs something the
+wrapper does not offer.
 
 `scripts/g5k-eval.sh` in the main repository is the container command for this.
 Nothing in the invocation names a CPU: the machine is named after the cluster
@@ -164,7 +224,8 @@ retry lands on the same node so the second attempt is comparable to the first.
 
 #### Why those `--node-setup` lines
 
-They are the things a container cannot do for itself:
+They are the things a container cannot do for itself, and they are the ones
+`g5k-eval` passes:
 
 - `kernel.perf_event_paranoid` is **not** namespaced, so it cannot be written
   from inside the container however privileged it is. Without it PAPI cannot
@@ -236,6 +297,10 @@ mkdir -p ../data/<cluster>
 cp g5k-runs/<run_id>/results/data/*.jsonl ../data/<cluster>/
 (cd .. && make plots-machine MACHINE=<cluster>)
 ```
+
+`g5k-eval` prints these three lines with the run and the cluster filled in,
+and without the `../`: it works from the repository root, so the runs land in
+`<root>/g5k-runs` whichever directory you start it in.
 
 Commit the profile next to the data: it is the input those numbers were taken
 with, including which timing mode was in force. `peak_f32` can be filled into
