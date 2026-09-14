@@ -7,8 +7,14 @@ The figure fits one column of the paper template: M runs down the rows, N runs
 across the columns, and inside every panel the x axis is K.  All panels share
 their limits, so only the bottom-left one is ticked and the rest are read off
 the M and N headers around the grid.  M is the swept dimension and keeps the y
-axis, so its sixteen values take the rows and N's seven take the columns: the
-figure comes out a column wide and tall rather than a page wide and squat.
+axis, so its six values take the rows and N's seven take the columns: the
+figure comes out a column wide and a few inches tall.
+
+The sweep measures M out to four f64 vectors, further than the figure draws:
+`M_MAX` cuts the grid off at a vector and a half, past which the rows say the
+same thing at the cost of the figure's height.  The rows above it are dropped
+from the figure and not from the dataset, so taking them back is a constant
+here rather than another pass on the machine.
 
 Sharing the limits also lets the panels butt up against each other with no
 whitespace between them.  Every cell tops out at peak, so the hairline two
@@ -51,6 +57,10 @@ from autotuner.plot_style import (
 # The nano-kernels this figure puts side by side, in legend order.
 VARIANTS = NANOKERNEL_VARIANTS
 
+# The largest M the grid draws a row for.  The dataset sweeps further; rows
+# above this are dropped from the figure rather than from the file.
+M_MAX = 12
+
 # Top of the % of peak axis, and the ticks drawn below it.  The axis stops at
 # peak, so the top of every panel *is* the 100% line and no headroom is spent
 # on a ceiling no sample reaches.
@@ -59,7 +69,7 @@ Y_TICKS = (0, 50, 100)
 
 # Panel height as a fraction of its width.  The panels are butted together, so
 # a panel is as tall as it is wide minus the headroom the old ceiling wanted:
-# the grid reads as one block of cells rather than 112 scattered plots.
+# the grid reads as one block of cells rather than forty-two scattered plots.
 PANEL_ASPECT = 0.7
 PANEL_GAP = 0.0
 
@@ -70,8 +80,8 @@ MARGIN_RIGHT = 0.04
 MARGIN_TOP = 0.34
 MARGIN_BOTTOM = 0.52
 
-# The index headers are smaller than the body text: there are 32 of them, and
-# they are furniture rather than data.
+# The index headers are smaller than the body text: there is one per row and
+# per column, and they are furniture rather than data.
 HEADER_SIZE = 5.0
 INDEX_SIZE = 8.0
 
@@ -261,9 +271,10 @@ def plot_grid(
     *,
     variants: Sequence[str] = VARIANTS,
     width: float = COLUMN_WIDTH,
+    max_m: int = M_MAX,
     output_path: Path | None = None,
 ) -> None:
-    """Plot % of peak against K for every (M, N) in the dataset."""
+    """Plot % of peak against K for every (M, N) in the dataset up to ``max_m``."""
     # The minimum is taken after the measured rows are picked out, so an
     # unmeasured 0 cannot win a sample's minimum.
     df = best_of_repeats(percent_of_peak(df))
@@ -271,6 +282,8 @@ def plot_grid(
     if missing:
         raise ValueError(f"the dataset has no samples for {missing}")
 
+    df = df[df["M"] <= max_m]
+    assert isinstance(df, pd.DataFrame)
     ms = sorted(df["M"].unique())
     ns = sorted(df["N"].unique())
     ks = sorted(df["K"].unique())
@@ -316,6 +329,12 @@ def main():
         help="Figure width in inches (default: one column of the template)",
     )
     parser.add_argument(
+        "--max-m",
+        type=int,
+        default=M_MAX,
+        help=f"Largest M to draw a row for (default: {M_MAX})",
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -328,6 +347,7 @@ def main():
         df,
         variants=args.variant or VARIANTS,
         width=args.width,
+        max_m=args.max_m,
         output_path=args.output,
     )
 

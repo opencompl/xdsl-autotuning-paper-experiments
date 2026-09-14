@@ -214,9 +214,9 @@ plots/f64.squares_baselines.%.pdf: data/%/f64.squares.jsonl $(SQUARES_BASELINES_
 plots/squares_baselines.legend.pdf: $(SQUARES_BASELINES_SRC)
 	uv run plot-squares-baselines --legend-only --output $@
 
-# A grid of K sweeps over the nano-kernels: sixteen M values down the rows
-# against seven N values across, so M keeps the y axis and the figure comes out
-# one column wide and tall.  A PDF rather than a PNG so LaTeX gets the vector
+# A grid of K sweeps over the nano-kernels: six M values down the rows against
+# seven N values across, so M keeps the y axis and the figure comes out one
+# column wide.  A PDF rather than a PNG so LaTeX gets the vector
 # text at that size.  A paper figure, so like the squares plot it goes straight
 # in plots/ with the machine last in the name; here `%` is the machine alone.
 plots/f64.nanokernel_grid.%.pdf: data/%/f64.nanokernel_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py

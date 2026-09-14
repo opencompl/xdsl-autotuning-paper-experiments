@@ -9,13 +9,20 @@ register allocator costs against LIBXSMM, and where all of that lands against
 the vendor libraries.
 
 The paper puts four of these -- f32 and f64 of two machines -- in a 2x2 grid
-spanning the page width, so a panel is half the page wide and the four are
-sized identically: the margins are fixed in inches and the axes sit at the same
-place in every panel, whether or not it carries an axis label, so the four tile
-without drifting out of alignment.  Which labels a panel carries is the
-caller's to say (``--no-ylabel`` for the right column, ``--no-xlabel`` for the
-top row), and the legend is a figure of its own (``--legend-only``) to be set
-underneath all four.
+spanning the page width, so a panel is half the page wide and the four carry
+axes of exactly the same size: the margins are fixed in inches and do not
+depend on which labels the panel was asked for, so the four tile without
+drifting out of alignment.  Which labels a panel carries is the caller's to say
+(``--no-ylabel`` for the right column, ``--no-xlabel`` for the top row), and the
+legend is a figure of its own (``--legend-only``) to be set underneath all four.
+
+What the margins do not do is survive into the file: a panel is cropped to its
+ink on the way out, so a dropped label leaves no band of white behind and the
+grid is four panels of ink rather than four panels of padding.  The crop takes
+the same amount off each side of panels that carry the same labels, so a row
+still lines up along its top edge and a column along its left one -- but the
+four files are no longer the same size, so the paper has to set them at their
+natural size rather than scale each to half the text width.
 
 The panel names the machine it measured, since four of them share a caption:
 the microarchitecture and the data type sit in the bottom right corner of the
@@ -69,16 +76,20 @@ Y_TICKS = (0, 25, 50, 75, 100)
 # Ticks on the size axis: the ends, and every sixteenth size between them.
 X_TICKS = (1, 16, 32, 48, 64)
 
-# Panel height as a fraction of the width of its axes.
-PANEL_ASPECT = 0.60
+# Panel height as a fraction of the width of its axes.  Much wider than it is
+# tall: four of these stacked two deep, plus the legend strip, have to leave
+# the page room for the text around them, and the curves are read for where
+# they sit against peak rather than for small differences in height.
+PANEL_ASPECT = 0.34
 
 # Margins in inches: the y label and its ticks on the left, the size label and
-# its ticks underneath, and on top only the half of the ``100`` tick label that
-# rises above the frame -- the panel's name is inside the axes, not over them.
-# The margins do not depend on which labels the panel was asked for: a panel
-# without a y label keeps the room for one, because the four panels of the grid
-# have to put their axes in the same place as each other or the columns stop
-# lining up.
+# its ticks underneath, and on the other two sides the overhang of the end tick
+# labels -- the panel's name is inside the axes, not over them.  The margins do
+# not depend on which labels the panel was asked for: a panel without a y label
+# keeps the room for one, because the four panels of the grid have to carry
+# axes of the same size or the curves stop being comparable.  What a panel does
+# not draw in that room is cropped away on the way out rather than shipped as
+# white.
 MARGIN_LEFT = 0.44
 MARGIN_RIGHT = 0.10
 MARGIN_TOP = 0.07
@@ -200,9 +211,10 @@ def label_panel(ax: Axes, text: str) -> None:
 def panel_figure(*, width: float = PANEL_WIDTH) -> tuple[Figure, Any]:
     """One panel, with its margins sized in inches.
 
-    ``tight_layout`` is deliberately not used, and neither is a tight crop on
-    the way out: the point of sizing the margins here is that every panel of
-    the grid comes out the same size, which a crop to the ink would undo.
+    ``tight_layout`` is deliberately not used: sizing the margins here is what
+    gives every panel of the grid an axes of the same size, whichever labels it
+    was asked for.  The crop on the way out moves the axes within the page but
+    not its size, so that invariant survives it.
     """
     use_paper_style()
 
@@ -294,8 +306,9 @@ def plot_squares_baselines(
     if title:
         label_panel(ax, panel_name(df))
 
-    # No tight crop: the margins above were sized so the four panels match.
-    save(fig, output_path, tight=False)
+    # A tight crop: the margins above sized the axes, and whatever room a
+    # dropped label left over is whitespace the file should not carry.
+    save(fig, output_path)
 
 
 def plot_legend(
