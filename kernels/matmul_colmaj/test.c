@@ -49,6 +49,11 @@ int main() {
   print_matrix_colmaj(C_asm, M, N);
 
   int passed = isclose(C, C_asm, M * N);
+  if (memcmp(A, A_asm, M * K * sizeof(DTYPE)) != 0 ||
+      memcmp(B, B_asm, K * N * sizeof(DTYPE)) != 0) {
+    printf("Test Failed: The kernel modified an input matrix.\n");
+    passed = 0;
+  }
 
   free(A);
   free(B);

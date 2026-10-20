@@ -6,6 +6,14 @@
 // RUN: kernels/matmul_colmaj/test.c %s && %t | filecheck %s
 // RUN: clang -DCROWS=5 -DCCOLS=6 -DINNER=7 -DDTYPE=double -o %t \
 // RUN: kernels/matmul_colmaj/test.c %s && %t | filecheck %s
+// RUN: clang -DCROWS=5 -DCCOLS=6 -DINNER=7 -DDTYPE=float -DMUTATE_INPUT=A -o %t \
+// RUN: kernels/matmul_colmaj/test.c %s && not %t | filecheck %s --check-prefix=MUTATED
+// RUN: clang -DCROWS=5 -DCCOLS=6 -DINNER=7 -DDTYPE=double -DMUTATE_INPUT=A -o %t \
+// RUN: kernels/matmul_colmaj/test.c %s && not %t | filecheck %s --check-prefix=MUTATED
+// RUN: clang -DCROWS=5 -DCCOLS=6 -DINNER=7 -DDTYPE=float -DMUTATE_INPUT=B -o %t \
+// RUN: kernels/matmul_colmaj/test.c %s && not %t | filecheck %s --check-prefix=MUTATED
+// RUN: clang -DCROWS=5 -DCCOLS=6 -DINNER=7 -DDTYPE=double -DMUTATE_INPUT=B -o %t \
+// RUN: kernels/matmul_colmaj/test.c %s && not %t | filecheck %s --check-prefix=MUTATED
 
 #include "../../headers/mnk.h"
 
@@ -17,6 +25,11 @@ void matmul(DTYPE *A, DTYPE *B, DTYPE *C) {
       }
     }
   }
+#ifdef MUTATE_INPUT
+  // The output is correct; only preservation of the input can catch this.
+  MUTATE_INPUT[0] += 1;
+#endif
 }
 
 // CHECK: Test Passed: The results are equal!
+// MUTATED: Test Failed: The kernel modified an input matrix.
