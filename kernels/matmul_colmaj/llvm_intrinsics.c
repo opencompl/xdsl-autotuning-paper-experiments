@@ -5,6 +5,8 @@ typedef DTYPE mMxK __attribute__((matrix_type(M,K)));
 typedef DTYPE mKxN __attribute__((matrix_type(K,N)));
 typedef DTYPE mMxN __attribute__((matrix_type(M,N)));
 
+void matmul_init(void) {}
+
 void matmul(DTYPE* restrict A, DTYPE* restrict B, DTYPE* restrict C) {
 
   mMxK a = __builtin_matrix_column_major_load(A, M, K, M);

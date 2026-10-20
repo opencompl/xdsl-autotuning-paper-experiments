@@ -17,6 +17,8 @@
   #error "You must define MKL_DTYPE_IS_FLOAT or MKL_DTYPE_IS_DOUBLE"
 #endif
 
+void matmul_init(void) {}
+
 void matmul(MKL_DTYPE *A, MKL_DTYPE *B, MKL_DTYPE *C) {
   GEMM(CblasColMajor, CblasNoTrans, CblasNoTrans,
        MKL_M, MKL_N, MKL_K,

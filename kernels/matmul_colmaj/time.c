@@ -11,6 +11,10 @@
 #include "../../headers/mnk.h"
 #include "../../headers/perf.h"
 
+// Called once before warmup and timing; per-call work belongs in matmul.
+extern void matmul_init(void);
+extern void matmul(DTYPE *A, DTYPE *B, DTYPE *C);
+
 #define TARGET_SIZE 268435456
 #define NUM_ITERATIONS (TARGET_SIZE / (M * N * K))
 #define CLOCKS_PER_USEC ((TIMETY)CLOCKS_PER_SEC / 1000000.0)
@@ -22,9 +26,8 @@
 #define C_RING_BYTES 16384
 #define C_RING_MAX_SLOTS 32
 
-extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
-
 int main() {
+  matmul_init();
 
   DTYPE *A, *B, *C;
   posix_memalign((void **)&A, 64, M * K * sizeof(DTYPE));
