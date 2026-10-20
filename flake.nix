@@ -19,21 +19,24 @@
           '';
           aoclBlas = pkgs.callPackage ./nix/aocl-blas.nix { };
           # Pinned libxsmm revision rather than the 1.17 release in nixpkgs.
-          libxsmmPinned = pkgs.libxsmm.overrideAttrs (old: {
-            version = "1.17-unstable-10b7dc82";
+          libxsmmPinned = pkgs.libxsmm.overrideAttrs (_: {
+            version = "2.1.0-unstable-2026-09-28";
             src = pkgs.fetchFromGitHub {
               owner = "libxsmm";
               repo = "libxsmm";
-              rev = "10b7dc82b3c46157e76eb40e4e959555f895b24d";
-              hash = "sha256-iEltpVqRgbMNbNQryJ/wI0OSNtgnuSuu6bl0TfVCLB4=";
+              rev = "3057b239c16994d307589e40e45f40857ad5f5b8";
+              hash = "sha256-eNzc9aoSwCjNTvVHRDcpeccEY9nJ6Jwz/iXxRHZ+Gko=";
             };
             patches = [ ./nix/libxsmm-rpath.patch ];
+            # Upstream now installs .pc files under lib/pkgconfig, not lib.
             # documentation/{LICENSE,CONTRIBUTING}.md are symlinks into the
             # source root, so `make install` copies them as links that dangle
             # once the docs land in their own output.
-            postInstall = old.postInstall + ''
+            postInstall = ''
+              moveToOutput "lib/pkgconfig" "$dev"
+              moveToOutput "share/libxsmm" "$doc"
               cp --remove-destination LICENSE.md CONTRIBUTING.md \
-                ''${!outputDoc}/share/libxsmm/
+                "$doc/share/libxsmm/"
             '';
           });
           llvmToolchain = with pkgs; buildEnv {
@@ -51,6 +54,7 @@
             ] ++ (if stdenv.hostPlatform.isLinux then [
               mkl
               libxsmmPinned
+              libxsmmPinned.dev
               papi
             ] ++ lib.optionals stdenv.hostPlatform.isx86_64 [
               aoclBlas
