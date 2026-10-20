@@ -5,25 +5,25 @@
 
 // Returns index of first value not within tolerance, size otherwise.
 static inline int first_mismatch_index(const DTYPE *lhs, const DTYPE *rhs,
-                                       int size, float rtol, float atol) {
+                                       int size, double rtol, double atol) {
   int i = 0;
   for (; i < size; i++) {
-    float l = (float)lhs[i];
-    float r = (float)rhs[i];
+    double l = (double)lhs[i];
+    double r = (double)rhs[i];
 
-    float diff = fabsf(l - r);
-
-    if (diff > rtol * fabsf((float)r) + atol) {
+    if (!isfinite(l) || !isfinite(r) || fabs(l - r) > rtol * fabs(r) + atol) {
       break;
     }
   }
   return i;
 }
 
-// Returns true if each pair of vales satisfies |l - r| <= |r| / 1e-5 + 1e-8
-// https://pytorch.org/docs/stable/generated/torch.isclose.html
+// Finite benchmark results only. Allow rounding differences from FMA/reordering,
+// without narrowing double-precision results to float.
 static inline int isclose(const DTYPE *lhs, const DTYPE *rhs, int size) {
-  int mismatch_index = first_mismatch_index(lhs, rhs, size, 1e-5, 1e-8);
+  double rtol = sizeof(DTYPE) == sizeof(float) ? 1e-5 : 1e-12;
+  double atol = sizeof(DTYPE) == sizeof(float) ? 1e-8 : 1e-12;
+  int mismatch_index = first_mismatch_index(lhs, rhs, size, rtol, atol);
   return mismatch_index == size;
 }
 
