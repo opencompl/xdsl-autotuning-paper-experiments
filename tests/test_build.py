@@ -235,6 +235,47 @@ def test_m4_does_not_use_the_legacy_cycle_estimate(tool: build.Toolchain) -> Non
         build.plan_shape(replace(tool, machine="m4"), [SAMPLE], "time")
 
 
+@pytest.mark.skipif(shutil.which("clang") is None, reason="needs a C compiler")
+def test_a_libxsmm_upgrade_through_a_symlink_rebuilds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine = {
+        ("Darwin", "arm64"): "neon",
+        ("Linux", "x86_64"): "ci",
+    }.get((platform.system(), platform.machine()))
+    if machine is None:
+        pytest.skip("no machine configuration for this host")
+
+    # Docker keeps /opt/toolchain/bin fixed across image upgrades, but its
+    # symlinks point into a different, immutable Nix package each time.
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    generator = bin_dir / "libxsmm_gemm_generator"
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    sample = Sample(1, 1, 1, "libxsmm", "f32")
+    root = tmp_path / "build"
+    binary = tmp_path / sample.path(machine, "test.o")
+    generated = binary.with_name("libxsmm.f32.c")
+    executables: list[bytes] = []
+
+    for increment in (1, 2):
+        implementation = tmp_path / f"generator-{increment}"
+        source = f"void matmul(float *A, float *B, float *C) {{ C[0] += {increment}; }}"
+        implementation.write_text(f"#!/bin/sh\nprintf '%s\\n' '{source}' > \"$2\"\n")
+        implementation.chmod(0o755)
+        generator.unlink(missing_ok=True)
+        generator.symlink_to(implementation)
+
+        build.build([sample], machine, root=root, driver="test", jobs=1, quiet=True)
+        assert generated.read_text().strip() == source
+        executables.append(binary.read_bytes())
+        stamped = binary.stat().st_mtime_ns
+        build.build([sample], machine, root=root, driver="test", jobs=1, quiet=True)
+        assert binary.stat().st_mtime_ns == stamped
+
+    assert executables[0] != executables[1]
+
+
 def test_only_the_manual_compxsmm_keeps_the_generators_registers(
     tool: build.Toolchain,
 ) -> None:

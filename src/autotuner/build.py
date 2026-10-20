@@ -302,6 +302,10 @@ def toolchain(
         "libxtcmm": per_isa("libxtcmm-gemm-passes"),
     }
 
+    # Docker's /opt/toolchain/bin symlink stays put across image upgrades.
+    # Key native kernels by the underlying Nix package, not that stable alias.
+    libxsmm_generator = shutil.which("libxsmm_gemm_generator")
+
     return Toolchain(
         machine=machine,
         isa=spec.isa,
@@ -314,7 +318,9 @@ def toolchain(
         libxsmm_arch=spec.libxsmm_arch,
         cc=tool_path(cc),
         cc_asm=tool_path(settings.get("cc_asm", settings["cc"])),
-        libxsmm_generator=shutil.which("libxsmm_gemm_generator") or "",
+        libxsmm_generator=(
+            str(Path(libxsmm_generator).resolve()) if libxsmm_generator else ""
+        ),
         mkl=pkg_config("mkl-dynamic-ilp64-seq"),
         aocl=pkg_config("blis"),
         pipelines=pipelines,
