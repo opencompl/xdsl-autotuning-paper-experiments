@@ -41,6 +41,7 @@ tvm = { index = "corse" }
 
 [project.scripts]
 hello = "autotuner.main:main"
+machine-profile = "autotuner.machine_profile:main"
 evaluate = "autotuner.evaluate:main"
 build-dataset = "autotuner.build:main"
 validate-dataset = "autotuner.validate:main"
@@ -60,6 +61,11 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/autotuner"]
+
+[tool.pytest.ini_options]
+# g5k-tools/ is a separate uv project with its own venv; without this, a bare
+# `pytest` from the repo root recurses into its tests and fails to import them.
+testpaths = ["tests"]
 
 [tool.pyright]
 include = ["src", "tests"]

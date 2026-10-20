@@ -1,0 +1,39 @@
+{
+  "detected": {
+    "avx512_flags_present": [
+      "avx512bw",
+      "avx512dq",
+      "avx512f",
+      "avx512vl"
+    ],
+    "base_frequency_ghz": 2.3,
+    "clang_target_cpu": "emeraldrapids",
+    "cpu_model": "INTEL(R) XEON(R) PLATINUM 8568Y+",
+    "cpu_vendor": "GenuineIntel",
+    "cpufreq": {
+      "no_turbo": "1",
+      "scaling_cur_freq": "800000",
+      "scaling_governor": "performance"
+    },
+    "hostname": "e6e081c8f588",
+    "papi_error": "Event does not exist",
+    "papi_usable": false,
+    "peak_note": "given as --peak-f32 64",
+    "perf_event_paranoid": "-1",
+    "uname": "Linux e6e081c8f588 6.12.107+deb13-amd64 #1+g5k1 SMP PREEMPT_DYNAMIC Thu Sep  3 11:31:24 CEST 2026 x86_64 x86_64"
+  },
+  "machine": {
+    "display_name": "INTEL XEON PLATINUM 8568Y+ (larochette)",
+    "env": {},
+    "family": "emeraldrapids",
+    "freq": 2.3,
+    "isa": "avx512",
+    "libs": [],
+    "libxsmm_arch": "skx",
+    "linker_flag": "-fuse-ld=lld",
+    "march": "emeraldrapids",
+    "mtune": "emeraldrapids",
+    "peak_f32": 64,
+    "target_triple": "x86_64-unknown-linux-gnu"
+  }
+}
