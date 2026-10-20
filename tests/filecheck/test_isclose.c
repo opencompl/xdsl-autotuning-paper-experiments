@@ -1,68 +1,44 @@
-// RUN: clang -DDTYPE=float -o %t %s && %t | filecheck %s
+// RUN: clang -DDTYPE=float -o %t %s && %t
+// RUN: clang -DDTYPE=double -o %t %s && %t
 
-#include <stdio.h>
-
+#include <assert.h>
 #include "../../headers/isclose.h"
-#include "../../headers/print_matrix.h"
 
-void print_mismatch_index(char *lhs_name, float *lhs, char *rhs_name,
-                          float *rhs, int size, float rtol, float atol) {
-  int index = first_mismatch_index(lhs, rhs, size, rtol, atol);
-  if (index == size) {
-    printf("%s matches %s, rtol: %.10f, atol: %.10f\n", lhs_name, rhs_name,
-           rtol, atol);
-  } else {
-    printf("%s[%d] (%.10f) does not match %s[%d] (%.10f), rtol: %.10f, atol: "
-           "%.10f\n",
-           lhs_name, index, lhs[index], rhs_name, index, rhs[index], rtol,
-           atol);
+int main(void) {
+  DTYPE a[] = {0, -2, 3};
+  DTYPE b[] = {0, -2, 4};
+  assert(isclose(a, a, 3));
+  assert(!isclose(a, b, 3));
+  // Equality is within tolerance, and the relative scale belongs to rhs.
+  assert(first_mismatch_index(a, b, 3, 0.25, 0) == 3);
+  assert(first_mismatch_index(b, a, 3, 0.25, 0) == 2);
+  assert(first_mismatch_index(a, b, 3, 0, 1) == 3);
+  assert(first_mismatch_index(a, b, 3, 0, 0.5) == 2);
+  DTYPE x = 2.5, y = 4;
+  assert(first_mismatch_index(&x, &y, 1, 0.25, 0.5) == 1);
+  assert(first_mismatch_index(&x, &y, 1, 0.25, 0.25) == 0);
+
+  DTYPE bad[] = {NAN, INFINITY, -INFINITY};
+  for (int i = 0; i < 3; i++) {
+    assert(!isclose(bad + i, bad + i, 1));
+    assert(!isclose(a, bad + i, 1));
+    assert(!isclose(bad + i, a, 1));
   }
-}
-
-int main() {
-#define LEN 6
-
-  printf("Length of A and B: %d\n", LEN);
-  // CHECK: Length of A and B: 6
-
-  float A[LEN] = {0.0f, 1.0f, 10.0f, 100.0f, 1000.0f, NAN};
-  float B[LEN] = {0.0f, 1.0f, 10.0f, 100.0f, 1011.0f, NAN};
-
-  print_matrix(A, 1, LEN);
-  // CHECK: [0.00, 1.00, 10.00, 100.00, 1000.00, nan]
-  print_matrix(B, 1, LEN);
-  // CHECK: [0.00, 1.00, 10.00, 100.00, 1011.00, nan]
-
-  char *MATCHES[2] = {"does not match", "matches"};
-
-  printf("A %s A\n", MATCHES[isclose(A, A, LEN)]);
-  // CHECK: A matches A
-
-  printf("B %s B\n", MATCHES[isclose(B, B, LEN)]);
-  // CHECK: B matches B
-
-  printf("A %s B\n", MATCHES[isclose(A, B, LEN)]);
-  // CHECK: A does not match B
-
-  print_mismatch_index("A", A, "A", A, LEN, 1e-5f, 1e-8f);
-  // CHECK: A matches A
-  // CHECK-SAME: , rtol: 0.0000100000, atol: 0.0000000100
-
-  print_mismatch_index("B", B, "B", B, LEN, 1e-5f, 1e-8f);
-  // CHECK: B matches B
-  // CHECK-SAME: , rtol: 0.0000100000, atol: 0.0000000100
-
-  print_mismatch_index("A", A, "B", B, LEN, 1e-5f, 1e-8f);
-  // CHECK: A[4] (1000.0000000000) does not match B[4] (1011.0000000000)
-  // CHECK-SAME: , rtol: 0.0000100000, atol: 0.0000000100
-
-  print_mismatch_index("A", A, "B", B, LEN, 0.02, 1e-8f);
-  // CHECK: A matches B
-  // CHECK-SAME: , rtol: 0.0199999996, atol: 0.0000000100
-
-  print_mismatch_index("A", A, "B", B, LEN, 1e-5f, 11.0f);
-  // CHECK: A matches B
-  // CHECK-SAME: , rtol: 0.0000100000, atol: 11.0000000000
-
-  return 0;
+  if (sizeof(DTYPE) == sizeof(double)) {
+    // These distinct doubles become identical when narrowed to float.
+    x = 16777216;
+    y = 16777217;
+    assert(first_mismatch_index(&x, &y, 1, 0, 0) == 0);
+    assert(!isclose(&x, &y, 1));
+    x = 1;
+    y = 1 + 5e-13;
+    assert(isclose(&x, &y, 1));
+    y = 1 + 2e-11;
+    assert(!isclose(&x, &y, 1));
+  }
+  x = 0;
+  y = sizeof(DTYPE) == sizeof(float) ? 5e-9 : 5e-13;
+  assert(isclose(&x, &y, 1));
+  y = sizeof(DTYPE) == sizeof(float) ? 2e-8 : 2e-12;
+  assert(!isclose(&x, &y, 1));
 }
