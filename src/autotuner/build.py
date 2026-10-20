@@ -27,6 +27,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import shlex
 import shutil
 import subprocess
@@ -191,6 +192,15 @@ class Toolchain:
     xtc_llvm_bin: str
     root: Path = Path("build")
     digests: Mapping[str, str] = field(default_factory=dict)
+    native_flags: tuple[str, ...] = ()
+
+    @property
+    def target_flags(self) -> tuple[str, ...]:
+        return (
+            "-target",
+            self.triple,
+            *(self.native_flags or (f"-march={self.march}",)),
+        )
 
     def shape_dir(self, kernel: str, m: int, n: int, k: int) -> Path:
         return self.root / self.machine / kernel / f"{m}x{n}x{k}"
@@ -261,6 +271,16 @@ def toolchain(
     """Read the machine and the config the Snakefile used to read."""
     settings = yaml.safe_load(config.read_text())
     spec = MACHINES[machine]
+    native_flags = ()
+    cc = settings["cc"]
+    if machine == "m4":
+        if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
+            raise BuildFailed("M4 benchmarks require native Apple Silicon macOS")
+        sdk = subprocess.check_output(
+            ["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True
+        ).strip()
+        native_flags = ("-mcpu=apple-m4", "-isysroot", sdk, "-mmacosx-version-min=15.0")
+        cc = settings.get("cc_asm", "clang-unwrapped")
 
     def per_isa(setting: str) -> str:
         by_isa = settings.get(setting, {})
@@ -292,7 +312,7 @@ def toolchain(
         libs=tuple(spec.libs),
         linker_flag=spec.linker_flag,
         libxsmm_arch=spec.libxsmm_arch,
-        cc=tool_path(settings["cc"]),
+        cc=tool_path(cc),
         cc_asm=tool_path(settings.get("cc_asm", settings["cc"])),
         libxsmm_generator=shutil.which("libxsmm_gemm_generator") or "",
         mkl=pkg_config("mkl-dynamic-ilp64-seq"),
@@ -302,6 +322,7 @@ def toolchain(
         xtc_llvm_bin=os.environ.get("XTC_LLVM_PREFIX", ""),
         root=root,
         digests=source_digests(repo),
+        native_flags=native_flags,
     )
 
 
@@ -318,7 +339,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
     here = tool.shape_dir(sample.kernel, m, n, k)
     out = here / f"{sample.variant}.{dtype}.S"
     ctype = C_TYPE[dtype]
-    target = ("-target", tool.triple, f"-march={tool.march}")
+    target = tool.target_flags
 
     match sample.variant:
         case "naive_c":
@@ -585,6 +606,8 @@ def driver_artifact(
     seven times under Snakemake -- 9,450 redundant compiles for the rapper
     sweep.
     """
+    if tool.machine == "m4" and driver != "test":
+        raise BuildFailed("M4 supports correctness builds only; timing is not enabled")
     source = kernel_source(kernel, f"{driver}.c")
     out = tool.shape_dir(kernel, m, n, k) / f"{driver}.{dtype}.o"
     steps = (
@@ -598,9 +621,7 @@ def driver_artifact(
                 f"-DDTYPE={C_TYPE[dtype]}",
                 f"-DFREQ={tool.freq}",
                 *tool.use_papi,
-                "-target",
-                tool.triple,
-                f"-march={tool.march}",
+                *tool.target_flags,
                 "-c",
                 str(source),
                 "-o",
@@ -631,9 +652,7 @@ def binary_artifact(
 
     link = (
         tool.cc,
-        "-target",
-        tool.triple,
-        f"-march={tool.march}",
+        *tool.target_flags,
         "-o",
         str(scratch_name(out)),
         str(obj.path),

@@ -2,7 +2,7 @@ from autotuner.machines import MACHINES
 
 
 def test_machine_vocabulary_is_explicit() -> None:
-    assert set(MACHINES) == {"neon", "ci", "tower", "pinocchio", "rapper"}
+    assert set(MACHINES) == {"m4", "neon", "ci", "tower", "pinocchio", "rapper"}
     for machine in MACHINES.values():
         assert machine.family
         assert machine.isa

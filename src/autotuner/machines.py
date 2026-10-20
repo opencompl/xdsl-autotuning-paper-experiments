@@ -93,7 +93,23 @@ RAPPER = Machine(
     env={},
 )
 
+M4 = Machine(
+    family="apple-m4",
+    isa="neon-sme",
+    display_name="Apple M4 MacBook Air",
+    target_triple="arm64-apple-darwin",
+    march="armv8.7-a",
+    mtune="apple-m4",
+    libxsmm_arch=None,  # The standalone generator does not support ARM.
+    freq=1.0,  # Legacy schema placeholder, never a measured/assumed M4 clock.
+    peak_f32=0,  # NEON and SME do not share a peak.
+    libs=(),
+    linker_flag="",
+    env={},
+)
+
 MACHINES: Mapping[str, Machine] = {
+    "m4": M4,
     "neon": NEON,
     "ci": CI,
     "tower": TOWER,

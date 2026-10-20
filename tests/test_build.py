@@ -1,6 +1,8 @@
 import os
 import platform
 import shutil
+import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -203,6 +205,34 @@ def test_a_kernel_builds_and_then_stays_built(tmp_path: Path) -> None:
     # A second run has nothing to do, and above all does not disturb the binary.
     build.build([sample], machine, root=tmp_path, jobs=2, quiet=True)
     assert binary.stat().st_mtime_ns == stamped
+
+
+@pytest.mark.skipif(
+    (platform.system(), platform.machine()) != ("Darwin", "arm64"),
+    reason="native M4 toolchain needs the Apple SDK",
+)
+@pytest.mark.parametrize("dtype", ["f32", "f64"])
+def test_m4_native_correctness_driver(tmp_path: Path, dtype: str) -> None:
+    sample = Sample(5, 6, 7, "naive_c", dtype)
+    build.build([sample], "m4", root=tmp_path, driver="test", jobs=1, quiet=True)
+    binary = tmp_path / Path(sample.path("m4", "test.o")).relative_to("build")
+    done = subprocess.run([binary], capture_output=True, text=True, check=True)
+    assert "Test Passed" in done.stdout
+
+
+@pytest.mark.parametrize("host", [("Linux", "aarch64"), ("Darwin", "x86_64")])
+def test_m4_requires_native_apple_silicon(
+    monkeypatch: pytest.MonkeyPatch, host: tuple[str, str]
+) -> None:
+    monkeypatch.setattr(platform, "system", lambda: host[0])
+    monkeypatch.setattr(platform, "machine", lambda: host[1])
+    with pytest.raises(build.BuildFailed, match="native Apple Silicon"):
+        build.toolchain("m4")
+
+
+def test_m4_does_not_use_the_legacy_cycle_estimate(tool: build.Toolchain) -> None:
+    with pytest.raises(build.BuildFailed, match="timing is not enabled"):
+        build.plan_shape(replace(tool, machine="m4"), [SAMPLE], "time")
 
 
 def test_only_the_manual_compxsmm_keeps_the_generators_registers(

@@ -64,6 +64,13 @@ def dataset_repeats(name: str) -> int:
 
 # Which implementations each machine has to compare, per dataset.
 VARIANTS = {
+    "m4": {
+        "ttile": [],
+        "f64.small_matrices": [],
+        "f32.squares": [],
+        "f64.squares": [],
+        "f64.nanokernel_grid": [],
+    },
     "neon": {
         "ttile": [],
         "f64.small_matrices": [],
