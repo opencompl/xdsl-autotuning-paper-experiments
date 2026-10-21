@@ -655,6 +655,12 @@ def binary_artifact(
         vendor_libs = tool.mkl[1]
     elif sample.variant == "aocl":
         vendor_libs = tool.aocl[1]
+    # C implementations define their own init; generated kernels link a no-op.
+    init = (
+        ()
+        if sample.variant in ("naive_c", "llvm_intrinsics", "mkl", "aocl")
+        else (kernel_source(sample.kernel, "init.c"),)
+    )
 
     link = (
         tool.cc,
@@ -663,6 +669,7 @@ def binary_artifact(
         str(scratch_name(out)),
         str(obj.path),
         str(asm.path),
+        *(str(path) for path in init),
         *(f"-l{lib}" for lib in tool.libs),
         *vendor_libs,
         *((tool.linker_flag,) if tool.linker_flag else ()),
@@ -670,7 +677,7 @@ def binary_artifact(
     return Artifact(
         out,
         (Step("run", link),),
-        inputs=(asm.key, obj.key),
+        inputs=(asm.key, obj.key, digest(init)),
         needs=(asm.path, obj.path),
         preserve=True,
     )

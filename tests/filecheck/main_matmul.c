@@ -16,8 +16,16 @@
 // RUN: kernels/matmul_colmaj/test.c %s && not %t | filecheck %s --check-prefix=MUTATED
 
 #include "../../headers/mnk.h"
+#include <assert.h>
+
+static int initialized;
+void matmul_init(void) {
+  assert(!initialized);
+  initialized = 1;
+}
 
 void matmul(DTYPE *A, DTYPE *B, DTYPE *C) {
+  assert(initialized);
   for (int m = 0; m < M; m++) {
     for (int n = 0; n < N; n++) {
       for (int k = 0; k < K; k++) {

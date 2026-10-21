@@ -478,6 +478,7 @@ rule libxtcmm_s:
         """
 
 rule mkl_s:
+    input: "kernels/matmul_colmaj/mkl.c"
     output: machine_file(kernel='matmul_colmaj',variant='mkl',ext='S')
     params:
         target_triple=target_triple,
@@ -488,6 +489,7 @@ rule mkl_s:
         "{params.cc} -O3 kernels/matmul_colmaj/mkl.c {MKL_CFLAGS} -DMKL_M={wildcards.m} -DMKL_N={wildcards.n} -DMKL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
 rule aocl_s:
+    input: "kernels/matmul_colmaj/aocl.c"
     output: machine_file(kernel='matmul_colmaj',variant='aocl',ext='S')
     params:
         target_triple=target_triple,
@@ -498,6 +500,7 @@ rule aocl_s:
         "{params.cc} -O3 kernels/matmul_colmaj/aocl.c {AOCL_CFLAGS} -DAOCL_M={wildcards.m} -DAOCL_N={wildcards.n} -DAOCL_K={wildcards.k} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
 rule llvm_intrinsics_s:
+    input: "kernels/matmul_colmaj/llvm_intrinsics.c"
     output: machine_file(kernel='matmul_colmaj',variant='llvm_intrinsics',ext='S')
     params:
         target_triple=target_triple,
@@ -509,6 +512,7 @@ rule llvm_intrinsics_s:
         "{params.cc} -O3 -c kernels/matmul_colmaj/llvm_intrinsics.c -DM={wildcards.m} -DN={wildcards.n} -DK={wildcards.k} -DDTYPE={params.dtype} -S -fenable-matrix -target {params.target_triple} -march={params.compiler_march} -mtune={params.compiler_mtune} -o {output} -ffp-contract=fast -ffast-math -mprefer-vector-width=512"
 
 rule tvm_c:
+    input: "kernels/matmul_colmaj/tvm_matmul_wrapper.c"
     output: machine_file(kernel='matmul_colmaj',variant='tvm',ext='c')
     params:
         compiler_march=compiler_march,
@@ -545,7 +549,10 @@ rule libxsmm_s:
         "{params.cc} -O3 -DNDEBUG {input} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
 rule executable:
-    input: machine_file(ext='S')
+    input:
+        asm=machine_file(ext='S'),
+        # C implementations define their own init; generated kernels link a no-op.
+        init=lambda wc: [] if wc.variant in ("naive_c", "llvm_intrinsics", "mkl", "aocl", "tvm") else [f"kernels/{wc.kernel}/init.c"],
     output: machine_file(ext='{executable}.o')
     params:
         target_triple=target_triple,

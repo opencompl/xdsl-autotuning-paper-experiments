@@ -11,10 +11,12 @@
 #include "../../headers/print_matrix.h"
 #include "../../headers/ref_matmul.h"
 
-// C += A * B, with A: M * K, B: K * N and C: M * N all column-major.
-extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
+// Called once before any kernel invocation; per-call work belongs in matmul.
+extern void matmul_init(void);
+extern void matmul(DTYPE *A, DTYPE *B, DTYPE *C);
 
 int main() {
+  matmul_init();
   set_random_seed(42);
 
   DTYPE *A, *B, *C, *A_asm, *B_asm, *C_asm;

@@ -101,6 +101,11 @@ void PACKED_FUNC(void *args[], const int32_t *args_types, int32_t num_args, void
 #ifdef __cplusplus
 extern "C"
 #endif
+void matmul_init(void) {}
+
+#ifdef __cplusplus
+extern "C"
+#endif
 void KERNEL_FUNC(const DTYPE *A, const DTYPE *B, DTYPE *C) {
 #if MM_DTYPE == MM_DTYPE_float
     static const DLDataType dtype = { kDLFloat, 32, 1 };

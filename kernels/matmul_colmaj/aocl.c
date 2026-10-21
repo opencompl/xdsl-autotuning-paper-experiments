@@ -14,6 +14,8 @@
   #error "You must define AOCL_DTYPE_IS_FLOAT or AOCL_DTYPE_IS_DOUBLE"
 #endif
 
+void matmul_init(void) {}
+
 void matmul(AOCL_DTYPE *A, AOCL_DTYPE *B, AOCL_DTYPE *C) {
   GEMM(CblasColMajor, CblasNoTrans, CblasNoTrans,
        AOCL_M, AOCL_N, AOCL_K,

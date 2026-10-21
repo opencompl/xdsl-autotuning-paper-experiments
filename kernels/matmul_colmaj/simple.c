@@ -12,9 +12,11 @@
 
 #define NUM_ITERATIONS 128
 
+extern void matmul_init(void);
 extern void matmul(DTYPE A[M * K], DTYPE B[K * N], DTYPE C[M * N]);
 
 int main() {
+  matmul_init();
 
   DTYPE *A, *B, *C;
   posix_memalign((void **)&A, 64, M * K * sizeof(DTYPE));
