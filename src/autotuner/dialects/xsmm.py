@@ -3,6 +3,7 @@ from enum import StrEnum
 
 from xdsl.backend.register_allocatable import RegisterConstraints
 from xdsl.dialects.builtin import (
+    BFloat16Type,
     BoolAttr,
     Float32Type,
     Float64Type,
@@ -23,6 +24,7 @@ from xdsl.irdl import (
     IRDLOperation,
     irdl_op_definition,
     operand_def,
+    opt_prop_def,
     prop_def,
     result_def,
     traits_def,
@@ -117,7 +119,12 @@ class MatmulOp(IRDLOperation):
 
     ``ins`` are additional read-only registers. ``outs`` are additional
     loop-carried registers and have pairwise matching ``out_results``. The
-    current schedule uses an ``in`` for an optional AVX-512 mask.
+    current schedule uses ``ins`` for optional AVX-512 masks.
+
+    ``datatype`` is the element type of C and of the accumulation; A and B have
+    ``ab_datatype`` when it is set (BF16 inputs accumulating in F32), and
+    ``datatype`` otherwise. Pointer advances count elements of each matrix's own
+    type.
     """
 
     name = "xsmm.matmul"
@@ -140,6 +147,7 @@ class MatmulOp(IRDLOperation):
     ldb = prop_def(IntegerAttr)
     ldc = prop_def(IntegerAttr)
     datatype = prop_def(Float32Type | Float64Type)
+    ab_datatype = opt_prop_def(BFloat16Type)
     aligned_a = prop_def(BoolAttr)
     aligned_c = prop_def(BoolAttr)
     iterator = prop_def(StringAttr)
@@ -150,6 +158,11 @@ class MatmulOp(IRDLOperation):
     )
 
     traits = traits_def(MemoryReadEffect(), MemoryWriteEffect())
+
+    @property
+    def input_type(self) -> Float32Type | Float64Type | BFloat16Type:
+        """The element type of A and B: ``ab_datatype``, else ``datatype``."""
+        return self.datatype if self.ab_datatype is None else self.ab_datatype
 
     def __init__(
         self,
@@ -166,6 +179,7 @@ class MatmulOp(IRDLOperation):
         ldb: int,
         ldc: int,
         datatype: Float32Type | Float64Type,
+        ab_datatype: BFloat16Type | None = None,
         aligned_a: bool,
         aligned_c: bool,
         iterator: MatmulIterator,
@@ -189,7 +203,8 @@ class MatmulOp(IRDLOperation):
                 "aligned_a": BoolAttr.from_bool(aligned_a),
                 "aligned_c": BoolAttr.from_bool(aligned_c),
                 "iterator": StringAttr(iterator),
-            },
+            }
+            | ({} if ab_datatype is None else {"ab_datatype": ab_datatype}),
         )
 
     @classmethod
@@ -277,11 +292,13 @@ class MatmulOp(IRDLOperation):
             if value <= 0:
                 raise VerifyException(f"{name} must be positive, got {value}")
 
-        vector_length = 512 // self.datatype.bitwidth
-        if self.aligned_a.value.data and self.lda.value.data % vector_length:
+        if self.aligned_a.value.data and self.lda.value.data % (
+            512 // self.input_type.bitwidth
+        ):
             raise VerifyException(
                 "aligned A requires lda to be a multiple of the vector length"
             )
+        vector_length = 512 // self.datatype.bitwidth
         if self.aligned_c.value.data and self.ldc.value.data % vector_length:
             raise VerifyException(
                 "aligned C requires ldc to be a multiple of the vector length"
@@ -317,8 +334,8 @@ class MatmulRegOp(IRDLOperation):
 
     ``ins`` are additional read-only registers. ``outs`` are additional
     loop-carried registers and have pairwise matching ``out_results``. The
-    current schedule uses ``ins`` for an optional mask and ``outs`` for C
-    accumulators.
+    current schedule uses ``ins`` for optional masks and ``outs`` for C
+    accumulators. ``datatype`` and ``ab_datatype`` are as on ``xsmm.matmul``.
     """
 
     name = "xsmm.matmul_reg"
@@ -338,6 +355,7 @@ class MatmulRegOp(IRDLOperation):
     lda = prop_def(IntegerAttr)
     ldb = prop_def(IntegerAttr)
     datatype = prop_def(Float32Type | Float64Type)
+    ab_datatype = opt_prop_def(BFloat16Type)
     aligned_a = prop_def(BoolAttr)
 
     irdl_options = (
@@ -346,6 +364,11 @@ class MatmulRegOp(IRDLOperation):
     )
 
     traits = traits_def(MemoryReadEffect())
+
+    @property
+    def input_type(self) -> Float32Type | Float64Type | BFloat16Type:
+        """The element type of A and B: ``ab_datatype``, else ``datatype``."""
+        return self.datatype if self.ab_datatype is None else self.ab_datatype
 
     def __init__(
         self,
@@ -360,6 +383,7 @@ class MatmulRegOp(IRDLOperation):
         lda: int,
         ldb: int,
         datatype: Float32Type | Float64Type,
+        ab_datatype: BFloat16Type | None = None,
         aligned_a: bool,
     ):
         super().__init__(
@@ -377,7 +401,8 @@ class MatmulRegOp(IRDLOperation):
                 "ldb": IntegerAttr(ldb, i64),
                 "datatype": datatype,
                 "aligned_a": BoolAttr.from_bool(aligned_a),
-            },
+            }
+            | ({} if ab_datatype is None else {"ab_datatype": ab_datatype}),
         )
 
     @classmethod
@@ -452,8 +477,9 @@ class MatmulRegOp(IRDLOperation):
             if value <= 0:
                 raise VerifyException(f"{name} must be positive, got {value}")
 
-        vector_length = 512 // self.datatype.bitwidth
-        if self.aligned_a.value.data and self.lda.value.data % vector_length:
+        if self.aligned_a.value.data and self.lda.value.data % (
+            512 // self.input_type.bitwidth
+        ):
             raise VerifyException(
                 "aligned A requires lda to be a multiple of the vector length"
             )

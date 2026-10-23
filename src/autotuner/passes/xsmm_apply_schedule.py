@@ -16,7 +16,6 @@ from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
-from autotuner.instructions import load_vector, store_vector
 from autotuner.nano_kernel import GemmDescriptor, ISAInfo, NanoKernel
 from autotuner.schedules import (
     loop_matmul,
@@ -114,67 +113,60 @@ def _matmul_k_to_reg(
         raise PassFailedException(
             "xsmm-apply-schedule requires K iteration before matmul_reg"
         )
-    if (
-        len(op.ins) > 1
-        or op.outs
-        or (
-            op.ins
-            and not isinstance(op.ins[0].type, x86.registers.AVX512MaskRegisterType)
-        )
+    if op.outs or not all(
+        isinstance(value.type, x86.registers.AVX512MaskRegisterType) for value in op.ins
     ):
-        raise PassFailedException(
-            "xsmm-apply-schedule currently supports only one mask in"
-        )
+        raise PassFailedException("xsmm-apply-schedule supports only mask ins")
     m_blocking = op.m.value.data
     # The nano-kernel picks the register type one M vector lands in, so the C
     # accumulators are loaded and stored in that same type.
-    vector_type = nano_kernel.vector_type(m_blocking, op.datatype, isa_info)
+    vector_type = nano_kernel.vector_type(
+        m_blocking, op.datatype, isa_info, op.ab_datatype
+    )
     vector_length = vector_type.bitwidth() // op.datatype.bitwidth
-    if m_blocking % vector_length and not op.ins:
-        raise PassFailedException(
-            "xsmm-apply-schedule requires a mask for a partial M vector"
-        )
+    # The mask of C's tail lanes comes first; the nano-kernel may add its own.
+    if m_blocking % vector_length:
+        if not op.ins:
+            raise PassFailedException(
+                "xsmm-apply-schedule requires a mask for a partial M vector"
+            )
+        c_mask = ir.SSAValue.get(op.ins[0], type=x86.registers.AVX512MaskRegisterType)
+    else:
+        c_mask = None
 
     insert_point = InsertPoint.before(op)
-    if op.ins:
-        mask = ir.SSAValue.get(op.ins[0], type=x86.registers.AVX512MaskRegisterType)
-        ins = (mask,)
-    else:
-        mask = None
-        ins = ()
     m_vectors = m_blocking // vector_length + bool(m_blocking % vector_length)
     c_val = ir.SSAValue.get(op.c, type=x86.registers.GeneralRegisterType)
     c_accesses = tuple(
         (
             (n * op.ldc.value.data + m * vector_length) * op.datatype.size,
-            mask if m == m_vectors - 1 else None,
+            c_mask if m == m_vectors - 1 else None,
         )
         for n in range(op.n.value.data)
         for m in range(m_vectors)
     )
     accumulator_start = 32 - len(c_accesses)
-    accumulators = tuple(
-        load_vector(
-            rewriter,
-            insert_point,
-            op.datatype,
-            c_val,
-            offset,
-            destination=vector_register(
+    accumulators = nano_kernel.load_accumulators(
+        rewriter,
+        insert_point,
+        op,
+        c_val,
+        c_accesses,
+        tuple(
+            vector_register(
                 accumulator_start + index,
                 vector_type,
                 disable_regalloc=disable_regalloc,
-            ),
-            aligned=bool(op.aligned_c),
-            mask=access_mask,
-        )
-        for index, (offset, access_mask) in enumerate(c_accesses)
+            )
+            for index in range(len(c_accesses))
+        ),
+        disable_regalloc=disable_regalloc,
     )
     matmul_reg = rewriter.insert(
         MatmulRegOp(
             op.a,
             op.b,
-            ins,
+            op.ins,
             accumulators,
             m=m_blocking,
             n=op.n.value.data,
@@ -182,23 +174,23 @@ def _matmul_k_to_reg(
             lda=op.lda.value.data,
             ldb=op.ldb.value.data,
             datatype=op.datatype,
+            ab_datatype=op.ab_datatype,
             aligned_a=bool(op.aligned_a),
         ),
         insertion_point=insert_point,
     )
-    for accumulator, (offset, access_mask) in zip(
-        matmul_reg.out_results, c_accesses, strict=True
-    ):
-        store_vector(
-            rewriter,
-            insert_point,
-            op.datatype,
-            c_val,
-            offset,
-            ir.SSAValue.get(accumulator, type=x86.registers.X86VectorRegisterType),
-            aligned=bool(op.aligned_c),
-            mask=access_mask,
-        )
+    nano_kernel.store_accumulators(
+        rewriter,
+        insert_point,
+        op,
+        c_val,
+        c_accesses,
+        tuple(
+            ir.SSAValue.get(accumulator, type=x86.registers.X86VectorRegisterType)
+            for accumulator in matmul_reg.out_results
+        ),
+        disable_regalloc=disable_regalloc,
+    )
     rewriter.replace(
         op,
         [],
@@ -250,6 +242,7 @@ class ApplySchedulePattern(RewritePattern):
             datatype=op.datatype,
             aligned_a=bool(op.aligned_a),
             aligned_c=bool(op.aligned_c),
+            ab_datatype=op.ab_datatype,
         )
         if self.disable_loop_construction:
             strategy = TilingStrategy(

@@ -126,13 +126,18 @@ class SkxNarrowFsdbcstNanoKernel(NanoKernel):
         m: int,
         datatype: FloatingPointType,
         isa_info: ISAInfo,
+        ab_datatype: builtin.BFloat16Type | None = None,
     ) -> type[X86VectorRegisterType]:
         """Return the narrowest vector register type that covers ``m``."""
         return _narrow_vector_type(m, datatype, isa_info.vector_type)
 
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
-        return isa_info.isa == "avx512" and isinstance(
-            descriptor.datatype, builtin.Float32Type | builtin.Float64Type
+        return (
+            isa_info.isa == "avx512"
+            and isinstance(
+                descriptor.datatype, builtin.Float32Type | builtin.Float64Type
+            )
+            and descriptor.ab_datatype is None
         )
 
     def _supports_tile_shape(

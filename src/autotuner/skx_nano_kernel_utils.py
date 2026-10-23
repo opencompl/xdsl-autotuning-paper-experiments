@@ -28,6 +28,7 @@ def descriptor_from_op(op: MatmulRegOp) -> GemmDescriptor:
         datatype=op.datatype,
         aligned_a=bool(op.aligned_a.value.data),
         aligned_c=False,
+        ab_datatype=op.ab_datatype,
     )
 
 

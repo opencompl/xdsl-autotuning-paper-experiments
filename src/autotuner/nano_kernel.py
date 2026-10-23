@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, TypeAlias
 
@@ -11,10 +12,24 @@ from xdsl.dialects.x86.registers import (
     X86VectorRegisterType,
 )
 from xdsl.pattern_rewriter import PatternRewriter
+from xdsl.rewriter import InsertPoint
 
 from autotuner.dialects.xsmm import MatmulOp, MatmulRegOp
+from autotuner.instructions import (
+    MaskValue,
+    PointerValue,
+    VectorValue,
+    load_vector,
+    store_vector,
+)
 
 FloatingPointType: TypeAlias = builtin.Float32Type | builtin.Float64Type
+# The element types A and B may have; C accumulates in a `FloatingPointType`.
+InputType: TypeAlias = FloatingPointType | builtin.BFloat16Type
+
+# One vector of the C tile: its byte offset from C and, for the last M vector
+# of a partial tile, the mask of its lanes.
+CAccess: TypeAlias = tuple[int, MaskValue | None]
 
 
 @dataclass(frozen=True, order=True)
@@ -36,7 +51,11 @@ class TileSizes:
 
 @dataclass(frozen=True)
 class GemmDescriptor:
-    """Target-independent information describing a GEMM problem."""
+    """Target-independent information describing a GEMM problem.
+
+    ``datatype`` is C's element type and the accumulation's; A and B have
+    ``ab_datatype`` when it is set and ``datatype`` otherwise.
+    """
 
     m: int
     n: int
@@ -47,6 +66,12 @@ class GemmDescriptor:
     datatype: FloatingPointType
     aligned_a: bool
     aligned_c: bool
+    ab_datatype: builtin.BFloat16Type | None = None
+
+    @property
+    def input_type(self) -> InputType:
+        """The element type of A and B."""
+        return self.datatype if self.ab_datatype is None else self.ab_datatype
 
 
 @dataclass(frozen=True)
@@ -106,6 +131,7 @@ class NanoKernel(ABC):
         m: int,
         datatype: FloatingPointType,
         isa_info: ISAInfo,
+        ab_datatype: builtin.BFloat16Type | None = None,
     ) -> type[X86VectorRegisterType]:
         """Return the register type one M vector of an ``m`` tile occupies.
 
@@ -115,6 +141,60 @@ class NanoKernel(ABC):
         this; the schedule loads and stores the C accumulators in the same type.
         """
         return isa_info.vector_type
+
+    def load_accumulators(
+        self,
+        rewriter: PatternRewriter,
+        insert_point: InsertPoint,
+        op: MatmulOp,
+        c: PointerValue,
+        accesses: Sequence[CAccess],
+        registers: Sequence[X86VectorRegisterType],
+        *,
+        disable_regalloc: bool,
+    ) -> tuple[VectorValue, ...]:
+        """Return the accumulators of ``op``'s C tile, one per access, n-major.
+
+        Loads C, by default. A kernel whose accumulators hold C in another lane
+        order overrides this together with `store_accumulators`.
+        """
+        return tuple(
+            load_vector(
+                rewriter,
+                insert_point,
+                op.datatype,
+                c,
+                offset,
+                destination=register,
+                aligned=bool(op.aligned_c),
+                mask=mask,
+            )
+            for (offset, mask), register in zip(accesses, registers, strict=True)
+        )
+
+    def store_accumulators(
+        self,
+        rewriter: PatternRewriter,
+        insert_point: InsertPoint,
+        op: MatmulOp,
+        c: PointerValue,
+        accesses: Sequence[CAccess],
+        accumulators: Sequence[VectorValue],
+        *,
+        disable_regalloc: bool,
+    ) -> None:
+        """Write the accumulators `load_accumulators` set up back to C."""
+        for (offset, mask), accumulator in zip(accesses, accumulators, strict=True):
+            store_vector(
+                rewriter,
+                insert_point,
+                op.datatype,
+                c,
+                offset,
+                accumulator,
+                aligned=bool(op.aligned_c),
+                mask=mask,
+            )
 
     @abstractmethod
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
