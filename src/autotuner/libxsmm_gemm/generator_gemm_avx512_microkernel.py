@@ -852,21 +852,21 @@ def libxsmm_generator_gemm_avx512_microkernel_load_A_flat_cpx(
         value = loaded[index]
         if isinstance(value.type, x86.registers.AVX512RegisterType):
             return value
-        return generated_code.insert(x86.ops.GetAVXRegisterOp(zmm(index))).result
+        res = generated_code.insert(x86.ops.GetAVXRegisterOp(zmm(index))).result
+        return SSAValue.get(res, type=VectorRegT)
 
     a_reg_map_interleave = (0, 5, 6, 7)
     a_vec_vals: list[SSAValue[VectorRegT]] = []
     for m in range(aload_m_blocking):
         unpack = x86.ops.DSS_VpunpckhwdOp if m % 2 else x86.ops.DSS_VpunpcklwdOp
-        a_vec_vals.append(
-            generated_code.insert(
-                unpack(
-                    as_zmm(a_reg_map_interleave[m // 2]),
-                    as_zmm(a_reg_map_interleave[m // 2 + 2]),
-                    destination=zmm(1 + m),
-                )
-            ).destination
-        )
+        res = generated_code.insert(
+            unpack(
+                as_zmm(a_reg_map_interleave[m // 2]),
+                as_zmm(a_reg_map_interleave[m // 2 + 2]),
+                destination=zmm(1 + m),
+            )
+        ).destination
+        a_vec_vals.append(SSAValue.get(res, type=VectorRegT))
 
     # An odd number of M blocks moves the high half of the last pair into the
     # upper ymm of its low half.

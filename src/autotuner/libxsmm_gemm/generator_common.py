@@ -111,6 +111,7 @@ class MicroKernelConfig:
             | x86.ops.DM_VmovapsOp
             | x86.ops.DM_VmovupsOp
             | x86.ops.DM_VmovupdOp
+            | x86.ops.DM_Vmovdqu16Op
         ]
         | None
     ) = field(default=None)
@@ -122,6 +123,7 @@ class MicroKernelConfig:
             | x86.ops.DM_VmovupdOp
             | x86.ops.DM_VbroadcastsdOp
             | x86.ops.DM_VbroadcastssOp
+            | x86.ops.DM_VpbroadcastdOp
         ]
         | None
     ) = field(default=None)

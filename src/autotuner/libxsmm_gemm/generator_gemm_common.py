@@ -1733,9 +1733,10 @@ def _store_C_flat_cpx_prologue(
     def shuffle(
         src0: SSAValue[VectorRegT], src1: SSAValue[VectorRegT], imm: int, dst
     ) -> SSAValue[VectorRegT]:
-        return generated_code.insert(
+        res = generated_code.insert(
             x86.ops.DSSI_Vshufi64x2Op(src0, src1, imm, destination=dst)
         ).destination
+        return SSAValue.get(res, type=VectorRegT)
 
     # shuffle accumulator in case of delayed VNNI transform
     for n in range(n_blocking):
@@ -1777,9 +1778,10 @@ def _store_C_flat_cpx_prologue(
                     False,
                 )
                 i = m + m_blocking * n
-                acc[i] = generated_code.insert(
+                res = generated_code.insert(
                     x86.ops.DSS_VaddpsOp(acc[i], c_in, destination=acc_reg(i))
                 ).destination
+                acc[i] = SSAValue.get(res, type=VectorRegT)
 
     if micro_kernel_config.fused_scolbias or micro_kernel_config.fused_bcolbias:
         raise NotImplementedError

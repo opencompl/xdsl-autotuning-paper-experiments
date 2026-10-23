@@ -200,7 +200,9 @@ def libxsmm_x86_instruction_register_jump_back_label(
 
 def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
+    vec_instr: type[
+        x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp | x86.ops.RSS_Vdpbf16psOp
+    ]
     | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_VaddpdOp | x86.ops.DSS_VaddpsOp]
     | None,
     src0_reg: VectorRegT,
@@ -264,7 +266,9 @@ def libxsmm_x86_instruction_vec_compute_3reg_mask_sae_imm8(
 
 def libxsmm_x86_instruction_vec_compute_3reg(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp]
+    vec_instr: type[
+        x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp | x86.ops.RSS_Vdpbf16psOp
+    ]
     | type[x86.ops.DSS_VpxordOp | x86.ops.DSS_VaddpdOp | x86.ops.DSS_VaddpsOp]
     | None,
     src0_reg: VectorRegT,
