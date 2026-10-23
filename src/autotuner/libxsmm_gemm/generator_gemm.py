@@ -628,9 +628,8 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         ):
             raise NotImplementedError
             # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
-        elif (
-            Arch.LIBXSMM_X86_AVX512_SPR <= arch <= Arch.LIBXSMM_X86_ALLFEAT
-            and is_abf8_bbf16_gemm
+        elif Arch.LIBXSMM_X86_AVX512_SPR <= arch < Arch.LIBXSMM_X86_ALLFEAT and (
+            is_abf8_bbf16_gemm
             or is_ahf8_bbf16_gemm
             or is_amxfp4_bbf16_gemm
             or desc.datatype.ab in (Datatype.BF16, Datatype.BF8, Datatype.HF8)

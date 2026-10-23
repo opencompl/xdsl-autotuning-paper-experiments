@@ -665,6 +665,8 @@ def libxsmm_x86_instruction_vec_move_ld(
         | x86.ops.DM_VmovupdOp
         | x86.ops.DM_VbroadcastsdOp
         | x86.ops.DM_VbroadcastssOp
+        | x86.ops.DM_VpbroadcastdOp
+        | x86.ops.DM_Vmovdqu16Op
     ]
     | None,
     base_val: SSAValue[x86.registers.GeneralRegisterType],
@@ -698,16 +700,22 @@ def libxsmm_x86_instruction_vec_move_ld(
 
     if mask_val is not None:
         # Use the masking version of the operation
-        assert isinstance(dest_reg, x86.registers.AVX512RegisterType)
+        assert isinstance(
+            dest_reg,
+            x86.registers.AVX512RegisterType | x86.registers.AVX2RegisterType,
+        )
         assert issubclass(
             vmove_instr,
             x86.ops.DM_VmovapdOp
             | x86.ops.DM_VmovapsOp
             | x86.ops.DM_VmovupsOp
-            | x86.ops.DM_VmovupdOp,
+            | x86.ops.DM_VmovupdOp
+            | x86.ops.DM_Vmovdqu16Op,
         )
 
         match vmove_instr:
+            case x86.ops.DM_Vmovdqu16Op:
+                masked_vmove_instr = x86.ops.DMK_Vmovdqu16Op
             case x86.ops.DM_VmovapdOp:
                 masked_vmove_instr = x86.ops.DMK_VmovapdOp
             case x86.ops.DM_VmovapsOp:
@@ -744,7 +752,7 @@ def libxsmm_x86_instruction_mask_move_ld(
     generated_code: GeneratedCode,
     mask_instr: type[x86.ops.KS_KMovBOp]
     | type[x86.ops.KS_KMovWOp]
-    | type[x86.ops.KS_KMovWOp]
+    | type[x86.ops.KS_KMovDOp]
     | type[x86.ops.KS_KMovQOp],
     mask_tmp_val: SSAValue[GeneralRegisterType],
     mask_reg: x86.registers.AVX512MaskRegisterType,

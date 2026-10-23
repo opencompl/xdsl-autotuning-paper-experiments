@@ -96,7 +96,12 @@ def libxsmm_generator_initialize_avx512_mask(
         or datatype == Datatype.BF16
         or datatype == Datatype.I16
     ):
-        raise NotImplementedError
+        return libxsmm_x86_instruction_mask_move_ld(
+            generated_code,
+            x86.ops.KS_KMovDOp,
+            mask_tmp_val,
+            mask_reg,
+        )
     elif (
         datatype == Datatype.I8 or datatype == Datatype.BF8 or datatype == Datatype.HF8
     ):
