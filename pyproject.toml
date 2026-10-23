@@ -36,7 +36,8 @@ override-dependencies = ["xdsl[dev]"]
 
 [tool.uv.sources]
 xtc-tools = { git = "https://github.com/xtc-tools/xtc.git", rev = "bbf98bd4af3a68a3145a802d41f5debd8f95bf2b" }
-xdsl = { git = "https://github.com/xdslproject/xdsl.git", rev = "7fba22adaa453a5bc5e60308d6b1e9f617e07455" }
+# The x86 BF16 instructions are not in xDSL main yet.
+xdsl = { git = "https://github.com/xdslproject/xdsl.git", branch = "jm/x86-bf16" }
 tvm = { index = "corse" }
 
 [project.scripts]
