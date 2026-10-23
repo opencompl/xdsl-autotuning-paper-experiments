@@ -39,8 +39,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("prefetch", choices=["nopf", "AL2"], help="Prefetch strategy")
     parser.add_argument(
         "precision",
-        choices=["SP", "DP"],
-        help="Precision: SP or DP",
+        choices=["SP", "DP", "BF16F32"],
+        help="Precision: SP, DP or BF16F32 (BF16 A and B, F32 accumulation and C)",
     )
     parser.add_argument(
         "--disable-regalloc",
@@ -64,6 +64,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         case "SP" | "DP":
             dt = Datatype.F32 if args.precision == "SP" else Datatype.F64
             desc_datatype = DescDatatype(dt, dt, dt, dt)
+        case "BF16F32":
+            desc_datatype = DescDatatype(
+                Datatype.BF16, Datatype.BF16, Datatype.F32, Datatype.F32
+            )
         case "I16":
             desc_datatype = DescDatatype(
                 Datatype.I16, Datatype.I16, Datatype.I32, Datatype.I32
@@ -101,7 +105,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     assert args.density == "dense", f"Only dense supported, got {args.density}"
-    assert arch == Arch.LIBXSMM_X86_AVX512_SKX, f"Only `skx` arch supported, got {arch}"
+    assert arch in (Arch.LIBXSMM_X86_AVX512_SKX, Arch.LIBXSMM_X86_AVX512_CPX), (
+        f"Only `skx` and `cpx` archs supported, got {arch}"
+    )
 
     compxsmm_generator_gemm_directasm(
         args.filename,
