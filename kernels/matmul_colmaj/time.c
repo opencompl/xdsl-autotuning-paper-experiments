@@ -13,7 +13,7 @@
 
 // Called once before warmup and timing; per-call work belongs in matmul.
 extern void matmul_init(void);
-extern void matmul(DTYPE *A, DTYPE *B, DTYPE *C);
+extern void matmul(DTYPE *A, DTYPE *B, CTYPE *C);
 
 #define TARGET_SIZE 268435456
 #define NUM_ITERATIONS (TARGET_SIZE / (M * N * K))
@@ -29,24 +29,25 @@ extern void matmul(DTYPE *A, DTYPE *B, DTYPE *C);
 int main() {
   matmul_init();
 
-  DTYPE *A, *B, *C;
+  DTYPE *A, *B;
+  CTYPE *C;
   posix_memalign((void **)&A, 64, M * K * sizeof(DTYPE));
   posix_memalign((void **)&B, 64, K * N * sizeof(DTYPE));
 
   // Elements between two slots: M*N rounded up to whole cache lines, so every
   // slot starts 64-byte aligned the way the single C did.
   const int stride =
-      (int)(((M * N * sizeof(DTYPE) + 63) / 64) * (64 / sizeof(DTYPE)));
+      (int)(((M * N * sizeof(CTYPE) + 63) / 64) * (64 / sizeof(CTYPE)));
   // One slot once C alone fills the budget, which is every shape big enough
   // that the dependency is amortised anyway.
-  int slots = C_RING_BYTES / (int)(stride * sizeof(DTYPE));
+  int slots = C_RING_BYTES / (int)(stride * sizeof(CTYPE));
   if (slots < 1) {
     slots = 1;
   }
   if (slots > C_RING_MAX_SLOTS) {
     slots = C_RING_MAX_SLOTS;
   }
-  posix_memalign((void **)&C, 64, (size_t)slots * stride * sizeof(DTYPE));
+  posix_memalign((void **)&C, 64, (size_t)slots * stride * sizeof(CTYPE));
 
   time_init();
   
@@ -54,15 +55,15 @@ int main() {
 
   fill_random_data(A, M * K);
   fill_random_data(B, K * N);
-  fill_random_data(C, slots * stride);
+  fill_random_acc(C, slots * stride);
 
   // Warm up the cache with one iteration, over every slot
   for (int slot = 0; slot < slots; slot++) {
     matmul(A, B, C + (size_t)slot * stride);
   }
 
-  DTYPE *c = C;
-  DTYPE *const last = C + (size_t)(slots - 1) * stride;
+  CTYPE *c = C;
+  CTYPE *const last = C + (size_t)(slots - 1) * stride;
 
   time_start();
   

@@ -11,6 +11,10 @@ class Machine:
     march: str
     mtune: str
     libxsmm_arch: str | None
+    # The libxsmm arch code for BF16 x BF16 -> F32 kernels, on machines with
+    # native AVX512-BF16.  `cpx` is the first arch libxsmm emits `vdpbf16ps`
+    # for; like `libxsmm_arch`, it does not claim the CPU is a Cooper Lake.
+    libxsmm_arch_bf16: str | None
     freq: float
     peak_f32: int
     libs: tuple[str, ...]
@@ -26,6 +30,7 @@ NEON = Machine(
     march="armv8.5-a",
     mtune="armv8.5-a",
     libxsmm_arch=None,
+    libxsmm_arch_bf16=None,
     freq=1.0,
     peak_f32=0,
     libs=(),
@@ -41,6 +46,7 @@ CI = Machine(
     march="x86-64",
     mtune="x86-64",
     libxsmm_arch=None,
+    libxsmm_arch_bf16=None,
     freq=1.0,
     peak_f32=0,
     libs=(),
@@ -56,6 +62,7 @@ TOWER = Machine(
     march="znver5",
     mtune="znver5",
     libxsmm_arch="skx",
+    libxsmm_arch_bf16="cpx",
     freq=4.3,
     peak_f32=64,
     libs=("papi",),
@@ -71,6 +78,7 @@ PINOCCHIO = Machine(
     march="cascadelake",
     mtune="cascadelake",
     libxsmm_arch="clx",
+    libxsmm_arch_bf16=None,
     freq=2.1,
     peak_f32=64,
     libs=("papi",),
@@ -86,6 +94,7 @@ RAPPER = Machine(
     march="znver4",
     mtune="znver4",
     libxsmm_arch="skx",
+    libxsmm_arch_bf16="cpx",
     freq=3.2,
     peak_f32=32,
     libs=("papi",),
@@ -101,6 +110,7 @@ M4 = Machine(
     march="armv8.7-a",
     mtune="apple-m4",
     libxsmm_arch=None,  # The standalone generator does not support ARM.
+    libxsmm_arch_bf16=None,
     freq=1.0,  # Legacy schema placeholder, never a measured/assumed M4 clock.
     peak_f32=0,  # NEON and SME do not share a peak.
     libs=(),

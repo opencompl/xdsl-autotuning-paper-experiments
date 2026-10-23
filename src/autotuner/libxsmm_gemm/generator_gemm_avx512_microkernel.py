@@ -1,4 +1,7 @@
-from autotuner.libxsmm_gemm.generator_gemm_common import vec_reg_type
+from autotuner.libxsmm_gemm.generator_gemm_common import (
+    libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm,
+    vec_reg_type,
+)
 from xdsl.dialects import x86
 from xdsl.ir import SSAValue
 
@@ -33,7 +36,6 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
     vals: KLoopVals,
 ) -> KLoopVals:
     k = 0
-    _k_pack_factor = 1
     m_vector = (
         m_blocking // micro_kernel_config.vector_length
         if (m_blocking % micro_kernel_config.vector_length == 0)
@@ -79,8 +81,19 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
         and GEMMFlag.VNNI_A in desc.flags
     )
 
+    is_ABF16_BBF16_flat_cpx_gemm = libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(
+        generated_code.arch, desc
+    )
+
     if GEMMFlag.VNNI_A in desc.flags:
         raise NotImplementedError
+    if is_ABF16_BBF16_flat_cpx_gemm:
+        # libxsmm_cpuid_dot_pack_factor(BF16): every micro-kernel call eats a K pair.
+        # libxsmm silently computes a wrong product for an odd K; refuse instead.
+        k_pack_factor = 2
+        assert desc.k % 2 == 0, "flat BF16 GEMMs need an even K"
+    else:
+        k_pack_factor = 1
 
     if (
         m_vector == 1
@@ -96,6 +109,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
         and (not is_Ai1_Bi8_gemm)
         and (Datatype.BF8 != desc.datatype.ab)
         and (not is_not_cpx_bf16)
+        and (not is_ABF16_BBF16_flat_cpx_gemm)
     ):
         vals = libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
             generated_code,
@@ -134,7 +148,7 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
         else:
             generator_microkernel = libxsmm_generator_gemm_avx512_microkernel_nofsdbcst
 
-        for k in range(k_blocking):
+        for k in range(0, k_blocking, k_pack_factor):
             vals = generator_microkernel(
                 generated_code,
                 gp_reg_mapping,
@@ -401,6 +415,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
     *,
     disable_regalloc: bool = False,
 ) -> KLoopVals:
+    i_m_blocking = m_blocking
     # deriving register blocking from kernel config
     m_blocking = (
         m_blocking // micro_kernel_config.vector_length
@@ -484,13 +499,33 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
     if GEMMFlag.VNNI_A in desc.flags:
         # for VNNI we are stepping through to pack ks */
         raise NotImplementedError
+    is_ABF16_BBF16_flat_cpx_gemm = libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(
+        generated_code.arch, desc
+    )
+    if is_ABF16_BBF16_flat_cpx_gemm:
+        # libxsmm_cpuid_dot_pack_factor(BF16)
+        k_pack_factor = 2
 
     # A vectors loaded upfront, indexed by m
     # const char *const l_env_a_k_pf_dist = getenv("LIBXSMM_GEMM_K_A_PF_DIST");
     # unsigned l_a_k_pf_dist = (l_env_a_k_pf_dist == 0) ? 0 : atoi(l_env_a_k_pf_dist);
     a_vec_vals: list[SSAValue[VectorRegT]] = []
 
-    for m in range(m_blocking):
+    if is_ABF16_BBF16_flat_cpx_gemm:
+        # Its loads alias ymm and zmm views of fixed registers.
+        assert not disable_regalloc
+        a_vec_vals = libxsmm_generator_gemm_avx512_microkernel_load_A_flat_cpx(
+            generated_code,
+            micro_kernel_config,
+            desc,
+            a_val,
+            i_m_blocking,
+            m_blocking,
+            k_pack_factor,
+        )
+
+    # The flat CPX path loaded A above.
+    for m in range(0 if is_ABF16_BBF16_flat_cpx_gemm else m_blocking):
         # load column vectors of A upfront
         a_k_pf_dist = 0
         a_vname = (
@@ -600,6 +635,9 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
             if is_Ai8_Bbf16_gemm and not is_Ai8_Bbf16_gemm_bf16fma:
                 raise NotImplementedError
 
+            if is_ABF16_BBF16_flat_cpx_gemm:
+                b_vmove_instruction = x86.ops.DM_VpbroadcastdOp
+
             # handle trans B */
             if GEMMFlag.TRANS_B in desc.flags:
                 k_pack_advance = (
@@ -684,6 +722,11 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     ).register_out
 
             for m in range(m_blocking):
+                compute_instr = (
+                    x86.ops.RSS_Vdpbf16psOp
+                    if is_ABF16_BBF16_flat_cpx_gemm
+                    else micro_kernel_config.vmul_instruction
+                )
                 # post increment early
                 if m == 0 and (n == n_blocking - 1) and k == 0:
                     k_pack_advance = (
@@ -724,7 +767,7 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
                     dst_idx = vec_reg_acc_start + acc_idx
                     acc_vectors[acc_idx] = libxsmm_x86_instruction_vec_compute_3reg(
                         generated_code,
-                        micro_kernel_config.vmul_instruction,
+                        compute_instr,
                         vec_type.from_index(src0_idx),
                         vec_type.from_index(src1_idx),
                         vec_type.from_index(dst_idx),
@@ -742,3 +785,98 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         mask_k1=vals.mask_k1,
         acc_vectors=tuple(acc_vectors),
     )
+
+
+def libxsmm_generator_gemm_avx512_microkernel_load_A_flat_cpx(
+    generated_code: GeneratedCode,
+    micro_kernel_config: MicroKernelConfig,
+    desc: GEMMDescriptor,
+    a_val: SSAValue[x86.registers.GeneralRegisterType],
+    i_m_blocking: int,
+    m_blocking: int,
+    k_pack_factor: int,
+) -> list[SSAValue[VectorRegT]]:
+    """
+    The flat BF16 CPX branches of `libxsmm_generator_gemm_avx512_microkernel_nofsdbcst`
+    that load A: two K rows of each 32-element M chunk go to zmm0/zmm6 and zmm5/zmm7
+    and are interleaved word by word into the K pairs VDPBF16PS reads, M block m
+    ending up in zmm(1+m). The interleave works per 128-bit lane, which `store_C`
+    undoes on the accumulators.
+    """
+    zmm = x86.registers.AVX512RegisterType.from_index
+    ymm = x86.registers.AVX2RegisterType.from_index
+
+    aload_m_blocking = {1: 2, 3: 4}.get(m_blocking, m_blocking)
+
+    # Which loads take the k3 mask, and which load only a ymm of a short last chunk.
+    a_reg_map = (0, 6, 5, 7)
+    use_mask = (False,) * 4
+    vname = ("z",) * 4
+    if i_m_blocking % 32 != 0:
+        if m_blocking == 4:
+            use_mask = (False, False, True, True)
+        elif m_blocking == 3:
+            use_mask = (False, False, True, True)
+            vname = ("z", "z", "y", "y")
+        elif m_blocking == 2:
+            use_mask = (True,) * 4
+            vname = ("z", "z", "y", "y")
+        elif m_blocking == 1:
+            use_mask = (True,) * 4
+            vname = ("y",) * 4
+
+    loaded: dict[int, SSAValue[VectorRegT]] = {}
+    for m in range(aload_m_blocking):
+        a_offset_flat = (
+            micro_kernel_config.datatype_size_in
+            * micro_kernel_config.vector_length
+            * (m // 2)
+            * k_pack_factor
+        ) + (micro_kernel_config.datatype_size_in * (m % 2) * desc.lda)
+        loaded[a_reg_map[m]] = libxsmm_x86_instruction_vec_move_ld(
+            generated_code,
+            micro_kernel_config.instruction_set,
+            x86.ops.DM_Vmovdqu16Op,
+            a_val,
+            None,
+            0,
+            a_offset_flat,
+            vec_reg_type(vname[m]).from_index(a_reg_map[m]),
+            micro_kernel_config.mask_bf16_a if use_mask[m] else None,
+            True,
+            False,
+        )
+
+    def as_zmm(index: int) -> SSAValue[VectorRegT]:
+        # The interleave reads every load as a zmm, also the ymm ones.
+        value = loaded[index]
+        if isinstance(value.type, x86.registers.AVX512RegisterType):
+            return value
+        res = generated_code.insert(x86.ops.GetAVXRegisterOp(zmm(index))).result
+        return SSAValue.get(res, type=VectorRegT)
+
+    a_reg_map_interleave = (0, 5, 6, 7)
+    a_vec_vals: list[SSAValue[VectorRegT]] = []
+    for m in range(aload_m_blocking):
+        unpack = x86.ops.DSS_VpunpckhwdOp if m % 2 else x86.ops.DSS_VpunpcklwdOp
+        res = generated_code.insert(
+            unpack(
+                as_zmm(a_reg_map_interleave[m // 2]),
+                as_zmm(a_reg_map_interleave[m // 2 + 2]),
+                destination=zmm(1 + m),
+            )
+        ).destination
+        a_vec_vals.append(SSAValue.get(res, type=VectorRegT))
+
+    # An odd number of M blocks moves the high half of the last pair into the
+    # upper ymm of its low half.
+    if m_blocking in (1, 3):
+        low = m_blocking - 1
+        high = generated_code.insert(x86.ops.GetAVXRegisterOp(ymm(2 + low))).result
+        a_vec_vals[low] = generated_code.insert(
+            x86.ops.DSSI_Vinserti32x8Op(
+                a_vec_vals[low], high, 0x1, destination=zmm(1 + low)
+            )
+        ).destination
+
+    return a_vec_vals[:m_blocking]

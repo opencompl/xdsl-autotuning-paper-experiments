@@ -44,6 +44,7 @@ def _matmul_like(
         ldb=op.ldb.value.data,
         ldc=op.ldc.value.data,
         datatype=op.datatype,
+        ab_datatype=op.ab_datatype,
         aligned_a=bool(op.aligned_a) if aligned_a is None else aligned_a,
         aligned_c=bool(op.aligned_c) if aligned_c is None else aligned_c,
         iterator=(MatmulIterator(op.iterator.data) if iterator is None else iterator),
@@ -74,6 +75,7 @@ def _matmul_reg_like(
         lda=op.lda.value.data,
         ldb=op.ldb.value.data,
         datatype=op.datatype,
+        ab_datatype=op.ab_datatype,
         aligned_a=bool(op.aligned_a) if aligned_a is None else aligned_a,
     )
 
@@ -82,24 +84,25 @@ def _matmul_pointer_offsets_abc(
     op: MatmulOp, iterator: MatmulIterator
 ) -> tuple[int, int, int]:
     """Return the A, B, and C pointer advances in bytes for an iterator."""
-    element_size = op.datatype.bitwidth // 8
+    ab_size = op.input_type.size
+    c_size = op.datatype.size
     match iterator:
         case MatmulIterator.NONE:
             return 0, 0, 0
         case MatmulIterator.M:
-            m_bytes = op.m.value.data * element_size
-            return m_bytes, 0, m_bytes
+            m = op.m.value.data
+            return m * ab_size, 0, m * c_size
         case MatmulIterator.N:
             n = op.n.value.data
             return (
                 0,
-                n * op.ldb.value.data * element_size,
-                n * op.ldc.value.data * element_size,
+                n * op.ldb.value.data * ab_size,
+                n * op.ldc.value.data * c_size,
             )
         case MatmulIterator.K:
             return (
-                op.k.value.data * op.lda.value.data * element_size,
-                op.k.value.data * element_size,
+                op.k.value.data * op.lda.value.data * ab_size,
+                op.k.value.data * ab_size,
                 0,
             )
 
@@ -184,12 +187,12 @@ def split_matmul(
     assert 0 < first_size < extent, (
         f"Invalid {iterator} split {first_size} for extent {extent}"
     )
-    vector_length = 512 // op.datatype.bitwidth
     second_aligned_a = bool(op.aligned_a) and (
-        iterator != MatmulIterator.M or first_size % vector_length == 0
+        iterator != MatmulIterator.M
+        or first_size % (512 // op.input_type.bitwidth) == 0
     )
     second_aligned_c = bool(op.aligned_c) and (
-        iterator != MatmulIterator.M or first_size % vector_length == 0
+        iterator != MatmulIterator.M or first_size % (512 // op.datatype.bitwidth) == 0
     )
     first = _matmul_like(
         op,
@@ -353,9 +356,14 @@ def attach_mask(
     vector_size: int,
     mask_tmp_reg: x86.registers.GeneralRegisterType,
     mask_reg: x86.registers.AVX512MaskRegisterType,
+    lane_type: builtin.Float32Type
+    | builtin.Float64Type
+    | builtin.BFloat16Type
+    | None = None,
 ) -> MatmulOp:
     """
-    Attach one loop-invariant AVX-512 tail mask as a read-only input, if necessary.
+    Append one loop-invariant AVX-512 tail mask to the read-only inputs, if
+    necessary.
 
     ``tile_size`` is the extent one nano-kernel tile covers in the vectorized
     dimension and ``vector_size`` the capacity of the vector register the
@@ -363,10 +371,9 @@ def attach_mask(
     vector registers plus, when the tile does not fill the last one, a tail
     register holding the leftover lanes; the mask enables exactly those lanes.
     Both arguments describe one tile rather than the op's whole extent, which is
-    a multiple of the tile and would round the wrong way.
+    a multiple of the tile and would round the wrong way. A mask's lanes are
+    elements of ``lane_type``, C's element type unless given.
     """
-    assert not op.ins
-
     tail_lanes = tile_size % vector_size
     if not tail_lanes:
         return op
@@ -377,8 +384,8 @@ def attach_mask(
         mask_tmp_reg,
         mask_reg,
         tail_lanes,
-        op.datatype,
+        op.datatype if lane_type is None else lane_type,
     )
-    masked = _matmul_like(op, ins=(mask,))
+    masked = _matmul_like(op, ins=(*op.ins, mask))
     rewriter.replace(op, (masked,), masked.results)
     return masked

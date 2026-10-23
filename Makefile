@@ -107,6 +107,10 @@ F32_SQUARES_READY = $(patsubst data/%/f32.squares.jsonl,%,\
     $(shell grep -l compxsmm_plusnarrow data/*/f32.squares.jsonl 2>/dev/null))
 PLOTS += $(foreach m,$(F32_SQUARES_READY),plots/f32.squares.$(m).pdf)
 
+# BF16 needs native `vdpbf16ps`, so only the Zen 4 and Zen 5 machines sweep it;
+# like the grid, plot whichever of them has run it.
+PLOTS += $(foreach m,$(patsubst data/%/bf16.squares.jsonl,%,$(wildcard data/*/bf16.squares.jsonl)),plots/bf16.squares.$(m).pdf)
+
 # One paper figure per machine, its two data types side by side, with the
 # machine in the file name rather than in the figure.  The PDF is what LaTeX
 # includes; the PNG is the same figure, in the machine's directory with the
@@ -155,6 +159,14 @@ plots/f64.squares.%.pdf: data/%/f64.squares.jsonl $(SQUARES_SRC)
 # which is what the readiness test above keeps out of `make plots`.
 plots/f32.squares.%.pdf: data/%/f32.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@
+
+# The BF16 counterpart, against the BF16 peak: twice the f32 one, since
+# `vdpbf16ps` does two multiply-adds per lane at `vfmadd231ps`'s issue rate.
+# Only the LIBXSMM schedule has a BF16 lowering, so the narrow and XTC curves
+# are left out.
+plots/bf16.squares.%.pdf: data/%/bf16.squares.jsonl $(SQUARES_SRC)
+	uv run plot-squares $< --output $@ \
+	    --variant libxsmm --variant xdsl_libxsmm --variant compxsmm --variant compxsmm_manual
 
 # A grid of K sweeps over the nano-kernels: sixteen M values down the rows
 # against seven N values across, so M keeps the y axis and the figure comes out

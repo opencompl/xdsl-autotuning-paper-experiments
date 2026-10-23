@@ -125,9 +125,10 @@ class SkxNanoKernel(NanoKernel):
         m: int,
         datatype: FloatingPointType,
         isa_info: ISAInfo,
+        ab_datatype: builtin.BFloat16Type | None = None,
     ) -> type[X86VectorRegisterType]:
         return self._select_nano_kernel(m, datatype, isa_info).vector_type(
-            m, datatype, isa_info
+            m, datatype, isa_info, ab_datatype
         )
 
     @override

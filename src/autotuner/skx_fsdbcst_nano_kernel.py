@@ -64,8 +64,12 @@ class SkxFsdbcstNanoKernel(NanoKernel):
         return min(accumulator_sets, tile.k)
 
     def supports(self, descriptor: GemmDescriptor, isa_info: ISAInfo) -> bool:
-        return isa_info.isa == "avx512" and isinstance(
-            descriptor.datatype, builtin.Float32Type | builtin.Float64Type
+        return (
+            isa_info.isa == "avx512"
+            and isinstance(
+                descriptor.datatype, builtin.Float32Type | builtin.Float64Type
+            )
+            and descriptor.ab_datatype is None
         )
 
     def _supports_tile_shape(

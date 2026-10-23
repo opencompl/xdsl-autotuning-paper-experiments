@@ -7,13 +7,14 @@ from enum import IntEnum
 from xdsl.dialects import x86
 from xdsl.dialects.builtin import ModuleOp
 from xdsl.dialects.x86.registers import (
+    AVX512MaskRegisterType,
     GeneralRegisterType,
     UNALLOCATED_REG64,
     RDI,
     RSI,
     RDX,
 )
-from xdsl.ir import Block, Region
+from xdsl.ir import Block, Region, SSAValue
 from xdsl.dialects.x86_func import FuncOp
 from xdsl.rewriter import InsertPoint, Rewriter
 
@@ -110,6 +111,7 @@ class MicroKernelConfig:
             | x86.ops.DM_VmovapsOp
             | x86.ops.DM_VmovupsOp
             | x86.ops.DM_VmovupdOp
+            | x86.ops.DM_Vmovdqu16Op
         ]
         | None
     ) = field(default=None)
@@ -121,6 +123,7 @@ class MicroKernelConfig:
             | x86.ops.DM_VmovupdOp
             | x86.ops.DM_VbroadcastsdOp
             | x86.ops.DM_VbroadcastssOp
+            | x86.ops.DM_VpbroadcastdOp
         ]
         | None
     ) = field(default=None)
@@ -224,6 +227,9 @@ class MicroKernelConfig:
     norm_to_normT_mask_reg_1: int = field(default=0)
     mask_m_fp32: int = field(default=0)
     mask_m_bf16: int = field(default=0)
+    # k3 as loaded once at the top of a flat CPX BF16 kernel: it masks the A loads
+    # of an M block that is not a multiple of 32. libxsmm hard-codes k3 instead.
+    mask_bf16_a: SSAValue[AVX512MaskRegisterType] | None = field(default=None)
     mask_m_lp_cvt: int = field(default=0)
     mask_k_lp_cvt: int = field(default=0)
     mask_m_lp_cvt_st: int = field(default=0)

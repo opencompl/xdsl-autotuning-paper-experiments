@@ -20,7 +20,7 @@ def load_mask(
     gp_reg_tmp: x86.registers.GeneralRegisterType,
     mask_reg: x86.registers.AVX512MaskRegisterType,
     lanes: int,
-    datatype: builtin.Float64Type | builtin.Float32Type,
+    datatype: builtin.Float64Type | builtin.Float32Type | builtin.BFloat16Type,
 ) -> MaskValue:
     """Materialize an AVX-512 mask enabling the ``lanes`` lowest lanes."""
     match datatype:
@@ -28,6 +28,8 @@ def load_mask(
             op_type = x86.ops.KS_KMovBOp
         case builtin.Float32Type():
             op_type = x86.ops.KS_KMovWOp
+        case builtin.BFloat16Type():
+            op_type = x86.ops.KS_KMovDOp
 
     capacity = x86.registers.AVX512RegisterType.bitwidth() // datatype.bitwidth
     assert 0 <= lanes <= capacity, f"Invalid lane count {lanes} for {datatype}"
@@ -290,3 +292,97 @@ def advance_pointer(
         insertion_point=insert_point,
     ).register_out
     return cast(PointerValue, result)
+
+
+def load_words(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    pointer: PointerValue,
+    offset: int,
+    destination: x86.registers.X86VectorRegisterType,
+    *,
+    mask: MaskValue | None,
+) -> VectorValue:
+    """Load 16-bit elements, zeroing the lanes ``mask`` leaves off."""
+    if mask is None:
+        op = x86.ops.DM_Vmovdqu16Op(
+            memory=pointer, memory_offset=offset, destination=destination
+        )
+    else:
+        op = x86.ops.DMK_Vmovdqu16Op(
+            memory=pointer,
+            memory_offset=offset,
+            destination=destination,
+            mask_reg=mask,
+            z=True,
+        )
+    result = rewriter.insert(op, insertion_point=insert_point).destination
+    return cast(VectorValue, result)
+
+
+def interleave_words(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    lhs: VectorValue,
+    rhs: VectorValue,
+    destination: x86.registers.X86VectorRegisterType,
+    *,
+    high: bool,
+) -> VectorValue:
+    """Interleave the low (or high) four words of each 128-bit lane of two vectors."""
+    op_type = x86.ops.DSS_VpunpckhwdOp if high else x86.ops.DSS_VpunpcklwdOp
+    result = rewriter.insert(
+        op_type(lhs, rhs, destination=destination), insertion_point=insert_point
+    ).destination
+    return cast(VectorValue, result)
+
+
+def shuffle_128bit_lanes(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    lhs: VectorValue,
+    rhs: VectorValue,
+    selector: int,
+    destination: x86.registers.X86VectorRegisterType,
+) -> VectorValue:
+    """``vshufi64x2``: the low two result lanes from ``lhs``, the high two from
+    ``rhs``, each picked by two bits of ``selector``."""
+    result = rewriter.insert(
+        x86.ops.DSSI_Vshufi64x2Op(lhs, rhs, selector, destination=destination),
+        insertion_point=insert_point,
+    ).destination
+    return cast(VectorValue, result)
+
+
+def broadcast_dword(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    pointer: PointerValue,
+    offset: int,
+    destination: x86.registers.X86VectorRegisterType,
+) -> VectorValue:
+    """Broadcast 32 bits from memory, such as a pair of BF16 values."""
+    result = rewriter.insert(
+        x86.ops.DM_VpbroadcastdOp(
+            memory=pointer, memory_offset=offset, destination=destination
+        ),
+        insertion_point=insert_point,
+    ).destination
+    return cast(VectorValue, result)
+
+
+def dot_product_bf16_pairs(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    accumulator: VectorValue,
+    a: VectorValue,
+    b: VectorValue,
+) -> VectorValue:
+    """Add the dot product of each BF16 pair of ``a`` and ``b`` to the F32 lane
+    of ``accumulator`` that holds it."""
+    # LIBXSMM's operand order: the broadcast B first, then A.
+    result = rewriter.insert(
+        x86.ops.RSS_Vdpbf16psOp(accumulator, b, a),
+        insertion_point=insert_point,
+    ).register_out
+    return cast(VectorValue, result)

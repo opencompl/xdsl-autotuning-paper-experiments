@@ -45,6 +45,7 @@ from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_load_C,
     libxsmm_generator_gemm_setup_stack_frame,
     libxsmm_generator_gemm_store_C,
+    libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
@@ -228,6 +229,10 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
         and (Datatype.BF16 == desc.datatype.ab)
     )
 
+    is_ABF16_BBF16_flat_cpx_gemm = libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(
+        generated_code.arch, desc
+    )
+
     # Initialize n-blocking variables
     n_count = 0  # array counter for blocking arrays
     n_done = 0  # progress tracker
@@ -262,6 +267,10 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     if desc.flags & GEMMFlag.BATCH_REDUCE_ADDRESS:
         if desc.prefetch == GEMMPrefetchType.AL2:
             _adjust_A_pf_ptrs = 1
+
+    # use inline shuffles on CPX and later for BF16
+    if is_ABF16_BBF16_flat_cpx_gemm and avnni_gemm_stack_alloc_tensors:
+        avnni_gemm_stack_alloc_tensors = False
 
     # In case of F16 and IMPLICIT compute set proper compute
     if (
@@ -373,6 +382,12 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             raise NotImplementedError
         elif is_Ai1_Bi8_gemm:
             raise NotImplementedError
+        elif is_ABF16_BBF16_flat_cpx_gemm:
+            m_reserved_vregs = 8
+            while (
+                init_m_blocks * max_n_blocking + m_reserved_vregs
+            ) > micro_kernel_config.vector_reg_count:
+                max_n_blocking -= 1
         else:
             if (
                 Arch.LIBXSMM_X86_AVX2_SRF
@@ -422,8 +437,31 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     loop_label_tracker = LoopLabelTracker()
 
     # generate hoisted BF16 emulation mask for AVX512
-    if desc.datatype.ab == Datatype.BF16:
+    if (
+        desc.datatype.ab == Datatype.BF16
+        and GEMMFlag.VNNI_A in desc.flags
+        and generated_code.arch != Arch.LIBXSMM_X86_AVX512_CPX
+        and generated_code.arch >= Arch.LIBXSMM_X86_AVX512_VL256_SKX
+        and generated_code.arch != Arch.LIBXSMM_X86_AVX512_VL256_CPX
+    ):
         raise NotImplementedError
+
+    # generate hoisted BF16 reformating mask CPX: k3 masks the A loads of the
+    # last M block, which holds desc.m % 32 BF16 values per K row
+    if is_ABF16_BBF16_flat_cpx_gemm and desc.m % 32 != 0:
+        help_2 = gp_reg_mapping.gp_reg_help_2
+        saved = generated_code.insert(x86.ops.GetRegisterOp(help_2)).result
+        rsp_val = generated_code.insert(x86.ops.S_PushOp(rsp_val, saved)).rsp_out
+        micro_kernel_config.mask_bf16_a = libxsmm_generator_initialize_avx512_mask(
+            generated_code,
+            help_2,
+            x86.registers.AVX512MaskRegisterType.from_index(3),
+            32 - (desc.m % 32),
+            Datatype.BF16,
+        )
+        rsp_val = generated_code.insert(
+            x86.ops.D_PopOp(rsp_val, destination=help_2)
+        ).rsp_out
 
     # generate hoisted UU SS i8 emulation mask for AVX512
     if desc.datatype.ab == Datatype.I8:
@@ -1166,7 +1204,22 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_get_m_blocking(
     ):
         raise NotImplementedError
     elif (
-        ((arch >= Arch.LIBXSMM_X86_AVX512_SKX) and (arch <= Arch.LIBXSMM_X86_ALLFEAT))
+        (
+            (arch >= Arch.LIBXSMM_X86_AVX512_CPX)
+            and (arch <= Arch.LIBXSMM_X86_AVX512_DMR)
+        )
+        and (Datatype.BF16 == desc.datatype.ab)
+        and ((desc.flags & GEMMFlag.VNNI_A) == 0)
+        and ((desc.flags & GEMMFlag.DECOMPRESS_A_VIA_BITMASK) == 0)
+    ):
+        m_blocking, use_masking_a_c = libxsmm_generator_gemm_get_blocking_and_mask(
+            desc.m, 64, 16, m_blocking
+        )
+    elif (
+        (
+            (arch >= Arch.LIBXSMM_X86_AVX512_SKX)
+            and (arch <= Arch.LIBXSMM_X86_AVX512_DMR)
+        )
         and (Datatype.BF16 == desc.datatype.ab)
         and ((desc.flags & GEMMFlag.VNNI_A) == 0)
         and ((desc.flags & GEMMFlag.DECOMPRESS_A_VIA_BITMASK) == 0)

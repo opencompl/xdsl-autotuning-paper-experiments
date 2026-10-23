@@ -16,6 +16,8 @@ from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_register_jump_back_label,
     libxsmm_x86_instruction_unified_vec_move_ld,
     libxsmm_x86_instruction_unified_vec_move_st,
+    libxsmm_x86_instruction_vec_compute_3reg,
+    libxsmm_x86_instruction_vec_move_ld,
 )
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import (
@@ -43,6 +45,17 @@ def vec_reg_type(vname: str) -> type[VectorRegT]:
             return x86.registers.AVX512RegisterType
         case _:
             assert False, f"Unsupported vector name: {vname}"
+
+
+def libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(arch: Arch, desc: GEMMDescriptor) -> bool:
+    """BF16 A and B without VNNI_A on CPX or later: libxsmm pairs two K rows of A
+    with unpacks in the kernel and feeds them to VDPBF16PS."""
+    return (
+        desc.datatype.a == Datatype.BF16
+        and desc.datatype.b == Datatype.BF16
+        and GEMMFlag.VNNI_A not in desc.flags
+        and Arch.LIBXSMM_X86_AVX512_CPX <= arch <= Arch.LIBXSMM_X86_ALLFEAT
+    )
 
 
 def libxsmm_generator_gemm_init_micro_kernel_config(
@@ -168,7 +181,40 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
         elif desc.datatype.a == Datatype.BF16 and (desc.flags & GEMMFlag.VNNI_A) > 0:
             raise NotImplementedError
         elif desc.datatype.a == Datatype.BF16 and (desc.flags & GEMMFlag.VNNI_A) == 0:
-            raise NotImplementedError
+            # Only the flat CPX kernel is ported; pre-CPX targets emulate VDPBF16PS.
+            if not libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(arch, desc):
+                raise NotImplementedError
+            # C is 32bit, so we treat all 3 matrices as 32bit element arrays
+            config.vector_length = 16
+            config.datatype_size_in = 2
+            config.datatype_size_in2 = 2
+            if desc.datatype.c == Datatype.BF16:
+                config.datatype_size_out = 2
+            elif desc.datatype.c in (Datatype.BF8, Datatype.HF8):
+                config.datatype_size_out = 1
+            else:
+                config.datatype_size_out = 4
+            assert GEMMFlag.ALIGN_A not in desc.flags or not (
+                desc.lda % config.vector_length
+            )
+            config.a_vmove_instruction = x86.ops.DM_Vmovdqu16Op
+            # libxsmm records VPBROADCASTW here, but the flat CPX micro-kernel
+            # broadcasts a K pair with VPBROADCASTD instead.
+            config.b_vmove_instruction = x86.ops.DM_VpbroadcastdOp
+            if GEMMFlag.ALIGN_C in desc.flags:
+                assert not desc.ldc % config.vector_length
+                config.c_vmove_ld_instruction = x86.ops.DM_VmovapsOp
+                config.c_vmove_st_instruction = x86.ops.MS_VmovapsOp
+                if not use_masking_a_c:
+                    config.c_vmove_nts_instruction = x86.ops.MS_VmovntpsOp
+            else:
+                config.c_vmove_ld_instruction = x86.ops.DM_VmovupsOp
+                config.c_vmove_st_instruction = x86.ops.MS_VmovupsOp
+                config.c_vmove_nts_instruction = x86.ops.MS_VmovupsOp
+            config.vxor_instruction = x86.ops.DSS_VpxordOp
+            # The flat CPX micro-kernel issues VDPBF16PS regardless.
+            config.vmul_instruction = x86.ops.RSS_Vfmadd231psOp
+            config.vadd_instruction = x86.ops.DSS_VaddpsOp
         elif (desc.datatype.a == Datatype.BF8 or desc.datatype.a == Datatype.HF8) and (
             desc.flags & GEMMFlag.VNNI_A
         ) > 0:
@@ -1432,6 +1478,27 @@ def libxsmm_generator_gemm_load_C(
     # start register of accumulator
     vec_reg_acc_start = micro_kernel_config.vector_reg_count - n_blocking * m_blocking
 
+    if libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(generated_code.arch, desc):
+        # libxsmm_generator_gemm_load_C_vnni_inline: the accumulators hold C in the
+        # lane order of the interleaved A, so C itself is added in `store_C`.
+        vec_type = vec_reg_type(micro_kernel_config.vector_name)
+        for n in range(n_blocking):
+            for m in range(m_blocking):
+                acc_reg = vec_type.from_index(vec_reg_acc_start + m + (m_blocking * n))
+                result.append(
+                    libxsmm_x86_instruction_vec_compute_3reg(
+                        generated_code,
+                        micro_kernel_config.vxor_instruction,
+                        acc_reg,
+                        acc_reg,
+                        acc_reg,
+                        None,
+                        None,
+                        None,
+                    )
+                )
+        return tuple(result)
+
     if load_scf_vector:
         raise NotImplementedError
 
@@ -1641,6 +1708,87 @@ def libxsmm_generator_gemm_load_C(
     return tuple(result)
 
 
+def _store_C_flat_cpx_prologue(
+    generated_code: GeneratedCode,
+    micro_kernel_config: MicroKernelConfig,
+    desc: GEMMDescriptor,
+    m_blocking: int,
+    n_blocking: int,
+    c_val: SSAValue[GeneralRegisterType],
+    acc_vectors: tuple[SSAValue[VectorRegT], ...],
+    mask_k1: SSAValue[AVX512MaskRegisterType] | None,
+) -> tuple[SSAValue[VectorRegT], ...]:
+    """
+    The flat BF16 CPX part of `libxsmm_generator_gemm_store_C` before the regular
+    store: shuffle the 128-bit lanes of the accumulators back into M order (the A
+    interleave scattered them), then add C for beta=1. `m_blocking` counts vectors.
+    """
+    vec_type = vec_reg_type(micro_kernel_config.vector_name)
+    vec_reg_acc_start = micro_kernel_config.vector_reg_count - n_blocking * m_blocking
+    acc = list(acc_vectors)
+
+    def acc_reg(i: int) -> VectorRegT:
+        return vec_type.from_index(vec_reg_acc_start + i)
+
+    def shuffle(
+        src0: SSAValue[VectorRegT], src1: SSAValue[VectorRegT], imm: int, dst
+    ) -> SSAValue[VectorRegT]:
+        res = generated_code.insert(
+            x86.ops.DSSI_Vshufi64x2Op(src0, src1, imm, destination=dst)
+        ).destination
+        return SSAValue.get(res, type=VectorRegT)
+
+    # shuffle accumulator in case of delayed VNNI transform
+    for n in range(n_blocking):
+        m = 0
+        while m < m_blocking - 1:
+            lo = m + m_blocking * n
+            hi = lo + 1
+            tmp0 = shuffle(acc[lo], acc[hi], 0x44, vec_type.from_index(0))
+            tmp1 = shuffle(acc[lo], acc[hi], 0xEE, vec_type.from_index(1))
+            acc[lo] = shuffle(tmp0, tmp0, 0xD8, acc_reg(lo))
+            acc[hi] = shuffle(tmp1, tmp1, 0xD8, acc_reg(hi))
+            m += 2
+        if m < m_blocking:
+            last = m + m_blocking * n
+            acc[last] = shuffle(acc[last], acc[last], 0xD8, acc_reg(last))
+
+    # load C accumulator
+    if GEMMFlag.BETA_0 not in desc.flags:
+        # C is F32 here; a BF16 C would be up-converted first.
+        assert desc.datatype.c == Datatype.F32
+        tmp_reg = vec_type.from_index(vec_reg_acc_start - 1)
+        for n in range(n_blocking):
+            for m in range(m_blocking):
+                use_masking = micro_kernel_config.use_masking_a_c and (
+                    m == m_blocking - 1
+                )
+                c_in = libxsmm_x86_instruction_vec_move_ld(
+                    generated_code,
+                    micro_kernel_config.instruction_set,
+                    micro_kernel_config.c_vmove_ld_instruction,
+                    c_val,
+                    None,
+                    0,
+                    (n * desc.ldc + m * micro_kernel_config.vector_length)
+                    * micro_kernel_config.datatype_size_out,
+                    tmp_reg,
+                    mask_k1 if use_masking else None,
+                    True,
+                    False,
+                )
+                i = m + m_blocking * n
+                res = generated_code.insert(
+                    x86.ops.DSS_VaddpsOp(acc[i], c_in, destination=acc_reg(i))
+                ).destination
+                acc[i] = SSAValue.get(res, type=VectorRegT)
+
+    if micro_kernel_config.fused_scolbias or micro_kernel_config.fused_bcolbias:
+        raise NotImplementedError
+
+    return tuple(acc)
+
+
 def libxsmm_generator_gemm_store_C(
     generated_code: GeneratedCode,
     gp_reg_mapping: GPRegMapping,
@@ -1677,6 +1825,18 @@ def libxsmm_generator_gemm_store_C(
     # libxsmm_micro_kernel_config *const i_micro_kernel_config_mod = (libxsmm_micro_kernel_config*)&l_micro_kernel_config_mod;
     # memcpy(i_micro_kernel_config_mod, i_micro_kernel_config, sizeof(libxsmm_micro_kernel_config));
 
+    if libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(generated_code.arch, desc):
+        acc_vectors = _store_C_flat_cpx_prologue(
+            generated_code,
+            micro_kernel_config,
+            desc,
+            m_blocking,
+            n_blocking,
+            c_val,
+            acc_vectors,
+            mask_k1,
+        )
+
     if (
         (micro_kernel_config.instruction_set < Arch.LIBXSMM_X86_AVX)
         or (
@@ -1706,7 +1866,7 @@ def libxsmm_generator_gemm_store_C(
             <= micro_kernel_config.instruction_set
             < Arch.LIBXSMM_X86_AVX512_SKX
         )
-    ) and ((Datatype.BF16 == desc.datatype.ab) and (Datatype.BF16 == desc.datatype.ab)):
+    ) and ((Datatype.BF16 == desc.datatype.ab) and (Datatype.BF16 == desc.datatype.c)):
         raise NotImplementedError
     elif (
         (

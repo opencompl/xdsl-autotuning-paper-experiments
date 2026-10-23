@@ -27,7 +27,10 @@
               rev = "3057b239c16994d307589e40e45f40857ad5f5b8";
               hash = "sha256-eNzc9aoSwCjNTvVHRDcpeccEY9nJ6Jwz/iXxRHZ+Gko=";
             };
-            patches = [ ./nix/libxsmm-rpath.patch ];
+            patches = [
+              ./nix/libxsmm-rpath.patch
+              ./nix/libxsmm-bf16-generator.patch
+            ];
             # Upstream now installs .pc files under lib/pkgconfig, not lib.
             # documentation/{LICENSE,CONTRIBUTING}.md are symlinks into the
             # source root, so `make install` copies them as links that dangle

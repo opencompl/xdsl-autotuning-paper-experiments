@@ -1,4 +1,5 @@
 from xdsl.builder import Builder
+from xdsl.dialects.builtin import bf16
 from xdsl.dialects.x86.registers import (
     R10,
     R11,
@@ -26,6 +27,7 @@ from autotuner.libxsmm_gemm.generator_common import (
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
     libxsmm_generator_gemm_init_micro_kernel_config,
+    libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm,
 )
 from autotuner.libxsmm_gemm.generator_x86_instructions import (
     libxsmm_x86_instruction_open_stream_gemm,
@@ -209,6 +211,13 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     _adjust_A_pf_ptrs = 0
     _adjust_B_pf_ptrs = 0
 
+    # use inline shuffles on CPX and later for BF16
+    is_ABF16_BBF16_flat_cpx_gemm = libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(
+        generated_code.arch, desc
+    )
+    if is_ABF16_BBF16_flat_cpx_gemm:
+        avnni_gemm_stack_alloc_tensors = False
+
     is_Ai8_Bbf16_gemm = (
         (Datatype.I8 == desc.datatype.a and not is_Amxfp4_Bbf16_gemm)
         and (Datatype.BF16 == desc.datatype.b)
@@ -331,7 +340,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     # libxsmm_generator_gemm_apply_opA_opB( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, &l_micro_kernel_config, l_xgemm_desc, i_xgemm_desc);
 
     # generate hoisted BF16 emulation mask for AVX512
-    if desc.datatype.ab == Datatype.BF16:
+    if desc.datatype.ab == Datatype.BF16 and not is_ABF16_BBF16_flat_cpx_gemm:
         raise NotImplementedError
 
     # generate hoisted UU SS i8 emulation mask for AVX512
@@ -380,10 +389,17 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
         raise NotImplementedError
-    datatype = desc.datatype.ab
-    assert datatype is not None
-    if datatype not in (Datatype.F32, Datatype.F64):
-        raise NotImplementedError
+    if is_ABF16_BBF16_flat_cpx_gemm:
+        # C and the accumulation are F32; A and B stay BF16.
+        assert desc.datatype.c == Datatype.F32
+        datatype = desc.datatype.c
+        ab_datatype = bf16
+    else:
+        datatype = desc.datatype.ab
+        assert datatype is not None
+        if datatype not in (Datatype.F32, Datatype.F64):
+            raise NotImplementedError
+        ab_datatype = None
     if desc.prefetch == GEMMPrefetchType.AL2:
         raise NotImplementedError
     matmul_n = generated_code.insert(
@@ -398,6 +414,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             ldb=desc.ldb,
             ldc=desc.ldc,
             datatype=datatype.builtin_type,
+            ab_datatype=ab_datatype,
             aligned_a=GEMMFlag.ALIGN_A in desc.flags,
             aligned_c=GEMMFlag.ALIGN_C in desc.flags,
             iterator=MatmulIterator.N,
