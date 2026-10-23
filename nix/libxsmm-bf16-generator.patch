@@ -1,0 +1,156 @@
+Teach the standalone generator to emit BF16 x BF16 -> F32 dense GEMMs.
+
+The CLI only accepted SP, DP and I16, so add a BF16F32 precision (A and B in
+BF16, C and compute in F32), give the inline-assembly emitter a C signature
+for it, and fix the text emitter for the instructions LIBXSMM's flat-BF16 CPX
+kernel uses, which until now only the JIT encoder had exercised:
+
+- vmovdqu16, vpunpck{l,h}wd, vshufi64x2 and vinserti32x8 had no mnemonic, so
+  an uninitialised buffer was printed in their place;
+- vinserti32x8 (and the other 256-bit inserts) printed the inserted operand as
+  a zmm instead of a ymm;
+- kmov{b,w,d} from a legacy GPR printed a NUL byte for the missing `d` suffix
+  and the 64-bit register name, e.g. `kmovd %rbx`; it now prints `%ebx`.
+
+SP and DP output is byte-identical.
+
+--- a/src/libxsmm_generator_gemm_driver.c
++++ b/src/libxsmm_generator_gemm_driver.c
+@@ -30,7 +30,7 @@
+   printf("    0: unaligned C, otherwise aligned (ignored for sparse)\n");
+   printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx\n");
+   printf("    PREFETCH: nopf (none), other options are not supported\n");
+-  printf("    PRECISION: SP, DP\n");
++  printf("    PRECISION: SP, DP, BF16F32\n");
+   printf("    matrix input (CSC mtx file)\n");
+   printf("\n\n");
+   printf("Usage (dense*dense=dense):\n");
+@@ -49,7 +49,7 @@
+   printf("    0: unaligned C, otherwise aligned\n");
+   printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx\n");
+   printf("    PREFETCH: nopf (none), AL2\n");
+-  printf("    PRECISION: SP, DP\n");
++  printf("    PRECISION: SP, DP, BF16F32\n");
+   printf("\n\n\n\n");
+ }
+ 
+@@ -166,6 +166,8 @@
+     l_single_precision = 0;
+   } else if ( strcmp(l_precision, "I16") == 0 ) {
+     l_single_precision = 2;
++  } else if ( strcmp(l_precision, "BF16F32") == 0 ) {
++    l_single_precision = 3;
+   } else {
+     print_help();
+     return EXIT_FAILURE;
+@@ -199,6 +201,11 @@
+         LIBXSMM_DATATYPE_I16, LIBXSMM_DATATYPE_I32, LIBXSMM_DATATYPE_I32,
+         l_m, l_n, l_k, l_lda, l_ldb, l_ldc, l_flags, l_prefetch);
+     } break;
++    case 3: {
++      l_xgemm_desc = libxsmm_gemm_descriptor_init(&l_xgemm_blob, LIBXSMM_DATATYPE_BF16,
++        LIBXSMM_DATATYPE_BF16, LIBXSMM_DATATYPE_F32, LIBXSMM_DATATYPE_F32,
++        l_m, l_n, l_k, l_lda, l_ldb, l_ldc, l_flags, l_prefetch);
++    } break;
+     default: {
+       print_help();
+       return EXIT_FAILURE;
+--- a/src/generator_common.c
++++ b/src/generator_common.c
+@@ -560,6 +560,22 @@
+     case LIBXSMM_X86_INSTR_TDPBF16PS:
+       libxsmm_strncpy(o_instr_name, "tdpbf16ps", i_instr_name_max_length, 9 );
+       break;
++    /* flat BF16 GEMM on CPX, needed by the inline-assembly emitter */
++    case LIBXSMM_X86_INSTR_VMOVDQU16:
++      libxsmm_strncpy(o_instr_name, "vmovdqu16", i_instr_name_max_length, 9 );
++      break;
++    case LIBXSMM_X86_INSTR_VPUNPCKLWD:
++      libxsmm_strncpy(o_instr_name, "vpunpcklwd", i_instr_name_max_length, 10 );
++      break;
++    case LIBXSMM_X86_INSTR_VPUNPCKHWD:
++      libxsmm_strncpy(o_instr_name, "vpunpckhwd", i_instr_name_max_length, 10 );
++      break;
++    case LIBXSMM_X86_INSTR_VSHUFI64X2:
++      libxsmm_strncpy(o_instr_name, "vshufi64x2", i_instr_name_max_length, 10 );
++      break;
++    case LIBXSMM_X86_INSTR_VINSERTI32X8:
++      libxsmm_strncpy(o_instr_name, "vinserti32x8", i_instr_name_max_length, 12 );
++      break;
+     /* default, we did not had a match */
+     default:
+       LIBXSMM_ASSERT_MSG(0, "instruction number");
+@@ -1079,6 +1095,13 @@
+       } else {
+         l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "void %s(const double* A, const double* B, double* C, const double* A_prefetch, const double* B_prefetch, const double* C_prefetch) {\n", i_routine_name);
+       }
++    } else if ( (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype )) &&
++                (LIBXSMM_DATATYPE_F32 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype )) ) {
++      if (LIBXSMM_GEMM_PREFETCH_NONE == i_xgemm_desc->prefetch) {
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "void %s(const unsigned short* A, const unsigned short* B, float* C) {\n", i_routine_name);
++      } else {
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "void %s(const unsigned short* A, const unsigned short* B, float* C, const unsigned short* A_prefetch, const unsigned short* B_prefetch, const float* C_prefetch) {\n", i_routine_name);
++      }
+     } else { /* empty string */
+       assert(0 == l_code_length);
+ #if !defined(NDEBUG)
+--- a/src/generator_x86_instructions.c
++++ b/src/generator_x86_instructions.c
+@@ -2140,15 +2140,17 @@
+     int l_code_length = 0;
+     char l_instr_name[16];
+     unsigned int l_imm8 = (unsigned int)i_imm8;
++    const char l_src0_name = ( (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTI32X8) || (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTF32X8) ||
++                               (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTI64X4) || (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTF64X4) ) ? 'y' : i_vector_name;
+     libxsmm_get_x86_instr_name( i_vec_instr, l_instr_name, 15 );
+ 
+     /* build vXYZpd/ps/sd/ss instruction pure register use*/
+     if ( io_generated_code->arch > LIBXSMM_X86_SSE42 ) {
+       if ( ( ((i_vec_instr >> 16) & 0x08) == 0x08 ) && (i_imm8 != LIBXSMM_X86_IMM_UNDEF) ) {
+         if ( io_generated_code->code_type == 0 ) {
+-          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s $%u, %%%%%cmm%u, %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, l_imm8, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
++          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s $%u, %%%%%cmm%u, %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, l_imm8, l_src0_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
+         } else {
+-          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s $%u, %%%cmm%u, %%%cmm%u, %%%cmm%u\n", l_instr_name, l_imm8, i_vector_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
++          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s $%u, %%%cmm%u, %%%cmm%u, %%%cmm%u\n", l_instr_name, l_imm8, l_src0_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
+         }
+       } else {
+         if ( io_generated_code->code_type == 0 ) {
+@@ -3429,6 +3431,7 @@
+     char l_gp_reg_name[4];
+     char l_instr_name[16];
+     char l_prefix = '\0';
++    char l_suffix[2] = { '\0', '\0' };
+ 
+     libxsmm_get_x86_gp_reg_name( i_gp_reg_number, l_gp_reg_name, 3 );
+     libxsmm_get_x86_instr_name( i_mask_instr, l_instr_name, 15 );
+@@ -3444,21 +3447,25 @@
+          i_gp_reg_number == LIBXSMM_X86_GP_REG_R15) && (i_mask_instr != LIBXSMM_X86_INSTR_KMOVQ_GPR_LD) && (i_mask_instr != LIBXSMM_X86_INSTR_KMOVQ_GPR_ST) ) {
+       l_prefix = 'd';
+     }
++    if ( (l_prefix == '\0') && (i_mask_instr != LIBXSMM_X86_INSTR_KMOVQ_GPR_LD) && (i_mask_instr != LIBXSMM_X86_INSTR_KMOVQ_GPR_ST) ) {
++      l_gp_reg_name[0] = 'e';
++    }
++    l_suffix[0] = l_prefix;
+ 
+     if ( ( i_mask_instr == LIBXSMM_X86_INSTR_KMOVB_GPR_ST ) ||
+          ( i_mask_instr == LIBXSMM_X86_INSTR_KMOVW_GPR_ST ) ||
+          ( i_mask_instr == LIBXSMM_X86_INSTR_KMOVD_GPR_ST ) ||
+          ( i_mask_instr == LIBXSMM_X86_INSTR_KMOVQ_GPR_ST )    ) {
+       if ( io_generated_code->code_type == 0 ) {
+-        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s %%%%k%u, %%%%%s%c\\n\\t\"\n", l_instr_name, i_mask_reg_number, l_gp_reg_name, l_prefix );
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s %%%%k%u, %%%%%s%s\\n\\t\"\n", l_instr_name, i_mask_reg_number, l_gp_reg_name, l_suffix );
+       } else {
+-        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s %%k%u, %%%s%c\n", l_instr_name, i_mask_reg_number, l_gp_reg_name, l_prefix );
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s %%k%u, %%%s%s\n", l_instr_name, i_mask_reg_number, l_gp_reg_name, l_suffix );
+       }
+     } else {
+       if ( io_generated_code->code_type == 0 ) {
+-        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s %%%%%s%c, %%%%k%u\\n\\t\"\n", l_instr_name, l_gp_reg_name, l_prefix, i_mask_reg_number );
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s %%%%%s%s, %%%%k%u\\n\\t\"\n", l_instr_name, l_gp_reg_name, l_suffix, i_mask_reg_number );
+       } else {
+-        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s %%%s%c, %%k%u\n", l_instr_name, l_gp_reg_name, l_prefix, i_mask_reg_number );
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s %%%s%s, %%k%u\n", l_instr_name, l_gp_reg_name, l_suffix, i_mask_reg_number );
+       }
+     }
+     libxsmm_append_code_as_string( io_generated_code, l_new_code, l_code_length );
