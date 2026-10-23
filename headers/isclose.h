@@ -3,8 +3,12 @@
 
 #include <math.h>
 
+#ifndef CTYPE
+#define CTYPE DTYPE
+#endif
+
 // Returns index of first value not within tolerance, size otherwise.
-static inline int first_mismatch_index(const DTYPE *lhs, const DTYPE *rhs,
+static inline int first_mismatch_index(const CTYPE *lhs, const CTYPE *rhs,
                                        int size, double rtol, double atol) {
   int i = 0;
   for (; i < size; i++) {
@@ -18,11 +22,12 @@ static inline int first_mismatch_index(const DTYPE *lhs, const DTYPE *rhs,
   return i;
 }
 
-// Finite benchmark results only. Allow rounding differences from FMA/reordering,
-// without narrowing double-precision results to float.
-static inline int isclose(const DTYPE *lhs, const DTYPE *rhs, int size) {
-  double rtol = sizeof(DTYPE) == sizeof(float) ? 1e-5 : 1e-12;
-  double atol = sizeof(DTYPE) == sizeof(float) ? 1e-8 : 1e-12;
+// Compares results, so in the accumulator type. Finite benchmark results only.
+// Allow rounding differences from FMA/reordering, without narrowing
+// double-precision results to float.
+static inline int isclose(const CTYPE *lhs, const CTYPE *rhs, int size) {
+  double rtol = sizeof(CTYPE) == sizeof(float) ? 1e-5 : 1e-12;
+  double atol = sizeof(CTYPE) == sizeof(float) ? 1e-8 : 1e-12;
   int mismatch_index = first_mismatch_index(lhs, rhs, size, rtol, atol);
   return mismatch_index == size;
 }
