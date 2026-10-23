@@ -43,7 +43,9 @@ from autotuner.datasets import Sample, dataset_repeats, dataset_samples
 from autotuner.machines import MACHINES, Machine
 
 # Peak FLOP/cycle is quoted for f32; f64 halves the lanes.
-DTYPE_PEAK_DIVISOR = {"f32": 1.0, "f64": 2.0}
+# `vdpbf16ps` does two multiply-adds per F32 lane where `vfmadd231ps` does one,
+# so the BF16 peak is twice the F32 one at the same issue rate.
+DTYPE_PEAK_DIVISOR = {"f32": 1.0, "f64": 2.0, "bf16": 0.5}
 
 console = Console()
 
@@ -161,7 +163,9 @@ def row(
         "family": machine.family,
         "isa": machine.isa,
         "compiler_march": machine.march,
-        "libxsmm_arch": machine.libxsmm_arch,
+        "libxsmm_arch": (
+            machine.libxsmm_arch_bf16 if one.dtype == "bf16" else machine.libxsmm_arch
+        ),
         "dtype": one.dtype,
     }
     # Last, and only for a dataset measured more than once, so a single-pass

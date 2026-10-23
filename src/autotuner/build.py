@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -53,9 +54,11 @@ from rich.progress import (
 from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
 from autotuner.machines import MACHINES
 
-# The C spelling of each dtype, and how the XSMM generators name it.
-C_TYPE = {"f32": "float", "f64": "double"}
-XSMM_PRECISION = {"f32": "SP", "f64": "DP"}
+# The C spelling of each dtype's A and B elements, of its C accumulator, and
+# how the XSMM generators name it.  `bf16` multiplies BF16 inputs into F32.
+C_TYPE = {"f32": "float", "f64": "double", "bf16": "__bf16"}
+ACC_C_TYPE = {"f32": "float", "f64": "double", "bf16": "float"}
+XSMM_PRECISION = {"f32": "SP", "f64": "DP", "bf16": "BF16F32"}
 
 # Which sources decide that generated code is out of date.  Directories are
 # expanded to the Python files under them; `pyproject.toml` pins xdsl itself.
@@ -63,8 +66,25 @@ GENERATOR_SOURCES: Mapping[str, tuple[str, ...]] = {
     "libxsmm": ("src/autotuner/libxsmm_gemm",),
     "compxsmm": ("src/autotuner/libxsmm_gemm", "src/autotuner/compxsmm_gemm"),
     "libxtcmm": ("src/autotuner/libxsmm_gemm", "src/autotuner/libxtcmm_gemm"),
-    # Every xdsl-opt pipeline runs project passes out of these two packages.
-    "xdsl": ("src/autotuner/passes", "src/autotuner/dialects", "pyproject.toml"),
+    # Every xdsl-opt pipeline runs project passes out of these two packages,
+    # and `xsmm-apply-schedule` lowers through the modules after them.
+    "xdsl": (
+        "src/autotuner/passes",
+        "src/autotuner/dialects",
+        "src/autotuner/cpx_bf16_nano_kernel.py",
+        "src/autotuner/instructions.py",
+        "src/autotuner/nano_kernel.py",
+        "src/autotuner/schedules.py",
+        "src/autotuner/skx_fsdbcst_nano_kernel.py",
+        "src/autotuner/skx_nano_kernel.py",
+        "src/autotuner/skx_nano_kernel_utils.py",
+        "src/autotuner/skx_narrow_fsdbcst_nano_kernel.py",
+        "src/autotuner/skx_nofsdbcst_nano_kernel.py",
+        "src/autotuner/strategy.py",
+        "src/autotuner/tiling.py",
+        "src/autotuner/universe.py",
+        "pyproject.toml",
+    ),
 }
 
 # The generator each "generate:*" step calls, imported once per worker.
@@ -182,6 +202,7 @@ class Toolchain:
     libs: tuple[str, ...]
     linker_flag: str
     libxsmm_arch: str | None
+    libxsmm_arch_bf16: str | None
     cc: str
     cc_asm: str
     libxsmm_generator: str
@@ -201,6 +222,23 @@ class Toolchain:
             self.triple,
             *(self.native_flags or (f"-march={self.march}",)),
         )
+
+    def xsmm_arch(self, dtype: str) -> str:
+        """The libxsmm arch code a `dtype` kernel is generated for."""
+        return str(self.libxsmm_arch_bf16 if dtype == "bf16" else self.libxsmm_arch)
+
+    def pipeline(self, variant: str, dtype: str) -> str:
+        """The xDSL pass pipeline lowering a `dtype` kernel of `variant`.
+
+        BF16 inputs take LIBXSMM's flat CPX nano-kernel instead of the SKX
+        heuristic, which knows only F32 and F64.
+        """
+        pipeline = self.pipelines[variant]
+        if dtype == "bf16":
+            pipeline = re.sub(
+                r"strategy=libxsmm-skx(?=[ }])", "strategy=libxsmm-cpx-bf16", pipeline
+            )
+        return pipeline
 
     def shape_dir(self, kernel: str, m: int, n: int, k: int) -> Path:
         return self.root / self.machine / kernel / f"{m}x{n}x{k}"
@@ -316,6 +354,7 @@ def toolchain(
         libs=tuple(spec.libs),
         linker_flag=spec.linker_flag,
         libxsmm_arch=spec.libxsmm_arch,
+        libxsmm_arch_bf16=spec.libxsmm_arch_bf16,
         cc=tool_path(cc),
         cc_asm=tool_path(settings.get("cc_asm", settings["cc"])),
         libxsmm_generator=(
@@ -450,7 +489,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         "1",
                         "1",
                         "1",
-                        str(tool.libxsmm_arch),
+                        tool.xsmm_arch(dtype),
                         "nopf",
                         XSMM_PRECISION[dtype],
                     ),
@@ -498,7 +537,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         "1",
                         "1",
                         "1",
-                        str(tool.libxsmm_arch),
+                        tool.xsmm_arch(dtype),
                         "nopf",
                         XSMM_PRECISION[dtype],
                         *extra,
@@ -509,7 +548,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                     (
                         str(mlir),
                         "-p",
-                        tool.pipelines[variant],
+                        tool.pipeline(variant, dtype),
                         "-t",
                         "x86-asm",
                         "-o",
@@ -543,7 +582,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         "1",
                         "1",
                         "1",
-                        str(tool.libxsmm_arch),
+                        tool.xsmm_arch(dtype),
                         "nopf",
                         XSMM_PRECISION[dtype],
                     ),
@@ -625,6 +664,7 @@ def driver_artifact(
                 f"-DCCOLS={n}",
                 f"-DINNER={k}",
                 f"-DDTYPE={C_TYPE[dtype]}",
+                f"-DCTYPE={ACC_C_TYPE[dtype]}",
                 f"-DFREQ={tool.freq}",
                 *tool.use_papi,
                 *tool.target_flags,

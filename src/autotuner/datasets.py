@@ -15,6 +15,11 @@ KERNEL = "matmul_colmaj"
 # M = N = K to each of them.
 SQUARE_RANGE = range(1, 65)
 
+# The BF16 square sweep keeps to even sizes.  `vdpbf16ps` consumes K in pairs,
+# and LIBXSMM's flat-BF16 kernel computes a wrong C for an odd K above one, so
+# the sizes are the ones it is correct at -- the sweep compares against it.
+BF16_SQUARE_RANGE = range(2, 65, 2)
+
 # Sizes swept by the two tile sweeps, which set N to each of them and hold
 # M = K at the tile in the dataset's name.  Every N up to the tile edge, so the
 # curve is sampled at the same density everywhere rather than dense at the small
@@ -54,6 +59,7 @@ DATASET_REPEATS = {
     "f64.nanokernel_grid": 3,
     "f32.squares": 3,
     "f64.squares": 3,
+    "bf16.squares": 3,
 }
 
 
@@ -69,6 +75,7 @@ VARIANTS = {
         "f64.small_matrices": [],
         "f32.squares": [],
         "f64.squares": [],
+        "bf16.squares": [],
         "f64.nanokernel_grid": [],
     },
     "neon": {
@@ -76,6 +83,7 @@ VARIANTS = {
         "f64.small_matrices": [],
         "f32.squares": [],
         "f64.squares": [],
+        "bf16.squares": [],
         "f64.nanokernel_grid": [],
     },
     "tower": {
@@ -123,6 +131,7 @@ VARIANTS = {
             "aocl",
             "compxsmm_plusnarrow",
         ],
+        "bf16.squares": ["libxsmm", "xdsl_libxsmm", "compxsmm", "compxsmm_manual"],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "pinocchio": {
@@ -132,6 +141,7 @@ VARIANTS = {
         # register allocation to price here, and no nano-kernels to pin.
         "f32.squares": [],
         "f64.squares": [],
+        "bf16.squares": [],
         "f64.nanokernel_grid": [],
     },
     "rapper": {
@@ -179,6 +189,7 @@ VARIANTS = {
             "aocl",
             "compxsmm_plusnarrow",
         ],
+        "bf16.squares": ["libxsmm", "xdsl_libxsmm", "compxsmm", "compxsmm_manual"],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "ci": {
@@ -186,6 +197,7 @@ VARIANTS = {
         "f64.small_matrices": [],
         "f32.squares": [],
         "f64.squares": [],
+        "bf16.squares": [],
         "f64.nanokernel_grid": [],
     },
 }
@@ -323,6 +335,9 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
         ),
         "f64.squares": by_shape(
             "f64", [(s, s, s) for s in SQUARE_RANGE], "f64.squares"
+        ),
+        "bf16.squares": by_shape(
+            "bf16", [(s, s, s) for s in BF16_SQUARE_RANGE], "bf16.squares"
         ),
         # Not `by_shape`: which shapes are measured depends on the variant, so
         # the variants cannot share one shape list.
