@@ -1,5 +1,6 @@
 from xdsl.universe import Universe
 
+from autotuner.dialects.x86_ext import X86Ext
 from autotuner.dialects.xsmm import XSMM
 from autotuner.passes.test_xsmm_tiling import TestXsmmTilingPass
 from autotuner.passes.vectorize_libxsmm import VectorizeLibxsmmPass
@@ -8,6 +9,7 @@ from autotuner.x86_mir import X86MirTarget
 
 AUTOTUNER_UNIVERSE = Universe(
     all_dialects={
+        "x86_ext": lambda: X86Ext,
         "xsmm": lambda: XSMM,
     },
     all_passes={
