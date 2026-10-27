@@ -1,16 +1,21 @@
 Teach the standalone generator to emit BF16 x BF16 -> F32 dense GEMMs.
 
 The CLI only accepted SP, DP and I16, so add a BF16F32 precision (A and B in
-BF16, C and compute in F32), give the inline-assembly emitter a C signature
-for it, and fix the text emitter for the instructions LIBXSMM's flat-BF16 CPX
-kernel uses, which until now only the JIT encoder had exercised:
+BF16, C and compute in F32) and a BF16F32_VNNI_A one that also sets
+LIBXSMM_GEMM_FLAG_VNNI_A, so A comes pre-packed in K pairs. Give the
+inline-assembly emitter a C signature for them, and fix the text emitter for
+the instructions LIBXSMM's BF16 CPX kernels use, which until now only the JIT
+encoder had exercised:
 
 - vmovdqu16, vpunpck{l,h}wd, vshufi64x2 and vinserti32x8 had no mnemonic, so
   an uninitialised buffer was printed in their place;
 - vinserti32x8 (and the other 256-bit inserts) printed the inserted operand as
   a zmm instead of a ymm;
 - kmov{b,w,d} from a legacy GPR printed a NUL byte for the missing `d` suffix
-  and the 64-bit register name, e.g. `kmovd %rbx`; it now prints `%ebx`.
+  and the 64-bit register name, e.g. `kmovd %rbx`; it now prints `%ebx`;
+- vdpbf16ps with a broadcast memory operand, which the VNNI kernel issues for
+  an M block of one vector, printed `{1to8}`, a qword broadcast; its operand
+  is a BF16 pair, so it now prints `{1to16}`.
 
 SP and DP output is byte-identical.
 
@@ -21,7 +26,7 @@ SP and DP output is byte-identical.
    printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx\n");
    printf("    PREFETCH: nopf (none), other options are not supported\n");
 -  printf("    PRECISION: SP, DP\n");
-+  printf("    PRECISION: SP, DP, BF16F32\n");
++  printf("    PRECISION: SP, DP, BF16F32, BF16F32_VNNI_A\n");
    printf("    matrix input (CSC mtx file)\n");
    printf("\n\n");
    printf("Usage (dense*dense=dense):\n");
@@ -30,20 +35,23 @@ SP and DP output is byte-identical.
    printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx\n");
    printf("    PREFETCH: nopf (none), AL2\n");
 -  printf("    PRECISION: SP, DP\n");
-+  printf("    PRECISION: SP, DP, BF16F32\n");
++  printf("    PRECISION: SP, DP, BF16F32, BF16F32_VNNI_A\n");
    printf("\n\n\n\n");
  }
  
-@@ -166,6 +166,8 @@
+@@ -166,6 +166,11 @@
      l_single_precision = 0;
    } else if ( strcmp(l_precision, "I16") == 0 ) {
      l_single_precision = 2;
 +  } else if ( strcmp(l_precision, "BF16F32") == 0 ) {
 +    l_single_precision = 3;
++  } else if ( strcmp(l_precision, "BF16F32_VNNI_A") == 0 ) {
++    l_single_precision = 3;
++    l_flags |= LIBXSMM_GEMM_FLAG_VNNI_A;
    } else {
      print_help();
      return EXIT_FAILURE;
-@@ -199,6 +201,11 @@
+@@ -199,6 +204,11 @@
          LIBXSMM_DATATYPE_I16, LIBXSMM_DATATYPE_I32, LIBXSMM_DATATYPE_I32,
          l_m, l_n, l_k, l_lda, l_ldb, l_ldc, l_flags, l_prefetch);
      } break;
@@ -80,7 +88,18 @@ SP and DP output is byte-identical.
      /* default, we did not had a match */
      default:
        LIBXSMM_ASSERT_MSG(0, "instruction number");
-@@ -1079,6 +1095,13 @@
+@@ -693,6 +709,10 @@
+     case LIBXSMM_X86_INSTR_VFMADD231SS:
+       l_return = 1;
+       break;
++    /* its memory operand broadcasts a 32-bit BF16 pair */
++    case LIBXSMM_X86_INSTR_VDPBF16PS:
++      l_return = 1;
++      break;
+     /* SSE double precision */
+     case LIBXSMM_X86_INSTR_XORPD:
+       l_return = 0;
+@@ -1079,6 +1099,13 @@
        } else {
          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "void %s(const double* A, const double* B, double* C, const double* A_prefetch, const double* B_prefetch, const double* C_prefetch) {\n", i_routine_name);
        }
