@@ -392,16 +392,36 @@ def expand_horner(rewriter: PatternRewriter, op: HornerOp) -> HornerOp | None:
     Only the matched operation is replaced. In particular, coefficient setup,
     neighboring instructions, and enclosing loops are never changed.
     """
-    if not op.coefficients:
+    coefficients = op.coefficients
+    operations: list[ir.Operation] = []
+    if op.accumulator is None:
+        if len(coefficients) == 1:
+            constant = x86_ext.DS_Vmovdqu64Op(
+                coefficients[0], destination=op.result.type
+            )
+            rewriter.replace(op, (constant,))
+            return None
+        seed = x86_ext.DS_Vmovdqu64Op(op.argument, destination=op.result.type)
+        step = x86_ext.RSS_Vfmadd213psOp(
+            seed.destination, coefficients[-1], coefficients[-2]
+        )
+        operations.append(seed)
+        coefficients = coefficients[:-2]
+    elif not coefficients:
         rewriter.replace(op, (), (op.accumulator,))
         return None
+    else:
+        accumulator = ir.SSAValue.get(
+            op.accumulator, type=x86.registers.AVX512RegisterType
+        )
+        step = x86_ext.RSS_Vfmadd213psOp(accumulator, op.argument, coefficients[-1])
+        coefficients = coefficients[:-1]
 
-    accumulator = ir.SSAValue.get(op.accumulator, type=x86.registers.AVX512RegisterType)
-    step = x86_ext.RSS_Vfmadd213psOp(accumulator, op.argument, op.coefficients[-1])
-    if len(op.coefficients) == 1:
-        rewriter.replace(op, (step,))
+    operations.append(step)
+    if not coefficients:
+        rewriter.replace(op, operations)
         return None
 
-    remaining = HornerOp(op.argument, step.register_out, op.coefficients[:-1])
-    rewriter.replace(op, (step, remaining))
+    remaining = HornerOp(op.argument, step.register_out, coefficients)
+    rewriter.replace(op, (*operations, remaining))
     return remaining

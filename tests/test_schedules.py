@@ -201,15 +201,19 @@ def test_tile_matmul_reg_elides_single_iteration_loop() -> None:
     assert tuple(module.body.block.ops) == original_ops
 
 
-@pytest.mark.parametrize("coefficient_count", (0, 1, 3))
+@pytest.mark.parametrize(
+    ("coefficient_count", "initialized"),
+    ((0, True), (1, True), (3, True), (1, False), (2, False), (4, False)),
+)
 def test_horner_expansion_preserves_surrounding_operations(
     coefficient_count: int,
+    initialized: bool,
 ) -> None:
     inputs = test.TestOp(
         result_types=[x86.registers.UNALLOCATED_AVX512] * (coefficient_count + 2)
     )
     x, accumulator, *coefficients = inputs.results
-    horner = HornerOp(x, accumulator, coefficients)
+    horner = HornerOp(x, accumulator if initialized else None, coefficients)
     before = test.TestOp(operands=[x, accumulator])
     consumer = test.TestOp(operands=[horner.result, x])
     after = test.TestOp(operands=coefficients)
