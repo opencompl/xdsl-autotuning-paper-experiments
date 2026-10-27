@@ -244,7 +244,7 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
         for degree in (3, 5)
         # No loop, full unroll, reduced unroll, two M regions, repeated unroll.
         for length in (16, 256, 272, 528, 1024)
-        for variant in ("libxsmm", "xdsl_libxsmm", "compxsmm_manual")
+        for variant in ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
     ]
     # Build together to catch shared paths or a driver compiled for the wrong
     # degree, as well as an ambient hint overriding the requested polynomial.
@@ -273,7 +273,7 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
 
         if sample.variant != "libxsmm":
             # The tolerance check above would miss swapped blend operands on
-            # underflow lanes. Compare the literal port against the real JIT
+            # underflow lanes. Compare generated kernels against the real JIT
             # on mixed lanes, including both sides of its clamp boundaries.
             asm = binary.parent / f"{sample.variant}.f32.S"
             oracle = binary.parent / "compare"
@@ -309,7 +309,11 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
 
     # Exercise the real paired timer too: relocation must preserve outputs and
     # guards for both a straight-line kernel and a looped kernel, at every offset.
-    timed = [s for s in samples if s.m in (16, 1024) and s.variant != "compxsmm_manual"]
+    timed = [
+        s
+        for s in samples
+        if s.m in (16, 1024) and s.variant in ("libxsmm", "xdsl_libxsmm")
+    ]
     build.build(timed, "ci", root=tmp_path, jobs=1, quiet=True)
     for sample in timed:
         if sample.variant != "libxsmm":

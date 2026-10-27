@@ -18,12 +18,29 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("length", type=int)
     parser.add_argument("--degree", type=int, choices=(3, 5), required=True)
     parser.add_argument("--arch", choices=("skx",), default="skx")
+    parser.add_argument(
+        "--disable-regalloc",
+        action="store_true",
+        help="Disable manual register allocation.",
+    )
     args = parser.parse_args(argv)
     if args.length <= 0 or args.length % 16:
         parser.error("length must be positive and divisible by 16")
     block = Block(arg_types=(x86.registers.RDI,))
-    input = x86.ops.DM_MovOp(block.args[0], 32, destination=x86.registers.R8)
-    output = x86.ops.DM_MovOp(block.args[0], 80, destination=x86.registers.R9)
+    input = x86.ops.DM_MovOp(
+        block.args[0],
+        32,
+        destination=x86.registers.UNALLOCATED_REG64
+        if args.disable_regalloc
+        else x86.registers.R8,
+    )
+    output = x86.ops.DM_MovOp(
+        block.args[0],
+        80,
+        destination=x86.registers.UNALLOCATED_REG64
+        if args.disable_regalloc
+        else x86.registers.R9,
+    )
     block.add_ops(
         (
             input,

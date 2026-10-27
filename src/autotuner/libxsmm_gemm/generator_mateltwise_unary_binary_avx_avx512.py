@@ -45,17 +45,24 @@ class MeltwKernelConfig:
     vec_y: AVX512RegisterType
     vec_z: AVX512RegisterType
     coeffs: Exp3Coefficients
+    disable_regalloc: bool = False
 
 
 def libxsmm_configure_unary_kernel_vregs_masks(
-    code: GeneratedCode, degree: int
+    code: GeneratedCode, degree: int, *, disable_regalloc: bool = False
 ) -> MeltwKernelConfig:
-    zmm = AVX512RegisterType.from_index
+    def zmm(index: int) -> AVX512RegisterType:
+        return (
+            AVX512RegisterType.unallocated()
+            if disable_regalloc
+            else AVX512RegisterType.from_index(index)
+        )
+
     if degree == 3:
         coeffs = libxsmm_generator_prepare_coeffs_exp_ps_3dts_avx512(
             code, zmm(6), zmm(5), zmm(4), zmm(3), zmm(7), zmm(2)
         )
-        return MeltwKernelConfig(8, zmm(0), zmm(1), coeffs)
+        return MeltwKernelConfig(8, zmm(0), zmm(1), coeffs, disable_regalloc)
     coeffs = libxsmm_generator_prepare_coeffs_exp_ps_5dts_avx512(
         code,
         zmm(14),
@@ -72,7 +79,7 @@ def libxsmm_configure_unary_kernel_vregs_masks(
         zmm(5),
     )
     # Upstream leaves zmm0/1 reserved even after moving the auxiliaries to 4/3.
-    return MeltwKernelConfig(16, zmm(4), zmm(3), coeffs)
+    return MeltwKernelConfig(16, zmm(4), zmm(3), coeffs, disable_regalloc)
 
 
 def libxsmm_generator_configure_M_N_blocking(desc: MeltwDescriptor) -> tuple[int, int]:
@@ -107,8 +114,10 @@ def libxsmm_load_2d_reg_block(
                 x86.ops.DM_VmovupsOp(
                     input,
                     64 * im,
-                    destination=AVX512RegisterType.from_index(
-                        config.reserved_zmms + im
+                    destination=(
+                        AVX512RegisterType.unallocated()
+                        if config.disable_regalloc
+                        else AVX512RegisterType.from_index(config.reserved_zmms + im)
                     ),
                 )
             ),
@@ -130,7 +139,11 @@ def libxsmm_compute_unary_2d_reg_block_op(
                 value,
                 config.vec_y,
                 config.vec_z,
-                AVX512MaskRegisterType.from_index(1),
+                (
+                    AVX512MaskRegisterType.unallocated()
+                    if config.disable_regalloc
+                    else AVX512MaskRegisterType.from_index(1)
+                ),
                 config.coeffs,
             )
             for value in values
