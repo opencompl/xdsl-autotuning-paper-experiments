@@ -161,7 +161,12 @@ class MicroKernelConfig:
     prefetch_instruction: int = field(default=0)
     vxor_instruction: type[x86.ops.DSS_VpxordOp] | None = field(default=None)
     vmul_instruction: (
-        type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None
+        type[
+            x86.ops.RSS_Vfmadd231pdOp
+            | x86.ops.RSS_Vfmadd231psOp
+            | x86.ops.RSS_Vdpbf16psOp
+        ]
+        | None
     ) = field(default=None)
     vadd_instruction: type[x86.ops.DSS_VaddpdOp | x86.ops.DSS_VaddpsOp] | None = field(
         default=None

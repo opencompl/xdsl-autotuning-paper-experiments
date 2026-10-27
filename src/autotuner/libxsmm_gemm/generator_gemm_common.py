@@ -179,7 +179,38 @@ def libxsmm_generator_gemm_init_micro_kernel_config(
         ):
             raise NotImplementedError
         elif desc.datatype.a == Datatype.BF16 and (desc.flags & GEMMFlag.VNNI_A) > 0:
-            raise NotImplementedError
+            # Only the native CPX kernel is ported; pre-CPX targets emulate VDPBF16PS.
+            if not Arch.LIBXSMM_X86_AVX512_CPX <= arch <= Arch.LIBXSMM_X86_ALLFEAT:
+                raise NotImplementedError
+            # C is 32bit, so we treat all 3 matrices as 32bit element arrays
+            config.vector_length = 16
+            config.datatype_size_in = 2
+            config.datatype_size_in2 = 2
+            if desc.datatype.c == Datatype.BF16:
+                config.datatype_size_out = 2
+            elif desc.datatype.c in (Datatype.BF8, Datatype.HF8):
+                config.datatype_size_out = 1
+            else:
+                config.datatype_size_out = 4
+            if GEMMFlag.ALIGN_A in desc.flags:
+                assert not desc.lda % config.vector_length
+                config.a_vmove_instruction = x86.ops.DM_VmovapsOp
+            else:
+                config.a_vmove_instruction = x86.ops.DM_VmovupsOp
+            config.b_vmove_instruction = x86.ops.DM_VpbroadcastdOp
+            if GEMMFlag.ALIGN_C in desc.flags:
+                assert not desc.ldc % config.vector_length
+                config.c_vmove_ld_instruction = x86.ops.DM_VmovapsOp
+                config.c_vmove_st_instruction = x86.ops.MS_VmovapsOp
+                if not use_masking_a_c:
+                    config.c_vmove_nts_instruction = x86.ops.MS_VmovntpsOp
+            else:
+                config.c_vmove_ld_instruction = x86.ops.DM_VmovupsOp
+                config.c_vmove_st_instruction = x86.ops.MS_VmovupsOp
+                config.c_vmove_nts_instruction = x86.ops.MS_VmovupsOp
+            config.vxor_instruction = x86.ops.DSS_VpxordOp
+            config.vmul_instruction = x86.ops.RSS_Vdpbf16psOp
+            config.vadd_instruction = x86.ops.DSS_VaddpsOp
         elif desc.datatype.a == Datatype.BF16 and (desc.flags & GEMMFlag.VNNI_A) == 0:
             # Only the flat CPX kernel is ported; pre-CPX targets emulate VDPBF16PS.
             if not libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(arch, desc):
@@ -1128,7 +1159,9 @@ def libxsmm_generator_gemm_footer_nloop(
 
         if GEMMFlag.VNNI_A in desc.flags:
             # for VNNI we are stepping through to pack ks
-            raise NotImplementedError
+            # libxsmm_cpuid_dot_pack_factor(BF16), the only VNNI A ported
+            assert desc.datatype.ab == Datatype.BF16
+            k_pack_factor = 2
 
         if GEMMFlag.TRANS_B in desc.flags:
             b_offset = (
@@ -1286,7 +1319,9 @@ def libxsmm_generator_gemm_footer_mloop(
 
     # for VNNI we are stepping through to pack ks
     if GEMMFlag.VNNI_A in desc.flags:
-        raise NotImplementedError
+        # libxsmm_cpuid_dot_pack_factor(BF16), the only VNNI A ported
+        assert desc.datatype.ab == Datatype.BF16
+        k_pack_factor = 2
 
     # Advance C pointer
     c_val = generated_code.insert(

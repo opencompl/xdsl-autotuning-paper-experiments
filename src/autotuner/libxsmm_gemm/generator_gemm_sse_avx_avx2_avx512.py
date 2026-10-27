@@ -936,7 +936,11 @@ def libxsmm_generator_gemm_sse_avx_avx2_avx512_kloop(
 
     if GEMMFlag.VNNI_A in desc.flags:
         # VNNI kernel should maintain the same amount of unrolled instructions
-        raise NotImplementedError
+        # libxsmm_cpuid_dot_pack_factor(BF16), the only VNNI A ported
+        assert desc.datatype.ab == Datatype.BF16
+        k_pack_factor = 2
+        k_blocking = k_blocking * k_pack_factor
+        k_threshold = ((k_threshold + 1) * k_pack_factor) - 1
 
     if is_i8_uu_ss_gemm and generated_code.arch in (
         Arch.LIBXSMM_X86_AVX512_SKX,

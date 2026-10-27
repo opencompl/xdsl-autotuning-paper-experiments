@@ -296,7 +296,10 @@ def libxsmm_x86_instruction_vec_compute_3reg(
 
 def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
+    vec_instr: type[
+        x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp | x86.ops.RSS_Vdpbf16psOp
+    ]
+    | None,
     base_val: SSAValue[x86.registers.GeneralRegisterType],
     gp_reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,
@@ -342,6 +345,8 @@ def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
                     mem_instr = x86.ops.RSM_Vfmadd231pdOp
                 case x86.ops.RSS_Vfmadd231psOp:
                     mem_instr = x86.ops.RSM_Vfmadd231psOp
+                case x86.ops.RSS_Vdpbf16psOp:
+                    mem_instr = x86.ops.RSM_Vdpbf16psOp
                 case _:
                     assert False, f"Unsupported vec compute mem op: {vec_instr}"
 
@@ -363,7 +368,10 @@ def libxsmm_x86_instruction_vec_compute_mem_2reg_mask_imm8(
 
 def libxsmm_x86_instruction_vec_compute_mem_2reg(
     generated_code: GeneratedCode,
-    vec_instr: type[x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp] | None,
+    vec_instr: type[
+        x86.ops.RSS_Vfmadd231pdOp | x86.ops.RSS_Vfmadd231psOp | x86.ops.RSS_Vdpbf16psOp
+    ]
+    | None,
     base_val: SSAValue[x86.registers.GeneralRegisterType],
     gp_reg_idx: x86.registers.GeneralRegisterType | None,
     scale: int,

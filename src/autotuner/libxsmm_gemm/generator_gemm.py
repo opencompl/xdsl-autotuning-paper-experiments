@@ -137,7 +137,8 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
             case _:
                 raise NotImplementedError
 
-    if GEMMFlag.VNNI_A in desc.flags:
+    # Of the VNNI layouts of A, only BF16 pairs are ported.
+    if GEMMFlag.VNNI_A in desc.flags and desc.datatype.ab != Datatype.BF16:
         raise NotImplementedError
 
     if GEMMFlag.VNNI_B in desc.flags:
@@ -314,7 +315,7 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
         and desc.datatype.ab == Datatype.BF16
     ):
         # some checks as we cannot mask everything
-        assert GEMMFlag.VNNI_A not in desc.flags or desc.k % 2, (
+        assert GEMMFlag.VNNI_A not in desc.flags or not desc.k % 2, (
             "For AVX512_SKX+ BF16 with VNNI_A, K must be even."
         )
         if GEMMFlag.VNNI_A not in desc.flags:

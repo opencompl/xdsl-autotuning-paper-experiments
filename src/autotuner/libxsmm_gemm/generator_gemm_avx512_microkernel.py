@@ -76,8 +76,8 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
     )
 
     is_not_cpx_bf16 = (
-        generated_code.arch != "AVX512_CPX"
-        and desc.datatype.ab == "BF16"
+        generated_code.arch != Arch.LIBXSMM_X86_AVX512_CPX
+        and desc.datatype.ab == Datatype.BF16
         and GEMMFlag.VNNI_A in desc.flags
     )
 
@@ -86,8 +86,9 @@ def libxsmm_generator_gemm_avx512_kloop_kernel(
     )
 
     if GEMMFlag.VNNI_A in desc.flags:
-        raise NotImplementedError
-    if is_ABF16_BBF16_flat_cpx_gemm:
+        # libxsmm_cpuid_dot_pack_factor(BF16): A holds K in pairs.
+        k_pack_factor = 2
+    elif is_ABF16_BBF16_flat_cpx_gemm:
         # libxsmm_cpuid_dot_pack_factor(BF16): every micro-kernel call eats a K pair.
         # libxsmm silently computes a wrong product for an odd K; refuse instead.
         k_pack_factor = 2
@@ -178,7 +179,10 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
     k_iters = k_blocking
 
     if GEMMFlag.VNNI_A in desc.flags:
-        raise NotImplementedError
+        # libxsmm_cpuid_dot_pack_factor(BF16)
+        k_pack_factor = 2
+        k_iters = k_blocking // k_pack_factor
+        assert not k_blocking % k_pack_factor, "LIBXSMM_ERR_K_BLOCK"
 
     assert n_blocking <= 28
 
@@ -313,7 +317,9 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
                     k * micro_kernel_config.datatype_size_in2 * k_pack_factor
                     + n * desc.ldb * micro_kernel_config.datatype_size_in2
                 )
-                if desc.datatype.ab in (Datatype.F64, Datatype.F32):
+                if desc.datatype.ab in (Datatype.F64, Datatype.F32) or (
+                    desc.datatype.ab == Datatype.BF16 and GEMMFlag.VNNI_A in desc.flags
+                ):
                     src1_idx = k % 2 + vreg_ab_offset
                     dst_idx = vec_reg_count - (n_blocking * ((k % n_accs) + 1)) + n
                     acc_by_idx[dst_idx] = libxsmm_x86_instruction_vec_compute_mem_2reg(
@@ -337,7 +343,9 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
                     k * desc.ldb * micro_kernel_config.datatype_size_in2 * k_pack_factor
                     + n * micro_kernel_config.datatype_size_in2
                 )
-                if desc.datatype.ab in (Datatype.F64, Datatype.F32):
+                if desc.datatype.ab in (Datatype.F64, Datatype.F32) or (
+                    desc.datatype.ab == Datatype.BF16 and GEMMFlag.VNNI_A in desc.flags
+                ):
                     src1_idx = k % 2 + vreg_ab_offset
                     dst_idx = vec_reg_count - (n_blocking * ((k % n_accs) + 1)) + n
                     acc_by_idx[dst_idx] = libxsmm_x86_instruction_vec_compute_mem_2reg(
@@ -373,7 +381,7 @@ def libxsmm_generator_gemm_avx512_microkernel_fsdbcst(
 
     for k in range(1, n_accs):
         for n in range(n_blocking):
-            if desc.datatype.ab in (Datatype.F64, Datatype.F32):
+            if desc.datatype.ab in (Datatype.F64, Datatype.F32, Datatype.BF16):
                 src0_idx = vec_reg_count - (n_blocking * (k + 1)) + n
                 main_idx = vec_reg_count - n_blocking + n
                 acc_by_idx[main_idx] = libxsmm_x86_instruction_vec_compute_3reg(
@@ -497,8 +505,9 @@ def libxsmm_generator_gemm_avx512_microkernel_nofsdbcst(
         assert (((m_blocking * n_blocking) + m_blocking + 1) <= 32) or (n_blocking >= 7)
 
     if GEMMFlag.VNNI_A in desc.flags:
-        # for VNNI we are stepping through to pack ks */
-        raise NotImplementedError
+        # for VNNI we are stepping through to pack ks
+        # libxsmm_cpuid_dot_pack_factor(BF16)
+        k_pack_factor = 2
     is_ABF16_BBF16_flat_cpx_gemm = libxsmm_x86_is_ABF16_BBF16_flat_cpx_gemm(
         generated_code.arch, desc
     )
