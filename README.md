@@ -112,9 +112,11 @@ records its machine, family, ISA, compiler `march`, and libxsmm architecture.
 
 ### Initial FP32 exp experiment
 
-`f32.exp` currently runs on `tower` and compares native LIBXSMM with its literal
-Python/xDSL port (`xdsl_libxsmm`) for degree-three and degree-five approximations
-at lengths 16, 32, 64, 128, 256, 512, and 1024.
+`f32.exp` currently runs on `tower` and compares native LIBXSMM, its literal
+Python/xDSL port (`xdsl_libxsmm`), manually allocated CompXSMM (`compxsmm_manual`,
+"CompXSMM - RA" in the plot), and allocator-driven CompXSMM (`compxsmm`).
+Both degree-three and degree-five approximations run at lengths
+16, 32, 64, 128, 256, 512, and 1024.
 Every shape is a packed column vector: `M=length`, `N=1`, `ldi=ldo=length`.
 The experiment deliberately excludes partial vectors, strided matrices, and
 streaming-sized buffers.
@@ -129,10 +131,10 @@ make plots/f32.exp.tower.pdf plots/tower/f32.exp.png
 
 The same Python builder and evaluator used for matmul write artifacts under
 `build/tower/exp/degree<3|5>/<length>/` and nine measurement passes to
-`data/tower/f32.exp.jsonl` (2,016 rows). Each shape/degree has one
-`paired.f32.time.o` containing both implementations. In each pass it measures
-both kernels at offsets 0, 16, 32, and 48 within one page-aligned executable
-buffer, in both native/port and port/native order. Both sides of a comparison
+`data/tower/f32.exp.jsonl` (4,032 rows). Each shape/degree has one
+`paired.f32.time.o` containing all four implementations. In each pass it measures
+all kernels at offsets 0, 16, 32, and 48 within one page-aligned executable
+buffer, in forward and reverse variant order. All sides of a comparison
 therefore use exactly the same code address, caller, input, and output buffers.
 The JSONL retains every timing, placement, order, pass, and executable address.
 The plot takes the median of the eighteen readings at each placement (nine passes
@@ -151,7 +153,7 @@ Old, separate-executable measurements are rejected by the exp plotter.
 LIBXSMM dispatch runs once before warmup, with the machine's explicit `skx`
 target. `LIBXSMM_X86_HINT_USE_HIGH_PREC_ELTWISE_APPROX` is forced to `0` for
 degree three and `1` for degree five, independently of the ambient environment.
-Reference fallbacks are rejected. Both kernels use the same unary function-pointer
+Reference fallbacks are rejected. All kernels use the same unary function-pointer
 ABI; one non-inlined timed loop calls them with a prefilled
 `libxsmm_meltw_unary_param`. Input and output are separate, 64-byte-aligned,
 cache-resident arrays. Initialization, code copying, permission changes, 1,000
@@ -166,9 +168,8 @@ maximum relative error of `1e-3` for degree three and `1e-6` for degree five,
 and rejects nonfinite outputs, input writes, and writes to output guards.
 These are finite-domain contracts, not claims of correctly rounded `expf` or
 identical behavior for subnormal results outside the tested input range.
-The port also has a native-JIT differential test with mixed underflow, overflow,
+All generated variants also have a native-JIT differential test with mixed underflow, overflow,
 NaN, and infinity lanes, including lengths around unroll and region boundaries.
-CompXSMM is not yet included.
 
 Generate assembly independently, as with `libxsmm-gemm`:
 
@@ -187,12 +188,34 @@ SSA fallthrough, emitting no instruction, as in LIBXSMM and the matmul port.
 Missing x86 ops live in this repository's
 `autotuner.dialects.x86_ext`, without changing the xDSL pin.
 
+CompXSMM emits `xsmm.exp`, then lowers it to the same blocking and polynomial
+emitters through `x86_scf.for` loops. Its two versions differ only in register
+assignment, not the schedule. To emit either version's assembly:
+
+```sh
+# Manual assignment, matching LIBXSMM's registers.
+uv run compxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5
+uv run xdsl-opt /tmp/exp.mlir \
+  -p xsmm-apply-exp-schedule,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion \
+  -t x86-asm -o /tmp/exp-manual.S
+# Leave all non-ABI registers unallocated, then run xDSL's allocator.
+uv run compxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5 --disable-regalloc
+uv run xdsl-opt /tmp/exp.mlir \
+  -p 'xsmm-apply-exp-schedule{disable-regalloc=true},x86-regalloc-verify-liveness,x86-allocate-registers-with-masks,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion' \
+  -t x86-asm -o /tmp/exp-allocated.S
+```
+
+The local `x86-allocate-registers-with-masks` pass uses the unchanged xDSL
+allocator and AVX-512 GP/vector pool, adding `k1`–`k7` for the quintic's blend.
+The pinned xDSL pool omits masks; `k0` cannot encode a writemask. No xDSL fork
+or dependency change is required. Allocation is followed by liveness verification.
+
 `kernels/exp/init.c` returns the assembled callback for correctness tests. The
-timing harness instead relocates the JIT bytes and assembled port into its shared
+timing harness instead relocates the JIT bytes and assembled kernels into its shared
 buffer. This is valid for these self-contained kernels: all branches and
 RIP-relative constant references stay within the copied code. The generator
-exports an end label to delimit the port without adding instructions. Equivalent
-assembler encoding differences remain; relocation does not rewrite either kernel.
+exports an end label to delimit each kernel without adding instructions. Equivalent
+assembler encoding differences remain; relocation does not rewrite instructions.
 
 ### AOCL-BLAS baseline
 

@@ -15,6 +15,7 @@ KERNEL = "matmul_colmaj"
 EXP_LENGTHS = (16, 32, 64, 128, 256, 512, 1024)
 EXP_DEGREES = (3, 5)
 EXP_PLACEMENTS = (0, 16, 32, 48)
+EXP_VARIANTS = ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
 
 # Sizes swept by the two square sweeps, one per data type, which set
 # M = N = K to each of them.
@@ -86,7 +87,7 @@ VARIANTS = {
         "f64.nanokernel_grid": [],
     },
     "tower": {
-        "f32.exp": ["libxsmm", "xdsl_libxsmm"],
+        "f32.exp": list(EXP_VARIANTS),
         "ttile": [
             "libxsmm",
             "mkl",

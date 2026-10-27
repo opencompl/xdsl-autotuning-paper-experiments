@@ -52,6 +52,7 @@ from rich.progress import (
 
 from autotuner.datasets import (
     EXP_PLACEMENTS,
+    EXP_VARIANTS,
     NANOKERNEL_VARIANTS,
     Sample,
     dataset_samples,
@@ -852,14 +853,14 @@ def plan_shape(
         exp_degree=first.exp_degree,
     )
     if first.kernel == "exp" and driver == "time":
-        # One executable owns both kernels and one timing call site. The
+        # One executable owns all kernels and one timing call site. The
         # evaluator caches its paired results once per shape and pass.
         for sample in samples:
-            if sample.variant not in ("libxsmm", "xdsl_libxsmm"):
+            if sample.variant not in EXP_VARIANTS:
                 raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
-        native, port = (
+        native, *generated = (
             asm_artifact(tool, replace(first, variant=variant))
-            for variant in ("libxsmm", "xdsl_libxsmm")
+            for variant in EXP_VARIANTS
         )
         paired = binary_artifact(
             tool,
@@ -867,9 +868,9 @@ def plan_shape(
             native,
             obj,
             driver,
-            extra_asm=(port,),
+            extra_asm=generated,
         )
-        return obj, native, port, paired
+        return obj, native, *generated, paired
     artifacts: list[Artifact] = [obj]
     for sample in samples:
         asm = asm_artifact(tool, sample)

@@ -309,11 +309,7 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
 
     # Exercise the real paired timer too: relocation must preserve outputs and
     # guards for both a straight-line kernel and a looped kernel, at every offset.
-    timed = [
-        s
-        for s in samples
-        if s.m in (16, 1024) and s.variant in ("libxsmm", "xdsl_libxsmm")
-    ]
+    timed = [s for s in samples if s.m in (16, 1024)]
     build.build(timed, "ci", root=tmp_path, jobs=1, quiet=True)
     for sample in timed:
         if sample.variant != "libxsmm":
@@ -323,14 +319,14 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
         ).with_name("paired.f32.time.o")
         done = subprocess.run([binary], capture_output=True, text=True, check=True)
         rows = json.loads(done.stdout)
-        assert len(rows) == 16
+        assert len(rows) == 32
         assert {(r["variant"], r["placement_offset"], r["order"]) for r in rows} == {
             (variant, offset, order)
-            for variant in ("libxsmm", "xdsl_libxsmm")
+            for variant in ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
             for offset in (0, 16, 32, 48)
             for order in (0, 1)
         }
-        # Both variants and both orders use the very same address, not just
+        # All variants and both orders use the very same address, not just
         # addresses with coincidentally equal cache-line alignment.
         assert (
             len({int(r["code_address"], 16) - r["placement_offset"] for r in rows}) == 1

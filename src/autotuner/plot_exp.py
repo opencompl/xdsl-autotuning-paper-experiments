@@ -51,7 +51,7 @@ def exp_metrics(df: pd.DataFrame) -> pd.DataFrame:
     ):
         raise ValueError("exp needs paired variants at the same address in both orders")
 
-    # Median across passes and AB/BA orders at EACH placement, then an equal
+    # Median across passes and forward/reverse orders at EACH placement, then an equal
     # average across placements. Never pick a different best alignment per variant.
     placed = df.groupby([*key, "placement_offset"], as_index=False).agg(
         time=("time", "median")
@@ -111,6 +111,8 @@ def plot_exp(df: pd.DataFrame, *, output_path: Path | None = None) -> None:
     # shared autoscale; doing it inside the loop clips the second column.
     for ax in axes[:, 0]:
         ax.set_ylim(bottom=0)
+    # Nearly coincident curves still need room for their markers above 1x.
+    axes[1, 0].set_ylim(top=cast(float, measured["speedup"].max()) * 1.05)
     axes[0, 0].set_ylabel("cycles / element\n(mean over placements)")
     axes[1, 0].set_ylabel("speedup vs LIBXSMM\n(same degree)")
     fig.tight_layout(pad=0.4)

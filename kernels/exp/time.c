@@ -12,8 +12,12 @@
 
 extern void exp_kernel(const libxsmm_meltw_unary_param *param);
 extern const unsigned char exp_kernel_end[];
+extern void compxsmm_manual_exp_kernel(const libxsmm_meltw_unary_param *param);
+extern const unsigned char compxsmm_manual_exp_kernel_end[];
+extern void compxsmm_exp_kernel(const libxsmm_meltw_unary_param *param);
+extern const unsigned char compxsmm_exp_kernel_end[];
 
-// One call site for both variants, all placements, and both execution orders.
+// One call site for all variants, placements, and both execution orders.
 __attribute__((noinline)) static TIMETY measure(
     libxsmm_meltwfunction_unary kernel, const libxsmm_meltw_unary_param *param) {
   for (int i = 0; i < 1000; ++i) kernel(param);
@@ -27,13 +31,25 @@ int main(void) {
   if (!native) return 1;
   libxsmm_kernel_info info = {0};
   if (libxsmm_get_kernel_info((const void *)native, &info) != 0) return 1;
-  const libxsmm_meltwfunction_unary kernels[] = {native, exp_kernel};
-  const char *names[] = {"libxsmm", "xdsl_libxsmm"};
-  const size_t sizes[] = {
-      info.code_size, (uintptr_t)exp_kernel_end - (uintptr_t)exp_kernel};
+  const struct {
+    const char *name;
+    libxsmm_meltwfunction_unary kernel;
+    size_t size;
+  } variants[] = {
+      {"libxsmm", native, info.code_size},
+      {"xdsl_libxsmm", exp_kernel,
+       (uintptr_t)exp_kernel_end - (uintptr_t)exp_kernel},
+      {"compxsmm_manual", compxsmm_manual_exp_kernel,
+       (uintptr_t)compxsmm_manual_exp_kernel_end - (uintptr_t)compxsmm_manual_exp_kernel},
+      {"compxsmm", compxsmm_exp_kernel,
+       (uintptr_t)compxsmm_exp_kernel_end - (uintptr_t)compxsmm_exp_kernel},
+  };
+  enum { VARIANTS = sizeof(variants) / sizeof(*variants) };
   const size_t offsets[] = {EXP_PLACEMENTS};
   const size_t page = (size_t)sysconf(_SC_PAGESIZE);
-  size_t capacity = sizes[0] > sizes[1] ? sizes[0] : sizes[1];
+  size_t capacity = 0;
+  for (int v = 0; v < VARIANTS; ++v)
+    if (variants[v].size > capacity) capacity = variants[v].size;
   capacity = (capacity + offsets[sizeof(offsets) / sizeof(*offsets) - 1]
               + page - 1) / page * page;
   unsigned char *buffer = mmap(NULL, capacity, PROT_READ | PROT_WRITE,
@@ -44,33 +60,33 @@ int main(void) {
   }
 
   _Alignas(64) float input[LENGTH + 32], output[LENGTH + 32];
-  float saved[LENGTH + 32], expected[2][LENGTH];
+  float saved[LENGTH + 32], expected[VARIANTS][LENGTH];
   for (int i = 0; i < LENGTH + 32; ++i) input[i] = -12345.0f;
   fill_exp_input(input + 16, 42);
   memcpy(saved, input, sizeof(input));
   libxsmm_meltw_unary_param param = {0};
   param.in.primary = input + 16;
-  for (int variant = 0; variant < 2; ++variant) {
+  for (int variant = 0; variant < VARIANTS; ++variant) {
     param.out.primary = expected[variant];
-    kernels[variant](&param);
+    variants[variant].kernel(&param);
   }
   param.out.primary = output + 16;
   time_init();
 
-  // Keep every placement and both AB/BA orders. No per-variant alignment search.
+  // Keep every placement and forward/reverse orders. No alignment search.
   printf("[");
   const char *separator = "";
   for (size_t p = 0; p < sizeof(offsets) / sizeof(*offsets); ++p) {
     unsigned char *code = buffer + offsets[p];
     for (int order = 0; order < 2; ++order) {
-      for (int position = 0; position < 2; ++position) {
-        int variant = position ^ order;
+      for (int position = 0; position < VARIANTS; ++position) {
+        int variant = order ? VARIANTS - 1 - position : position;
         // The kernels contain only local branches and inline RIP-relative
         // constants, so copying preserves their references. Never map RWX.
         if (mprotect(buffer, capacity, PROT_READ | PROT_WRITE)) goto protection_error;
         memset(buffer, 0xcc, capacity);
-        memcpy(code, (const void *)kernels[variant], sizes[variant]);
-        __builtin___clear_cache((char *)code, (char *)code + sizes[variant]);
+        memcpy(code, (const void *)variants[variant].kernel, variants[variant].size);
+        __builtin___clear_cache((char *)code, (char *)code + variants[variant].size);
         if (mprotect(buffer, capacity, PROT_READ | PROT_EXEC)) goto protection_error;
         for (int i = 0; i < LENGTH + 32; ++i) output[i] = -12345.0f;
         TIMETY elapsed = measure((libxsmm_meltwfunction_unary)code, &param);
@@ -91,7 +107,7 @@ int main(void) {
         }
         printf("%s{\"variant\":\"%s\",\"placement_offset\":%zu,"
                "\"order\":%d,\"code_address\":\"0x%" PRIxPTR "\",\"time\":%Lf}",
-               separator, names[variant], offsets[p], order, (uintptr_t)code, elapsed);
+               separator, variants[variant].name, offsets[p], order, (uintptr_t)code, elapsed);
         separator = ",";
       }
     }
