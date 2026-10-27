@@ -220,6 +220,51 @@ def test_m4_native_correctness_driver(tmp_path: Path, dtype: str) -> None:
     assert "Test Passed" in done.stdout
 
 
+def test_native_exp_builds_validates_and_pins_its_approximation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if (
+        platform.system() != "Linux"
+        or platform.machine() != "x86_64"
+        or "avx512f" not in Path("/proc/cpuinfo").read_text()
+        or not shutil.which("clang")
+        or not build.pkg_config("libxsmm")[0]
+    ):
+        pytest.skip("requires AVX-512 and the LIBXSMM development package")
+    # Correctness does not need tower's PAPI timer or its Zen 5 compiler target.
+    monkeypatch.setitem(
+        build.MACHINES, "ci", replace(build.MACHINES["ci"], libxsmm_arch="skx")
+    )
+    samples = [
+        Sample(128, 1, 1, "libxsmm", "f32", kernel="exp", exp_degree=degree)
+        for degree in (3, 5)
+    ]
+    # Build together to catch shared paths or a driver compiled for the wrong
+    # degree, as well as an ambient hint overriding the requested polynomial.
+    build.build(samples, "ci", root=tmp_path, driver="test", jobs=1, quiet=True)
+    for sample in samples:
+        binary = tmp_path / Path(sample.path("ci", "test.o")).relative_to("build")
+        outputs = []
+        for hint in ("0", "1"):
+            done = subprocess.run(
+                [binary],
+                env=os.environ
+                | {"LIBXSMM_X86_HINT_USE_HIGH_PREC_ELTWISE_APPROX": hint},
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            assert f"Test Passed: degree-{sample.exp_degree} exp" in done.stdout
+            outputs.append(done.stdout)
+        assert outputs[0] == outputs[1]
+        relative_error = float(outputs[0].splitlines()[0].split(": ")[1])
+        if sample.exp_degree == 3:
+            # The loose cubic tolerance alone would also accept degree five.
+            assert 1e-5 < relative_error < 1e-3
+        else:
+            assert relative_error < 1e-6
+
+
 @pytest.mark.parametrize("host", [("Linux", "aarch64"), ("Darwin", "x86_64")])
 def test_m4_requires_native_apple_silicon(
     monkeypatch: pytest.MonkeyPatch, host: tuple[str, str]
