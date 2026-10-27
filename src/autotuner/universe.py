@@ -9,6 +9,7 @@ from autotuner.passes.x86_allocate_registers_with_masks import (
 )
 from autotuner.passes.xsmm_apply_exp_schedule import XsmmApplyExpSchedulePass
 from autotuner.passes.xsmm_apply_schedule import XsmmApplySchedulePass
+from autotuner.passes.xsmm_expand_horner import XsmmExpandHornerPass
 
 AUTOTUNER_UNIVERSE = Universe(
     all_dialects={
@@ -21,5 +22,6 @@ AUTOTUNER_UNIVERSE = Universe(
         "x86-allocate-registers-with-masks": lambda: X86AllocateRegistersWithMasksPass,
         "xsmm-apply-exp-schedule": lambda: XsmmApplyExpSchedulePass,
         "xsmm-apply-schedule": lambda: XsmmApplySchedulePass,
+        "xsmm-expand-horner": lambda: XsmmExpandHornerPass,
     },
 )

@@ -12,6 +12,7 @@ from xdsl.dialects.builtin import (
 )
 from xdsl.dialects.x86.ops import DSS_Operation
 from xdsl.dialects.x86.registers import (
+    AVX512RegisterType,
     GeneralRegisterType,
     X86RegisterType,
     X86VectorRegisterType,
@@ -21,6 +22,7 @@ from xdsl.irdl import (
     AttrSizedOperandSegments,
     AttrSizedResultSegments,
     IRDLOperation,
+    ParsePropInAttrDict,
     irdl_op_definition,
     operand_def,
     prop_def,
@@ -31,7 +33,7 @@ from xdsl.irdl import (
 )
 from xdsl.parser import Parser
 from xdsl.printer import Printer
-from xdsl.traits import MemoryReadEffect, MemoryWriteEffect
+from xdsl.traits import MemoryReadEffect, MemoryWriteEffect, Pure
 from xdsl.utils.exceptions import VerifyException
 
 
@@ -475,6 +477,47 @@ class MatmulRegOp(IRDLOperation):
 
 
 @irdl_op_definition
+class HornerOp(IRDLOperation):
+    """Continue an FP32 Horner recurrence in each AVX-512 lane.
+
+    Coefficients are listed in ascending power order. Starting with
+    ``accumulator``, consume them in reverse order using ``fma(acc, x, c)``.
+    Each step is fused; unlike a polynomial, this operation fixes evaluation
+    order. With no remaining coefficients the result is the accumulator.
+    """
+
+    name = "xsmm.horner"
+    argument = operand_def(AVX512RegisterType)
+    accumulator = operand_def(AVX512RegisterType)
+    coefficients = var_operand_def(AVX512RegisterType)
+    result = result_def(AVX512RegisterType)
+    datatype = prop_def(Float32Type)
+    traits = traits_def(Pure())
+    irdl_options = (ParsePropInAttrDict(),)
+    assembly_format = (
+        "$argument `accumulator` `(` $accumulator `)` "
+        "`coefficients` `(` $coefficients `)` attr-dict `:` "
+        "functional-type(operands, results)"
+    )
+
+    def __init__(
+        self,
+        argument: SSAValue,
+        accumulator: SSAValue,
+        coefficients: Sequence[SSAValue],
+    ):
+        super().__init__(
+            operands=(argument, accumulator, coefficients),
+            result_types=(accumulator.type,),
+            properties={"datatype": Float32Type()},
+        )
+
+    def verify_(self) -> None:
+        if self.result.type != self.accumulator.type:
+            raise VerifyException("Horner result must reuse the accumulator register")
+
+
+@irdl_op_definition
 class ExpOp(IRDLOperation):
     """Out-of-place approximate FP32 exp over a packed, full-vector column.
 
@@ -488,9 +531,7 @@ class ExpOp(IRDLOperation):
     length = prop_def(IntegerAttr)
     degree = prop_def(IntegerAttr)
     traits = traits_def(MemoryReadEffect(), MemoryWriteEffect())
-    assembly_format = (
-        "$input `,` $output `length` $length `degree` $degree attr-dict `:` type(operands)"
-    )
+    assembly_format = "$input `,` $output `length` $length `degree` $degree attr-dict `:` type(operands)"
 
     def __init__(self, input: SSAValue, output: SSAValue, length: int, degree: int):
         super().__init__(
@@ -510,6 +551,6 @@ class ExpOp(IRDLOperation):
 
 XSMM = Dialect(
     "xsmm",
-    [AccumulatorAddpdOp, AccumulatorAddpsOp, MatmulOp, MatmulRegOp, ExpOp],
+    [AccumulatorAddpdOp, AccumulatorAddpsOp, MatmulOp, MatmulRegOp, HornerOp, ExpOp],
     [],
 )

@@ -4,8 +4,9 @@ from xdsl.dialects.builtin import Float64Type, ModuleOp
 from xdsl.ir import SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
-from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
+from autotuner.dialects.xsmm import HornerOp, MatmulIterator, MatmulOp, MatmulRegOp
 from autotuner.schedules import (
+    expand_horner,
     loop_matmul,
     loop_matmul_reg,
     set_matmul_iterator,
@@ -198,3 +199,31 @@ def test_tile_matmul_reg_elides_single_iteration_loop() -> None:
     assert tiled is matmul
     assert remainder is None
     assert tuple(module.body.block.ops) == original_ops
+
+
+@pytest.mark.parametrize("coefficient_count", (0, 1, 3))
+def test_horner_expansion_preserves_surrounding_operations(
+    coefficient_count: int,
+) -> None:
+    inputs = test.TestOp(
+        result_types=[x86.registers.UNALLOCATED_AVX512] * (coefficient_count + 2)
+    )
+    x, accumulator, *coefficients = inputs.results
+    horner = HornerOp(x, accumulator, coefficients)
+    before = test.TestOp(operands=[x, accumulator])
+    consumer = test.TestOp(operands=[horner.result, x])
+    after = test.TestOp(operands=coefficients)
+    module = ModuleOp([inputs, before, horner, consumer, after])
+
+    while horner is not None:
+        horner = expand_horner(PatternRewriter(horner), horner)
+        ops = tuple(module.body.block.ops)
+        assert ops[:2] == (inputs, before)
+        assert ops[-2:] == (consumer, after)
+        assert tuple(before.operands) == (x, accumulator)
+        assert tuple(after.operands) == tuple(coefficients)
+        assert consumer.operands[1] is x
+        module.verify()
+
+    if coefficient_count == 0:
+        assert consumer.operands[0] is accumulator

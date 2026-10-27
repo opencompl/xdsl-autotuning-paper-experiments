@@ -16,9 +16,9 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.rewriter import InsertPoint
 
+from autotuner.compxsmm_gemm.generator_exp import generate_exp_block
 from autotuner.dialects.xsmm import ExpOp
 from autotuner.libxsmm_gemm.generator_mateltwise_unary_binary_avx_avx512 import (
-    libxsmm_compute_unary_2d_reg_block_op,
     libxsmm_configure_microkernel_loops,
     libxsmm_configure_unary_kernel_vregs_masks,
     libxsmm_generator_configure_M_N_blocking,
@@ -71,7 +71,7 @@ class ApplyExpSchedulePattern(RewritePattern):
                 )
                 body_code = GeneratedCode(Builder(InsertPoint.at_end(body)), code.arch)
             values = libxsmm_load_2d_reg_block(body_code, input, unroll, config)
-            values = libxsmm_compute_unary_2d_reg_block_op(body_code, values, config)
+            values = generate_exp_block(body_code, values, config)
             libxsmm_store_2d_reg_block(body_code, output, values)
             if loop is not None:
                 input = body_code.insert(

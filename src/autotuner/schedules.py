@@ -7,7 +7,9 @@ from xdsl.dialects import builtin, x86, x86_scf
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
 
+from autotuner.dialects import x86_ext
 from autotuner.dialects.xsmm import (
+    HornerOp,
     MatmulIterator,
     MatmulOp,
     MatmulRegOp,
@@ -382,3 +384,24 @@ def attach_mask(
     masked = _matmul_like(op, ins=(mask,))
     rewriter.replace(op, (masked,), masked.results)
     return masked
+
+
+def expand_horner(rewriter: PatternRewriter, op: HornerOp) -> HornerOp | None:
+    """Expand one fused Horner step in place, leaving the remaining recurrence.
+
+    Only the matched operation is replaced. In particular, coefficient setup,
+    neighboring instructions, and enclosing loops are never changed.
+    """
+    if not op.coefficients:
+        rewriter.replace(op, (), (op.accumulator,))
+        return None
+
+    accumulator = ir.SSAValue.get(op.accumulator, type=x86.registers.AVX512RegisterType)
+    step = x86_ext.RSS_Vfmadd213psOp(accumulator, op.argument, op.coefficients[-1])
+    if len(op.coefficients) == 1:
+        rewriter.replace(op, (step,))
+        return None
+
+    remaining = HornerOp(op.argument, step.register_out, op.coefficients[:-1])
+    rewriter.replace(op, (step, remaining))
+    return remaining
