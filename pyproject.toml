@@ -54,6 +54,7 @@ plot-exp = "autotuner.plot_exp:main"
 libxsmm-gemm = "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver:main"
 libxsmm-exp = "autotuner.libxsmm_gemm.libxsmm_generator_exp_driver:main"
 compxsmm-gemm = "autotuner.compxsmm_gemm.compxsmm_generator_gemm_driver:main"
+compxsmm-exp = "autotuner.compxsmm_gemm.compxsmm_generator_exp_driver:main"
 libxtcmm-gemm = "autotuner.libxtcmm_gemm.libxtcmm_generator_gemm_driver:main"
 
 [build-system]
