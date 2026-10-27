@@ -10,6 +10,7 @@
 #include "../../headers/mnk.h"
 #include "../../headers/print_matrix.h"
 #include "../../headers/ref_matmul.h"
+#include "../../headers/vnni.h"
 
 // Called once before any kernel invocation; per-call work belongs in matmul.
 extern void matmul_init(void);
@@ -19,12 +20,13 @@ int main() {
   matmul_init();
   set_random_seed(42);
 
-  DTYPE *A, *B, *A_asm, *B_asm;
+  DTYPE *A, *B, *A_kernel, *A_asm, *B_asm;
   CTYPE *C, *C_asm;
 
   posix_memalign((void **)&A, 64, M * K * sizeof(DTYPE));
   posix_memalign((void **)&B, 64, K * N * sizeof(DTYPE));
   posix_memalign((void **)&C, 64, M * N * sizeof(CTYPE));
+  posix_memalign((void **)&A_kernel, 64, M * K * sizeof(DTYPE));
   posix_memalign((void **)&A_asm, 64, M * K * sizeof(DTYPE));
   posix_memalign((void **)&B_asm, 64, K * N * sizeof(DTYPE));
   posix_memalign((void **)&C_asm, 64, M * N * sizeof(CTYPE));
@@ -39,7 +41,9 @@ int main() {
   printf("C\n");
   print_matrix_colmaj_acc(C, M, N);
 
-  memcpy(A_asm, A, M * K * sizeof(DTYPE));
+  // The reference reads A column-major; the kernel reads it in its own layout.
+  kernel_layout_a(A, A_kernel, M, K);
+  memcpy(A_asm, A_kernel, M * K * sizeof(DTYPE));
   memcpy(B_asm, B, K * N * sizeof(DTYPE));
   memcpy(C_asm, C, M * N * sizeof(CTYPE));
 
@@ -52,13 +56,14 @@ int main() {
   print_matrix_colmaj_acc(C_asm, M, N);
 
   int passed = isclose(C, C_asm, M * N);
-  if (memcmp(A, A_asm, M * K * sizeof(DTYPE)) != 0 ||
+  if (memcmp(A_kernel, A_asm, M * K * sizeof(DTYPE)) != 0 ||
       memcmp(B, B_asm, K * N * sizeof(DTYPE)) != 0) {
     printf("Test Failed: The kernel modified an input matrix.\n");
     passed = 0;
   }
 
   free(A);
+  free(A_kernel);
   free(B);
   free(C);
   free(A_asm);
