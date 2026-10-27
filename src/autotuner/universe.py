@@ -10,6 +10,9 @@ from autotuner.passes.x86_allocate_registers_with_masks import (
 from autotuner.passes.xsmm_apply_exp_schedule import XsmmApplyExpSchedulePass
 from autotuner.passes.xsmm_apply_schedule import XsmmApplySchedulePass
 from autotuner.passes.xsmm_expand_horner import XsmmExpandHornerPass
+from autotuner.passes.xsmm_expand_polynomial_constants import (
+    XsmmExpandPolynomialConstantsPass,
+)
 from autotuner.x86_mir import X86MirTarget
 
 AUTOTUNER_UNIVERSE = Universe(
@@ -24,6 +27,7 @@ AUTOTUNER_UNIVERSE = Universe(
         "xsmm-apply-exp-schedule": lambda: XsmmApplyExpSchedulePass,
         "xsmm-apply-schedule": lambda: XsmmApplySchedulePass,
         "xsmm-expand-horner": lambda: XsmmExpandHornerPass,
+        "xsmm-expand-polynomial-constants": lambda: XsmmExpandPolynomialConstantsPass,
     },
     all_targets={
         "x86-mir": lambda: X86MirTarget,

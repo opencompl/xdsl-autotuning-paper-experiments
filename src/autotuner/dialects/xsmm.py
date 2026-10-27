@@ -3,9 +3,11 @@ from enum import StrEnum
 
 from xdsl.backend.register_allocatable import RegisterConstraints
 from xdsl.dialects.builtin import (
+    ArrayAttr,
     BoolAttr,
     Float32Type,
     Float64Type,
+    FloatAttr,
     IntegerAttr,
     StringAttr,
     i64,
@@ -477,6 +479,46 @@ class MatmulRegOp(IRDLOperation):
 
 
 @irdl_op_definition
+class PolynomialConstantsOp(IRDLOperation):
+    """Materialize scalar FP32 coefficients as full AVX-512 splats in place.
+
+    Each coefficient expands to its own inline jump/data/load packet, in list
+    order. ``label_prefix`` followed by the coefficient index names its data.
+    The enclosing generator places this operation before any evaluation loop.
+    """
+
+    name = "xsmm.polynomial_constants"
+    coefficients = prop_def(ArrayAttr[FloatAttr[Float32Type]])
+    label_prefix = prop_def(StringAttr)
+    registers = var_result_def(AVX512RegisterType)
+    traits = traits_def(MemoryReadEffect())
+    assembly_format = (
+        "$coefficients `label_prefix` $label_prefix attr-dict `:` "
+        "`(` `)` `->` `(` type($registers) `)`"
+    )
+
+    def __init__(
+        self,
+        coefficients: Sequence[FloatAttr[Float32Type]],
+        label_prefix: str,
+        registers: Sequence[AVX512RegisterType],
+    ):
+        super().__init__(
+            result_types=(registers,),
+            properties={
+                "coefficients": ArrayAttr(coefficients),
+                "label_prefix": StringAttr(label_prefix),
+            },
+        )
+
+    def verify_(self) -> None:
+        if not self.coefficients:
+            raise VerifyException("polynomial coefficients must not be empty")
+        if len(self.coefficients) != len(self.registers):
+            raise VerifyException("expected one register per polynomial coefficient")
+
+
+@irdl_op_definition
 class HornerOp(IRDLOperation):
     """Evaluate or continue an FP32 Horner recurrence in each AVX-512 lane.
 
@@ -610,6 +652,14 @@ class ExpOp(IRDLOperation):
 
 XSMM = Dialect(
     "xsmm",
-    [AccumulatorAddpdOp, AccumulatorAddpsOp, MatmulOp, MatmulRegOp, HornerOp, ExpOp],
+    [
+        AccumulatorAddpdOp,
+        AccumulatorAddpsOp,
+        MatmulOp,
+        MatmulRegOp,
+        PolynomialConstantsOp,
+        HornerOp,
+        ExpOp,
+    ],
     [],
 )

@@ -5,13 +5,15 @@ generator. Only polynomial evaluation is abstracted here; the literal port
 remains an independent instruction-level baseline.
 """
 
-from xdsl.dialects import x86
-from xdsl.dialects.builtin import UnitAttr
+from collections.abc import Sequence
+
+from xdsl.dialects import x86, x86_func
+from xdsl.dialects.builtin import FloatAttr, UnitAttr, f32
 from xdsl.dialects.x86.registers import AVX512MaskRegisterType, AVX512RegisterType
 from xdsl.ir import SSAValue
 
 from autotuner.dialects import x86_ext
-from autotuner.dialects.xsmm import HornerOp
+from autotuner.dialects.xsmm import HornerOp, PolynomialConstantsOp
 from autotuner.libxsmm_gemm.generator_common_x86 import (
     Exp3Coefficients,
     Exp5Coefficients,
@@ -19,7 +21,79 @@ from autotuner.libxsmm_gemm.generator_common_x86 import (
 from autotuner.libxsmm_gemm.generator_mateltwise_unary_binary_avx_avx512 import (
     MeltwKernelConfig,
 )
+from autotuner.libxsmm_gemm.generator_x86_instructions import (
+    libxsmm_x86_instruction_full_vec_load_of_constants,
+)
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode
+
+
+def prepare_polynomial_constants(
+    code: GeneratedCode,
+    bits: Sequence[int],
+    registers: Sequence[AVX512RegisterType],
+) -> tuple[SSAValue[AVX512RegisterType], ...]:
+    func = code.current_block.parent_op()
+    assert isinstance(func, x86_func.FuncOp)
+    coefficients = FloatAttr.unpack(
+        f32, b"".join(value.to_bytes(4, "little") for value in bits), len(bits)
+    )
+    return tuple(
+        code.insert(
+            PolynomialConstantsOp(coefficients, f".L{func.sym_name.data}_c", registers)
+        ).registers
+    )
+
+
+def configure_exp_registers(
+    code: GeneratedCode, degree: int, *, disable_regalloc: bool
+) -> MeltwKernelConfig:
+    """Retain native register assignments and constant order, but defer packets."""
+
+    def zmm(index: int) -> AVX512RegisterType:
+        return (
+            AVX512RegisterType.unallocated()
+            if disable_regalloc
+            else AVX512RegisterType.from_index(index)
+        )
+
+    load = libxsmm_x86_instruction_full_vec_load_of_constants
+    if degree == 3:
+        halves = load(code, 0x3F000000, "halves", zmm(7))
+        log2e = load(code, 0x3FB8AA3B, "log2e", zmm(2))
+        c0, c1, c2, c3 = prepare_polynomial_constants(
+            code,
+            (0x3F34E022, 0x3EFD357F, 0x3E20BCD5, 0x3D635847),
+            tuple(zmm(i) for i in (6, 5, 4, 3)),
+        )
+        return MeltwKernelConfig(
+            8,
+            zmm(0),
+            zmm(1),
+            Exp3Coefficients(c0, c1, c2, c3, halves, log2e),
+            disable_regalloc,
+        )
+
+    assert degree == 5
+    expmask = load(code, 0x0000007F, "expmask", zmm(2))
+    logfmax = load(code, 0x42B17218, "logfmax", zmm(6))
+    logfmin = load(code, 0xC2AEAC50, "logfmin", zmm(5))
+    halves = load(code, 0x3F000000, "halves", zmm(15))
+    log2e = load(code, 0x3FB8AA3B, "log2e", zmm(8))
+    ln2 = load(code, 0x3F317218, "ln2", zmm(7))
+    c0, c1, c2, c3, c4, c5 = prepare_polynomial_constants(
+        code,
+        (0x3F800001, 0x3F800000, 0x3EFFFE85, 0x3E2AAA3E, 0x3D2BB1B1, 0x3C091EC1),
+        tuple(zmm(i) for i in (14, 13, 12, 11, 10, 9)),
+    )
+    return MeltwKernelConfig(
+        16,
+        zmm(4),
+        zmm(3),
+        Exp5Coefficients(
+            c0, c1, c2, c3, halves, log2e, c4, c5, ln2, expmask, logfmax, logfmin
+        ),
+        disable_regalloc,
+    )
 
 
 def generate_exp3(
