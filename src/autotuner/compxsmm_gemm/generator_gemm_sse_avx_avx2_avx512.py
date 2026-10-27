@@ -217,6 +217,14 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     )
     if is_ABF16_BBF16_flat_cpx_gemm:
         avnni_gemm_stack_alloc_tensors = False
+    # A comes in K pairs already; CPX multiplies them natively.
+    is_ABF16_BBF16_vnni_cpx_gemm = (
+        Datatype.BF16 == desc.datatype.ab
+        and GEMMFlag.VNNI_A in desc.flags
+        and Arch.LIBXSMM_X86_AVX512_CPX
+        <= generated_code.arch
+        <= Arch.LIBXSMM_X86_ALLFEAT
+    )
 
     is_Ai8_Bbf16_gemm = (
         (Datatype.I8 == desc.datatype.a and not is_Amxfp4_Bbf16_gemm)
@@ -340,7 +348,9 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
     # libxsmm_generator_gemm_apply_opA_opB( io_generated_code, io_loop_label_tracker, i_gp_reg_mapping, &l_micro_kernel_config, l_xgemm_desc, i_xgemm_desc);
 
     # generate hoisted BF16 emulation mask for AVX512
-    if desc.datatype.ab == Datatype.BF16 and not is_ABF16_BBF16_flat_cpx_gemm:
+    if desc.datatype.ab == Datatype.BF16 and not (
+        is_ABF16_BBF16_flat_cpx_gemm or is_ABF16_BBF16_vnni_cpx_gemm
+    ):
         raise NotImplementedError
 
     # generate hoisted UU SS i8 emulation mask for AVX512
@@ -389,7 +399,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
         raise NotImplementedError
-    if is_ABF16_BBF16_flat_cpx_gemm:
+    if is_ABF16_BBF16_flat_cpx_gemm or is_ABF16_BBF16_vnni_cpx_gemm:
         # C and the accumulation are F32; A and B stay BF16.
         assert desc.datatype.c == Datatype.F32
         datatype = desc.datatype.c
@@ -415,6 +425,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             ldc=desc.ldc,
             datatype=datatype.builtin_type,
             ab_datatype=ab_datatype,
+            vnni_a=is_ABF16_BBF16_vnni_cpx_gemm,
             aligned_a=GEMMFlag.ALIGN_A in desc.flags,
             aligned_c=GEMMFlag.ALIGN_C in desc.flags,
             iterator=MatmulIterator.N,

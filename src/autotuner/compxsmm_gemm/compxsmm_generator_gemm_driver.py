@@ -39,8 +39,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("prefetch", choices=["nopf", "AL2"], help="Prefetch strategy")
     parser.add_argument(
         "precision",
-        choices=["SP", "DP", "BF16F32"],
-        help="Precision: SP, DP or BF16F32 (BF16 A and B, F32 accumulation and C)",
+        choices=["SP", "DP", "BF16F32", "BF16F32_VNNI_A"],
+        help=(
+            "Precision: SP, DP, BF16F32 (BF16 A and B, F32 accumulation and C) or "
+            "BF16F32_VNNI_A (the same, with A packed in K pairs)"
+        ),
     )
     parser.add_argument(
         "--disable-regalloc",
@@ -64,7 +67,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         case "SP" | "DP":
             dt = Datatype.F32 if args.precision == "SP" else Datatype.F64
             desc_datatype = DescDatatype(dt, dt, dt, dt)
-        case "BF16F32":
+        case "BF16F32" | "BF16F32_VNNI_A":
             desc_datatype = DescDatatype(
                 Datatype.BF16, Datatype.BF16, Datatype.F32, Datatype.F32
             )
@@ -91,6 +94,9 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     if args.beta == 0:
         flags |= GEMMFlag.BETA_0
+
+    if args.precision == "BF16F32_VNNI_A":
+        flags |= GEMMFlag.VNNI_A
 
     descriptor = GEMMDescriptor(
         m=args.m,
