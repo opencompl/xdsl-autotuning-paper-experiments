@@ -60,6 +60,7 @@ DATASET_REPEATS = {
     "f32.squares": 3,
     "f64.squares": 3,
     "bf16.squares": 3,
+    "bf16_vnni.squares": 3,
 }
 
 
@@ -76,6 +77,7 @@ VARIANTS = {
         "f32.squares": [],
         "f64.squares": [],
         "bf16.squares": [],
+        "bf16_vnni.squares": [],
         "f64.nanokernel_grid": [],
     },
     "neon": {
@@ -84,6 +86,7 @@ VARIANTS = {
         "f32.squares": [],
         "f64.squares": [],
         "bf16.squares": [],
+        "bf16_vnni.squares": [],
         "f64.nanokernel_grid": [],
     },
     "tower": {
@@ -132,6 +135,12 @@ VARIANTS = {
             "compxsmm_plusnarrow",
         ],
         "bf16.squares": ["libxsmm", "xdsl_libxsmm", "compxsmm", "compxsmm_manual"],
+        "bf16_vnni.squares": [
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm",
+            "compxsmm_manual",
+        ],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "pinocchio": {
@@ -142,6 +151,7 @@ VARIANTS = {
         "f32.squares": [],
         "f64.squares": [],
         "bf16.squares": [],
+        "bf16_vnni.squares": [],
         "f64.nanokernel_grid": [],
     },
     "rapper": {
@@ -190,6 +200,12 @@ VARIANTS = {
             "compxsmm_plusnarrow",
         ],
         "bf16.squares": ["libxsmm", "xdsl_libxsmm", "compxsmm", "compxsmm_manual"],
+        "bf16_vnni.squares": [
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm",
+            "compxsmm_manual",
+        ],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "ci": {
@@ -198,6 +214,7 @@ VARIANTS = {
         "f32.squares": [],
         "f64.squares": [],
         "bf16.squares": [],
+        "bf16_vnni.squares": [],
         "f64.nanokernel_grid": [],
     },
 }
@@ -338,6 +355,13 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
         ),
         "bf16.squares": by_shape(
             "bf16", [(s, s, s) for s in BF16_SQUARE_RANGE], "bf16.squares"
+        ),
+        # A packed in K pairs needs an even K anyway; the same sizes as the
+        # flat sweep let the two layouts compare point for point.
+        "bf16_vnni.squares": by_shape(
+            "bf16_vnni",
+            [(s, s, s) for s in BF16_SQUARE_RANGE],
+            "bf16_vnni.squares",
         ),
         # Not `by_shape`: which shapes are measured depends on the variant, so
         # the variants cannot share one shape list.

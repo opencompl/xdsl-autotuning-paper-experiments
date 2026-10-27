@@ -110,6 +110,7 @@ PLOTS += $(foreach m,$(F32_SQUARES_READY),plots/f32.squares.$(m).pdf)
 # BF16 needs native `vdpbf16ps`, so only the Zen 4 and Zen 5 machines sweep it;
 # like the grid, plot whichever of them has run it.
 PLOTS += $(foreach m,$(patsubst data/%/bf16.squares.jsonl,%,$(wildcard data/*/bf16.squares.jsonl)),plots/bf16.squares.$(m).pdf)
+PLOTS += $(foreach m,$(patsubst data/%/bf16_vnni.squares.jsonl,%,$(wildcard data/*/bf16_vnni.squares.jsonl)),plots/bf16_vnni.squares.$(m).pdf)
 
 # One paper figure per machine, its two data types side by side, with the
 # machine in the file name rather than in the figure.  The PDF is what LaTeX
@@ -165,6 +166,11 @@ plots/f32.squares.%.pdf: data/%/f32.squares.jsonl $(SQUARES_SRC)
 # Only the LIBXSMM schedule has a BF16 lowering, so the narrow and XTC curves
 # are left out.
 plots/bf16.squares.%.pdf: data/%/bf16.squares.jsonl $(SQUARES_SRC)
+	uv run plot-squares $< --output $@ \
+	    --variant libxsmm --variant xdsl_libxsmm --variant compxsmm --variant compxsmm_manual
+
+# The same, with A packed in K pairs ahead of the call (LIBXSMM's VNNI-2 layout).
+plots/bf16_vnni.squares.%.pdf: data/%/bf16_vnni.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@ \
 	    --variant libxsmm --variant xdsl_libxsmm --variant compxsmm --variant compxsmm_manual
 

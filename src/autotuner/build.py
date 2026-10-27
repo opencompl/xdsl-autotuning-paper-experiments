@@ -55,10 +55,20 @@ from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
 from autotuner.machines import MACHINES
 
 # The C spelling of each dtype's A and B elements, of its C accumulator, and
-# how the XSMM generators name it.  `bf16` multiplies BF16 inputs into F32.
-C_TYPE = {"f32": "float", "f64": "double", "bf16": "__bf16"}
-ACC_C_TYPE = {"f32": "float", "f64": "double", "bf16": "float"}
-XSMM_PRECISION = {"f32": "SP", "f64": "DP", "bf16": "BF16F32"}
+# how the XSMM generators name it.  `bf16` multiplies BF16 inputs into F32;
+# `bf16_vnni` does too, with A packed in LIBXSMM's VNNI-2 layout.
+C_TYPE = {"f32": "float", "f64": "double", "bf16": "__bf16", "bf16_vnni": "__bf16"}
+ACC_C_TYPE = {"f32": "float", "f64": "double", "bf16": "float", "bf16_vnni": "float"}
+XSMM_PRECISION = {
+    "f32": "SP",
+    "f64": "DP",
+    "bf16": "BF16F32",
+    "bf16_vnni": "BF16F32_VNNI_A",
+}
+
+# The nano-kernel a BF16 dtype's CompXSMM variants pin in place of the SKX
+# heuristic, which knows only F32 and F64.
+BF16_STRATEGY = {"bf16": "libxsmm-cpx-bf16", "bf16_vnni": "libxsmm-cpx-bf16-vnni"}
 
 # Which sources decide that generated code is out of date.  Directories are
 # expanded to the Python files under them; `pyproject.toml` pins xdsl itself.
@@ -72,6 +82,7 @@ GENERATOR_SOURCES: Mapping[str, tuple[str, ...]] = {
         "src/autotuner/passes",
         "src/autotuner/dialects",
         "src/autotuner/cpx_bf16_nano_kernel.py",
+        "src/autotuner/cpx_bf16_vnni_nano_kernel.py",
         "src/autotuner/instructions.py",
         "src/autotuner/nano_kernel.py",
         "src/autotuner/schedules.py",
@@ -225,18 +236,22 @@ class Toolchain:
 
     def xsmm_arch(self, dtype: str) -> str:
         """The libxsmm arch code a `dtype` kernel is generated for."""
-        return str(self.libxsmm_arch_bf16 if dtype == "bf16" else self.libxsmm_arch)
+        return str(
+            self.libxsmm_arch_bf16 if dtype in BF16_STRATEGY else self.libxsmm_arch
+        )
 
     def pipeline(self, variant: str, dtype: str) -> str:
         """The xDSL pass pipeline lowering a `dtype` kernel of `variant`.
 
-        BF16 inputs take LIBXSMM's flat CPX nano-kernel instead of the SKX
+        BF16 inputs take one of LIBXSMM's CPX nano-kernels instead of the SKX
         heuristic, which knows only F32 and F64.
         """
         pipeline = self.pipelines[variant]
-        if dtype == "bf16":
+        if dtype in BF16_STRATEGY:
             pipeline = re.sub(
-                r"strategy=libxsmm-skx(?=[ }])", "strategy=libxsmm-cpx-bf16", pipeline
+                r"strategy=libxsmm-skx(?=[ }])",
+                f"strategy={BF16_STRATEGY[dtype]}",
+                pipeline,
             )
         return pipeline
 
@@ -665,6 +680,7 @@ def driver_artifact(
                 f"-DINNER={k}",
                 f"-DDTYPE={C_TYPE[dtype]}",
                 f"-DCTYPE={ACC_C_TYPE[dtype]}",
+                *(("-DVNNI_A",) if dtype == "bf16_vnni" else ()),
                 f"-DFREQ={tool.freq}",
                 *tool.use_papi,
                 *tool.target_flags,
