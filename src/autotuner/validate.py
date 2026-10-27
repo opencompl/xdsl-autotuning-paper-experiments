@@ -64,6 +64,8 @@ def binary(sample: Sample, machine: str) -> Path:
 
 
 def label(sample: Sample) -> str:
+    if sample.kernel == "exp":
+        return f"{sample.m} elements degree {sample.exp_degree} {sample.variant}"
     return f"{sample.m}x{sample.n}x{sample.k} {sample.variant}"
 
 

@@ -50,6 +50,25 @@ def test_f64_peak_is_half_the_f32_peak() -> None:
     assert double == single / 2
 
 
+@pytest.mark.parametrize(
+    ("degree", "approximation"), [(3, "libxsmm-cubic"), (5, "libxsmm-quintic")]
+)
+def test_exp_records_elements_without_gemm_work_or_peak(
+    degree: int, approximation: str
+) -> None:
+    sample = Sample(128, 1, 1, "libxsmm", "f32", kernel="exp", exp_degree=degree)
+    row = evaluate.row(sample, "tower", "64.0", repeat=2)
+    assert row["kernel"] == "exp"
+    assert row["elements"] == 128
+    assert row["degree"] == degree
+    assert row["approximation"] == approximation
+    assert row["input_range"] == [-10, 10]
+    assert row["seed"] == 42
+    assert row["time"] == 64.0
+    assert row["repeat"] == 2
+    assert not {"M", "N", "K", "flops", "peak"} & row.keys()
+
+
 def test_an_unknown_dataset_is_rejected() -> None:
     with pytest.raises(ValueError, match="unknown dataset"):
         evaluate.evaluate("rapper", ["not.a.dataset"], build=False)

@@ -95,6 +95,10 @@ PLOTS += plots/f64.squares.rapper.pdf
 # "No rule to make target".
 PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard data/*/f64.nanokernel_grid.jsonl)),plots/f64.nanokernel_grid.$(m).pdf)
 
+# Only draw exp for machines that have collected its initial seven lengths.
+EXP_MACHINES = $(patsubst data/%/f32.exp.jsonl,%,$(wildcard data/*/f32.exp.jsonl))
+PLOTS += $(foreach m,$(EXP_MACHINES),plots/f32.exp.$(m).pdf plots/$(m)/f32.exp.png)
+
 # The f32 counterpart of the squares figure, for the machines whose f32 sweep
 # has actually been run with every implementation it draws.  Same reason the
 # grid is globbed rather than named -- a target whose data is absent stops
@@ -163,6 +167,14 @@ plots/f32.squares.%.pdf: data/%/f32.squares.jsonl $(SQUARES_SRC)
 # in plots/ with the machine last in the name; here `%` is the machine alone.
 plots/f64.nanokernel_grid.%.pdf: data/%/f64.nanokernel_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py
 	uv run plot-grid $< --output $@
+
+EXP_SRC = src/autotuner/plot_exp.py src/autotuner/plot_style.py src/autotuner/plot_data.py src/autotuner/datasets.py
+
+plots/f32.exp.%.pdf: data/%/f32.exp.jsonl $(EXP_SRC)
+	uv run plot-exp $< --output $@
+
+plots/%/f32.exp.png: data/%/f32.exp.jsonl $(EXP_SRC)
+	uv run plot-exp $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)

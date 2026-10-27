@@ -50,7 +50,12 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
+from autotuner.datasets import (
+    NANOKERNEL_VARIANTS,
+    Sample,
+    dataset_samples,
+    machine_base,
+)
 from autotuner.machines import MACHINES
 
 # The C spelling of each dtype, and how the XSMM generators name it.
@@ -193,6 +198,7 @@ class Toolchain:
     root: Path = Path("build")
     digests: Mapping[str, str] = field(default_factory=dict)
     native_flags: tuple[str, ...] = ()
+    libxsmm: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
 
     @property
     def target_flags(self) -> tuple[str, ...]:
@@ -202,8 +208,19 @@ class Toolchain:
             *(self.native_flags or (f"-march={self.march}",)),
         )
 
-    def shape_dir(self, kernel: str, m: int, n: int, k: int) -> Path:
-        return self.root / self.machine / kernel / f"{m}x{n}x{k}"
+    def shape_dir(
+        self, kernel: str, m: int, n: int, k: int, exp_degree: int = 3
+    ) -> Path:
+        return self.root / Path(
+            machine_base(
+                machine=self.machine,
+                kernel=kernel,
+                m=m,
+                n=n,
+                k=k,
+                exp_degree=exp_degree,
+            )
+        ).relative_to("build")
 
     @property
     def use_papi(self) -> tuple[str, ...]:
@@ -329,6 +346,7 @@ def toolchain(
         root=root,
         digests=source_digests(repo),
         native_flags=native_flags,
+        libxsmm=pkg_config("libxsmm"),
     )
 
 
@@ -342,7 +360,7 @@ def kernel_source(kernel: str, name: str) -> Path:
 def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
     """How this sample's assembly is produced."""
     m, n, k, dtype = sample.m, sample.n, sample.k, sample.dtype
-    here = tool.shape_dir(sample.kernel, m, n, k)
+    here = tool.shape_dir(sample.kernel, m, n, k, sample.exp_degree)
     out = here / f"{sample.variant}.{dtype}.S"
     ctype = C_TYPE[dtype]
     target = tool.target_flags
@@ -603,24 +621,47 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
 
 
 def driver_artifact(
-    tool: Toolchain, kernel: str, m: int, n: int, k: int, dtype: str, driver: str
+    tool: Toolchain,
+    kernel: str,
+    m: int,
+    n: int,
+    k: int,
+    dtype: str,
+    driver: str,
+    *,
+    exp_degree: int = 3,
 ) -> Artifact:
     """The harness object, compiled once per shape rather than per variant.
 
-    `time.c` reads the shape and the dtype off the command line and nothing
-    else, so the seven variants of one shape were compiling the same object
-    seven times under Snakemake -- 9,450 redundant compiles for the rapper
-    sweep.
+    Drivers share the shape and dtype, plus the polynomial degree for exp,
+    across implementations. The seven matmul variants used to compile the
+    same object seven times under Snakemake -- 9,450 redundant compiles for
+    the rapper sweep.
     """
     if tool.machine == "m4" and driver != "test":
         raise BuildFailed("M4 supports correctness builds only; timing is not enabled")
     source = kernel_source(kernel, f"{driver}.c")
-    out = tool.shape_dir(kernel, m, n, k) / f"{driver}.{dtype}.o"
+    out = tool.shape_dir(kernel, m, n, k, exp_degree) / f"{driver}.{dtype}.o"
+    extra_flags: tuple[str, ...] = ()
+    extra_headers: tuple[Path, ...] = ()
+    if kernel == "exp":
+        if dtype != "f32" or n != 1 or k != 1:
+            raise BuildFailed("exp requires f32 vectors with N = K = 1")
+        if not tool.libxsmm[0]:
+            raise BuildFailed("exp requires LIBXSMM headers (pkg-config libxsmm)")
+        extra_flags = (
+            "-O3",
+            f"-DLENGTH={m}",
+            f"-DEXP_DEGREE={exp_degree}",
+            *tool.libxsmm[0],
+        )
+        extra_headers = (kernel_source(kernel, "exp.h"),)
     steps = (
         Step(
             "run",
             (
                 tool.cc,
+                *extra_flags,
                 f"-DCROWS={m}",
                 f"-DCCOLS={n}",
                 f"-DINNER={k}",
@@ -635,7 +676,7 @@ def driver_artifact(
             ),
         ),
     )
-    return Artifact(out, steps, (digest([source, *headers()]),))
+    return Artifact(out, steps, (digest([source, *headers(), *extra_headers]),))
 
 
 def headers() -> list[Path]:
@@ -647,8 +688,9 @@ def binary_artifact(
     tool: Toolchain, sample: Sample, asm: Artifact, obj: Artifact, driver: str
 ) -> Artifact:
     """The linked benchmark: the shared driver object plus this variant's asm."""
-    out = tool.shape_dir(sample.kernel, sample.m, sample.n, sample.k) / (
-        f"{sample.variant}.{sample.dtype}.{driver}.o"
+    out = (
+        tool.shape_dir(sample.kernel, sample.m, sample.n, sample.k, sample.exp_degree)
+        / f"{sample.variant}.{sample.dtype}.{driver}.o"
     )
     vendor_libs: tuple[str, ...] = ()
     if sample.variant == "mkl":
@@ -658,7 +700,8 @@ def binary_artifact(
     # C implementations define their own init; generated kernels link a no-op.
     init = (
         ()
-        if sample.variant in ("naive_c", "llvm_intrinsics", "mkl", "aocl")
+        if sample.kernel == "exp"
+        or sample.variant in ("naive_c", "llvm_intrinsics", "mkl", "aocl")
         else (kernel_source(sample.kernel, "init.c"),)
     )
 
@@ -672,6 +715,7 @@ def binary_artifact(
         *(str(path) for path in init),
         *(f"-l{lib}" for lib in tool.libs),
         *vendor_libs,
+        *(("-lm",) if sample.kernel == "exp" else ()),
         *((tool.linker_flag,) if tool.linker_flag else ()),
     )
     return Artifact(
@@ -689,7 +733,14 @@ def plan_shape(
     """Every artifact for one shape, in the order a worker must build them."""
     first = samples[0]
     obj = driver_artifact(
-        tool, first.kernel, first.m, first.n, first.k, first.dtype, driver
+        tool,
+        first.kernel,
+        first.m,
+        first.n,
+        first.k,
+        first.dtype,
+        driver,
+        exp_degree=first.exp_degree,
     )
     artifacts: list[Artifact] = [obj]
     for sample in samples:
@@ -844,7 +895,15 @@ def by_shape(samples: Iterable[Sample]) -> dict[tuple, list[Sample]]:
     shapes: dict[tuple, list[Sample]] = {}
     for sample in samples:
         shapes.setdefault(
-            (sample.kernel, sample.m, sample.n, sample.k, sample.dtype), []
+            (
+                sample.kernel,
+                sample.m,
+                sample.n,
+                sample.k,
+                sample.dtype,
+                sample.exp_degree,
+            ),
+            [],
         ).append(sample)
     return shapes
 
@@ -874,7 +933,7 @@ def build(
     keys: dict[str, str] = {}
     pending: list[ShapeJob] = []
     total = 0
-    for (kernel, m, n, k, dtype), group in by_shape(samples).items():
+    for (kernel, m, n, k, dtype, degree), group in by_shape(samples).items():
         artifacts = plan_shape(tool, group, driver)
         total += len(artifacts)
         for artifact in artifacts:
@@ -883,7 +942,10 @@ def build(
         # sources are untouched costs nothing at all here.
         outstanding = tuple(a for a in artifacts if stale(a, manifest, force))
         if outstanding:
-            pending.append(ShapeJob(f"{m}x{n}x{k} {dtype} {kernel}", outstanding))
+            label = f"{m}x{n}x{k} {dtype} {kernel}"
+            if kernel == "exp":
+                label += f" degree {degree}"
+            pending.append(ShapeJob(label, outstanding))
 
     if not pending:
         if not quiet:
