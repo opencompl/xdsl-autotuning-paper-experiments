@@ -317,6 +317,7 @@ def toolchain(
         "compxsmm_plusnarrow": per_isa("compxsmm-plusnarrow-gemm-passes"),
         "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
         "compxsmm_manual_exp": per_isa("compxsmm-manual-exp-passes"),
+        "compxsmm_exp": per_isa("compxsmm-exp-passes"),
         **{
             variant: nanokernel_pipeline.replace("{nanokernel}", variant)
             for variant in NANOKERNEL_VARIANTS
@@ -374,7 +375,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
     if sample.kernel == "exp":
         if tool.libxsmm_arch is None:
             raise BuildFailed("LIBXSMM exp needs a machine with libxsmm_arch")
-        if sample.variant in ("xdsl_libxsmm", "compxsmm_manual"):
+        if sample.variant in ("xdsl_libxsmm", "compxsmm_manual", "compxsmm"):
             literal = sample.variant == "xdsl_libxsmm"
             mlir = here / f"{sample.variant}.f32.mlir"
             steps = (
@@ -388,6 +389,11 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         str(sample.exp_degree),
                         "--arch",
                         tool.libxsmm_arch,
+                        *(
+                            ("--disable-regalloc",)
+                            if sample.variant == "compxsmm"
+                            else ()
+                        ),
                     ),
                 ),
                 Step(
@@ -786,7 +792,11 @@ def binary_artifact(
         else (kernel_source(sample.kernel, "init.c"),)
     )
     init_flags: tuple[str, ...] = ()
-    if sample.kernel == "exp" and sample.variant in ("xdsl_libxsmm", "compxsmm_manual"):
+    if sample.kernel == "exp" and sample.variant in (
+        "xdsl_libxsmm",
+        "compxsmm_manual",
+        "compxsmm",
+    ):
         init = (kernel_source("exp", "init.c"),)
         symbol = (
             "exp_kernel"

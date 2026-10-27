@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from xdsl.builder import Builder
 from xdsl.context import Context
 from xdsl.dialects import builtin, x86, x86_scf
-from xdsl.dialects.x86.registers import R10, GeneralRegisterType
+from xdsl.dialects.x86.registers import R10, UNALLOCATED_REG64, GeneralRegisterType
 from xdsl.ir import Block, SSAValue
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
@@ -31,7 +31,10 @@ from autotuner.libxsmm_gemm.libxsmm_main import MeltwDescriptor
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
+@dataclass
 class ApplyExpSchedulePattern(RewritePattern):
+    disable_regalloc: bool
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: ExpOp, rewriter: PatternRewriter, /) -> None:
         code = GeneratedCode(
@@ -39,7 +42,10 @@ class ApplyExpSchedulePattern(RewritePattern):
         )
         length = op.length.value.data
         desc = MeltwDescriptor(length, 1, length, length, Datatype.F32)
-        config = libxsmm_configure_unary_kernel_vregs_masks(code, op.degree.value.data)
+        config = libxsmm_configure_unary_kernel_vregs_masks(
+            code, op.degree.value.data, disable_regalloc=self.disable_regalloc
+        )
+        counter_reg = UNALLOCATED_REG64 if self.disable_regalloc else R10
         blocking, _ = libxsmm_generator_configure_M_N_blocking(desc)
         input = SSAValue.get(op.input, type=GeneralRegisterType)
         output = SSAValue.get(op.output, type=GeneralRegisterType)
@@ -49,8 +55,8 @@ class ApplyExpSchedulePattern(RewritePattern):
             loop = None
             body_code = code
             if trips > unroll:
-                counter = code.insert(x86.ops.DI_MovOp(0, destination=R10))
-                body = Block(arg_types=(R10, input.type, output.type))
+                counter = code.insert(x86.ops.DI_MovOp(0, destination=counter_reg))
+                body = Block(arg_types=(counter_reg, input.type, output.type))
                 loop = code.insert(
                     x86_scf.ForOp(
                         counter.destination,
@@ -91,8 +97,9 @@ class ApplyExpSchedulePattern(RewritePattern):
 @dataclass(frozen=True)
 class XsmmApplyExpSchedulePass(ModulePass):
     name = "xsmm-apply-exp-schedule"
+    disable_regalloc: bool = False
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
         PatternRewriteWalker(
-            ApplyExpSchedulePattern(), apply_recursively=False
+            ApplyExpSchedulePattern(self.disable_regalloc), apply_recursively=False
         ).rewrite_module(op)
