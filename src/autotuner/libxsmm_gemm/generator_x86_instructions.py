@@ -1,12 +1,17 @@
 from typing import Literal
+
 from xdsl.dialects import x86
 from xdsl.dialects.x86.registers import (
     AVX512MaskRegisterType,
+    AVX512RegisterType,
     GeneralRegisterType,
     X86VectorRegisterType,
 )
+from xdsl.dialects.x86_func import FuncOp
 from xdsl.ir import Block, BlockArgument, SSAValue
 from xdsl.rewriter import InsertPoint
+
+from autotuner.dialects.x86_ext import DM_VmovupsRipOp, InlineConstantOp
 from autotuner.libxsmm_gemm.generator_common import (
     GPRegMapping,
     LoopLabelTracker,
@@ -14,6 +19,21 @@ from autotuner.libxsmm_gemm.generator_common import (
 from autotuner.libxsmm_gemm.libxsmm_cpuid import Arch
 from autotuner.libxsmm_gemm.libxsmm_generator import GeneratedCode, VectorRegT
 from autotuner.libxsmm_gemm.libxsmm_main import GEMMPrefetchType
+
+
+def libxsmm_x86_instruction_full_vec_load_of_constants(
+    generated_code: GeneratedCode,
+    bits: int,
+    identifier: str,
+    vec_reg: AVX512RegisterType,
+) -> SSAValue[AVX512RegisterType]:
+    func = generated_code.current_block.parent_op()
+    assert isinstance(func, FuncOp)
+    label = f".L{func.sym_name.data}_{identifier}"
+    generated_code.insert(InlineConstantOp(label, bits))
+    return generated_code.insert(
+        DM_VmovupsRipOp(label, destination=vec_reg)
+    ).destination
 
 
 def libxsmm_x86_instruction_open_stream_gemm(

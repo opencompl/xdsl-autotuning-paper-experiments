@@ -4,6 +4,17 @@ from enum import IntEnum, IntFlag, unique
 from autotuner.libxsmm_gemm.libxsmm_typedefs import Datatype
 
 
+@dataclass(frozen=True)
+class MeltwDescriptor:
+    """Shape/type subset used by the standalone unary FP32 EXP port."""
+
+    m: int
+    n: int
+    ldi: int
+    ldo: int
+    datatype: Datatype
+
+
 @dataclass
 class DescDatatype:
     a: Datatype
