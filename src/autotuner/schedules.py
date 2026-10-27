@@ -13,6 +13,7 @@ from autotuner.dialects.xsmm import (
     MatmulIterator,
     MatmulOp,
     MatmulRegOp,
+    PolynomialConstantsOp,
 )
 from autotuner.instructions import load_mask
 
@@ -425,3 +426,23 @@ def expand_horner(rewriter: PatternRewriter, op: HornerOp) -> HornerOp | None:
     remaining = HornerOp(op.argument, step.register_out, coefficients)
     rewriter.replace(op, (*operations, remaining))
     return remaining
+
+
+def expand_polynomial_constants(
+    rewriter: PatternRewriter, op: PolynomialConstantsOp
+) -> None:
+    """Expand ordered coefficient packets exactly where their setup op stands."""
+    operations: list[ir.Operation] = []
+    results: list[ir.SSAValue] = []
+    for index, (coefficient, result) in enumerate(
+        zip(op.coefficients, op.registers, strict=True)
+    ):
+        label = f"{op.label_prefix.data}{index}"
+        bits = int.from_bytes(
+            coefficient.type.pack((coefficient.value.data,)), "little"
+        )
+        payload = x86_ext.InlineConstantOp(label, bits)
+        load = x86_ext.DM_VmovupsRipOp(label, destination=result.type)
+        operations.extend((payload, load))
+        results.append(load.destination)
+    rewriter.replace(op, operations, results)

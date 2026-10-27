@@ -1,9 +1,15 @@
 import pytest
+from xdsl.dialects.builtin import FloatAttr, f32
 from xdsl.dialects.x86.registers import AVX512RegisterType
 from xdsl.utils.exceptions import VerifyException
 from xdsl.utils.test_value import create_ssa_value
 
-from autotuner.dialects.xsmm import AccumulatorAddpdOp, AccumulatorAddpsOp, HornerOp
+from autotuner.dialects.xsmm import (
+    AccumulatorAddpdOp,
+    AccumulatorAddpsOp,
+    HornerOp,
+    PolynomialConstantsOp,
+)
 
 
 @pytest.mark.parametrize(
@@ -35,3 +41,12 @@ def test_horner_requires_a_seed_and_preserves_accumulator_assignment() -> None:
         HornerOp(x, None, ()).verify()
     with pytest.raises(VerifyException, match="reuse the accumulator register"):
         HornerOp(x, accumulator, (x,), destination=x.type).verify()
+
+
+def test_polynomial_constants_require_matching_nonempty_results() -> None:
+    with pytest.raises(VerifyException, match="must not be empty"):
+        PolynomialConstantsOp((), ".Lempty", ()).verify()
+    with pytest.raises(
+        VerifyException, match="one register per polynomial coefficient"
+    ):
+        PolynomialConstantsOp((FloatAttr(1.0, f32),), ".Lmissing", ()).verify()

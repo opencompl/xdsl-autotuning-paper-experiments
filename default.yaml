@@ -57,6 +57,7 @@ compxsmm-manual-exp-passes:
   avx512:
     - xsmm-apply-exp-schedule
     - xsmm-expand-horner
+    - xsmm-expand-polynomial-constants
     - x86-regalloc-verify-liveness
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
@@ -65,6 +66,7 @@ compxsmm-exp-passes:
   avx512:
     - xsmm-apply-exp-schedule{disable-regalloc=true}
     - xsmm-expand-horner
+    - xsmm-expand-polynomial-constants
     - x86-regalloc-verify-liveness
     - x86-allocate-registers-with-masks
     - x86-regalloc-verify-liveness

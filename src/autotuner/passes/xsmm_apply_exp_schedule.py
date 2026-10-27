@@ -16,11 +16,13 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.rewriter import InsertPoint
 
-from autotuner.compxsmm_gemm.generator_exp import generate_exp_block
+from autotuner.compxsmm_gemm.generator_exp import (
+    configure_exp_registers,
+    generate_exp_block,
+)
 from autotuner.dialects.xsmm import ExpOp
 from autotuner.libxsmm_gemm.generator_mateltwise_unary_binary_avx_avx512 import (
     libxsmm_configure_microkernel_loops,
-    libxsmm_configure_unary_kernel_vregs_masks,
     libxsmm_generator_configure_M_N_blocking,
     libxsmm_load_2d_reg_block,
     libxsmm_store_2d_reg_block,
@@ -42,7 +44,7 @@ class ApplyExpSchedulePattern(RewritePattern):
         )
         length = op.length.value.data
         desc = MeltwDescriptor(length, 1, length, length, Datatype.F32)
-        config = libxsmm_configure_unary_kernel_vregs_masks(
+        config = configure_exp_registers(
             code, op.degree.value.data, disable_regalloc=self.disable_regalloc
         )
         counter_reg = UNALLOCATED_REG64 if self.disable_regalloc else R10

@@ -1,12 +1,19 @@
 import pytest
 from xdsl.dialects import test, x86, x86_scf
-from xdsl.dialects.builtin import Float64Type, ModuleOp
+from xdsl.dialects.builtin import Float64Type, FloatAttr, ModuleOp, f32
 from xdsl.ir import SSAValue
 from xdsl.pattern_rewriter import PatternRewriter
 
-from autotuner.dialects.xsmm import HornerOp, MatmulIterator, MatmulOp, MatmulRegOp
+from autotuner.dialects.xsmm import (
+    HornerOp,
+    MatmulIterator,
+    MatmulOp,
+    MatmulRegOp,
+    PolynomialConstantsOp,
+)
 from autotuner.schedules import (
     expand_horner,
+    expand_polynomial_constants,
     loop_matmul,
     loop_matmul_reg,
     set_matmul_iterator,
@@ -231,3 +238,24 @@ def test_horner_expansion_preserves_surrounding_operations(
 
     if coefficient_count == 0:
         assert consumer.operands[0] is accumulator
+
+
+def test_polynomial_constant_expansion_preserves_its_position() -> None:
+    constants = PolynomialConstantsOp(
+        (FloatAttr(1.5, f32), FloatAttr(-0.5, f32)),
+        ".Lcoefficient",
+        (x86.registers.UNALLOCATED_AVX512,) * 2,
+    )
+    before = test.TestOp()
+    between = test.TestOp()
+    consumer = test.TestOp(operands=constants.results)
+    after = test.TestOp()
+    module = ModuleOp([before, constants, between, consumer, after])
+
+    expand_polynomial_constants(PatternRewriter(constants), constants)
+
+    ops = tuple(module.body.block.ops)
+    assert ops[0] is before
+    assert ops[-3:] == (between, consumer, after)
+    assert all(operand.owner in ops[1:-3] for operand in consumer.operands)
+    module.verify()
