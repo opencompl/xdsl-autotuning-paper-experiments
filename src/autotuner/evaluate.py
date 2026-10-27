@@ -135,9 +135,10 @@ def measure(needed: Mapping[Sample, int], machine_name: str) -> dict[Sample, lis
                 progress.update(
                     task, shape=shape + (f" pass {index + 1}" if passes > 1 else "")
                 )
-                measured[one].append(
-                    cycles(Path(one.path(machine_name, "time.o")), machine, index)
-                )
+                binary = Path(one.path(machine_name, "time.o"))
+                if one.kernel == "exp":
+                    binary = binary.with_name(f"paired.{one.dtype}.time.o")
+                measured[one].append(cycles(binary, machine, index))
                 progress.advance(task)
     return measured
 
@@ -215,24 +216,31 @@ def write(
         path = data_dir / machine / f"{name}.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         repeats = dataset_repeats(name)
-        path.write_text(
-            "".join(
-                as_json_line(
-                    row(
-                        s,
-                        machine,
-                        measured[s][index],
-                        repeat=index + 1 if repeats > 1 else None,
+        lines: list[str] = []
+        for index in range(repeats):
+            for s in samples:
+                repeat = index + 1 if repeats > 1 else None
+                if s.kernel == "exp":
+                    for reading in json.loads(measured[s][index]):
+                        if reading["variant"] != s.variant:
+                            continue
+                        fields = row(s, machine, str(reading["time"]), repeat)
+                        fields.update(
+                            measurement="paired-placement-v1",
+                            placement_offset=reading["placement_offset"],
+                            order=reading["order"],
+                            code_address=reading["code_address"],
+                        )
+                        lines.append(as_json_line(fields))
+                else:
+                    lines.append(
+                        as_json_line(row(s, machine, measured[s][index], repeat))
                     )
-                )
-                for index in range(repeats)
-                for s in samples
-            )
-        )
+        path.write_text("".join(lines))
         counted = f"{len(samples)} samples"
         if repeats > 1:
             counted += f" x {repeats} passes"
-        console.print(f"[bold]wrote[/bold] {path} ({counted})")
+        console.print(f"[bold]wrote[/bold] {path} ({counted}, {len(lines)} rows)")
 
 
 # --- driver ----------------------------------------------------------------

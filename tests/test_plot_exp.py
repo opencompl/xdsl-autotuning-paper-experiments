@@ -15,26 +15,46 @@ def measurements() -> pd.DataFrame:
             "approximation": "libxsmm-cubic" if degree == 3 else "libxsmm-quintic",
             "elements": length,
             "variant": variant,
-            "time": length * cost,
+            "time": length * (cost + noise),
+            "measurement": "paired-placement-v1",
+            "placement_offset": offset,
+            "repeat": repeat,
+            "order": order,
+            "code_address": hex(0x1000 * repeat + offset),
         }
-        for degree, costs in (
-            (3, (("libxsmm", 3), ("libxsmm", 2), ("compxsmm", 4))),
-            (5, (("libxsmm", 8), ("libxsmm", 6), ("compxsmm", 3))),
+        for degree, variants in (
+            (
+                3,
+                (
+                    ("libxsmm", (1, 3, 5, 7), (0, 1, 40)),
+                    ("compxsmm", (4, 8, 2, 10), (0, 2, 90)),
+                ),
+            ),
+            (
+                5,
+                (
+                    ("libxsmm", (8, 12, 10, 14), (0, 2, 70)),
+                    ("compxsmm", (2, 4, 6, 8), (0, 1, 120)),
+                ),
+            ),
         )
         for length in (16, 32, 64, 128, 256, 512, 1024)
-        for variant, cost in costs
+        for variant, costs, noises in variants
+        for offset, cost in zip((0, 16, 32, 48), costs, strict=True)
+        for repeat, noise in enumerate(noises, 1)
+        for order in (0, 1)
     )
 
 
-def test_exp_compares_best_cycles_at_each_length_and_degree() -> None:
+def test_exp_uses_medians_then_equal_weight_for_every_placement() -> None:
     result = exp_metrics(measurements())
     assert len(result) == 28
     baseline = result[result["variant"] == "libxsmm"]
     ours = result[result["variant"] == "compxsmm"]
-    assert baseline["cycles_per_element"].tolist() == [2] * 7 + [6] * 7
+    assert baseline["cycles_per_element"].tolist() == [5] * 7 + [13] * 7
     assert baseline["speedup"].tolist() == [1] * 14
-    assert ours["cycles_per_element"].tolist() == [4] * 7 + [3] * 7
-    assert ours["speedup"].tolist() == [0.5] * 7 + [2] * 7
+    assert ours["cycles_per_element"].tolist() == [8] * 7 + [6] * 7
+    assert ours["speedup"].tolist() == [5 / 8] * 7 + [13 / 6] * 7
 
 
 def test_exp_rejects_incomplete_or_invalid_measurements() -> None:
@@ -43,12 +63,22 @@ def test_exp_rejects_incomplete_or_invalid_measurements() -> None:
         exp_metrics(df[df["elements"] != 32])
     with pytest.raises(ValueError, match="both degrees"):
         exp_metrics(df[df["degree"] == 3])
-    with pytest.raises(ValueError, match="both degrees"):
+    with pytest.raises(ValueError, match="paired variants"):
         exp_metrics(df[(df["variant"] != "libxsmm") | (df["degree"] == 3)])
     with pytest.raises(ValueError, match="LIBXSMM baseline"):
         exp_metrics(df[df["variant"] == "compxsmm"])
     with pytest.raises(ValueError, match="matching degree"):
         exp_metrics(df.assign(approximation="libxsmm-cubic"))
+    with pytest.raises(ValueError, match="paired-placement"):
+        exp_metrics(df.drop(columns="measurement"))
+    with pytest.raises(ValueError, match="four matched placements"):
+        exp_metrics(df.query("placement_offset != 16"))
+    with pytest.raises(ValueError, match="both orders"):
+        exp_metrics(df.query("order == 0"))
+    bad_address = df.copy()
+    bad_address.loc[0, "code_address"] = "0xdeadbeef"
+    with pytest.raises(ValueError, match="same address"):
+        exp_metrics(bad_address)
     df.loc[0, "time"] = float("nan")
     with pytest.raises(ValueError, match="finite and positive"):
         exp_metrics(df)

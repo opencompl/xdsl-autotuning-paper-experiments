@@ -74,6 +74,65 @@ def test_an_unknown_dataset_is_rejected() -> None:
         evaluate.evaluate("rapper", ["not.a.dataset"], build=False)
 
 
+def test_exp_preserves_paired_placements_orders_and_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    samples = [
+        Sample(16, 1, 1, v, "f32", kernel="exp", exp_degree=5)
+        for v in ("xdsl_libxsmm", "libxsmm")
+    ]
+    monkeypatch.setattr(evaluate, "dataset_samples", lambda _: {"f32.exp": samples})
+    monkeypatch.setattr(evaluate, "dataset_repeats", lambda _: 3)
+    binary = Path("build/tower/exp/degree5/16/paired.f32.time.o")
+    binary.parent.mkdir(parents=True)
+    binary.touch()
+    passes = iter((1, 2, 3))
+
+    def paired_run(*_args):
+        repeat = next(passes)
+        return json.dumps(
+            [
+                {
+                    "variant": variant,
+                    "placement_offset": offset,
+                    "order": order,
+                    "code_address": hex(4096 * repeat + offset),
+                    "time": 100 * repeat + offset + order + variant_cost,
+                }
+                for offset in (0, 16, 32, 48)
+                for order in (0, 1)
+                for variant, variant_cost in (("libxsmm", 0), ("xdsl_libxsmm", 7))
+            ]
+        )
+
+    monkeypatch.setattr(evaluate, "run_kernel", paired_run)
+    evaluate.evaluate("tower", ["f32.exp"], build=False)
+    path = Path("data/tower/f32.exp.jsonl")
+    written = path.read_text()
+    rows = [json.loads(line) for line in written.splitlines()]
+    assert len(rows) == 48
+    assert {
+        (r["variant"], r["repeat"], r["placement_offset"], r["order"], r["time"])
+        for r in rows
+    } == {
+        (v, repeat, offset, order, 100 * repeat + offset + order + cost)
+        for v, cost in (("libxsmm", 0), ("xdsl_libxsmm", 7))
+        for repeat in (1, 2, 3)
+        for offset in (0, 16, 32, 48)
+        for order in (0, 1)
+    }
+    assert all(r["measurement"] == "paired-placement-v1" for r in rows)
+    assert all(
+        int(r["code_address"], 16) == 4096 * r["repeat"] + r["placement_offset"]
+        for r in rows
+    )
+    # The one shared cache contains both sides of each comparison, and a
+    # resumed evaluation must not mix old and newly measured halves of a pair.
+    evaluate.evaluate("tower", ["f32.exp"], build=False)
+    assert path.read_text() == written
+
+
 def measured_pair(tmp_path: Path) -> tuple[Path, Path]:
     """A timing binary and the measurement cached beside it."""
     binary = tmp_path / "libxsmm.f64.time.o"

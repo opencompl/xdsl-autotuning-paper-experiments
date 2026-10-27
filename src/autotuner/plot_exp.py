@@ -1,12 +1,12 @@
 """The initial FP32 exp sweep: cycles per element and speedup over LIBXSMM."""
 
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
 
-from autotuner.datasets import EXP_DEGREES, EXP_LENGTHS
-from autotuner.plot_data import best_of_repeats
+from autotuner.datasets import EXP_DEGREES, EXP_LENGTHS, EXP_PLACEMENTS
 from autotuner.plot_style import (
     PAGE_WIDTH,
     column_figure,
@@ -17,7 +17,7 @@ from autotuner.plot_style import (
 
 
 def exp_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    """Compare implementations at the same length and polynomial degree."""
+    """Compare medians at matched placements, giving every placement equal weight."""
     if df.empty or df["machine"].nunique() != 1:
         raise ValueError("exp needs measurements from exactly one machine")
     if not (
@@ -31,18 +31,45 @@ def exp_metrics(df: pd.DataFrame) -> pd.DataFrame:
     if not (np.isfinite(df["time"]) & df["time"].gt(0)).all():
         raise ValueError("exp timings must be finite and positive")
 
-    measured = best_of_repeats(df, ("variant", "degree", "elements"))
+    if "measurement" not in df or not all(df["measurement"].eq("paired-placement-v1")):
+        raise ValueError("exp needs paired-placement measurements; rerun the dataset")
+    key = ["variant", "degree", "elements"]
+    for _, group in df.groupby(key):
+        if set(group["placement_offset"]) != set(EXP_PLACEMENTS):
+            raise ValueError("exp needs all four matched placements")
+    pairs = ["degree", "elements", "repeat", "placement_offset", "order"]
+    grouped = df.groupby(pairs)
+    if (
+        df.duplicated([*pairs, "variant"]).any()
+        or not all(grouped["variant"].nunique().eq(df["variant"].nunique()))
+        or not all(grouped["code_address"].nunique().eq(1))
+        or not all(
+            df.groupby([*key, "repeat", "placement_offset"])["order"].agg(
+                lambda values: set(values) == {0, 1}
+            )
+        )
+    ):
+        raise ValueError("exp needs paired variants at the same address in both orders")
+
+    # Median across passes and AB/BA orders at EACH placement, then an equal
+    # average across placements. Never pick a different best alignment per variant.
+    placed = df.groupby([*key, "placement_offset"], as_index=False).agg(
+        time=("time", "median")
+    )
+    measured = cast(
+        pd.DataFrame, placed.groupby(key, as_index=False).agg(time=("time", "mean"))
+    )
     expected = {(degree, length) for degree in EXP_DEGREES for length in EXP_LENGTHS}
     for variant, group in measured.groupby("variant"):
         if set(zip(group["degree"], group["elements"], strict=True)) != expected:
             raise ValueError(f"{variant} needs all seven exp lengths for both degrees")
-    baseline = measured[measured["variant"] == "libxsmm"].set_index(
-        ["degree", "elements"]
-    )
+    baseline = measured.query("variant == 'libxsmm'").set_index(["degree", "elements"])
     if baseline.empty:
         raise ValueError("exp needs a LIBXSMM baseline")
+    baseline["baseline_time"] = baseline.pop("time")
     measured = measured.join(
-        baseline["time"].rename("baseline_time"), on=["degree", "elements"]
+        baseline[["baseline_time"]],
+        on=["degree", "elements"],
     )
     measured["cycles_per_element"] = measured["time"] / measured["elements"]
     measured["speedup"] = measured.pop("baseline_time") / measured["time"]
@@ -62,6 +89,14 @@ def plot_exp(df: pd.DataFrame, *, output_path: Path | None = None) -> None:
                 (measured["variant"] == variant) & (measured["degree"] == degree)
             ]
             style = variant_style(variant) | {"marker": "o"}
+            if variant == "xdsl_libxsmm":
+                # Keep the baseline visible when the literal port coincides.
+                style |= {
+                    "linestyle": "--",
+                    "markerfacecolor": "none",
+                    "markeredgewidth": 0.8,
+                    "markersize": 4,
+                }
             cycles.plot(group["elements"], group["cycles_per_element"], **style)
             speedup.plot(group["elements"], group["speedup"], **style)
 
@@ -76,7 +111,7 @@ def plot_exp(df: pd.DataFrame, *, output_path: Path | None = None) -> None:
     # shared autoscale; doing it inside the loop clips the second column.
     for ax in axes[:, 0]:
         ax.set_ylim(bottom=0)
-    axes[0, 0].set_ylabel("cycles / element")
+    axes[0, 0].set_ylabel("cycles / element\n(mean over placements)")
     axes[1, 0].set_ylabel("speedup vs LIBXSMM\n(same degree)")
     fig.tight_layout(pad=0.4)
     save(fig, output_path)

@@ -96,19 +96,17 @@ def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
     assert dataset_samples("neon")["f64.nanokernel_grid"] == []
 
 
-def test_initial_exp_sweep_is_seven_full_vectors_with_native_libxsmm() -> None:
+def test_initial_exp_sweep_compares_native_and_python_libxsmm() -> None:
     samples = dataset_samples("tower")["f32.exp"]
-    assert [(s.exp_degree, s.m) for s in samples] == [
-        (degree, length)
+    assert [(s.exp_degree, s.m, s.variant) for s in samples] == [
+        (degree, length, variant)
         for degree in (3, 5)
         for length in (16, 32, 64, 128, 256, 512, 1024)
+        for variant in ("libxsmm", "xdsl_libxsmm")
     ]
-    assert len({s.path("tower", "time.o") for s in samples}) == 14
-    assert all(
-        (s.kernel, s.n, s.k, s.dtype, s.variant) == ("exp", 1, 1, "f32", "libxsmm")
-        for s in samples
-    )
-    assert dataset_repeats("f32.exp") == 3
+    assert len({s.path("tower", "time.o") for s in samples}) == 28
+    assert all((s.kernel, s.n, s.k, s.dtype) == ("exp", 1, 1, "f32") for s in samples)
+    assert dataset_repeats("f32.exp") == 9
     assert dataset_samples("ci")["f32.exp"] == []
 
 
