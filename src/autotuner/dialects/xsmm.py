@@ -474,8 +474,42 @@ class MatmulRegOp(IRDLOperation):
             raise VerifyException("operand and result types must match pairwise")
 
 
+@irdl_op_definition
+class ExpOp(IRDLOperation):
+    """Out-of-place approximate FP32 exp over a packed, full-vector column.
+
+    Degree selects LIBXSMM's cubic or quintic numerical contract. Input and
+    output must not overlap; neither pointer is advanced by the operation.
+    """
+
+    name = "xsmm.exp"
+    input = operand_def(GeneralRegisterType)
+    output = operand_def(GeneralRegisterType)
+    length = prop_def(IntegerAttr)
+    degree = prop_def(IntegerAttr)
+    traits = traits_def(MemoryReadEffect(), MemoryWriteEffect())
+    assembly_format = (
+        "$input `,` $output `length` $length `degree` $degree attr-dict `:` type(operands)"
+    )
+
+    def __init__(self, input: SSAValue, output: SSAValue, length: int, degree: int):
+        super().__init__(
+            operands=[input, output],
+            properties={
+                "length": IntegerAttr(length, i64),
+                "degree": IntegerAttr(degree, i64),
+            },
+        )
+
+    def verify_(self) -> None:
+        if self.length.value.data <= 0 or self.length.value.data % 16:
+            raise VerifyException("exp length must be positive and divisible by 16")
+        if self.degree.value.data not in (3, 5):
+            raise VerifyException("exp degree must be 3 or 5")
+
+
 XSMM = Dialect(
     "xsmm",
-    [AccumulatorAddpdOp, AccumulatorAddpsOp, MatmulOp, MatmulRegOp],
+    [AccumulatorAddpdOp, AccumulatorAddpsOp, MatmulOp, MatmulRegOp, ExpOp],
     [],
 )

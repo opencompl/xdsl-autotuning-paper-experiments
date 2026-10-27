@@ -78,6 +78,7 @@ GENERATOR_MODULES = {
     "generate:libxsmm": "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver",
     "generate:libxsmm-exp": "autotuner.libxsmm_gemm.libxsmm_generator_exp_driver",
     "generate:compxsmm": "autotuner.compxsmm_gemm.compxsmm_generator_gemm_driver",
+    "generate:compxsmm-exp": "autotuner.compxsmm_gemm.compxsmm_generator_exp_driver",
     "generate:libxtcmm": "autotuner.libxtcmm_gemm.libxtcmm_generator_gemm_driver",
 }
 
@@ -315,6 +316,7 @@ def toolchain(
         "compxsmm": per_isa("compxsmm-gemm-passes"),
         "compxsmm_plusnarrow": per_isa("compxsmm-plusnarrow-gemm-passes"),
         "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
+        "compxsmm_manual_exp": per_isa("compxsmm-manual-exp-passes"),
         **{
             variant: nanokernel_pipeline.replace("{nanokernel}", variant)
             for variant in NANOKERNEL_VARIANTS
@@ -372,14 +374,15 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
     if sample.kernel == "exp":
         if tool.libxsmm_arch is None:
             raise BuildFailed("LIBXSMM exp needs a machine with libxsmm_arch")
-        if sample.variant == "xdsl_libxsmm":
-            mlir = here / "xdsl_libxsmm.f32.libxsmm.mlir"
+        if sample.variant in ("xdsl_libxsmm", "compxsmm_manual"):
+            literal = sample.variant == "xdsl_libxsmm"
+            mlir = here / f"{sample.variant}.f32.mlir"
             steps = (
                 Step(
-                    "generate:libxsmm-exp",
+                    "generate:libxsmm-exp" if literal else "generate:compxsmm-exp",
                     (
                         str(mlir),
-                        "exp_kernel",
+                        "exp_kernel" if literal else f"{sample.variant}_exp_kernel",
                         str(m),
                         "--degree",
                         str(sample.exp_degree),
@@ -392,7 +395,9 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                     (
                         str(mlir),
                         "-p",
-                        tool.pipelines[sample.variant],
+                        tool.pipelines[
+                            sample.variant if literal else f"{sample.variant}_exp"
+                        ],
                         "-t",
                         "x86-asm",
                         "-o",
@@ -400,7 +405,14 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                     ),
                 ),
             )
-            return Artifact(out, steps, (tool.digests["libxsmm"], tool.digests["xdsl"]))
+            return Artifact(
+                out,
+                steps,
+                (
+                    tool.digests["libxsmm" if literal else "compxsmm"],
+                    tool.digests["xdsl"],
+                ),
+            )
         if sample.variant != "libxsmm":
             raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
         source = kernel_source("exp", "libxsmm.c")
@@ -774,9 +786,14 @@ def binary_artifact(
         else (kernel_source(sample.kernel, "init.c"),)
     )
     init_flags: tuple[str, ...] = ()
-    if sample.kernel == "exp" and sample.variant == "xdsl_libxsmm":
+    if sample.kernel == "exp" and sample.variant in ("xdsl_libxsmm", "compxsmm_manual"):
         init = (kernel_source("exp", "init.c"),)
-        init_flags = tool.libxsmm[0]
+        symbol = (
+            "exp_kernel"
+            if sample.variant == "xdsl_libxsmm"
+            else f"{sample.variant}_exp_kernel"
+        )
+        init_flags = (*tool.libxsmm[0], f"-Dexp_kernel={symbol}")
     # Keep PAPI headers and libraries from the same installation. In a Nix
     # shell, bare -lpapi can otherwise find an incompatible system library.
     machine_libs: list[str] = []

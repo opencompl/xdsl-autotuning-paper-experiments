@@ -53,6 +53,13 @@ compxsmm-manual-gemm-passes:
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
 
+compxsmm-manual-exp-passes:
+  avx512:
+    - xsmm-apply-exp-schedule
+    - x86-regalloc-verify-liveness
+    - convert-x86-scf-to-x86
+    - x86-prologue-epilogue-insertion
+
 # The pipeline template for a nano-kernel pinned instead of picked by the SKX
 # heuristic. Each consumer replaces `{nanokernel}` with the strategy name.
 # Registers are still xDSL's to assign, as in `compxsmm`.
