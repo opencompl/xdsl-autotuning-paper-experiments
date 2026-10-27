@@ -69,6 +69,11 @@ def test_a_sample_knows_where_its_files_live() -> None:
     assert sample.path("rapper", "time.o") == (
         "build/rapper/matmul_colmaj/3x5x7/libxsmm.f64.time.o"
     )
+    for degree in (3, 5):
+        exp = Sample(128, 1, 1, "libxsmm", "f32", kernel="exp", exp_degree=degree)
+        assert exp.path("tower", "time.o") == (
+            f"build/tower/exp/degree{degree}/128/libxsmm.f32.time.o"
+        )
 
 
 def test_the_path_helper_still_spells_out_wildcards() -> None:

@@ -130,6 +130,8 @@ def measure(needed: Mapping[Sample, int], machine_name: str) -> dict[Sample, lis
                 if index >= repeats:
                     continue
                 shape = f"{one.m}x{one.n}x{one.k} {one.variant}"
+                if one.kernel == "exp":
+                    shape += f" degree {one.exp_degree}"
                 progress.update(
                     task, shape=shape + (f" pass {index + 1}" if passes > 1 else "")
                 )
@@ -148,13 +150,26 @@ def row(
 ) -> dict:
     """One dataset row: the shape from the sample, the rest from the machine."""
     machine = MACHINES[machine_name]
+    if one.kernel == "exp":
+        work = {
+            "kernel": "exp",
+            "elements": one.m,
+            "degree": one.exp_degree,
+            "approximation": {3: "libxsmm-cubic", 5: "libxsmm-quintic"}[one.exp_degree],
+            "input_range": [-10, 10],
+            "seed": 42,
+        }
+    else:
+        work = {
+            "M": one.m,
+            "N": one.n,
+            "K": one.k,
+            "peak": machine.peak_f32 / DTYPE_PEAK_DIVISOR[one.dtype],
+            # An FMA counts as two floating-point operations.
+            "flops": 2 * one.m * one.n * one.k,
+        }
     fields = {
-        "M": one.m,
-        "N": one.n,
-        "K": one.k,
-        "peak": machine.peak_f32 / DTYPE_PEAK_DIVISOR[one.dtype],
-        # An FMA counts as two floating-point operations.
-        "flops": 2 * one.m * one.n * one.k,
+        **work,
         "time": float(measured),
         "variant": one.variant,
         "machine": machine_name,
