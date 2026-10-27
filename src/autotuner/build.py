@@ -199,6 +199,7 @@ class Toolchain:
     digests: Mapping[str, str] = field(default_factory=dict)
     native_flags: tuple[str, ...] = ()
     libxsmm: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
+    papi: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
 
     @property
     def target_flags(self) -> tuple[str, ...]:
@@ -347,6 +348,7 @@ def toolchain(
         digests=source_digests(repo),
         native_flags=native_flags,
         libxsmm=pkg_config("libxsmm"),
+        papi=pkg_config("papi") if "papi" in spec.libs else ((), ()),
     )
 
 
@@ -364,6 +366,32 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
     out = here / f"{sample.variant}.{dtype}.S"
     ctype = C_TYPE[dtype]
     target = tool.target_flags
+
+    if sample.kernel == "exp":
+        if sample.variant != "libxsmm":
+            raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
+        if tool.libxsmm_arch is None:
+            raise BuildFailed("LIBXSMM exp needs a machine with libxsmm_arch")
+        source = kernel_source("exp", "libxsmm.c")
+        steps = (
+            Step(
+                "run",
+                (
+                    tool.cc,
+                    "-O3",
+                    *tool.libxsmm[0],
+                    f"-DLENGTH={m}",
+                    f"-DEXP_DEGREE={sample.exp_degree}",
+                    f'-DEXP_LIBXSMM_ARCH="{tool.libxsmm_arch}"',
+                    *target,
+                    "-S",
+                    str(source),
+                    "-o",
+                    str(out),
+                ),
+            ),
+        )
+        return Artifact(out, steps, (digest([source, kernel_source("exp", "exp.h")]),))
 
     match sample.variant:
         case "naive_c":
@@ -662,6 +690,7 @@ def driver_artifact(
             (
                 tool.cc,
                 *extra_flags,
+                *tool.papi[0],
                 f"-DCROWS={m}",
                 f"-DCCOLS={n}",
                 f"-DINNER={k}",
@@ -693,7 +722,9 @@ def binary_artifact(
         / f"{sample.variant}.{sample.dtype}.{driver}.o"
     )
     vendor_libs: tuple[str, ...] = ()
-    if sample.variant == "mkl":
+    if sample.kernel == "exp" and sample.variant == "libxsmm":
+        vendor_libs = tool.libxsmm[1]
+    elif sample.variant == "mkl":
         vendor_libs = tool.mkl[1]
     elif sample.variant == "aocl":
         vendor_libs = tool.aocl[1]
@@ -704,6 +735,13 @@ def binary_artifact(
         or sample.variant in ("naive_c", "llvm_intrinsics", "mkl", "aocl")
         else (kernel_source(sample.kernel, "init.c"),)
     )
+    # Keep PAPI headers and libraries from the same installation. In a Nix
+    # shell, bare -lpapi can otherwise find an incompatible system library.
+    machine_libs: list[str] = []
+    for lib in tool.libs:
+        machine_libs.extend(
+            tool.papi[1] if lib == "papi" and tool.papi[1] else (f"-l{lib}",)
+        )
 
     link = (
         tool.cc,
@@ -713,7 +751,7 @@ def binary_artifact(
         str(obj.path),
         str(asm.path),
         *(str(path) for path in init),
-        *(f"-l{lib}" for lib in tool.libs),
+        *machine_libs,
         *vendor_libs,
         *(("-lm",) if sample.kernel == "exp" else ()),
         *((tool.linker_flag,) if tool.linker_flag else ()),

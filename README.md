@@ -110,6 +110,51 @@ records its machine, family, ISA, compiler `march`, and libxsmm architecture.
 
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
+### Initial FP32 exp experiment
+
+`f32.exp` currently runs on `tower` and measures native LIBXSMM's degree-three
+and degree-five approximations at lengths 16, 32, 64, 128, 256, 512, and 1024.
+Every shape is a packed column vector: `M=length`, `N=1`, `ldi=ldo=length`.
+The experiment deliberately excludes partial vectors, strided matrices, and
+streaming-sized buffers.
+
+In the Nix development shell (`nix develop`), run:
+
+```sh
+uv run validate-dataset --machine tower f32.exp
+taskset -c 2 uv run evaluate --machine tower f32.exp
+make plots/f32.exp.tower.pdf plots/tower/f32.exp.png
+```
+
+The same Python builder and evaluator used for matmul write artifacts under
+`build/tower/exp/degree<3|5>/<length>/` and three measurement passes to
+`data/tower/f32.exp.jsonl` (42 rows). Each degree has separate binaries, timing
+caches, and process-local JIT dispatch. The plot shows one column per degree
+on shared axes, taking each length's fastest pass. Speedup compares against
+LIBXSMM at the **same degree**, never against a lower-accuracy approximation.
+Both baselines have speedup 1 until other implementations are added.
+`make plots` includes exp wherever its data exists; it never launches
+measurements. To remeasure this experiment, remove only
+`build/tower/exp/degree*/*/*.time*.txt` before rerunning `evaluate`.
+
+LIBXSMM dispatch runs once before warmup, with the machine's explicit `skx`
+target. `LIBXSMM_X86_HINT_USE_HIGH_PREC_ELTWISE_APPROX` is forced to `0` for
+degree three and `1` for degree five, independently of the ambient environment.
+Reference fallbacks are rejected. All implementations use `exp_init()` to
+return the same unary function-pointer ABI; the timed loop calls it with a prefilled
+`libxsmm_meltw_unary_param`. Input and output are separate, 64-byte-aligned,
+cache-resident arrays. Initialization, 1,000 warmup calls, and the final output
+checksum are outside timing. The timing loop processes 268,435,456 elements
+per pass, using tower's PAPI cycle counter.
+
+Inputs are deterministic fractional FP32 values in `[-10,10)` with seed 42.
+Validation also uses seed 43, compares against double-precision `exp` with a
+maximum relative error of `1e-3` for degree three and `1e-6` for degree five,
+and rejects nonfinite outputs, input writes, and writes to output guards.
+These are finite-domain contracts, not claims of correctly rounded `expf` or
+identical behavior for subnormal results outside the tested input range.
+The literal xDSL port and CompXSMM are not yet included.
+
 ### AOCL-BLAS baseline
 
 On x86-64 Linux, the Nix toolchain builds the single-threaded CBLAS interface from

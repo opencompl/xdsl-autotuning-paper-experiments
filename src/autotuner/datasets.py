@@ -84,6 +84,7 @@ VARIANTS = {
         "f64.nanokernel_grid": [],
     },
     "tower": {
+        "f32.exp": ["libxsmm"],
         "ttile": [
             "libxsmm",
             "mkl",
