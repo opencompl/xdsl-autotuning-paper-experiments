@@ -9,6 +9,7 @@ from xdsl.dialects.builtin import (
     Float64Type,
     IntegerAttr,
     StringAttr,
+    UnitAttr,
     i64,
 )
 from xdsl.dialects.x86.ops import DSS_Operation
@@ -125,6 +126,12 @@ class MatmulOp(IRDLOperation):
     ``ab_datatype`` when it is set (BF16 inputs accumulating in F32), and
     ``datatype`` otherwise. Pointer advances count elements of each matrix's own
     type.
+
+    ``vnni_a`` says A is packed in LIBXSMM's VNNI-2 layout: each K pair of A is
+    stored as ``lda`` adjacent (k, k+1) element pairs, so element (m, k) is at
+    ``(k // 2) * 2 * lda + 2 * m + k % 2``. K steps still count elements, so
+    advancing K by ``k`` still moves A by ``k * lda``; advancing M by ``m``
+    moves it by ``2 * m``.
     """
 
     name = "xsmm.matmul"
@@ -148,6 +155,7 @@ class MatmulOp(IRDLOperation):
     ldc = prop_def(IntegerAttr)
     datatype = prop_def(Float32Type | Float64Type)
     ab_datatype = opt_prop_def(BFloat16Type)
+    vnni_a = opt_prop_def(UnitAttr)
     aligned_a = prop_def(BoolAttr)
     aligned_c = prop_def(BoolAttr)
     iterator = prop_def(StringAttr)
@@ -163,6 +171,12 @@ class MatmulOp(IRDLOperation):
     def input_type(self) -> Float32Type | Float64Type | BFloat16Type:
         """The element type of A and B: ``ab_datatype``, else ``datatype``."""
         return self.datatype if self.ab_datatype is None else self.ab_datatype
+
+    @property
+    def a_vector_length(self) -> int:
+        """How many M rows of A one 512-bit vector holds: a K pair of each
+        when A is in VNNI layout, one element otherwise."""
+        return 512 // ((1 + bool(self.vnni_a)) * self.input_type.bitwidth)
 
     def __init__(
         self,
@@ -180,6 +194,7 @@ class MatmulOp(IRDLOperation):
         ldc: int,
         datatype: Float32Type | Float64Type,
         ab_datatype: BFloat16Type | None = None,
+        vnni_a: bool = False,
         aligned_a: bool,
         aligned_c: bool,
         iterator: MatmulIterator,
@@ -204,7 +219,8 @@ class MatmulOp(IRDLOperation):
                 "aligned_c": BoolAttr.from_bool(aligned_c),
                 "iterator": StringAttr(iterator),
             }
-            | ({} if ab_datatype is None else {"ab_datatype": ab_datatype}),
+            | ({} if ab_datatype is None else {"ab_datatype": ab_datatype})
+            | ({"vnni_a": UnitAttr()} if vnni_a else {}),
         )
 
     @classmethod
@@ -292,9 +308,9 @@ class MatmulOp(IRDLOperation):
             if value <= 0:
                 raise VerifyException(f"{name} must be positive, got {value}")
 
-        if self.aligned_a.value.data and self.lda.value.data % (
-            512 // self.input_type.bitwidth
-        ):
+        if self.vnni_a and self.ab_datatype is None:
+            raise VerifyException("VNNI A requires BF16 inputs")
+        if self.aligned_a.value.data and self.lda.value.data % self.a_vector_length:
             raise VerifyException(
                 "aligned A requires lda to be a multiple of the vector length"
             )
@@ -335,7 +351,8 @@ class MatmulRegOp(IRDLOperation):
     ``ins`` are additional read-only registers. ``outs`` are additional
     loop-carried registers and have pairwise matching ``out_results``. The
     current schedule uses ``ins`` for optional masks and ``outs`` for C
-    accumulators. ``datatype`` and ``ab_datatype`` are as on ``xsmm.matmul``.
+    accumulators. ``datatype``, ``ab_datatype`` and ``vnni_a`` are as on
+    ``xsmm.matmul``.
     """
 
     name = "xsmm.matmul_reg"
@@ -356,6 +373,7 @@ class MatmulRegOp(IRDLOperation):
     ldb = prop_def(IntegerAttr)
     datatype = prop_def(Float32Type | Float64Type)
     ab_datatype = opt_prop_def(BFloat16Type)
+    vnni_a = opt_prop_def(UnitAttr)
     aligned_a = prop_def(BoolAttr)
 
     irdl_options = (
@@ -369,6 +387,12 @@ class MatmulRegOp(IRDLOperation):
     def input_type(self) -> Float32Type | Float64Type | BFloat16Type:
         """The element type of A and B: ``ab_datatype``, else ``datatype``."""
         return self.datatype if self.ab_datatype is None else self.ab_datatype
+
+    @property
+    def a_vector_length(self) -> int:
+        """How many M rows of A one 512-bit vector holds: a K pair of each
+        when A is in VNNI layout, one element otherwise."""
+        return 512 // ((1 + bool(self.vnni_a)) * self.input_type.bitwidth)
 
     def __init__(
         self,
@@ -384,6 +408,7 @@ class MatmulRegOp(IRDLOperation):
         ldb: int,
         datatype: Float32Type | Float64Type,
         ab_datatype: BFloat16Type | None = None,
+        vnni_a: bool = False,
         aligned_a: bool,
     ):
         super().__init__(
@@ -402,7 +427,8 @@ class MatmulRegOp(IRDLOperation):
                 "datatype": datatype,
                 "aligned_a": BoolAttr.from_bool(aligned_a),
             }
-            | ({} if ab_datatype is None else {"ab_datatype": ab_datatype}),
+            | ({} if ab_datatype is None else {"ab_datatype": ab_datatype})
+            | ({"vnni_a": UnitAttr()} if vnni_a else {}),
         )
 
     @classmethod
@@ -477,9 +503,9 @@ class MatmulRegOp(IRDLOperation):
             if value <= 0:
                 raise VerifyException(f"{name} must be positive, got {value}")
 
-        if self.aligned_a.value.data and self.lda.value.data % (
-            512 // self.input_type.bitwidth
-        ):
+        if self.vnni_a and self.ab_datatype is None:
+            raise VerifyException("VNNI A requires BF16 inputs")
+        if self.aligned_a.value.data and self.lda.value.data % self.a_vector_length:
             raise VerifyException(
                 "aligned A requires lda to be a multiple of the vector length"
             )

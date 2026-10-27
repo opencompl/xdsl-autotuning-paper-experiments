@@ -78,7 +78,11 @@ def test_unknown_skx_nano_kernel() -> None:
 
 
 def test_xsmm_strategies_wrap_isa_and_nano_kernel_policy() -> None:
-    assert set(XSMM_STRATEGIES) == {*SKX_NANO_KERNELS, "libxsmm-cpx-bf16"}
+    assert set(XSMM_STRATEGIES) == {
+        *SKX_NANO_KERNELS,
+        "libxsmm-cpx-bf16",
+        "libxsmm-cpx-bf16-vnni",
+    }
     strategy = get_xsmm_strategy("libxsmm-skx")
     assert strategy.isa_info.isa == "avx512"
     assert strategy.nano_kernel is get_skx_nano_kernel("libxsmm-skx")
@@ -90,8 +94,9 @@ def test_unknown_xsmm_strategy() -> None:
     except ValueError as error:
         assert str(error) == (
             "unknown XSMM strategy 'unknown'; expected one of: "
-            "libxsmm-cpx-bf16, libxsmm-skx, libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, "
-            "libxsmm-skx-plusnarrow, llvm-skx-narrow-fsdbcst"
+            "libxsmm-cpx-bf16, libxsmm-cpx-bf16-vnni, libxsmm-skx, "
+            "libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, libxsmm-skx-plusnarrow, "
+            "llvm-skx-narrow-fsdbcst"
         )
     else:
         raise AssertionError("expected an unknown strategy to be rejected")

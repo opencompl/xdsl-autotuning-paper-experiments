@@ -386,3 +386,20 @@ def dot_product_bf16_pairs(
         insertion_point=insert_point,
     ).register_out
     return cast(VectorValue, result)
+
+
+def dot_product_bf16_pairs_memory(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    accumulator: VectorValue,
+    a: VectorValue,
+    b: PointerValue,
+    b_offset: int,
+) -> VectorValue:
+    """Add the dot product of each BF16 pair of ``a`` and the one pair at
+    ``b + b_offset``, broadcast, to the F32 lane of ``accumulator`` that holds it."""
+    result = rewriter.insert(
+        x86.ops.RSM_Vdpbf16psOp(accumulator, a, b, b_offset, broadcast=True),
+        insertion_point=insert_point,
+    ).register_out
+    return cast(VectorValue, result)

@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from autotuner.cpx_bf16_nano_kernel import CpxBf16NanoKernel
+from autotuner.cpx_bf16_vnni_nano_kernel import CpxBf16VnniNanoKernel
 from autotuner.nano_kernel import ISAInfo, NanoKernel
 from autotuner.skx_nano_kernel import SKX_NANO_KERNELS, AVX512Info
 
@@ -19,6 +20,7 @@ XSMM_STRATEGIES: Mapping[str, XsmmStrategy] = {
     for name, nano_kernel in (
         *SKX_NANO_KERNELS.items(),
         (CpxBf16NanoKernel().name, CpxBf16NanoKernel()),
+        (CpxBf16VnniNanoKernel().name, CpxBf16VnniNanoKernel()),
     )
 }
 

@@ -102,8 +102,10 @@ def compute_tiling_strategy(
     if max_n_tile is None:
         raise ValueError("could not find a legal N tile")
 
+    pack = nano_kernel.k_pack_factor
+    k_threshold = (K_THRESHOLD + 1) * pack - 1
     return TilingStrategy(
         m_tile_size,
         _compute_equalized_n_ranges(descriptor.n, max_n_tile),
-        descriptor.k if descriptor.k <= K_THRESHOLD else K_BLOCKING,
+        descriptor.k if descriptor.k <= k_threshold else K_BLOCKING * pack,
     )

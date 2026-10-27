@@ -175,6 +175,7 @@ def _matmul_k_to_reg(
             ldb=op.ldb.value.data,
             datatype=op.datatype,
             ab_datatype=op.ab_datatype,
+            vnni_a=bool(op.vnni_a),
             aligned_a=bool(op.aligned_a),
         ),
         insertion_point=insert_point,
@@ -243,6 +244,7 @@ class ApplySchedulePattern(RewritePattern):
             aligned_a=bool(op.aligned_a),
             aligned_c=bool(op.aligned_c),
             ab_datatype=op.ab_datatype,
+            vnni_a=bool(op.vnni_a),
         )
         if self.disable_loop_construction:
             strategy = TilingStrategy(

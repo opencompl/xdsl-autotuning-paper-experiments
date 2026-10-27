@@ -103,6 +103,7 @@ class CpxBf16NanoKernel(NanoKernel):
             isa_info.isa == "avx512"
             and isinstance(descriptor.datatype, builtin.Float32Type)
             and isinstance(descriptor.ab_datatype, builtin.BFloat16Type)
+            and not descriptor.vnni_a
             and descriptor.k % 2 == 0
         )
 

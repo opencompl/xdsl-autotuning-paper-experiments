@@ -45,6 +45,7 @@ def _matmul_like(
         ldc=op.ldc.value.data,
         datatype=op.datatype,
         ab_datatype=op.ab_datatype,
+        vnni_a=bool(op.vnni_a),
         aligned_a=bool(op.aligned_a) if aligned_a is None else aligned_a,
         aligned_c=bool(op.aligned_c) if aligned_c is None else aligned_c,
         iterator=(MatmulIterator(op.iterator.data) if iterator is None else iterator),
@@ -76,6 +77,7 @@ def _matmul_reg_like(
         ldb=op.ldb.value.data,
         datatype=op.datatype,
         ab_datatype=op.ab_datatype,
+        vnni_a=bool(op.vnni_a),
         aligned_a=bool(op.aligned_a) if aligned_a is None else aligned_a,
     )
 
@@ -91,7 +93,8 @@ def _matmul_pointer_offsets_abc(
             return 0, 0, 0
         case MatmulIterator.M:
             m = op.m.value.data
-            return m * ab_size, 0, m * c_size
+            # A VNNI row interleaves a K pair, so one M row is two elements.
+            return m * (1 + bool(op.vnni_a)) * ab_size, 0, m * c_size
         case MatmulIterator.N:
             n = op.n.value.data
             return (
@@ -188,8 +191,7 @@ def split_matmul(
         f"Invalid {iterator} split {first_size} for extent {extent}"
     )
     second_aligned_a = bool(op.aligned_a) and (
-        iterator != MatmulIterator.M
-        or first_size % (512 // op.input_type.bitwidth) == 0
+        iterator != MatmulIterator.M or first_size % op.a_vector_length == 0
     )
     second_aligned_c = bool(op.aligned_c) and (
         iterator != MatmulIterator.M or first_size % (512 // op.datatype.bitwidth) == 0

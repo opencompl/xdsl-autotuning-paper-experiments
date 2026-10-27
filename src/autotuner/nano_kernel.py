@@ -54,7 +54,8 @@ class GemmDescriptor:
     """Target-independent information describing a GEMM problem.
 
     ``datatype`` is C's element type and the accumulation's; A and B have
-    ``ab_datatype`` when it is set and ``datatype`` otherwise.
+    ``ab_datatype`` when it is set and ``datatype`` otherwise. ``vnni_a`` says
+    A is packed in K pairs, as on ``xsmm.matmul``.
     """
 
     m: int
@@ -67,6 +68,7 @@ class GemmDescriptor:
     aligned_a: bool
     aligned_c: bool
     ab_datatype: builtin.BFloat16Type | None = None
+    vnni_a: bool = False
 
     @property
     def input_type(self) -> InputType:
@@ -117,6 +119,15 @@ class NanoKernel(ABC):
     @abstractmethod
     def name(self) -> str:
         """Stable name used to select and benchmark this nano-kernel."""
+
+    @property
+    def k_pack_factor(self) -> int:
+        """How many K steps one element of packed A spans.
+
+        LIBXSMM multiplies its K unrolling by this, so a kernel reading A in
+        K pairs unrolls as many instructions as one reading it flat.
+        """
+        return 1
 
     @abstractmethod
     def supported_tile_sizes(
