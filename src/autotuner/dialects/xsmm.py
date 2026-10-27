@@ -22,9 +22,9 @@ from xdsl.irdl import (
     AttrSizedOperandSegments,
     AttrSizedResultSegments,
     IRDLOperation,
-    ParsePropInAttrDict,
     irdl_op_definition,
     operand_def,
+    opt_operand_def,
     prop_def,
     result_def,
     traits_def,
@@ -478,42 +478,101 @@ class MatmulRegOp(IRDLOperation):
 
 @irdl_op_definition
 class HornerOp(IRDLOperation):
-    """Continue an FP32 Horner recurrence in each AVX-512 lane.
+    """Evaluate or continue an FP32 Horner recurrence in each AVX-512 lane.
 
     Coefficients are listed in ascending power order. Starting with
     ``accumulator``, consume them in reverse order using ``fma(acc, x, c)``.
     Each step is fused; unlike a polynomial, this operation fixes evaluation
     order. With no remaining coefficients the result is the accumulator.
+
+    Without an accumulator, initialize with ``fma(x, c[-1], c[-2])``, then
+    continue with the remaining coefficients. A single coefficient is a
+    constant result. Initialization preserves x and the coefficient registers.
     """
 
     name = "xsmm.horner"
     argument = operand_def(AVX512RegisterType)
-    accumulator = operand_def(AVX512RegisterType)
+    accumulator = opt_operand_def(AVX512RegisterType)
     coefficients = var_operand_def(AVX512RegisterType)
     result = result_def(AVX512RegisterType)
     datatype = prop_def(Float32Type)
     traits = traits_def(Pure())
-    irdl_options = (ParsePropInAttrDict(),)
-    assembly_format = (
-        "$argument `accumulator` `(` $accumulator `)` "
-        "`coefficients` `(` $coefficients `)` attr-dict `:` "
-        "functional-type(operands, results)"
-    )
+    irdl_options = (AttrSizedOperandSegments(as_property=True),)
 
     def __init__(
         self,
         argument: SSAValue,
-        accumulator: SSAValue,
+        accumulator: SSAValue | None,
         coefficients: Sequence[SSAValue],
+        *,
+        destination: AVX512RegisterType | None = None,
     ):
         super().__init__(
             operands=(argument, accumulator, coefficients),
-            result_types=(accumulator.type,),
+            result_types=(
+                destination
+                if destination is not None
+                else accumulator.type
+                if accumulator is not None
+                else AVX512RegisterType.unallocated(),
+            ),
             properties={"datatype": Float32Type()},
         )
 
+    @classmethod
+    def parse(cls, parser: Parser) -> "HornerOp":
+        pos = parser.pos
+        argument = parser.parse_unresolved_operand()
+        accumulator = None
+        if parser.parse_optional_keyword("accumulator") is not None:
+            parser.parse_punctuation("(")
+            accumulator = parser.parse_unresolved_operand()
+            parser.parse_punctuation(")")
+        parser.parse_keyword("coefficients")
+        coefficients = parser.parse_comma_separated_list(
+            Parser.Delimiter.PAREN, parser.parse_unresolved_operand
+        )
+        attributes = parser.parse_optional_attr_dict()
+        parser.parse_punctuation(":")
+        function_type = parser.parse_function_type()
+        has_accumulator = accumulator is not None
+        operands = parser.resolve_operands(
+            (argument, *((accumulator,) if has_accumulator else ()), *coefficients),
+            function_type.inputs.data,
+            pos,
+        )
+        return cls.build(
+            operands=(
+                operands[0],
+                operands[1] if has_accumulator else None,
+                operands[2 if has_accumulator else 1 :],
+            ),
+            result_types=function_type.outputs.data,
+            properties={"datatype": attributes.pop("datatype", Float32Type())},
+            attributes=attributes,
+        )
+
+    def print(self, printer: Printer) -> None:
+        printer.print_string(" ")
+        printer.print_ssa_value(self.argument)
+        if self.accumulator is not None:
+            printer.print_string(" accumulator(")
+            printer.print_ssa_value(self.accumulator)
+            printer.print_string(")")
+        printer.print_string(" coefficients(")
+        printer.print_list(self.coefficients, printer.print_ssa_value)
+        printer.print_string(")")
+        printer.print_op_attributes({**self.attributes, "datatype": self.datatype})
+        printer.print_string(" : (")
+        printer.print_list(self.operands, lambda v: printer.print_attribute(v.type))
+        printer.print_string(") -> ")
+        printer.print_attribute(self.result.type)
+
     def verify_(self) -> None:
-        if self.result.type != self.accumulator.type:
+        if self.accumulator is None:
+            if not self.coefficients:
+                raise VerifyException("uninitialized Horner requires coefficients")
+        elif self.result.type != self.accumulator.type:
             raise VerifyException("Horner result must reuse the accumulator register")
 
 

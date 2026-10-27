@@ -36,9 +36,11 @@ def generate_exp3(
     rounded.attributes["sae"] = UnitAttr()
     y = code.insert(rounded).destination
     y = code.insert(x86_ext.DSS_VsubpsOp(x, y, destination=vec_y)).destination
-    z = code.insert(x86_ext.DS_Vmovdqu64Op(y, destination=vec_z)).destination
-    z = code.insert(x86_ext.RSS_Vfmadd213psOp(z, coeffs.c3, coeffs.c2)).register_out
-    z = code.insert(HornerOp(y, z, (coeffs.c0, coeffs.c1))).result
+    z = code.insert(
+        HornerOp(
+            y, None, (coeffs.c0, coeffs.c1, coeffs.c2, coeffs.c3), destination=vec_z
+        )
+    ).result
     return code.insert(x86_ext.DSS_VscalefpsOp(z, x, destination=x.type)).destination
 
 
