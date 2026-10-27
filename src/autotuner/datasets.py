@@ -14,6 +14,7 @@ KERNEL = "matmul_colmaj"
 # length and N = K = 1 internally; K is not part of their paths or result schema.
 EXP_LENGTHS = (16, 32, 64, 128, 256, 512, 1024)
 EXP_DEGREES = (3, 5)
+EXP_PLACEMENTS = (0, 16, 32, 48)
 
 # Sizes swept by the two square sweeps, one per data type, which set
 # M = N = K to each of them.
@@ -54,11 +55,12 @@ NANOKERNEL_VARIANTS = (
 # the machine is doing lands in the number.  That noise only ever makes a
 # kernel look slower, so they are swept several times and the plots keep the
 # fastest pass of each sample -- see `plot_data.best_of_repeats`.
+# Exp instead takes medians at each controlled placement, then averages them.
 DATASET_REPEATS = {
     "f64.nanokernel_grid": 3,
     "f32.squares": 3,
     "f64.squares": 3,
-    "f32.exp": 3,
+    "f32.exp": 9,
 }
 
 
@@ -84,7 +86,7 @@ VARIANTS = {
         "f64.nanokernel_grid": [],
     },
     "tower": {
-        "f32.exp": ["libxsmm"],
+        "f32.exp": ["libxsmm", "xdsl_libxsmm"],
         "ttile": [
             "libxsmm",
             "mkl",

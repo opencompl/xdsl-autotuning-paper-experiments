@@ -1,3 +1,5 @@
+import json
+import math
 import os
 import platform
 import shutil
@@ -220,7 +222,7 @@ def test_m4_native_correctness_driver(tmp_path: Path, dtype: str) -> None:
     assert "Test Passed" in done.stdout
 
 
-def test_native_exp_builds_validates_and_pins_its_approximation(
+def test_exp_builds_validates_and_matches_native_libxsmm(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     if (
@@ -236,8 +238,11 @@ def test_native_exp_builds_validates_and_pins_its_approximation(
         build.MACHINES, "ci", replace(build.MACHINES["ci"], libxsmm_arch="skx")
     )
     samples = [
-        Sample(128, 1, 1, "libxsmm", "f32", kernel="exp", exp_degree=degree)
+        Sample(length, 1, 1, variant, "f32", kernel="exp", exp_degree=degree)
         for degree in (3, 5)
+        # No loop, full unroll, reduced unroll, two M regions, repeated unroll.
+        for length in (16, 256, 272, 528, 1024)
+        for variant in ("libxsmm", "xdsl_libxsmm")
     ]
     # Build together to catch shared paths or a driver compiled for the wrong
     # degree, as well as an ambient hint overriding the requested polynomial.
@@ -263,6 +268,65 @@ def test_native_exp_builds_validates_and_pins_its_approximation(
             assert 1e-5 < relative_error < 1e-3
         else:
             assert relative_error < 1e-6
+
+        if sample.variant == "xdsl_libxsmm":
+            # The tolerance check above would miss swapped blend operands on
+            # underflow lanes. Compare the literal port against the real JIT
+            # on mixed lanes, including both sides of its clamp boundaries.
+            asm = binary.parent / "xdsl_libxsmm.f32.S"
+            oracle = binary.parent / "compare"
+            cflags, libs = build.pkg_config("libxsmm")
+            subprocess.run(
+                [
+                    "clang",
+                    "-O2",
+                    *cflags,
+                    f"-DLENGTH={sample.m}",
+                    f"-DEXP_DEGREE={sample.exp_degree}",
+                    "tests/libxsmm/exp_compare.c",
+                    str(asm),
+                    *libs,
+                    "-lm",
+                    "-o",
+                    str(oracle),
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            result = subprocess.run(
+                [oracle], capture_output=True, text=True, check=True
+            )
+            assert "Native and generated exp agree" in result.stdout
+
+    # Exercise the real paired timer too: relocation must preserve outputs and
+    # guards for both a straight-line kernel and a looped kernel, at every offset.
+    timed = [s for s in samples if s.m in (16, 1024)]
+    build.build(timed, "ci", root=tmp_path, jobs=1, quiet=True)
+    for sample in timed:
+        if sample.variant != "libxsmm":
+            continue
+        binary = (
+            tmp_path / Path(sample.path("ci", "time.o")).relative_to("build")
+        ).with_name("paired.f32.time.o")
+        done = subprocess.run([binary], capture_output=True, text=True, check=True)
+        rows = json.loads(done.stdout)
+        assert len(rows) == 16
+        assert {(r["variant"], r["placement_offset"], r["order"]) for r in rows} == {
+            (variant, offset, order)
+            for variant in ("libxsmm", "xdsl_libxsmm")
+            for offset in (0, 16, 32, 48)
+            for order in (0, 1)
+        }
+        # Both variants and both orders use the very same address, not just
+        # addresses with coincidentally equal cache-line alignment.
+        assert (
+            len({int(r["code_address"], 16) - r["placement_offset"] for r in rows}) == 1
+        )
+        assert all(
+            int(r["code_address"], 16) % 4096 == r["placement_offset"] for r in rows
+        )
+        assert all(math.isfinite(r["time"]) and r["time"] > 0 for r in rows)
 
 
 @pytest.mark.parametrize("host", [("Linux", "aarch64"), ("Darwin", "x86_64")])

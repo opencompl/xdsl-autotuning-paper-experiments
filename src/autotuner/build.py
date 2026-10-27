@@ -34,7 +34,7 @@ import subprocess
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import import_module
 from pathlib import Path
 
@@ -51,6 +51,7 @@ from rich.progress import (
 )
 
 from autotuner.datasets import (
+    EXP_PLACEMENTS,
     NANOKERNEL_VARIANTS,
     Sample,
     dataset_samples,
@@ -75,6 +76,7 @@ GENERATOR_SOURCES: Mapping[str, tuple[str, ...]] = {
 # The generator each "generate:*" step calls, imported once per worker.
 GENERATOR_MODULES = {
     "generate:libxsmm": "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver",
+    "generate:libxsmm-exp": "autotuner.libxsmm_gemm.libxsmm_generator_exp_driver",
     "generate:compxsmm": "autotuner.compxsmm_gemm.compxsmm_generator_gemm_driver",
     "generate:libxtcmm": "autotuner.libxtcmm_gemm.libxtcmm_generator_gemm_driver",
 }
@@ -368,10 +370,39 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
     target = tool.target_flags
 
     if sample.kernel == "exp":
-        if sample.variant != "libxsmm":
-            raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
         if tool.libxsmm_arch is None:
             raise BuildFailed("LIBXSMM exp needs a machine with libxsmm_arch")
+        if sample.variant == "xdsl_libxsmm":
+            mlir = here / "xdsl_libxsmm.f32.libxsmm.mlir"
+            steps = (
+                Step(
+                    "generate:libxsmm-exp",
+                    (
+                        str(mlir),
+                        "exp_kernel",
+                        str(m),
+                        "--degree",
+                        str(sample.exp_degree),
+                        "--arch",
+                        tool.libxsmm_arch,
+                    ),
+                ),
+                Step(
+                    "xdsl-opt",
+                    (
+                        str(mlir),
+                        "-p",
+                        tool.pipelines[sample.variant],
+                        "-t",
+                        "x86-asm",
+                        "-o",
+                        str(out),
+                    ),
+                ),
+            )
+            return Artifact(out, steps, (tool.digests["libxsmm"], tool.digests["xdsl"]))
+        if sample.variant != "libxsmm":
+            raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
         source = kernel_source("exp", "libxsmm.c")
         steps = (
             Step(
@@ -681,6 +712,7 @@ def driver_artifact(
             "-O3",
             f"-DLENGTH={m}",
             f"-DEXP_DEGREE={exp_degree}",
+            f"-DEXP_PLACEMENTS={','.join(map(str, EXP_PLACEMENTS))}",
             *tool.libxsmm[0],
         )
         extra_headers = (kernel_source(kernel, "exp.h"),)
@@ -714,7 +746,13 @@ def headers() -> list[Path]:
 
 
 def binary_artifact(
-    tool: Toolchain, sample: Sample, asm: Artifact, obj: Artifact, driver: str
+    tool: Toolchain,
+    sample: Sample,
+    asm: Artifact,
+    obj: Artifact,
+    driver: str,
+    *,
+    extra_asm: Sequence[Artifact] = (),
 ) -> Artifact:
     """The linked benchmark: the shared driver object plus this variant's asm."""
     out = (
@@ -722,7 +760,7 @@ def binary_artifact(
         / f"{sample.variant}.{sample.dtype}.{driver}.o"
     )
     vendor_libs: tuple[str, ...] = ()
-    if sample.kernel == "exp" and sample.variant == "libxsmm":
+    if sample.kernel == "exp" and sample.variant in ("libxsmm", "paired"):
         vendor_libs = tool.libxsmm[1]
     elif sample.variant == "mkl":
         vendor_libs = tool.mkl[1]
@@ -735,6 +773,10 @@ def binary_artifact(
         or sample.variant in ("naive_c", "llvm_intrinsics", "mkl", "aocl")
         else (kernel_source(sample.kernel, "init.c"),)
     )
+    init_flags: tuple[str, ...] = ()
+    if sample.kernel == "exp" and sample.variant == "xdsl_libxsmm":
+        init = (kernel_source("exp", "init.c"),)
+        init_flags = tool.libxsmm[0]
     # Keep PAPI headers and libraries from the same installation. In a Nix
     # shell, bare -lpapi can otherwise find an incompatible system library.
     machine_libs: list[str] = []
@@ -750,6 +792,8 @@ def binary_artifact(
         str(scratch_name(out)),
         str(obj.path),
         str(asm.path),
+        *(str(a.path) for a in extra_asm),
+        *init_flags,
         *(str(path) for path in init),
         *machine_libs,
         *vendor_libs,
@@ -759,8 +803,8 @@ def binary_artifact(
     return Artifact(
         out,
         (Step("run", link),),
-        inputs=(asm.key, obj.key, digest(init)),
-        needs=(asm.path, obj.path),
+        inputs=(asm.key, obj.key, digest(init), *(a.key for a in extra_asm)),
+        needs=(asm.path, obj.path, *(a.path for a in extra_asm)),
         preserve=True,
     )
 
@@ -780,6 +824,25 @@ def plan_shape(
         driver,
         exp_degree=first.exp_degree,
     )
+    if first.kernel == "exp" and driver == "time":
+        # One executable owns both kernels and one timing call site. The
+        # evaluator caches its paired results once per shape and pass.
+        for sample in samples:
+            if sample.variant not in ("libxsmm", "xdsl_libxsmm"):
+                raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
+        native, port = (
+            asm_artifact(tool, replace(first, variant=variant))
+            for variant in ("libxsmm", "xdsl_libxsmm")
+        )
+        paired = binary_artifact(
+            tool,
+            replace(first, variant="paired"),
+            native,
+            obj,
+            driver,
+            extra_asm=(port,),
+        )
+        return obj, native, port, paired
     artifacts: list[Artifact] = [obj]
     for sample in samples:
         asm = asm_artifact(tool, sample)
@@ -815,7 +878,7 @@ def run_step(step: Step) -> None:
             # an interrupted run would otherwise be built on top of.
             Path(step.args[0]).unlink(missing_ok=True)
 
-        case "generate:libxsmm" | "generate:compxsmm" | "generate:libxtcmm":
+        case kind if kind in GENERATOR_MODULES:
             module = import_module(GENERATOR_MODULES[step.kind])
             with environment(env):
                 module.main(list(step.args))
