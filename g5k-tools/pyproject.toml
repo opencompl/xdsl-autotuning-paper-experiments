@@ -1,0 +1,32 @@
+[project]
+name = "g5k-tools"
+version = "0.1.0"
+description = "Grid'5000 resource queries for the xDSL autotuning experiments."
+readme = "README.md"
+requires-python = ">=3.11.2"
+# enoslib < 10 pins ansible < 4, whose vendored six cannot be imported on
+# Python 3.12; enoslib 10 moved to enoslib-ansible and works. It also pins
+# `rich ~= 12.0`, which is why this lives outside the main venv rather than
+# alongside xdsl[dev] (whose textual needs rich >= 13.3.3).
+dependencies = ["enoslib>=10.9.0"]
+
+[project.scripts]
+g5k-availability = "g5k_tools.availability:main"
+g5k-run = "g5k_tools.run:main"
+g5k-eval = "g5k_tools.eval:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/g5k_tools"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.pyright]
+include = ["src", "tests"]

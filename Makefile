@@ -43,26 +43,37 @@ tests: pytest filecheck snakemake
 	@echo "All tests passed successfully"
 	@exit 0
 
+# Code generation is embarrassingly parallel, but one job per hardware thread
+# is not always the right number: on a many-core node that many `xdsl-opt`
+# processes can want more memory than the machine has, and neither Snakemake's
+# `--cores all` nor `build-dataset`'s worker count knows that. Cap both with
+# CORES=N -- scripts/g5k-eval.sh derives one from the node's RAM.
+CORES ?= all
+JOBS_FLAG = $(if $(filter-out all,$(CORES)),--jobs $(CORES),)
+
 # One process, one task per shape, every core busy -- see src/autotuner/build.py.
 .PHONY: dataset_code
 dataset_code:
-	uv run build-dataset $(if $(MACHINE),--machine $(MACHINE),)
+	uv run build-dataset $(JOBS_FLAG) $(if $(MACHINE),--machine $(MACHINE),)
 
 # Builds the same kernels against the test harness instead of the timing one,
 # then runs them all -- see src/autotuner/validate.py.
 .PHONY: dataset_validate
 dataset_validate:
-	uv run validate-dataset $(if $(MACHINE),--machine $(MACHINE),)
+	uv run validate-dataset $(JOBS_FLAG) $(if $(MACHINE),--machine $(MACHINE),)
 
 # --cores 1 to avoid contention issues when measuring performance.
 # Run `make clean` to re-measure everything.
 # Run `make clean-ours` to re-measure just our code.
-# `evaluate` drives the whole thing: it has Snakemake build the kernels across
-# every core, then times them one at a time, then writes each dataset's jsonl.
-# Datasets sharing a shape build and measure it once.
+# `evaluate` drives the whole thing: it builds the kernels across every core,
+# then times them one at a time, then writes each dataset's jsonl.  Datasets
+# sharing a shape build and measure it once.  EVAL_FLAGS passes the rest of its
+# options through -- `EVAL_FLAGS=--no-build` when the code is already generated
+# and only the serialised timing should run, which is what pinning the whole
+# target to one core (scripts/g5k-eval.sh) needs.
 .PHONY: dataset
 dataset:
-	uv run evaluate $(if $(MACHINE),--machine $(MACHINE),)
+	uv run evaluate $(JOBS_FLAG) $(EVAL_FLAGS) $(if $(MACHINE),--machine $(MACHINE),)
 
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(MACHINE)/f64.bars.jsonl
@@ -99,7 +110,7 @@ PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard da
 # has actually been run with every implementation it draws.  Same reason the
 # grid is globbed rather than named -- a target whose data is absent stops
 # `make plots` everywhere -- except that here the file can also be present and
-# stale: f32 gained CompXSMM - RA and CompXSMM + narrow after it was last
+# stale: f32 gained CompXSMM-RA and CompXSMM+narrow after it was last
 # swept, and `plot-squares` refuses a dataset missing a variant rather than
 # quietly drawing a thinner figure.  So this tests the contents, not the name,
 # and a machine joins the list once it has re-run `make dataset`.
@@ -135,6 +146,20 @@ plots/baselines.%.pdf: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASEL
 plots/%/baselines.png: data/%/f32.squares.jsonl data/%/f64.squares.jsonl $(BASELINES_SRC)
 	uv run plot-baselines data/$*/f32.squares.jsonl data/$*/f64.squares.jsonl --output $@
 
+# The plots one machine's data supports, derived from the data that is actually
+# there. This is what a machine with no entry above -- a Grid'5000 cluster --
+# gets plotted with: `make plots-machine MACHINE=<name>`.
+MACHINE_SMALL = $(wildcard data/$(MACHINE)/*.small_matrices.jsonl)
+MACHINE_SQUARES = $(wildcard data/$(MACHINE)/f64.squares.jsonl)
+MACHINE_GRID = $(wildcard data/$(MACHINE)/f64.nanokernel_grid.jsonl)
+MACHINE_PLOTS  = $(patsubst data/%.small_matrices.jsonl,plots/%.ttile_squares.png,$(MACHINE_SMALL))
+MACHINE_PLOTS += $(patsubst data/%.small_matrices.jsonl,plots/%.ttile_combined.png,$(MACHINE_SMALL))
+MACHINE_PLOTS += $(patsubst data/%.small_matrices.jsonl,plots/%.heatmap.png,$(MACHINE_SMALL))
+# The paper figures name the machine last, so these two do not fall out of a
+# `data/%` patsubst the way the others do.
+MACHINE_PLOTS += $(patsubst data/%/f64.squares.jsonl,plots/f64.squares.%.pdf,$(MACHINE_SQUARES))
+MACHINE_PLOTS += $(patsubst data/%/f64.nanokernel_grid.jsonl,plots/f64.nanokernel_grid.%.pdf,$(MACHINE_GRID))
+
 plots/%.ttile_squares.png: data/%.small_matrices.jsonl src/autotuner/plot_ttile_squares.py
 	uv run plot-ttile-squares $< --output $@
 
@@ -157,7 +182,7 @@ plots/f64.squares.%.pdf: data/%/f64.squares.jsonl $(SQUARES_SRC)
 # The f32 counterpart, drawing the same six curves against the f32 peak, which
 # the dataset carries per row.  `plot-squares` refuses a dataset missing one of
 # them rather than quietly drawing a thinner figure, so this target fails until
-# the machine has swept f32 with CompXSMM - RA and CompXSMM + narrow in it --
+# the machine has swept f32 with CompXSMM-RA and CompXSMM+narrow in it --
 # which is what the readiness test above keeps out of `make plots`.
 plots/f32.squares.%.pdf: data/%/f32.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@
@@ -180,9 +205,42 @@ plots/bf16_amx.squares.%.pdf: data/%/bf16_amx.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@ \
 	    --variant libxsmm --variant xdsl_libxsmm --variant compxsmm --variant compxsmm_manual
 
-# A grid of K sweeps over the nano-kernels: sixteen M values down the rows
-# against seven N values across, so M keeps the y axis and the figure comes out
-# one column wide and tall.  A PDF rather than a PNG so LaTeX gets the vector
+SQUARES_BASELINES_SRC = src/autotuner/plot_squares_baselines.py src/autotuner/plot_style.py
+
+# The paper's 2x2 grid: the squares figure with MKL and AOCL in it, one panel
+# per (machine, data type), each half the page wide, plus the legend they share
+# as a fifth file to be set underneath them.  The grid puts the machines across
+# and the data types down -- $(PAPER_GRID_LEFT) left of $(PAPER_GRID_RIGHT),
+# f32 above f64 -- so only the left column names the y axis and only the bottom
+# row names the x axis.  Panels are drawn at a fixed size rather than cropped
+# to their ink, so dropping a label does not move the axes: include all four at
+# the same width and they line up.
+PAPER_GRID_LEFT  = rapper
+PAPER_GRID_RIGHT = larochette
+
+PLOTS += $(foreach m,$(PAPER_GRID_LEFT) $(PAPER_GRID_RIGHT),\
+    plots/f32.squares_baselines.$(m).pdf plots/f64.squares_baselines.$(m).pdf)
+PLOTS += plots/squares_baselines.legend.pdf
+
+# The right column of the grid inherits the left column's y axis, and the top
+# row the bottom row's x axis, so those panels are drawn without the label.
+$(foreach m,$(PAPER_GRID_RIGHT),plots/f32.squares_baselines.$(m).pdf plots/f64.squares_baselines.$(m).pdf): YLABEL_FLAG = --no-ylabel
+
+plots/f32.squares_baselines.%.pdf: data/%/f32.squares.jsonl $(SQUARES_BASELINES_SRC)
+	uv run plot-squares-baselines $< --output $@ --no-xlabel $(YLABEL_FLAG)
+
+plots/f64.squares_baselines.%.pdf: data/%/f64.squares.jsonl $(SQUARES_BASELINES_SRC)
+	uv run plot-squares-baselines $< --output $@ $(YLABEL_FLAG)
+
+# The legend of the grid above, on its own so it can sit under all four panels.
+# It draws from the palette rather than from a dataset, so it has no data
+# prerequisite.
+plots/squares_baselines.legend.pdf: $(SQUARES_BASELINES_SRC)
+	uv run plot-squares-baselines --legend-only --output $@
+
+# A grid of K sweeps over the nano-kernels: six M values down the rows against
+# seven N values across, so M keeps the y axis and the figure comes out one
+# column wide.  A PDF rather than a PNG so LaTeX gets the vector
 # text at that size.  A paper figure, so like the squares plot it goes straight
 # in plots/ with the machine last in the name; here `%` is the machine alone.
 plots/f64.nanokernel_grid.%.pdf: data/%/f64.nanokernel_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py
@@ -190,6 +248,12 @@ plots/f64.nanokernel_grid.%.pdf: data/%/f64.nanokernel_grid.jsonl src/autotuner/
 
 .PHONY: plots
 plots: $(PLOTS)
+
+.PHONY: plots-machine
+plots-machine:
+	@test -n "$(MACHINE)" || { echo "set MACHINE=<name>"; exit 1; }
+	@test -n "$(strip $(MACHINE_PLOTS))" || { echo "no data/$(MACHINE)/*.jsonl to plot"; exit 1; }
+	$(MAKE) $(MACHINE_PLOTS)
 
 # set up all precommit hooks
 .PHONY: precommit-install

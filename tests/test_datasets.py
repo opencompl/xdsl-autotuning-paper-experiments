@@ -9,24 +9,34 @@ from autotuner.datasets import (
     NANOKERNEL_GRID_M,
     NANOKERNEL_GRID_N,
     NANOKERNEL_VARIANTS,
+    VARIANTS,
     Sample,
     dataset_repeats,
     dataset_samples,
+    default_variants,
     machine_file,
+    variants_for,
 )
+from autotuner.machines import NEON, RAPPER, TOWER, Machine
 
 # Datasets committed to the repo, which the sample order has to keep matching.
+# The Grid'5000 clusters belong here as much as the machines named in
+# `VARIANTS` do: what they measure is derived from rapper rather than written
+# out (`datasets.AVX512_REFERENCE`), so this is what catches the derivation
+# drifting away from what was actually measured.  `grvingt` is the one left
+# out: its committed run predates that derivation and still holds a `naive_c`
+# the definition no longer asks for, so it is a re-run away from belonging.
 COMMITTED = [
     (machine, dataset)
-    for machine in ("rapper", "tower")
+    for machine in ("rapper", "tower", "chirop")
+    # Not every machine has run every one of these, and the test skips a
+    # dataset that is absent.
     for dataset in (
         "f32.ttile",
         "f64.ttile",
         "f64.small_matrices",
         "f32.squares",
         "f64.squares",
-        # Not every machine has run the grid yet, and the test skips a dataset
-        # that is absent.
         "f64.nanokernel_grid",
     )
 ]
@@ -137,3 +147,77 @@ def test_the_nanokernel_grid_only_measures_supported_tiles() -> None:
     # Every tile that is measured is measured over the whole of K.
     assert all(ks == set(NANOKERNEL_GRID_K) for ks in k_by_tile.values())
     assert len(samples) == len(k_by_tile) * len(NANOKERNEL_GRID_K)
+
+
+# --- machines that are detected rather than written out ---------------------
+
+
+def test_a_reported_machine_is_never_derived() -> None:
+    # `default_variants` is for machines nobody wrote an entry for; a published
+    # machine must keep the frozen list even where the two would agree.
+    for name in VARIANTS:
+        assert variants_for(name) is VARIANTS[name]
+
+
+def test_a_detected_avx512_machine_gets_the_full_comparison() -> None:
+    # What a dataset compares follows from the hardware, so a detected avx512
+    # machine reaches every variant the fullest machine does, whatever its own
+    # vendor: the derived list is rapper's, tower's frozen one being a machine
+    # whose committed measurements predate `compxsmm_plusnarrow`.
+    assert default_variants(RAPPER) == VARIANTS["rapper"]
+    assert default_variants(TOWER) == VARIANTS["rapper"]
+
+
+def test_a_detected_machine_can_draw_the_squares_figure() -> None:
+    # `plot_squares` draws its variant list unconditionally and raises if the
+    # dataset lacks one, so what it draws has to be what a new machine measures.
+    from autotuner.plot_squares import VARIANTS as DRAWN
+
+    assert set(DRAWN) <= set(default_variants(RAPPER)["f64.squares"])
+
+
+def test_a_detected_machine_without_avx512_is_baselines_only() -> None:
+    # Neither our xdsl pipeline nor the pinned nano-kernels exist off avx512,
+    # so there is nothing of ours to measure and the sweeps are baselines.
+    arm = Machine(
+        family="neoverse-v1",
+        isa="neon",
+        display_name="detected arm",
+        target_triple="aarch64-unknown-linux-gnu",
+        march="armv8.4-a",
+        mtune="neoverse-v1",
+        libxsmm_arch=None,
+        freq=2.6,
+        peak_f32=0,
+        libs=(),
+        linker_flag="",
+        env={},
+    )
+    derived = default_variants(arm)
+
+    assert derived["ttile"] == ["mkl", "aocl"]
+    assert derived["f64.small_matrices"] == []
+    assert derived["f32.squares"] == []
+    assert derived["f64.squares"] == []
+    assert derived["f64.nanokernel_grid"] == []
+
+
+def test_every_dataset_is_covered_by_the_fallback() -> None:
+    # A dataset added to `VARIANTS` but not to the baselines-only branch would
+    # raise a KeyError deep inside `dataset_samples`, for a detected machine
+    # off avx512 only.  The avx512 branch derives its keys, so it cannot drift.
+    assert set(default_variants(RAPPER)) == set(VARIANTS["rapper"])
+    assert set(default_variants(NEON)) == set(VARIANTS["neon"])
+
+
+def test_a_detected_machine_does_not_share_the_reference_lists() -> None:
+    # The derived dict is a copy: a caller sorting or appending to what it got
+    # back must not edit the frozen table underneath it.
+    derived = default_variants(TOWER)
+    derived["ttile"].append("nonsense")
+    assert "nonsense" not in VARIANTS["tower"]["ttile"]
+
+
+def test_an_unknown_machine_says_how_to_detect_one() -> None:
+    with pytest.raises(KeyError, match="machine-profile --name nowhere"):
+        variants_for("nowhere")
