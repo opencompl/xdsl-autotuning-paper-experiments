@@ -37,8 +37,9 @@ override-dependencies = ["xdsl[dev]"]
 [tool.uv.sources]
 xtc-tools = { git = "https://github.com/xtc-tools/xtc.git", rev = "bbf98bd4af3a68a3145a802d41f5debd8f95bf2b" }
 # The x86 BF16 instructions, including the broadcast vdpbf16ps the VNNI
-# kernels need, are not in xDSL main yet.
-xdsl = { git = "https://github.com/xdslproject/xdsl.git", branch = "jm/x86-bf16-vnni" }
+# kernels need, and the AMX tile registers and instructions are not in xDSL
+# main yet.
+xdsl = { git = "https://github.com/xdslproject/xdsl.git", branch = "jm/x86-bf16-vnni-amx" }
 tvm = { index = "corse" }
 
 [project.scripts]
