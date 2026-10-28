@@ -365,3 +365,38 @@ def test_amx_kernels_take_the_amx_arch_strategy_and_driver_flags(
     assert {"-DVNNI_A", "-DAMX"} <= set(driver_flags("bf16_amx"))
     assert "-DVNNI_A" in driver_flags("bf16_vnni")
     assert "-DAMX" not in driver_flags("bf16_vnni")
+
+
+def test_bf16_c_amx_kernels_round_c_and_their_reference_sums_in_f32(
+    tool: build.Toolchain,
+) -> None:
+    amx = replace(tool, libxsmm_arch_amx="spr")
+    assert amx.xsmm_arch("bf16c_amx") == "spr"
+    assert "strategy=libxsmm-spr-bf16-amx" in amx.pipeline("compxsmm", "bf16c_amx")
+
+    for variant, kind in (
+        ("libxsmm", "run"),
+        ("xdsl_libxsmm", "generate:libxsmm"),
+        ("compxsmm", "generate:compxsmm"),
+    ):
+        generate = next(
+            step
+            for step in build.asm_artifact(
+                amx, Sample(32, 32, 32, variant, "bf16c_amx")
+            ).steps
+            if step.kind == kind
+        )
+        assert {"spr", "BF16_VNNI_A"} <= set(generate.args), variant
+
+    (step,) = build.driver_artifact(
+        amx, "matmul_colmaj", 32, 32, 32, "bf16c_amx", "test"
+    ).steps
+    flags = set(step.args)
+    assert {"-DDTYPE=__bf16", "-DCTYPE=__bf16", "-DACCTYPE=float"} <= flags
+    assert {"-DVNNI_A", "-DAMX"} <= flags
+
+    # Every other dtype accumulates in C's own type.
+    (step,) = build.driver_artifact(
+        amx, "matmul_colmaj", 32, 32, 32, "bf16_amx", "test"
+    ).steps
+    assert not any(arg.startswith("-DACCTYPE") for arg in step.args)
