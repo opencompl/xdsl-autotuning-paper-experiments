@@ -1,0 +1,163 @@
+Let the standalone generator emit BF16 GEMMs that round C back to BF16.
+
+The CLI only accepted F32 C for BF16 inputs, so add a BF16_VNNI_A precision
+(A, B and C in BF16, F32 compute, A pre-packed in K pairs) and give the
+inline-assembly emitter a C signature for it. On SPR the AMX kernel then moves
+C between memory and its F32 tiles through the GEMM scratch on the stack:
+vmovdqu16 + vpmovsxwd + vpslld widen each column of C to F32 into the scratch
+for tileloadd, and tilestored to the scratch + vcvtne(2)ps2bf16 round the
+accumulators back. Fix the text emitter for that path, which until now only
+the JIT encoder had exercised:
+
+- the stores and loads of the stack variables (alu_mem), among them the GEMM
+  scratch pointer, printed nothing, so the kernel addressed the scratch
+  through an uninitialised register; print the movq;
+- vpmovsxwd had no mnemonic, so an uninitialised buffer was printed in its
+  place;
+- the two-operand forms of vec_compute (vpmovsxwd, vpslld $imm,
+  vcvtneps2bf16) printed the undefined second source as %zmm255; they now
+  print two operands, with the half-width source of vpmovsxwd and the
+  half-width destination of vcvtneps2bf16.
+
+The kernels the datasets measure -- SP and DP on skx and clx, BF16 with F32 C
+on cpx -- are byte-identical. Elsewhere the now printed stores of stack
+variables appear (the AMX kernels with F32 C store the scratch pointer they
+never read back), and two-operand forms that did not assemble are repaired.
+
+--- a/src/generator_common.c
++++ b/src/generator_common.c
+@@ -404,6 +404,10 @@
+     case LIBXSMM_X86_INSTR_VPSLLD_I:
+       libxsmm_strncpy(o_instr_name, "vpslld", i_instr_name_max_length, 6 );
+       break;
++    /* BF16 C of an AMX GEMM, needed by the inline-assembly emitter */
++    case LIBXSMM_X86_INSTR_VPMOVSXWD:
++      libxsmm_strncpy(o_instr_name, "vpmovsxwd", i_instr_name_max_length, 9 );
++      break;
+     case LIBXSMM_X86_INSTR_VPCMPD:
+       libxsmm_strncpy(o_instr_name, "vpcmpd", i_instr_name_max_length, 6 );
+       break;
+@@ -1106,6 +1110,13 @@
+       } else {
+         l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "void %s(const unsigned short* A, const unsigned short* B, float* C, const unsigned short* A_prefetch, const unsigned short* B_prefetch, const float* C_prefetch) {\n", i_routine_name);
+       }
++    } else if ( (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_AB_COMMON_PREC( i_xgemm_desc->datatype )) &&
++                (LIBXSMM_DATATYPE_BF16 == LIBXSMM_GEMM_GETENUM_C_PREC( i_xgemm_desc->datatype )) ) {
++      if (LIBXSMM_GEMM_PREFETCH_NONE == i_xgemm_desc->prefetch) {
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "void %s(const unsigned short* A, const unsigned short* B, unsigned short* C) {\n", i_routine_name);
++      } else {
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "void %s(const unsigned short* A, const unsigned short* B, unsigned short* C, const unsigned short* A_prefetch, const unsigned short* B_prefetch, const unsigned short* C_prefetch) {\n", i_routine_name);
++      }
+     } else { /* empty string */
+       assert(0 == l_code_length);
+ #if !defined(NDEBUG)
+--- a/src/generator_x86_instructions.c
++++ b/src/generator_x86_instructions.c
+@@ -2140,12 +2140,31 @@
+     int l_code_length = 0;
+     char l_instr_name[16];
+     unsigned int l_imm8 = (unsigned int)i_imm8;
++    /* a widening conversion reads, and a narrowing one writes, half a vector */
++    const char l_half_name = (i_vector_name == 'z') ? 'y' : 'x';
+     const char l_src0_name = ( (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTI32X8) || (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTF32X8) ||
+-                               (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTI64X4) || (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTF64X4) ) ? 'y' : i_vector_name;
++                               (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTI64X4) || (i_vec_instr == LIBXSMM_X86_INSTR_VINSERTF64X4) ) ? 'y' :
++                             ( (i_vec_instr == LIBXSMM_X86_INSTR_VPMOVSXWD) ? l_half_name : i_vector_name );
++    const char l_dst_name = (i_vec_instr == LIBXSMM_X86_INSTR_VCVTNEPS2BF16) ? l_half_name : i_vector_name;
+     libxsmm_get_x86_instr_name( i_vec_instr, l_instr_name, 15 );
+ 
+     /* build vXYZpd/ps/sd/ss instruction pure register use*/
+-    if ( io_generated_code->arch > LIBXSMM_X86_SSE42 ) {
++    if ( (io_generated_code->arch > LIBXSMM_X86_SSE42) && (i_reg_number_src1 == LIBXSMM_X86_VEC_REG_UNDEF) ) {
++      /* the two-operand forms have no second source */
++      if ( ( ((i_vec_instr >> 16) & 0x08) == 0x08 ) && (i_imm8 != LIBXSMM_X86_IMM_UNDEF) ) {
++        if ( io_generated_code->code_type == 0 ) {
++          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s $%u, %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, l_imm8, l_src0_name, i_reg_number_src0, l_dst_name, i_reg_number_dst );
++        } else {
++          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s $%u, %%%cmm%u, %%%cmm%u\n", l_instr_name, l_imm8, l_src0_name, i_reg_number_src0, l_dst_name, i_reg_number_dst );
++        }
++      } else {
++        if ( io_generated_code->code_type == 0 ) {
++          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, l_src0_name, i_reg_number_src0, l_dst_name, i_reg_number_dst );
++        } else {
++          l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       %s %%%cmm%u, %%%cmm%u\n", l_instr_name, l_src0_name, i_reg_number_src0, l_dst_name, i_reg_number_dst );
++        }
++      }
++    } else if ( io_generated_code->arch > LIBXSMM_X86_SSE42 ) {
+       if ( ( ((i_vec_instr >> 16) & 0x08) == 0x08 ) && (i_imm8 != LIBXSMM_X86_IMM_UNDEF) ) {
+         if ( io_generated_code->code_type == 0 ) {
+           l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"%s $%u, %%%%%cmm%u, %%%%%cmm%u, %%%%%cmm%u\\n\\t\"\n", l_instr_name, l_imm8, l_src0_name, i_reg_number_src0, i_vector_name, i_reg_number_src1, i_vector_name, i_reg_number_dst );
+@@ -2821,6 +2840,31 @@
+     libxsmm_x86_instruction_rex_compute_1reg_mem ( io_generated_code,
+                                                    l_alu_instr, i_gp_reg_base,
+                                                    i_gp_reg_idx, i_scale, i_displacement, i_gp_reg_number );
++  } else if ( (i_alu_instr == LIBXSMM_X86_INSTR_MOVQ) && (i_gp_reg_idx == LIBXSMM_X86_GP_REG_UNDEF) ) {
++    /* the loads and stores of the stack variables, e.g. the GEMM scratch pointer */
++    char l_new_code[512];
++    int l_max_code_length = 511;
++    int l_code_length = 0;
++    char l_gp_reg_base_name[4];
++    char l_gp_reg_name[4];
++
++    libxsmm_get_x86_gp_reg_name( i_gp_reg_base, l_gp_reg_base_name, 3 );
++    libxsmm_get_x86_gp_reg_name( i_gp_reg_number, l_gp_reg_name, 3 );
++
++    if ( i_is_store == 0 ) {
++      if ( io_generated_code->code_type == 0 ) {
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"movq %i(%%%%%s), %%%%%s\\n\\t\"\n", i_displacement, l_gp_reg_base_name, l_gp_reg_name );
++      } else {
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       movq %i(%%%s), %%%s\n", i_displacement, l_gp_reg_base_name, l_gp_reg_name );
++      }
++    } else {
++      if ( io_generated_code->code_type == 0 ) {
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       \"movq %%%%%s, %i(%%%%%s)\\n\\t\"\n", l_gp_reg_name, i_displacement, l_gp_reg_base_name );
++      } else {
++        l_code_length = LIBXSMM_SNPRINTF(l_new_code, l_max_code_length, "                       movq %%%s, %i(%%%s)\n", l_gp_reg_name, i_displacement, l_gp_reg_base_name );
++      }
++    }
++    libxsmm_append_code_as_string( io_generated_code, l_new_code, l_code_length );
+   } else {
+     /* TODO: */
+   }
+--- a/src/libxsmm_generator_gemm_driver.c
++++ b/src/libxsmm_generator_gemm_driver.c
+@@ -30,7 +30,7 @@
+   printf("    0: unaligned C, otherwise aligned (ignored for sparse)\n");
+   printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx, spr\n");
+   printf("    PREFETCH: nopf (none), other options are not supported\n");
+-  printf("    PRECISION: SP, DP, BF16F32, BF16F32_VNNI_A\n");
++  printf("    PRECISION: SP, DP, BF16F32, BF16F32_VNNI_A, BF16_VNNI_A\n");
+   printf("    matrix input (CSC mtx file)\n");
+   printf("\n\n");
+   printf("Usage (dense*dense=dense):\n");
+@@ -49,7 +49,7 @@
+   printf("    0: unaligned C, otherwise aligned\n");
+   printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx, spr\n");
+   printf("    PREFETCH: nopf (none), AL2\n");
+-  printf("    PRECISION: SP, DP, BF16F32, BF16F32_VNNI_A\n");
++  printf("    PRECISION: SP, DP, BF16F32, BF16F32_VNNI_A, BF16_VNNI_A\n");
+   printf("\n\n\n\n");
+ }
+ 
+@@ -172,6 +172,9 @@
+   } else if ( strcmp(l_precision, "BF16F32_VNNI_A") == 0 ) {
+     l_single_precision = 3;
+     l_flags |= LIBXSMM_GEMM_FLAG_VNNI_A;
++  } else if ( strcmp(l_precision, "BF16_VNNI_A") == 0 ) {
++    l_single_precision = 4;
++    l_flags |= LIBXSMM_GEMM_FLAG_VNNI_A;
+   } else {
+     print_help();
+     return EXIT_FAILURE;
+@@ -210,6 +213,11 @@
+         LIBXSMM_DATATYPE_BF16, LIBXSMM_DATATYPE_F32, LIBXSMM_DATATYPE_F32,
+         l_m, l_n, l_k, l_lda, l_ldb, l_ldc, l_flags, l_prefetch);
+     } break;
++    case 4: {
++      l_xgemm_desc = libxsmm_gemm_descriptor_init(&l_xgemm_blob, LIBXSMM_DATATYPE_BF16,
++        LIBXSMM_DATATYPE_BF16, LIBXSMM_DATATYPE_F32, LIBXSMM_DATATYPE_BF16,
++        l_m, l_n, l_k, l_lda, l_ldb, l_ldc, l_flags, l_prefetch);
++    } break;
+     default: {
+       print_help();
+       return EXIT_FAILURE;
