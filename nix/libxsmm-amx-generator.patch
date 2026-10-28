@@ -1,0 +1,111 @@
+Let the standalone generator emit AMX GEMMs for Sapphire Rapids.
+
+The CLI only accepted architectures up to CPX, so add `spr`, which routes BF16
+GEMMs with A in VNNI-2 layout to the AMX kernel.
+
+That kernel refused the classic ABI, which passes A, B and C in rdi, rsi and
+rdx, and required the struct of the XGEMM ABI instead. The struct loads only
+fill those same registers, and without the extended ABI nothing is fused, so
+accept the classic ABI: open and close the inline-assembly stream the way the
+AVX-512 kernels do, so it takes A, B and C rather than a `ptr` the classic
+signature does not have.
+
+The text emitter, which until now only the JIT encoder had exercised, also
+labelled the tile configuration of an M remainder `.data_tconf_0` like the
+first one, a duplicate symbol; give it its own id.
+
+--- a/src/libxsmm_generator_gemm_driver.c
++++ b/src/libxsmm_generator_gemm_driver.c
+@@ -28,7 +28,7 @@
+   printf("    beta: 0 or 1\n");
+   printf("    0: unaligned A, otherwise aligned (ignored for sparse)\n");
+   printf("    0: unaligned C, otherwise aligned (ignored for sparse)\n");
+-  printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx\n");
++  printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx, spr\n");
+   printf("    PREFETCH: nopf (none), other options are not supported\n");
+   printf("    PRECISION: SP, DP, BF16F32, BF16F32_VNNI_A\n");
+   printf("    matrix input (CSC mtx file)\n");
+@@ -47,7 +47,7 @@
+   printf("    beta: 0 or 1\n");
+   printf("    0: unaligned A, otherwise aligned\n");
+   printf("    0: unaligned C, otherwise aligned\n");
+-  printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx\n");
++  printf("    ARCH: noarch, wsm, snb, hsw, skx, clx, cpx, spr\n");
+   printf("    PREFETCH: nopf (none), AL2\n");
+   printf("    PRECISION: SP, DP, BF16F32, BF16F32_VNNI_A\n");
+   printf("\n\n\n\n");
+@@ -154,6 +154,7 @@
+        (strcmp(l_arch, "skx") != 0)    &&
+        (strcmp(l_arch, "clx") != 0)    &&
+        (strcmp(l_arch, "cpx") != 0)    &&
++       (strcmp(l_arch, "spr") != 0)    &&
+        (strcmp(l_arch, "noarch") != 0) ) {
+     print_help();
+     return EXIT_FAILURE;
+--- a/src/generator_gemm_amx.c
++++ b/src/generator_gemm_amx.c
+@@ -4974,6 +4974,8 @@
+   libxsmm_loop_label_tracker l_loop_label_tracker;
+   libxsmm_gp_reg_mapping l_gp_reg_mapping;
+   unsigned int l_is_Amxfp4_Bbf16_gemm = libxsmm_x86_is_Amxfp4_Bbf16_gemm(i_xgemm_desc_const);
++  const unsigned int l_classic_abi = ( ((LIBXSMM_GEMM_FLAG_USE_XGEMM_ABI & i_xgemm_desc_const->flags) != LIBXSMM_GEMM_FLAG_USE_XGEMM_ABI) &&
++                                       ((LIBXSMM_GEMM_FLAG_USE_XGEMM_EXT_ABI & i_xgemm_desc_const->flags) != LIBXSMM_GEMM_FLAG_USE_XGEMM_EXT_ABI) ) ? 1 : 0;
+ 
+   /* define gp register mapping */
+   libxsmm_reset_x86_gp_reg_mapping( &l_gp_reg_mapping );
+@@ -5074,8 +5076,12 @@
+   /* define loop_label_tracker */
+   libxsmm_reset_loop_label_tracker( &l_loop_label_tracker );
+ 
+-  /* open asm */
+-  libxsmm_x86_instruction_open_stream_alt( io_generated_code, 0, 0 );
++  /* open asm; the classic ABI takes A, B and C instead of a struct */
++  if ( l_classic_abi != 0 ) {
++    libxsmm_x86_instruction_open_stream_gemm( io_generated_code, &l_gp_reg_mapping, 0, i_xgemm_desc_const->prefetch );
++  } else {
++    libxsmm_x86_instruction_open_stream_alt( io_generated_code, 0, 0 );
++  }
+ 
+   /* saving current tileconfig to the stack */
+   if ( (((LIBXSMM_GEMM_FLAG_NO_RESET_TILECONFIG & i_xgemm_desc_const->flags) == 0) && ((LIBXSMM_GEMM_FLAG_NO_SETUP_TILECONFIG & i_xgemm_desc_const->flags) == 0)) ) {
+@@ -5114,7 +5120,11 @@
+   }
+ 
+   /* close asm */
+-  libxsmm_x86_instruction_close_stream_alt( io_generated_code, 0 );
++  if ( l_classic_abi != 0 ) {
++    libxsmm_x86_instruction_close_stream_gemm( io_generated_code, &l_gp_reg_mapping, 0, i_xgemm_desc_const->prefetch );
++  } else {
++    libxsmm_x86_instruction_close_stream_alt( io_generated_code, 0 );
++  }
+ }
+ 
+ /* Setup A (in vnni4 or flat) and B bf8 tensors as bf16 tensors in stack for execution on amx (A in vnni2)*/
+@@ -5977,13 +5987,9 @@
+     l_xgemm_desc->flags |= LIBXSMM_GEMM_FLAG_VNNI_A;
+   }
+ 
+-  if ( ((LIBXSMM_GEMM_FLAG_USE_XGEMM_ABI & l_xgemm_desc->flags) == LIBXSMM_GEMM_FLAG_USE_XGEMM_ABI) ||
+-       ((LIBXSMM_GEMM_FLAG_USE_XGEMM_EXT_ABI & l_xgemm_desc->flags) == LIBXSMM_GEMM_FLAG_USE_XGEMM_EXT_ABI) ) {
+-    libxsmm_generator_gemm_setup_fusion_microkernel_properties(l_xgemm_desc, &l_micro_kernel_config );
+-  } else {
+-    /* AMX kernels are supported only under the new abi */
+-    LIBXSMM_HANDLE_ERROR( io_generated_code, LIBXSMM_ERR_ILLEGAL_ABI );
+-  }
++  /* The classic ABI passes A, B and C in the registers the struct loads above
++     fill, and without the extended ABI nothing is fused, so it needs no more. */
++  libxsmm_generator_gemm_setup_fusion_microkernel_properties(l_xgemm_desc, &l_micro_kernel_config );
+ 
+   l_micro_kernel_config.bf8_gemm_via_stack_alloc_tensors = bf8_gemm_via_stack_alloc_tensors;
+   l_micro_kernel_config.hf8_gemm_via_stack_alloc_tensors = hf8_gemm_via_stack_alloc_tensors;
+@@ -6130,8 +6136,9 @@
+       }
+     }
+ 
++    /* a distinct id, so the text emitter labels this configuration apart from the first */
+     libxsmm_x86_instruction_tile_control( io_generated_code,
+-        0,
++        1,
+         l_micro_kernel_config.instruction_set,
+         LIBXSMM_X86_INSTR_LDTILECFG,
+         LIBXSMM_X86_GP_REG_UNDEF,
