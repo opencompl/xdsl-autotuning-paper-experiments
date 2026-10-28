@@ -350,6 +350,17 @@ def tile_matmul_reg(
     return tiled, remainder
 
 
+def add_matmul_ins(
+    rewriter: PatternRewriter,
+    op: MatmulOp,
+    ins: Sequence[ir.SSAValue],
+) -> MatmulOp:
+    """Append loop-invariant registers to a matmul's read-only inputs."""
+    extended = _matmul_like(op, ins=(*op.ins, *ins))
+    rewriter.replace(op, (extended,), extended.results)
+    return extended
+
+
 def attach_mask(
     rewriter: PatternRewriter,
     op: MatmulOp,
@@ -388,6 +399,4 @@ def attach_mask(
         tail_lanes,
         op.datatype if lane_type is None else lane_type,
     )
-    masked = _matmul_like(op, ins=(*op.ins, mask))
-    rewriter.replace(op, (masked,), masked.results)
-    return masked
+    return add_matmul_ins(rewriter, op, (mask,))

@@ -1,10 +1,11 @@
 """Apply a concrete XSMM-compatible schedule and lower it to x86."""
 
 from dataclasses import dataclass
+from functools import partial
 
 from xdsl import ir
 from xdsl.context import Context
-from xdsl.dialects import builtin, x86
+from xdsl.dialects import builtin, x86, x86_func
 from xdsl.passes import ModulePass
 from xdsl.pattern_rewriter import (
     PatternRewriter,
@@ -15,15 +16,21 @@ from xdsl.pattern_rewriter import (
 from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
+from autotuner.amx import load_tile_config
 from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
 from autotuner.nano_kernel import GemmDescriptor, ISAInfo, NanoKernel
 from autotuner.schedules import (
+    add_matmul_ins,
     loop_matmul,
     set_matmul_iterator,
     split_matmul,
     tile_matmul_reg,
 )
 from autotuner.skx_nano_kernel_utils import vector_register
+from autotuner.spr_amx_bf16_nano_kernel import (
+    SprAmxBf16NanoKernel,
+    amx_code_blocks,
+)
 from autotuner.strategy import get_xsmm_strategy
 from autotuner.tiling import BlockingRange, TilingStrategy, compute_tiling_strategy
 
@@ -220,6 +227,116 @@ def _tile_k(
     return (tiled,) if remainder is None else (tiled, remainder)
 
 
+def _descriptor(op: MatmulOp) -> GemmDescriptor:
+    return GemmDescriptor(
+        m=op.m.value.data,
+        n=op.n.value.data,
+        k=op.k.value.data,
+        lda=op.lda.value.data,
+        ldb=op.ldb.value.data,
+        ldc=op.ldc.value.data,
+        datatype=op.datatype,
+        aligned_a=bool(op.aligned_a),
+        aligned_c=bool(op.aligned_c),
+        ab_datatype=op.ab_datatype,
+        vnni_a=bool(op.vnni_a),
+    )
+
+
+def _function_name(op: ir.Operation) -> str:
+    parent = op.parent_op()
+    while parent is not None and not isinstance(parent, x86_func.FuncOp):
+        parent = parent.parent_op()
+    assert parent is not None, "xsmm.matmul outside a function"
+    return parent.sym_name.data
+
+
+def _apply_amx_schedule(
+    rewriter: PatternRewriter,
+    op: MatmulOp,
+    nano_kernel: SprAmxBf16NanoKernel,
+    isa_info: ISAInfo,
+    *,
+    disable_regalloc: bool,
+    first_config: int,
+) -> int:
+    """Lower `op` the way LIBXSMM's AMX kernel does; return how many tile
+    configurations it loads.
+
+    The caller's tile configuration is saved on the stack and restored at the
+    end. M is cut into LIBXSMM's code blocks, each of which loads the
+    configuration of its tiles, then loops over N and M blocks whose
+    accumulator tiles the nano-kernel loads, multiplies into over all of K and
+    stores. Tile loads take their row strides from registers set once, which
+    ride along as the matmul's `ins`.
+    """
+    m, n, k = op.m.value.data, op.n.value.data, op.k.value.data
+    blocks = amx_code_blocks(m, n, k)
+    if disable_regalloc:
+        nloop_register = mloop_register = x86.registers.UNALLOCATED_REG64
+        stride_registers = (x86.registers.UNALLOCATED_REG64,) * 3
+    else:
+        nloop_register = x86.registers.R11
+        mloop_register = x86.registers.R10
+        stride_registers = (x86.registers.R13, x86.registers.R14, x86.registers.R15)
+
+    name = _function_name(op)
+    following = op.next_op
+    assert following is not None
+    rsp = rewriter.insert(
+        x86.ops.GetRegisterOp(x86.registers.RSP), InsertPoint.before(op)
+    ).result
+    caller_config = rewriter.insert(
+        x86.ops.RI_SubOp(rsp, 64, register_out=x86.registers.RSP),
+        InsertPoint.before(op),
+    ).register_out
+    rewriter.insert(x86.ops.M_SttilecfgOp(caller_config, 0), InsertPoint.before(op))
+    strides = tuple(
+        rewriter.insert(
+            x86.ops.DI_MovOp(leading_dimension, destination=register),
+            InsertPoint.before(op),
+        ).destination
+        for leading_dimension, register in zip(
+            (op.lda.value.data, op.ldb.value.data, op.ldc.value.data),
+            stride_registers,
+            strict=True,
+        )
+    )
+    op = add_matmul_ins(rewriter, op, strides)
+
+    if len(blocks) == 1:
+        parts = (op,)
+    else:
+        parts = split_matmul(
+            rewriter, set_matmul_iterator(rewriter, op, MatmulIterator.M), blocks[0].m
+        )
+
+    for index, (block, part) in enumerate(zip(blocks, parts, strict=True)):
+        load_tile_config(
+            partial(rewriter.insert, insertion_point=InsertPoint.before(part)),
+            block.layout().tile_config(),
+            f".L{name}_tileconfig{first_config + index}",
+        )
+        matmul_n = set_matmul_iterator(rewriter, part, MatmulIterator.N)
+        tiled_n = loop_matmul(rewriter, matmul_n, block.n_blocking, nloop_register)
+        matmul_m = set_matmul_iterator(rewriter, tiled_n, MatmulIterator.M)
+        tiled_m = loop_matmul(rewriter, matmul_m, block.m_blocking, mloop_register)
+        matmul_k = set_matmul_iterator(rewriter, tiled_m, MatmulIterator.K)
+        matmul_reg = nano_kernel.accumulate_in_tiles(rewriter, matmul_k)
+        nano_kernel.rewrite(
+            rewriter, matmul_reg, isa_info, disable_regalloc=disable_regalloc
+        )
+
+    rewriter.insert(
+        x86.ops.M_LdtilecfgOp(caller_config, 0), InsertPoint.before(following)
+    )
+    rewriter.insert(
+        x86.ops.RI_AddOp(caller_config, 64, register_out=x86.registers.RSP),
+        InsertPoint.before(following),
+    )
+    return len(blocks)
+
+
 @dataclass
 class ApplySchedulePattern(RewritePattern):
     """Apply the complete XSMM schedule to an N-iterating matmul."""
@@ -228,24 +345,31 @@ class ApplySchedulePattern(RewritePattern):
     nano_kernel: NanoKernel
     disable_regalloc: bool
     disable_loop_construction: bool
+    tile_configs: int = 0
 
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: MatmulOp, rewriter: PatternRewriter, /) -> None:
         if op.iterator.data != MatmulIterator.N:
             return
-        descriptor = GemmDescriptor(
-            m=op.m.value.data,
-            n=op.n.value.data,
-            k=op.k.value.data,
-            lda=op.lda.value.data,
-            ldb=op.ldb.value.data,
-            ldc=op.ldc.value.data,
-            datatype=op.datatype,
-            aligned_a=bool(op.aligned_a),
-            aligned_c=bool(op.aligned_c),
-            ab_datatype=op.ab_datatype,
-            vnni_a=bool(op.vnni_a),
-        )
+        if isinstance(self.nano_kernel, SprAmxBf16NanoKernel):
+            if self.disable_loop_construction:
+                raise PassFailedException(
+                    "the AMX schedule always constructs LIBXSMM's loops"
+                )
+            if not self.nano_kernel.supports(_descriptor(op), self.isa_info):
+                raise PassFailedException(
+                    "nano-kernel does not support the GEMM descriptor"
+                )
+            self.tile_configs += _apply_amx_schedule(
+                rewriter,
+                op,
+                self.nano_kernel,
+                self.isa_info,
+                disable_regalloc=self.disable_regalloc,
+                first_config=self.tile_configs,
+            )
+            return
+        descriptor = _descriptor(op)
         if self.disable_loop_construction:
             strategy = TilingStrategy(
                 m_tile_size=descriptor.m,

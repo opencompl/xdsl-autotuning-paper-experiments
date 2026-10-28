@@ -82,10 +82,16 @@ def test_xsmm_strategies_wrap_isa_and_nano_kernel_policy() -> None:
         *SKX_NANO_KERNELS,
         "libxsmm-cpx-bf16",
         "libxsmm-cpx-bf16-vnni",
+        "libxsmm-spr-bf16-amx",
     }
     strategy = get_xsmm_strategy("libxsmm-skx")
     assert strategy.isa_info.isa == "avx512"
     assert strategy.nano_kernel is get_skx_nano_kernel("libxsmm-skx")
+    # Only the AMX strategy has tile registers to plan with.
+    assert strategy.isa_info.register_capacity.tile == 0
+    assert (
+        get_xsmm_strategy("libxsmm-spr-bf16-amx").isa_info.register_capacity.tile == 8
+    )
 
 
 def test_unknown_xsmm_strategy() -> None:
@@ -96,7 +102,7 @@ def test_unknown_xsmm_strategy() -> None:
             "unknown XSMM strategy 'unknown'; expected one of: "
             "libxsmm-cpx-bf16, libxsmm-cpx-bf16-vnni, libxsmm-skx, "
             "libxsmm-skx-fsdbcst, libxsmm-skx-nofsdbcst, libxsmm-skx-plusnarrow, "
-            "llvm-skx-narrow-fsdbcst"
+            "libxsmm-spr-bf16-amx, llvm-skx-narrow-fsdbcst"
         )
     else:
         raise AssertionError("expected an unknown strategy to be rejected")

@@ -83,6 +83,7 @@ class RegisterCount:
     general: int = 0
     vector: int = 0
     mask: int = 0
+    tile: int = 0
 
     def fits(self, capacity: RegisterCount) -> bool:
         """Return whether this demand fits within ``capacity``."""
@@ -90,6 +91,7 @@ class RegisterCount:
             self.general <= capacity.general
             and self.vector <= capacity.vector
             and self.mask <= capacity.mask
+            and self.tile <= capacity.tile
         )
 
 

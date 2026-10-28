@@ -5,6 +5,7 @@ from autotuner.cpx_bf16_nano_kernel import CpxBf16NanoKernel
 from autotuner.cpx_bf16_vnni_nano_kernel import CpxBf16VnniNanoKernel
 from autotuner.nano_kernel import ISAInfo, NanoKernel
 from autotuner.skx_nano_kernel import SKX_NANO_KERNELS, AVX512Info
+from autotuner.spr_amx_bf16_nano_kernel import AMXInfo, SprAmxBf16NanoKernel
 
 
 @dataclass(frozen=True)
@@ -16,12 +17,15 @@ class XsmmStrategy:
 
 
 XSMM_STRATEGIES: Mapping[str, XsmmStrategy] = {
-    name: XsmmStrategy(AVX512Info(), nano_kernel)
-    for name, nano_kernel in (
-        *SKX_NANO_KERNELS.items(),
-        (CpxBf16NanoKernel().name, CpxBf16NanoKernel()),
-        (CpxBf16VnniNanoKernel().name, CpxBf16VnniNanoKernel()),
-    )
+    **{
+        name: XsmmStrategy(AVX512Info(), nano_kernel)
+        for name, nano_kernel in (
+            *SKX_NANO_KERNELS.items(),
+            (CpxBf16NanoKernel().name, CpxBf16NanoKernel()),
+            (CpxBf16VnniNanoKernel().name, CpxBf16VnniNanoKernel()),
+        )
+    },
+    SprAmxBf16NanoKernel().name: XsmmStrategy(AMXInfo(), SprAmxBf16NanoKernel()),
 }
 
 
