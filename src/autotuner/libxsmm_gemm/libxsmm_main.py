@@ -20,7 +20,8 @@ class DescDatatype:
         return self.a if self.a == self.b == self.c else None
 
     def as_tuple(self) -> tuple[Datatype, Datatype, Datatype, Datatype]:
-        return (self.a, self.b, self.c, self.comp)
+        """(a, b, comp, c), the order of LIBXSMM's table of supported precisions."""
+        return (self.a, self.b, self.comp, self.c)
 
 
 class GEMMFlag(IntFlag):
