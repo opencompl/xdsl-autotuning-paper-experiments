@@ -111,6 +111,7 @@ PLOTS += $(foreach m,$(F32_SQUARES_READY),plots/f32.squares.$(m).pdf)
 # like the grid, plot whichever of them has run it.
 PLOTS += $(foreach m,$(patsubst data/%/bf16.squares.jsonl,%,$(wildcard data/*/bf16.squares.jsonl)),plots/bf16.squares.$(m).pdf)
 PLOTS += $(foreach m,$(patsubst data/%/bf16_vnni.squares.jsonl,%,$(wildcard data/*/bf16_vnni.squares.jsonl)),plots/bf16_vnni.squares.$(m).pdf)
+PLOTS += $(foreach m,$(patsubst data/%/bf16_amx.squares.jsonl,%,$(wildcard data/*/bf16_amx.squares.jsonl)),plots/bf16_amx.squares.$(m).pdf)
 
 # One paper figure per machine, its two data types side by side, with the
 # machine in the file name rather than in the figure.  The PDF is what LaTeX
@@ -171,6 +172,11 @@ plots/bf16.squares.%.pdf: data/%/bf16.squares.jsonl $(SQUARES_SRC)
 
 # The same, with A packed in K pairs ahead of the call (LIBXSMM's VNNI-2 layout).
 plots/bf16_vnni.squares.%.pdf: data/%/bf16_vnni.squares.jsonl $(SQUARES_SRC)
+	uv run plot-squares $< --output $@ \
+	    --variant libxsmm --variant xdsl_libxsmm --variant compxsmm --variant compxsmm_manual
+
+# The same layout of A multiplied on AMX tiles, against the AMX peak.
+plots/bf16_amx.squares.%.pdf: data/%/bf16_amx.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@ \
 	    --variant libxsmm --variant xdsl_libxsmm --variant compxsmm --variant compxsmm_manual
 

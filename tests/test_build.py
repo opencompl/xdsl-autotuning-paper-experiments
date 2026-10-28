@@ -332,3 +332,36 @@ def test_the_two_compxsmm_variants_run_different_pipelines(
     assert "x86-allocate-registers" in allocated
     assert "x86-allocate-registers" not in manual
     assert manual
+
+
+def test_amx_kernels_take_the_amx_arch_strategy_and_driver_flags(
+    tool: build.Toolchain,
+) -> None:
+    # No machine of ours has AMX; give one the arch an SPR machine would have.
+    amx = replace(tool, libxsmm_arch_amx="spr")
+    assert amx.xsmm_arch("bf16_amx") == "spr"
+    assert amx.xsmm_arch("bf16_vnni") == "cpx"
+    assert "strategy=libxsmm-spr-bf16-amx" in amx.pipeline("compxsmm", "bf16_amx")
+    assert "strategy=libxsmm-spr-bf16-amx" in amx.pipeline(
+        "compxsmm_manual", "bf16_amx"
+    )
+
+    (generate,) = [
+        step
+        for step in build.asm_artifact(
+            amx, Sample(32, 32, 32, "compxsmm", "bf16_amx")
+        ).steps
+        if step.kind == "generate:compxsmm"
+    ]
+    assert generate.args[-4:] == ("spr", "nopf", "BF16F32_VNNI_A", "--disable-regalloc")
+
+    def driver_flags(dtype: str) -> tuple[str, ...]:
+        artifact = build.driver_artifact(
+            amx, "matmul_colmaj", 32, 32, 32, dtype, "test"
+        )
+        return artifact.steps[0].args
+
+    # AMX kernels read A in K pairs like the VNNI ones, and ask Linux for AMX.
+    assert {"-DVNNI_A", "-DAMX"} <= set(driver_flags("bf16_amx"))
+    assert "-DVNNI_A" in driver_flags("bf16_vnni")
+    assert "-DAMX" not in driver_flags("bf16_vnni")

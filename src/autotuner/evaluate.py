@@ -45,8 +45,16 @@ from autotuner.machines import MACHINES, Machine
 # Peak FLOP/cycle is quoted for f32; f64 halves the lanes.
 # `vdpbf16ps` does two multiply-adds per F32 lane where `vfmadd231ps` does one,
 # so the BF16 peak is twice the F32 one at the same issue rate, whichever
-# layout A comes in.
-DTYPE_PEAK_DIVISOR = {"f32": 1.0, "f64": 2.0, "bf16": 0.5, "bf16_vnni": 0.5}
+# layout A comes in.  One `tdpbf16ps` does 16 x 16 x 32 multiply-adds and a
+# Sapphire Rapids core issues one every 16 cycles: 1024 FLOP/cycle, sixteen
+# times the F32 peak of its two 512-bit FMA ports.
+DTYPE_PEAK_DIVISOR = {
+    "f32": 1.0,
+    "f64": 2.0,
+    "bf16": 0.5,
+    "bf16_vnni": 0.5,
+    "bf16_amx": 1 / 16,
+}
 
 console = Console()
 
@@ -165,7 +173,9 @@ def row(
         "isa": machine.isa,
         "compiler_march": machine.march,
         "libxsmm_arch": (
-            machine.libxsmm_arch_bf16
+            machine.libxsmm_arch_amx
+            if one.dtype == "bf16_amx"
+            else machine.libxsmm_arch_bf16
             if one.dtype in ("bf16", "bf16_vnni")
             else machine.libxsmm_arch
         ),

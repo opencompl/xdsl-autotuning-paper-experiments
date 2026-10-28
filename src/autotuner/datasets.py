@@ -61,6 +61,7 @@ DATASET_REPEATS = {
     "f64.squares": 3,
     "bf16.squares": 3,
     "bf16_vnni.squares": 3,
+    "bf16_amx.squares": 3,
 }
 
 
@@ -78,6 +79,7 @@ VARIANTS = {
         "f64.squares": [],
         "bf16.squares": [],
         "bf16_vnni.squares": [],
+        "bf16_amx.squares": [],
         "f64.nanokernel_grid": [],
     },
     "neon": {
@@ -87,6 +89,7 @@ VARIANTS = {
         "f64.squares": [],
         "bf16.squares": [],
         "bf16_vnni.squares": [],
+        "bf16_amx.squares": [],
         "f64.nanokernel_grid": [],
     },
     "tower": {
@@ -141,6 +144,8 @@ VARIANTS = {
             "compxsmm",
             "compxsmm_manual",
         ],
+        # Needs AMX, which neither Zen generation has.
+        "bf16_amx.squares": [],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "pinocchio": {
@@ -152,6 +157,7 @@ VARIANTS = {
         "f64.squares": [],
         "bf16.squares": [],
         "bf16_vnni.squares": [],
+        "bf16_amx.squares": [],
         "f64.nanokernel_grid": [],
     },
     "rapper": {
@@ -206,6 +212,8 @@ VARIANTS = {
             "compxsmm",
             "compxsmm_manual",
         ],
+        # Needs AMX, which neither Zen generation has.
+        "bf16_amx.squares": [],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "ci": {
@@ -215,6 +223,7 @@ VARIANTS = {
         "f64.squares": [],
         "bf16.squares": [],
         "bf16_vnni.squares": [],
+        "bf16_amx.squares": [],
         "f64.nanokernel_grid": [],
     },
 }
@@ -362,6 +371,12 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
             "bf16_vnni",
             [(s, s, s) for s in BF16_SQUARE_RANGE],
             "bf16_vnni.squares",
+        ),
+        # The same sweep on AMX tiles, against the same layout of A.
+        "bf16_amx.squares": by_shape(
+            "bf16_amx",
+            [(s, s, s) for s in BF16_SQUARE_RANGE],
+            "bf16_amx.squares",
         ),
         # Not `by_shape`: which shapes are measured depends on the variant, so
         # the variants cannot share one shape list.

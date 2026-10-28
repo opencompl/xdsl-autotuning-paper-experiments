@@ -7,6 +7,7 @@
 #include <time.h>
 #include <stdio.h>
 
+#include "../../headers/amx.h"
 #include "../../headers/gendata.h"
 #include "../../headers/mnk.h"
 
@@ -16,6 +17,7 @@ extern void matmul_init(void);
 extern void matmul(DTYPE A[M * K], DTYPE B[K * N], CTYPE C[M * N]);
 
 int main() {
+  request_amx();
   matmul_init();
 
   DTYPE *A, *B;

@@ -7,6 +7,7 @@
 #include <time.h>
 #include <stdio.h>
 
+#include "../../headers/amx.h"
 #include "../../headers/gendata.h"
 #include "../../headers/mnk.h"
 #include "../../headers/perf.h"
@@ -27,6 +28,7 @@ extern void matmul(DTYPE *A, DTYPE *B, CTYPE *C);
 #define C_RING_MAX_SLOTS 32
 
 int main() {
+  request_amx();
   matmul_init();
 
   DTYPE *A, *B;

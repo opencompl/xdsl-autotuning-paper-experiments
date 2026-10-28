@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "../../headers/amx.h"
 #include "../../headers/gendata.h"
 #include "../../headers/isclose.h"
 #include "../../headers/mnk.h"
@@ -17,6 +18,7 @@ extern void matmul_init(void);
 extern void matmul(DTYPE *A, DTYPE *B, CTYPE *C);
 
 int main() {
+  request_amx();
   matmul_init();
   set_random_seed(42);
 

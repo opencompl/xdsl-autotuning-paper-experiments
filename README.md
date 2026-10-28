@@ -136,6 +136,33 @@ can force unsupported instructions. Measurements set both `OMP_NUM_THREADS=1` an
 Once this smoke test passes, `make dataset_validate MACHINE=tower` validates the full
 tower dataset and `make dataset MACHINE=tower` collects its measurements.
 
+### AMX (Sapphire Rapids and later)
+
+The `bf16_amx` dtype multiplies BF16 A and B into F32 C on AMX tiles, with A
+packed in K pairs as for `bf16_vnni`. Every variant of the `bf16_amx.squares`
+sweep follows LIBXSMM's AMX kernel: `libxsmm` is LIBXSMM's own generator (patched
+by `nix/libxsmm-amx-generator.patch` to accept `spr` and the classic
+`matmul(A, B, C)` ABI), `xdsl_libxsmm` its Python port, and `compxsmm` and
+`compxsmm_manual` the `libxsmm-spr-bf16-amx` strategy of `xsmm-apply-schedule`.
+The drivers are built with `-DAMX`, which asks Linux for AMX tile data
+(`arch_prctl(ARCH_REQ_XCOMP_PERM)`) before the first call.
+
+None of the configured machines has AMX. To run the sweep on one that does, give
+its entry in `src/autotuner/machines.py` `libxsmm_arch_amx="spr"`, list the
+variants above under `"bf16_amx.squares"` in `VARIANTS` in
+`src/autotuner/datasets.py`, and check the kernels before measuring them:
+
+```sh
+grep -o amx_tile /proc/cpuinfo | head -1   # the CPU and kernel support AMX
+make dataset_validate MACHINE=<machine>
+```
+
+Without AMX hardware, `tests/test_amx.py` runs generated AMX kernels in a small
+emulator (`tests/amx_emulator.py`) that interprets their disassembly, tile
+instructions included, and faults where the hardware would on mismatched tile
+shapes. Intel's Software Development Emulator runs the real binaries instead:
+`sde64 -spr -- build/<machine>/matmul_colmaj/<shape>/<variant>.bf16_amx.test.o`.
+
 ### Plotting
 
 Plot data using `make plots`; this command fails when required input data is
