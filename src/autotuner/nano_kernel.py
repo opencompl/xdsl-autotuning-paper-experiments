@@ -53,9 +53,10 @@ class TileSizes:
 class GemmDescriptor:
     """Target-independent information describing a GEMM problem.
 
-    ``datatype`` is C's element type and the accumulation's; A and B have
-    ``ab_datatype`` when it is set and ``datatype`` otherwise. ``vnni_a`` says
-    A is packed in K pairs, as on ``xsmm.matmul``.
+    ``datatype`` is the accumulation's element type, and C's unless
+    ``c_datatype`` is set; A and B have ``ab_datatype`` when it is set and
+    ``datatype`` otherwise. ``vnni_a`` says A is packed in K pairs, as on
+    ``xsmm.matmul``.
     """
 
     m: int
@@ -69,6 +70,7 @@ class GemmDescriptor:
     aligned_c: bool
     ab_datatype: builtin.BFloat16Type | None = None
     vnni_a: bool = False
+    c_datatype: builtin.BFloat16Type | None = None
 
     @property
     def input_type(self) -> InputType:

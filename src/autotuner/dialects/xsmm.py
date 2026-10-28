@@ -122,10 +122,11 @@ class MatmulOp(IRDLOperation):
     loop-carried registers and have pairwise matching ``out_results``. The
     current schedule uses ``ins`` for optional AVX-512 masks.
 
-    ``datatype`` is the element type of C and of the accumulation; A and B have
-    ``ab_datatype`` when it is set (BF16 inputs accumulating in F32), and
-    ``datatype`` otherwise. Pointer advances count elements of each matrix's own
-    type.
+    ``datatype`` is the element type of the accumulation, and of C unless
+    ``c_datatype`` is set (a BF16 C the F32 accumulation is rounded back to); A
+    and B have ``ab_datatype`` when it is set (BF16 inputs accumulating in F32),
+    and ``datatype`` otherwise. Pointer advances count elements of each
+    matrix's own type.
 
     ``vnni_a`` says A is packed in LIBXSMM's VNNI-2 layout: each K pair of A is
     stored as ``lda`` adjacent (k, k+1) element pairs, so element (m, k) is at
@@ -155,6 +156,7 @@ class MatmulOp(IRDLOperation):
     ldc = prop_def(IntegerAttr)
     datatype = prop_def(Float32Type | Float64Type)
     ab_datatype = opt_prop_def(BFloat16Type)
+    c_datatype = opt_prop_def(BFloat16Type)
     vnni_a = opt_prop_def(UnitAttr)
     aligned_a = prop_def(BoolAttr)
     aligned_c = prop_def(BoolAttr)
@@ -171,6 +173,11 @@ class MatmulOp(IRDLOperation):
     def input_type(self) -> Float32Type | Float64Type | BFloat16Type:
         """The element type of A and B: ``ab_datatype``, else ``datatype``."""
         return self.datatype if self.ab_datatype is None else self.ab_datatype
+
+    @property
+    def output_type(self) -> Float32Type | Float64Type | BFloat16Type:
+        """The element type of C: ``c_datatype``, else ``datatype``."""
+        return self.datatype if self.c_datatype is None else self.c_datatype
 
     @property
     def a_vector_length(self) -> int:
@@ -194,6 +201,7 @@ class MatmulOp(IRDLOperation):
         ldc: int,
         datatype: Float32Type | Float64Type,
         ab_datatype: BFloat16Type | None = None,
+        c_datatype: BFloat16Type | None = None,
         vnni_a: bool = False,
         aligned_a: bool,
         aligned_c: bool,
@@ -220,6 +228,7 @@ class MatmulOp(IRDLOperation):
                 "iterator": StringAttr(iterator),
             }
             | ({} if ab_datatype is None else {"ab_datatype": ab_datatype})
+            | ({} if c_datatype is None else {"c_datatype": c_datatype})
             | ({"vnni_a": UnitAttr()} if vnni_a else {}),
         )
 
@@ -310,10 +319,14 @@ class MatmulOp(IRDLOperation):
 
         if self.vnni_a and self.ab_datatype is None:
             raise VerifyException("VNNI A requires BF16 inputs")
+        if self.c_datatype is not None and not isinstance(self.datatype, Float32Type):
+            raise VerifyException("a BF16 C requires F32 accumulation")
         if self.aligned_a.value.data and self.lda.value.data % self.a_vector_length:
             raise VerifyException(
                 "aligned A requires lda to be a multiple of the vector length"
             )
+        # In elements of the accumulation: a BF16 C moves 16 elements, a ymm,
+        # at a time, as an F32 one does a zmm.
         vector_length = 512 // self.datatype.bitwidth
         if self.aligned_c.value.data and self.ldc.value.data % vector_length:
             raise VerifyException(

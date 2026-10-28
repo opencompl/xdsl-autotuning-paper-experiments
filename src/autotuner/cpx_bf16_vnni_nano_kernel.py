@@ -113,6 +113,7 @@ class CpxBf16VnniNanoKernel(NanoKernel):
             and isinstance(descriptor.ab_datatype, builtin.BFloat16Type)
             and descriptor.vnni_a
             and descriptor.k % _PACK == 0
+            and descriptor.c_datatype is None
         )
 
     def _supports_tile_shape(

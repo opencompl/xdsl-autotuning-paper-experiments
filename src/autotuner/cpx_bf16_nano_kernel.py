@@ -105,6 +105,7 @@ class CpxBf16NanoKernel(NanoKernel):
             and isinstance(descriptor.ab_datatype, builtin.BFloat16Type)
             and not descriptor.vnni_a
             and descriptor.k % 2 == 0
+            and descriptor.c_datatype is None
         )
 
     def supports_tile(

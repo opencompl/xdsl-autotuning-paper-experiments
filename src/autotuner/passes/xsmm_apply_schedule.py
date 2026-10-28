@@ -16,8 +16,9 @@ from xdsl.pattern_rewriter import (
 from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.amx import load_tile_config
+from autotuner.amx import MAX_TILE_ROWS, load_tile_config
 from autotuner.dialects.xsmm import MatmulIterator, MatmulOp, MatmulRegOp
+from autotuner.instructions import load_mask
 from autotuner.nano_kernel import GemmDescriptor, ISAInfo, NanoKernel
 from autotuner.schedules import (
     add_matmul_ins,
@@ -28,6 +29,8 @@ from autotuner.schedules import (
 )
 from autotuner.skx_nano_kernel_utils import vector_register
 from autotuner.spr_amx_bf16_nano_kernel import (
+    SCRATCH_BYTES,
+    SCRATCH_LD,
     SprAmxBf16NanoKernel,
     amx_code_blocks,
 )
@@ -240,6 +243,7 @@ def _descriptor(op: MatmulOp) -> GemmDescriptor:
         aligned_c=bool(op.aligned_c),
         ab_datatype=op.ab_datatype,
         vnni_a=bool(op.vnni_a),
+        c_datatype=op.c_datatype,
     )
 
 
@@ -269,16 +273,24 @@ def _apply_amx_schedule(
     accumulator tiles the nano-kernel loads, multiplies into over all of K and
     stores. Tile loads take their row strides from registers set once, which
     ride along as the matmul's `ins`.
+
+    A BF16 C moves through a scratch below the caller's configuration, aligned
+    to 64 bytes like LIBXSMM's GEMM scratch: the third stride is the scratch's
+    instead of C's, and the scratch and each block's masks join the `ins`. The
+    address of the caller's configuration is kept in a register meanwhile.
     """
     m, n, k = op.m.value.data, op.n.value.data, op.k.value.data
     blocks = amx_code_blocks(m, n, k)
+    bf16_c = op.c_datatype is not None
     if disable_regalloc:
         nloop_register = mloop_register = x86.registers.UNALLOCATED_REG64
         stride_registers = (x86.registers.UNALLOCATED_REG64,) * 3
+        frame_register = temp_register = x86.registers.UNALLOCATED_REG64
     else:
         nloop_register = x86.registers.R11
         mloop_register = x86.registers.R10
         stride_registers = (x86.registers.R13, x86.registers.R14, x86.registers.R15)
+        frame_register, temp_register = x86.registers.R12, x86.registers.R10
 
     name = _function_name(op)
     following = op.next_op
@@ -291,18 +303,43 @@ def _apply_amx_schedule(
         InsertPoint.before(op),
     ).register_out
     rewriter.insert(x86.ops.M_SttilecfgOp(caller_config, 0), InsertPoint.before(op))
+    if bf16_c:
+        frame = rewriter.insert(
+            x86.ops.DS_MovOp(caller_config, destination=frame_register),
+            InsertPoint.before(op),
+        ).destination
+        below = rewriter.insert(
+            x86.ops.RI_SubOp(
+                caller_config, SCRATCH_BYTES, register_out=x86.registers.RSP
+            ),
+            InsertPoint.before(op),
+        ).register_out
+        alignment = rewriter.insert(
+            x86.ops.DI_MovOp(-64, destination=temp_register), InsertPoint.before(op)
+        ).destination
+        scratch: tuple[ir.SSAValue, ...] = (
+            rewriter.insert(
+                x86.ops.RS_AndOp(below, alignment, register_out=x86.registers.RSP),
+                InsertPoint.before(op),
+            ).register_out,
+        )
+        c_stride = SCRATCH_LD
+    else:
+        frame = caller_config
+        scratch = ()
+        c_stride = op.ldc.value.data
     strides = tuple(
         rewriter.insert(
             x86.ops.DI_MovOp(leading_dimension, destination=register),
             InsertPoint.before(op),
         ).destination
         for leading_dimension, register in zip(
-            (op.lda.value.data, op.ldb.value.data, op.ldc.value.data),
+            (op.lda.value.data, op.ldb.value.data, c_stride),
             stride_registers,
             strict=True,
         )
     )
-    op = add_matmul_ins(rewriter, op, strides)
+    op = add_matmul_ins(rewriter, op, (*strides, *scratch))
 
     if len(blocks) == 1:
         parts = (op,)
@@ -311,22 +348,47 @@ def _apply_amx_schedule(
             rewriter, set_matmul_iterator(rewriter, op, MatmulIterator.M), blocks[0].m
         )
 
+    mx1 = n <= MAX_TILE_ROWS
     for index, (block, part) in enumerate(zip(blocks, parts, strict=True)):
         load_tile_config(
             partial(rewriter.insert, insertion_point=InsertPoint.before(part)),
             block.layout().tile_config(),
             f".L{name}_tileconfig{first_config + index}",
         )
+        if bf16_c:
+            # LIBXSMM's masks of a partial tile, F32 in k2 and BF16 in k1.
+            masks = tuple(
+                load_mask(
+                    rewriter,
+                    InsertPoint.before(part),
+                    temp_register,
+                    mask_register,
+                    lanes,
+                    lane_type,
+                )
+                for (lanes, lane_type), mask_register in zip(
+                    nano_kernel.bf16_c_masks(block.layout(), mx1=mx1),
+                    (x86.registers.K2, x86.registers.K1),
+                )
+            )
+            part = add_matmul_ins(rewriter, part, masks)
         matmul_n = set_matmul_iterator(rewriter, part, MatmulIterator.N)
         tiled_n = loop_matmul(rewriter, matmul_n, block.n_blocking, nloop_register)
         matmul_m = set_matmul_iterator(rewriter, tiled_n, MatmulIterator.M)
         tiled_m = loop_matmul(rewriter, matmul_m, block.m_blocking, mloop_register)
         matmul_k = set_matmul_iterator(rewriter, tiled_m, MatmulIterator.K)
-        matmul_reg = nano_kernel.accumulate_in_tiles(rewriter, matmul_k)
+        matmul_reg = nano_kernel.accumulate_in_tiles(
+            rewriter, matmul_k, mx1=mx1, disable_regalloc=disable_regalloc
+        )
         nano_kernel.rewrite(
             rewriter, matmul_reg, isa_info, disable_regalloc=disable_regalloc
         )
 
+    if bf16_c:
+        caller_config = rewriter.insert(
+            x86.ops.DS_MovOp(frame, destination=x86.registers.RSP),
+            InsertPoint.before(following),
+        ).destination
     rewriter.insert(
         x86.ops.M_LdtilecfgOp(caller_config, 0), InsertPoint.before(following)
     )

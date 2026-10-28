@@ -46,3 +46,10 @@
 %a_out, %b_out, %c_out = "xsmm.matmul"(%a, %b, %c) <{m = 8 : i64, n = 1 : i64, k = 4 : i64, lda = 8 : i64, ldb = 8 : i64, ldc = 7 : i64, datatype = f64, aligned_a = true, aligned_c = true, iterator = "m", operandSegmentSizes = array<i32: 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
 
 // CHECK: Operation does not verify: aligned C requires ldc to be a multiple of the vector length
+
+// -----
+
+%a, %b, %c = "test.op"() : () -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
+%a_out, %b_out, %c_out = "xsmm.matmul"(%a, %b, %c) <{m = 8 : i64, n = 1 : i64, k = 4 : i64, lda = 8 : i64, ldb = 8 : i64, ldc = 8 : i64, datatype = f64, c_datatype = bf16, aligned_a = false, aligned_c = false, iterator = "n", operandSegmentSizes = array<i32: 1, 1, 1, 0, 0>, resultSegmentSizes = array<i32: 1, 1, 1, 0>}> : (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>) -> (!x86.reg64<rdi>, !x86.reg64<rsi>, !x86.reg64<rdx>)
+
+// CHECK: Operation does not verify: a BF16 C requires F32 accumulation

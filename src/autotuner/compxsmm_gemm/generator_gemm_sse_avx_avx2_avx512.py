@@ -399,11 +399,23 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
 
     if GEMMFlag.DECOMPRESS_A_VIA_BITMASK in desc.flags:
         raise NotImplementedError
+    c_datatype = None
     if is_ABF16_BBF16_flat_cpx_gemm or is_ABF16_BBF16_vnni_cpx_gemm:
-        # C and the accumulation are F32; A and B stay BF16.
-        assert desc.datatype.c == Datatype.F32
-        datatype = desc.datatype.c
+        # The accumulation is F32; A and B stay BF16.
+        assert desc.datatype.comp == Datatype.F32
+        datatype = desc.datatype.comp
         ab_datatype = bf16
+        if desc.datatype.c == Datatype.BF16:
+            # Only the AMX strategy rounds the accumulation back to a BF16 C,
+            # as LIBXSMM's AMX kernel does.
+            if not (
+                is_ABF16_BBF16_vnni_cpx_gemm
+                and generated_code.arch >= Arch.LIBXSMM_X86_AVX512_SPR
+            ):
+                raise NotImplementedError
+            c_datatype = bf16
+        else:
+            assert desc.datatype.c == Datatype.F32
     else:
         datatype = desc.datatype.ab
         assert datatype is not None
@@ -425,6 +437,7 @@ def compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel(
             ldc=desc.ldc,
             datatype=datatype.builtin_type,
             ab_datatype=ab_datatype,
+            c_datatype=c_datatype,
             vnni_a=is_ABF16_BBF16_vnni_cpx_gemm,
             aligned_a=GEMMFlag.ALIGN_A in desc.flags,
             aligned_c=GEMMFlag.ALIGN_C in desc.flags,
