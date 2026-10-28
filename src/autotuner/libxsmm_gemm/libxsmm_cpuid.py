@@ -56,5 +56,6 @@ ARCH_BY_CODE = {
     "skx": Arch.LIBXSMM_X86_AVX512_SKX,
     "clx": Arch.LIBXSMM_X86_AVX512_CLX,
     "cpx": Arch.LIBXSMM_X86_AVX512_CPX,
+    "spr": Arch.LIBXSMM_X86_AVX512_SPR,
     "noarch": Arch.LIBXSMM_TARGET_ARCH_GENERIC,
 }

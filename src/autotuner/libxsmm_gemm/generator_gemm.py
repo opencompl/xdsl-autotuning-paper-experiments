@@ -6,6 +6,9 @@ from xdsl.ir import Block, Region
 from xdsl.printer import Printer
 
 from autotuner.libxsmm_gemm.generator_common import libxsmm_mmfunction_signature
+from autotuner.libxsmm_gemm.generator_gemm_amx import (
+    libxsmm_generator_gemm_amx_kernel_wrapper,
+)
 from autotuner.libxsmm_gemm.generator_gemm_sse_avx_avx2_avx512 import (
     libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper,
 )
@@ -627,23 +630,20 @@ def libxsmm_generator_gemm_kernel(func_op: FuncOp, arch: Arch, desc: GEMMDescrip
                 and Arch.LIBXSMM_X86_AVX512_DMR <= arch
             )
         ):
-            raise NotImplementedError
-            # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
+            libxsmm_generator_gemm_amx_kernel_wrapper(func_op, arch, desc)
         elif Arch.LIBXSMM_X86_AVX512_SPR <= arch < Arch.LIBXSMM_X86_ALLFEAT and (
             is_abf8_bbf16_gemm
             or is_ahf8_bbf16_gemm
             or is_amxfp4_bbf16_gemm
             or desc.datatype.ab in (Datatype.BF16, Datatype.BF8, Datatype.HF8)
         ):
-            raise NotImplementedError
-            # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
+            libxsmm_generator_gemm_amx_kernel_wrapper(func_op, arch, desc)
         elif (
             (Arch.LIBXSMM_X86_AVX512_GNR <= arch < Arch.LIBXSMM_X86_ALLFEAT)
             and is_abf8_bf16_gemm
             and GEMMFlag.VNNI_A in desc.flags
         ):
-            raise NotImplementedError
-            # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
+            libxsmm_generator_gemm_amx_kernel_wrapper(func_op, arch, desc)
         else:
             libxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
                 func_op, arch, desc
