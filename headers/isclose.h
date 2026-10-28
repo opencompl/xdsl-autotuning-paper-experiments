@@ -22,12 +22,16 @@ static inline int first_mismatch_index(const CTYPE *lhs, const CTYPE *rhs,
   return i;
 }
 
-// Compares results, so in the accumulator type. Finite benchmark results only.
+// Compares results, so in C's type. Finite benchmark results only.
 // Allow rounding differences from FMA/reordering, without narrowing
-// double-precision results to float.
+// double-precision results to float.  A BF16 C, rounded once from F32 sums
+// that may differ in their last bits, may land one BF16 step (2^-7) away.
 static inline int isclose(const CTYPE *lhs, const CTYPE *rhs, int size) {
-  double rtol = sizeof(CTYPE) == sizeof(float) ? 1e-5 : 1e-12;
-  double atol = sizeof(CTYPE) == sizeof(float) ? 1e-8 : 1e-12;
+  double rtol = sizeof(CTYPE) == 2                 ? 0x1p-7
+                : sizeof(CTYPE) == sizeof(float) ? 1e-5
+                                                 : 1e-12;
+  double atol = sizeof(CTYPE) == 2 || sizeof(CTYPE) == sizeof(float) ? 1e-8
+                                                                     : 1e-12;
   int mismatch_index = first_mismatch_index(lhs, rhs, size, rtol, atol);
   return mismatch_index == size;
 }

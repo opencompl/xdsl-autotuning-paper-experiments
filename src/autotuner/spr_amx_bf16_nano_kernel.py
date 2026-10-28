@@ -14,6 +14,15 @@ four tile registers for A and B. The shapes of all eight are fixed by a tile
 configuration loaded ahead of the block, so the accumulators and operands live
 in the registers LIBXSMM gives them, `tmm0` to `tmm7`, whoever allocates the
 general-purpose registers. K is unrolled completely, in steps of up to 32.
+
+A BF16 C cannot load into the F32 accumulator tiles or store from them, and
+SPR has no instruction that moves a tile row to a vector register, so C goes
+through a scratch buffer on the stack, as in LIBXSMM: each column of a tile of
+C is widened to F32 into the scratch, a column of F32 every 64 bytes, and the
+tile loaded from there; after the multiplication the tile is stored to the
+scratch and each column rounded back to BF16 into C. LIBXSMM pairs the stores
+of the two tiles of a column of tiles, so that one vcvtne2ps2bf16 rounds a
+whole 32-row column of C, except under its "Mx1" blocking.
 """
 
 from dataclasses import dataclass
@@ -35,7 +44,7 @@ from xdsl.utils.exceptions import PassFailedException
 
 from autotuner.amx import MAX_TILE_ROWS, TILE_REGISTERS, TileConfig, TileShape
 from autotuner.dialects.xsmm import MatmulOp, MatmulRegOp
-from autotuner.instructions import PointerValue, advance_pointer
+from autotuner.instructions import MaskValue, PointerValue, advance_pointer
 from autotuner.nano_kernel import (
     FloatingPointType,
     GemmDescriptor,
@@ -45,7 +54,11 @@ from autotuner.nano_kernel import (
     SupportedTile,
     TileSizes,
 )
-from autotuner.skx_nano_kernel_utils import descriptor_from_op, tile_sizes_from_op
+from autotuner.skx_nano_kernel_utils import (
+    descriptor_from_op,
+    tile_sizes_from_op,
+    vector_register,
+)
 
 TileValue = ir.SSAValue[AMXTileRegisterType]
 
@@ -60,6 +73,12 @@ _A_REGISTERS = (4, 5)
 _B_REGISTERS = (6, 7)
 _BF16_SIZE = 2
 _F32_SIZE = 4
+# F32 a column of a tile takes in the scratch of a BF16 C: LIBXSMM's
+# gemm_scratch_ld, a column every 64 bytes.
+SCRATCH_LD = 16
+# The scratch a block of a BF16 C needs: the widened columns of two tiles of N,
+# the second tile of M 16 rows in.
+SCRATCH_BYTES = (2 * MAX_TILE_ROWS * SCRATCH_LD + _C_LANES) * _F32_SIZE
 
 
 class AMXInfo(ISAInfo):
@@ -139,6 +158,16 @@ class AmxTileLayout:
 
     def b_register(self, in_: int) -> int:
         return _B_REGISTERS[in_]
+
+    @property
+    def m_tail(self) -> int:
+        """The rows of the last tile of M when it is partial, else 0."""
+        return self.m_tiles[-1] % _C_LANES
+
+    def pairs_bf16_stores(self, *, mx1: bool) -> bool:
+        """Whether a BF16 C stores the two tiles of M of each tile of N together:
+        LIBXSMM does when there are two, unless the GEMM is blocked Mx1."""
+        return len(self.m_tiles) == 2 and not mx1
 
     @property
     def c_tiles(self) -> tuple[tuple[int, int], ...]:
@@ -239,16 +268,274 @@ def _load_tile(
     return cast(TileValue, result)
 
 
+def _store_tile(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    pointer: PointerValue,
+    stride: PointerValue,
+    offset: int,
+    tile: TileValue,
+) -> None:
+    rewriter.insert(
+        x86.ops.MXS_TilestoredOp(pointer, stride, tile, offset, scale=_F32_SIZE),
+        insertion_point=insert_point,
+    )
+
+
+def _vector_load(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    op_types: tuple[
+        type[x86.ops.DM_VmovupsOp | x86.ops.DM_Vmovdqu16Op],
+        type[x86.ops.DMK_VmovupsOp | x86.ops.DMK_Vmovdqu16Op],
+    ],
+    pointer: PointerValue,
+    offset: int,
+    destination: X86VectorRegisterType,
+    mask: MaskValue | None,
+) -> ir.SSAValue[X86VectorRegisterType]:
+    """A load, zero-masked when there is a mask."""
+    unmasked, masked = op_types
+    load = (
+        unmasked(pointer, offset, destination=destination)
+        if mask is None
+        else masked(pointer, mask, offset, z=True, destination=destination)
+    )
+    result = rewriter.insert(load, insertion_point=insert_point).destination
+    return cast(ir.SSAValue[X86VectorRegisterType], result)
+
+
+def _vector_store(
+    rewriter: PatternRewriter,
+    insert_point: InsertPoint,
+    op_types: tuple[
+        type[x86.ops.MS_VmovupsOp | x86.ops.MS_Vmovdqu16Op],
+        type[x86.ops.MSK_VmovupsOp | x86.ops.MSK_Vmovdqu16Op],
+    ],
+    pointer: PointerValue,
+    offset: int,
+    source: ir.SSAValue[X86VectorRegisterType],
+    mask: MaskValue | None,
+) -> None:
+    """A store, merge-masked when there is a mask."""
+    unmasked, masked = op_types
+    rewriter.insert(
+        unmasked(pointer, source, offset)
+        if mask is None
+        else masked(pointer, source, mask, offset),
+        insertion_point=insert_point,
+    )
+
+
+_F32_MOVES = (x86.ops.DM_VmovupsOp, x86.ops.DMK_VmovupsOp)
+_F32_STORES = (x86.ops.MS_VmovupsOp, x86.ops.MSK_VmovupsOp)
+_BF16_MOVES = (x86.ops.DM_Vmovdqu16Op, x86.ops.DMK_Vmovdqu16Op)
+_BF16_STORES = (x86.ops.MS_Vmovdqu16Op, x86.ops.MSK_Vmovdqu16Op)
+
+
+@dataclass(frozen=True)
+class _Bf16C:
+    """The registers a BF16 C moves through: C itself and its leading dimension
+    in elements, the scratch and the stride of its F32 columns, and the masks of
+    a partial last tile of M -- of its F32 rows, and of the BF16 rows of a pair
+    of tiles stored together."""
+
+    c: PointerValue
+    ldc: int
+    scratch: PointerValue
+    scratch_ld: PointerValue
+    f32_mask: MaskValue | None
+    bf16_mask: MaskValue | None
+    disable_regalloc: bool
+
+    def ymm(self, index: int) -> X86VectorRegisterType:
+        return vector_register(
+            index,
+            x86.registers.AVX2RegisterType,
+            disable_regalloc=self.disable_regalloc,
+        )
+
+    def zmm(self, index: int) -> X86VectorRegisterType:
+        return vector_register(
+            index,
+            x86.registers.AVX512RegisterType,
+            disable_regalloc=self.disable_regalloc,
+        )
+
+    def c_offset(self, layout: "AmxTileLayout", im: int, column: int) -> int:
+        return (column * self.ldc + layout.m_offset(im)) * _BF16_SIZE
+
+    @staticmethod
+    def scratch_offset(layout: "AmxTileLayout", im: int, column: int) -> int:
+        return (column * SCRATCH_LD + layout.m_offset(im)) * _F32_SIZE
+
+    def load(
+        self,
+        rewriter: PatternRewriter,
+        insert_point: InsertPoint,
+        layout: "AmxTileLayout",
+    ) -> tuple[TileValue, ...]:
+        """libxsmm_generator_gemm_load_C_amx: widen each column of a tile of C
+        into the scratch, then load the tile from there."""
+        tiles: list[TileValue] = []
+        for im, in_ in layout.c_tiles:
+            mask = self.f32_mask if im == len(layout.m_tiles) - 1 else None
+            for col in range(layout.n_tiles[in_]):
+                column = layout.n_offset(in_) + col
+                # LIBXSMM cycles through four registers.
+                words = _vector_load(
+                    rewriter,
+                    insert_point,
+                    _BF16_MOVES,
+                    self.c,
+                    self.c_offset(layout, im, column),
+                    self.ymm(col % 4),
+                    mask,
+                )
+                widened = rewriter.insert(
+                    x86.ops.DS_VpmovsxwdOp(words, destination=self.zmm(col % 4)),
+                    insertion_point=insert_point,
+                ).destination
+                # A BF16 is the upper half of the F32 it rounds.
+                values = rewriter.insert(
+                    x86.ops.DSI_VpslldOp(widened, 16, destination=self.zmm(col % 4)),
+                    insertion_point=insert_point,
+                ).destination
+                _vector_store(
+                    rewriter,
+                    insert_point,
+                    _F32_STORES,
+                    self.scratch,
+                    self.scratch_offset(layout, im, column),
+                    cast(ir.SSAValue[X86VectorRegisterType], values),
+                    mask,
+                )
+            tiles.append(
+                _load_tile(
+                    rewriter,
+                    insert_point,
+                    self.scratch,
+                    self.scratch_ld,
+                    self.scratch_offset(layout, im, layout.n_offset(in_)),
+                    _F32_SIZE,
+                    layout.c_register(im, in_),
+                )
+            )
+        return tuple(tiles)
+
+    def store_pair(
+        self,
+        rewriter: PatternRewriter,
+        insert_point: InsertPoint,
+        layout: "AmxTileLayout",
+        in_: int,
+        upper: TileValue,
+        lower: TileValue,
+    ) -> None:
+        """libxsmm_generator_gemm_amx_paired_tilestore: both tiles of M of tile
+        `in_` of N to the scratch, then a column of each into one register."""
+        n_cols = layout.n_tiles[in_]
+        lower_offset = SCRATCH_LD * n_cols * _F32_SIZE
+        _store_tile(rewriter, insert_point, self.scratch, self.scratch_ld, 0, upper)
+        _store_tile(
+            rewriter, insert_point, self.scratch, self.scratch_ld, lower_offset, lower
+        )
+        for col in range(n_cols):
+            values = _vector_load(
+                rewriter,
+                insert_point,
+                _F32_MOVES,
+                self.scratch,
+                lower_offset + col * SCRATCH_LD * _F32_SIZE,
+                self.zmm(col),
+                self.f32_mask,
+            )
+            # The memory operand rounds into the lower half, the register into
+            # the upper one.
+            pair = rewriter.insert(
+                x86.ops.DSM_Vcvtne2ps2bf16Op(
+                    values,
+                    self.scratch,
+                    col * SCRATCH_LD * _F32_SIZE,
+                    destination=self.zmm(col),
+                ),
+                insertion_point=insert_point,
+            ).destination
+            _vector_store(
+                rewriter,
+                insert_point,
+                _BF16_STORES,
+                self.c,
+                self.c_offset(layout, 0, layout.n_offset(in_) + col),
+                cast(ir.SSAValue[X86VectorRegisterType], pair),
+                self.bf16_mask,
+            )
+
+    def store_single(
+        self,
+        rewriter: PatternRewriter,
+        insert_point: InsertPoint,
+        layout: "AmxTileLayout",
+        im: int,
+        in_: int,
+        tile: TileValue,
+    ) -> None:
+        """libxsmm_generator_gemm_amx_single_tilestore: the tile to the scratch,
+        then each of its columns rounded on its own."""
+        mask = self.f32_mask if im == len(layout.m_tiles) - 1 else None
+        _store_tile(rewriter, insert_point, self.scratch, self.scratch_ld, 0, tile)
+        for col in range(layout.n_tiles[in_]):
+            values = _vector_load(
+                rewriter,
+                insert_point,
+                _F32_MOVES,
+                self.scratch,
+                col * SCRATCH_LD * _F32_SIZE,
+                self.zmm(col),
+                mask,
+            )
+            words = rewriter.insert(
+                x86.ops.DS_Vcvtneps2bf16Op(values, destination=self.ymm(col)),
+                insertion_point=insert_point,
+            ).destination
+            _vector_store(
+                rewriter,
+                insert_point,
+                _BF16_STORES,
+                self.c,
+                self.c_offset(layout, im, layout.n_offset(in_) + col),
+                cast(ir.SSAValue[X86VectorRegisterType], words),
+                mask,
+            )
+
+
 class SprAmxBf16NanoKernel(NanoKernel):
     """LIBXSMM's AMX nano-kernel for BF16 A in VNNI-2 layout and flat B,
-    accumulating into F32 C in tiles.
+    accumulating in F32 tiles into an F32 or BF16 C.
 
     Unlike the vector nano-kernels it is not handed to the generic tiling: the
     AMX schedule blocks the GEMM with `amx_code_blocks`, loads each block's
     `tile_config`, and calls `accumulate_in_tiles` and `rewrite` on its blocks.
     Its operations carry the row strides tile loads need as `ins`: A, B and C's
-    on a `xsmm.matmul`, A and B's on a `xsmm.matmul_reg`.
+    on a `xsmm.matmul`, A and B's on a `xsmm.matmul_reg`. For a BF16 C the
+    third stride is the scratch's, `SCRATCH_LD` F32, and the scratch and the
+    masks of a partial last tile of M follow (see `bf16_c_masks`).
     """
+
+    @staticmethod
+    def bf16_c_masks(
+        layout: AmxTileLayout, *, mx1: bool
+    ) -> tuple[tuple[int, builtin.Float32Type | builtin.BFloat16Type], ...]:
+        """The lanes and lane type of each mask a block of a BF16 C needs, in
+        the order its `xsmm.matmul` takes them: one of the rows of a partial
+        last tile of M, and one of those rows below a full tile when the two
+        are stored together."""
+        if not layout.m_tail:
+            return ()
+        masks = ((layout.m_tail, builtin.f32),)
+        if layout.pairs_bf16_stores(mx1=mx1):
+            masks += ((_C_LANES + layout.m_tail, builtin.bf16),)
+        return masks
 
     @property
     def name(self) -> str:
@@ -303,7 +590,11 @@ class SprAmxBf16NanoKernel(NanoKernel):
         if not self.supports_tile(descriptor, tile, isa_info):
             raise ValueError("unsupported SPR AMX BF16 nano-kernel tile")
         # A, B and the strides of A and B; every tile register is configured.
-        return RegisterCount(general=4, tile=TILE_REGISTERS)
+        if descriptor.c_datatype is None:
+            return RegisterCount(general=4, tile=TILE_REGISTERS)
+        # A BF16 C also needs the scratch, a column of each of up to 16 columns
+        # of a tile, and two masks.
+        return RegisterCount(general=5, vector=16, mask=2, tile=TILE_REGISTERS)
 
     @override
     def attach_mask(
@@ -318,39 +609,77 @@ class SprAmxBf16NanoKernel(NanoKernel):
         return op
 
     def accumulate_in_tiles(
-        self, rewriter: PatternRewriter, op: MatmulOp
+        self,
+        rewriter: PatternRewriter,
+        op: MatmulOp,
+        *,
+        mx1: bool = False,
+        disable_regalloc: bool = False,
     ) -> MatmulRegOp:
         """Replace a K-iterating block of C with its accumulator tiles: load
-        them, multiply into them with a `xsmm.matmul_reg`, store them."""
-        if len(op.ins) != 3 or op.outs:
-            raise PassFailedException(
-                "the AMX nano-kernel expects the strides of A, B and C as ins"
-            )
-        lda, ldb, ldc = (
-            ir.SSAValue.get(value, type=GeneralRegisterType) for value in op.ins
-        )
-        c = ir.SSAValue.get(op.c, type=GeneralRegisterType)
+        them, multiply into them with a `xsmm.matmul_reg`, store them.
+
+        A BF16 C goes through the scratch; `mx1` says LIBXSMM blocks the whole
+        GEMM Mx1, under which it stores each tile on its own."""
         layout = AmxTileLayout.for_block(
             op.m.value.data, op.n.value.data, op.k.value.data
         )
-        ldc_bytes = op.ldc.value.data * _F32_SIZE
+        c = ir.SSAValue.get(op.c, type=GeneralRegisterType)
         insert_point = InsertPoint.before(op)
+        bf16_c: _Bf16C | None = None
+        if op.c_datatype is None:
+            if len(op.ins) != 3 or op.outs:
+                raise PassFailedException(
+                    "the AMX nano-kernel expects the strides of A, B and C as ins"
+                )
+            lda, ldb, ldc = (
+                ir.SSAValue.get(value, type=GeneralRegisterType) for value in op.ins
+            )
+        else:
+            masks = self.bf16_c_masks(layout, mx1=mx1)
+            if len(op.ins) != 4 + len(masks) or op.outs:
+                raise PassFailedException(
+                    "the AMX nano-kernel expects the strides of A, B and the "
+                    "scratch, the scratch and the masks of a partial tile of a "
+                    "BF16 C as ins"
+                )
+            lda, ldb, scratch_ld, scratch = (
+                ir.SSAValue.get(value, type=GeneralRegisterType) for value in op.ins[:4]
+            )
+            mask_values = tuple(cast(MaskValue, value) for value in op.ins[4:]) + (
+                None,
+                None,
+            )
+            bf16_c = _Bf16C(
+                c,
+                op.ldc.value.data,
+                scratch,
+                scratch_ld,
+                mask_values[0],
+                mask_values[1],
+                disable_regalloc,
+            )
+            ldc = scratch_ld
+        ldc_bytes = op.ldc.value.data * _F32_SIZE
 
         def c_offset(im: int, in_: int) -> int:
             return layout.n_offset(in_) * ldc_bytes + layout.m_offset(im) * _F32_SIZE
 
-        accumulators = tuple(
-            _load_tile(
-                rewriter,
-                insert_point,
-                c,
-                ldc,
-                c_offset(im, in_),
-                _F32_SIZE,
-                layout.c_register(im, in_),
+        if bf16_c is not None:
+            accumulators = bf16_c.load(rewriter, insert_point, layout)
+        else:
+            accumulators = tuple(
+                _load_tile(
+                    rewriter,
+                    insert_point,
+                    c,
+                    ldc,
+                    c_offset(im, in_),
+                    _F32_SIZE,
+                    layout.c_register(im, in_),
+                )
+                for im, in_ in layout.c_tiles
             )
-            for im, in_ in layout.c_tiles
-        )
         matmul_reg = rewriter.insert(
             MatmulRegOp(
                 op.a,
@@ -370,9 +699,29 @@ class SprAmxBf16NanoKernel(NanoKernel):
             insertion_point=insert_point,
         )
         # LIBXSMM stores the tiles of one N tile after another.
-        results = dict(zip(layout.c_tiles, matmul_reg.out_results, strict=True))
+        results = {
+            position: cast(TileValue, result)
+            for position, result in zip(
+                layout.c_tiles, matmul_reg.out_results, strict=True
+            )
+        }
         for in_ in range(len(layout.n_tiles)):
+            if bf16_c is not None and layout.pairs_bf16_stores(mx1=mx1):
+                bf16_c.store_pair(
+                    rewriter,
+                    insert_point,
+                    layout,
+                    in_,
+                    results[0, in_],
+                    results[1, in_],
+                )
+                continue
             for im in range(len(layout.m_tiles)):
+                if bf16_c is not None:
+                    bf16_c.store_single(
+                        rewriter, insert_point, layout, im, in_, results[im, in_]
+                    )
+                    continue
                 rewriter.insert(
                     x86.ops.MXS_TilestoredOp(
                         c,

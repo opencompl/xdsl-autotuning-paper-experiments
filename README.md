@@ -174,10 +174,21 @@ by `nix/libxsmm-amx-generator.patch` to accept `spr` and the classic
 The drivers are built with `-DAMX`, which asks Linux for AMX tile data
 (`arch_prctl(ARCH_REQ_XCOMP_PERM)`) before the first call.
 
-None of the configured machines has AMX. To run the sweep on one that does, give
-its entry in `src/autotuner/machines.py` `libxsmm_arch_amx="spr"`, list the
-variants above under `"bf16_amx.squares"` in `VARIANTS` in
-`src/autotuner/datasets.py`, and check the kernels before measuring them:
+The `bf16c_amx` dtype is the same GEMM with C stored in BF16, LIBXSMM's
+`BF16_VNNI_A` precision (added to its generator by
+`nix/libxsmm-bf16-c-generator.patch`). The tiles still accumulate in F32, and
+SPR has no instruction that moves data between a tile and a vector register, so
+every kernel widens C into a scratch buffer on the stack before loading its
+tiles, and stores the tiles to that scratch before rounding them into C. Its drivers are built with
+`-DACCTYPE=float`, so that the reference sums each element of C in F32 and
+rounds it once, as the kernels do; results may then differ by one BF16 step.
+The `bf16c_amx.squares` sweep has the same variants as `bf16_amx.squares`.
+
+None of the configured machines has AMX. To run the sweeps on one that does,
+give its entry in `src/autotuner/machines.py` `libxsmm_arch_amx="spr"`, list the
+variants above under `"bf16_amx.squares"` and `"bf16c_amx.squares"` in
+`VARIANTS` in `src/autotuner/datasets.py`, and check the kernels before
+measuring them:
 
 ```sh
 grep -o amx_tile /proc/cpuinfo | head -1   # the CPU and kernel support AMX
@@ -188,7 +199,8 @@ Without AMX hardware, `tests/test_amx.py` runs generated AMX kernels in a small
 emulator (`tests/amx_emulator.py`) that interprets their disassembly, tile
 instructions included, and faults where the hardware would on mismatched tile
 shapes. Intel's Software Development Emulator runs the real binaries instead:
-`sde64 -spr -- build/<machine>/matmul_colmaj/<shape>/<variant>.bf16_amx.test.o`.
+`sde64 -spr -- build/<machine>/matmul_colmaj/<shape>/<variant>.bf16_amx.test.o`
+(or `.bf16c_amx.test.o`).
 
 ### Plotting
 

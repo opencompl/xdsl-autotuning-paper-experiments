@@ -54,16 +54,19 @@ from rich.progress import (
 from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
 from autotuner.machines import MACHINES
 
-# The C spelling of each dtype's A and B elements, of its C accumulator, and
-# how the XSMM generators name it.  `bf16` multiplies BF16 inputs into F32;
-# `bf16_vnni` does too, with A packed in LIBXSMM's VNNI-2 layout, and so does
-# `bf16_amx`, which multiplies on AMX tiles instead of AVX512-BF16 vectors.
+# The C spelling of each dtype's A and B elements, of its C, and how the XSMM
+# generators name it.  `bf16` multiplies BF16 inputs into F32; `bf16_vnni` does
+# too, with A packed in LIBXSMM's VNNI-2 layout, and so does `bf16_amx`, which
+# multiplies on AMX tiles instead of AVX512-BF16 vectors.  `bf16c_amx` is
+# `bf16_amx` with a BF16 C: the tiles still accumulate in F32, and C is widened
+# on the way in and rounded on the way out.
 C_TYPE = {
     "f32": "float",
     "f64": "double",
     "bf16": "__bf16",
     "bf16_vnni": "__bf16",
     "bf16_amx": "__bf16",
+    "bf16c_amx": "__bf16",
 }
 ACC_C_TYPE = {
     "f32": "float",
@@ -71,16 +74,23 @@ ACC_C_TYPE = {
     "bf16": "float",
     "bf16_vnni": "float",
     "bf16_amx": "float",
+    "bf16c_amx": "__bf16",
 }
+# The type a dtype's reference accumulates in, where C is narrower: one F32 sum
+# per element of C, rounded once, as the kernel does.
+ACCUMULATOR_TYPE = {"bf16c_amx": "float"}
 XSMM_PRECISION = {
     "f32": "SP",
     "f64": "DP",
     "bf16": "BF16F32",
     "bf16_vnni": "BF16F32_VNNI_A",
     "bf16_amx": "BF16F32_VNNI_A",
+    "bf16c_amx": "BF16_VNNI_A",
 }
 # The dtypes whose kernels read A packed in K pairs.
-VNNI_A_DTYPES = ("bf16_vnni", "bf16_amx")
+VNNI_A_DTYPES = ("bf16_vnni", "bf16_amx", "bf16c_amx")
+# The dtypes whose kernels multiply on AMX tiles.
+AMX_DTYPES = ("bf16_amx", "bf16c_amx")
 
 # The nano-kernel a BF16 dtype's CompXSMM variants pin in place of the SKX
 # heuristic, which knows only F32 and F64.
@@ -88,6 +98,7 @@ BF16_STRATEGY = {
     "bf16": "libxsmm-cpx-bf16",
     "bf16_vnni": "libxsmm-cpx-bf16-vnni",
     "bf16_amx": "libxsmm-spr-bf16-amx",
+    "bf16c_amx": "libxsmm-spr-bf16-amx",
 }
 
 # Which sources decide that generated code is out of date.  Directories are
@@ -259,7 +270,7 @@ class Toolchain:
 
     def xsmm_arch(self, dtype: str) -> str:
         """The libxsmm arch code a `dtype` kernel is generated for."""
-        if dtype == "bf16_amx":
+        if dtype in AMX_DTYPES:
             return str(self.libxsmm_arch_amx)
         return str(
             self.libxsmm_arch_bf16 if dtype in BF16_STRATEGY else self.libxsmm_arch
@@ -706,10 +717,15 @@ def driver_artifact(
                 f"-DINNER={k}",
                 f"-DDTYPE={C_TYPE[dtype]}",
                 f"-DCTYPE={ACC_C_TYPE[dtype]}",
+                *(
+                    (f"-DACCTYPE={ACCUMULATOR_TYPE[dtype]}",)
+                    if dtype in ACCUMULATOR_TYPE
+                    else ()
+                ),
                 *(("-DVNNI_A",) if dtype in VNNI_A_DTYPES else ()),
                 # Linux faults the first tile instruction of a process that has
                 # not asked for AMX first.
-                *(("-DAMX",) if dtype == "bf16_amx" else ()),
+                *(("-DAMX",) if dtype in AMX_DTYPES else ()),
                 f"-DFREQ={tool.freq}",
                 *tool.use_papi,
                 *tool.target_flags,

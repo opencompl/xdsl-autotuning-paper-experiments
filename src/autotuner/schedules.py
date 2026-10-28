@@ -45,6 +45,7 @@ def _matmul_like(
         ldc=op.ldc.value.data,
         datatype=op.datatype,
         ab_datatype=op.ab_datatype,
+        c_datatype=op.c_datatype,
         vnni_a=bool(op.vnni_a),
         aligned_a=bool(op.aligned_a) if aligned_a is None else aligned_a,
         aligned_c=bool(op.aligned_c) if aligned_c is None else aligned_c,
@@ -87,7 +88,7 @@ def _matmul_pointer_offsets_abc(
 ) -> tuple[int, int, int]:
     """Return the A, B, and C pointer advances in bytes for an iterator."""
     ab_size = op.input_type.size
-    c_size = op.datatype.size
+    c_size = op.output_type.size
     match iterator:
         case MatmulIterator.NONE:
             return 0, 0, 0

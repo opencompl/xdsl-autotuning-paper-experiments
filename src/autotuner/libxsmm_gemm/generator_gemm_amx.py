@@ -1,6 +1,11 @@
 """LIBXSMM's AMX GEMM kernel (generator_gemm_amx.c and
 generator_gemm_amx_microkernel.c), for BF16 A packed in K pairs (VNNI_A), flat
-BF16 B and F32 C, without transposes, fusion or batch-reduce, on SPR.
+BF16 B and F32 or BF16 C, without transposes, fusion or batch-reduce, on SPR.
+
+A BF16 C cannot move between memory and the F32 accumulator tiles directly: its
+columns are widened to F32 with vector instructions into the GEMM scratch on the
+stack, which the tiles load from, and the tiles are stored to the scratch, from
+where vector instructions round their columns back to BF16 into C.
 
 The C generator names registers and leaves it to the code it prints to keep track
 of what each holds. Here every instruction defines SSA values, so
@@ -22,16 +27,20 @@ from xdsl.dialects.x86.registers import (
     R13,
     R14,
     R15,
+    RBP,
     RCX,
     RDI,
     RDX,
     RSI,
     RSP,
     TMM,
+    YMM,
+    ZMM,
     AMXTileRegisterType,
     AVX512MaskRegisterType,
     GeneralRegisterType,
     X86RegisterType,
+    X86VectorRegisterType,
 )
 from xdsl.dialects.x86_func import FuncOp
 from xdsl.ir import Block, Operation, SSAValue
@@ -40,6 +49,7 @@ from xdsl.rewriter import InsertPoint
 from autotuner import amx
 from autotuner.libxsmm_gemm.generator_common import (
     BlockingInfo,
+    GEMMStackVar,
     GPRegMapping,
     LoopLabelTracker,
     MicroKernelConfig,
@@ -49,6 +59,7 @@ from autotuner.libxsmm_gemm.generator_common_x86 import (
     libxsmm_generator_initialize_avx512_mask,
 )
 from autotuner.libxsmm_gemm.generator_gemm_common import (
+    GEMM_STACK_VAR_OFFSETS,
     libxsmm_generator_gemm_destroy_stack_frame,
     libxsmm_generator_gemm_init_micro_kernel_config,
     libxsmm_generator_gemm_setup_stack_frame,
@@ -101,6 +112,8 @@ class AMXGeneratedCode(GeneratedCode):
                     get = x86.ops.GetTileRegisterOp(register)
                 case AVX512MaskRegisterType():
                     get = x86.ops.GetMaskRegisterOp(register)
+                case X86VectorRegisterType():
+                    get = x86.ops.GetAVXRegisterOp(register)
                 case _:
                     raise NotImplementedError(register)
             self.emit(get)
@@ -191,6 +204,71 @@ def _jump_back_to_label(
 
 def _cmp_imm(code: AMXGeneratedCode, gp_reg: GeneralRegisterType, imm: int):
     return code.emit(x86.ops.SI_CmpOp(code.reg(gp_reg), imm))
+
+
+def _getval_stack_var(
+    code: AMXGeneratedCode, stack_var: GEMMStackVar, gp_reg: GeneralRegisterType
+) -> None:
+    """libxsmm_generator_gemm_getval_stack_var."""
+    code.emit(
+        x86.ops.DM_MovOp(
+            code.reg(RBP), GEMM_STACK_VAR_OFFSETS[stack_var], destination=gp_reg
+        )
+    )
+
+
+def _vec_load(
+    code: AMXGeneratedCode,
+    instr: type[x86.ops.DM_VmovupsOp | x86.ops.DM_Vmovdqu16Op],
+    masked_instr: type[x86.ops.DMK_VmovupsOp | x86.ops.DMK_Vmovdqu16Op],
+    gp_reg_base: GeneralRegisterType,
+    displacement: int,
+    vreg: X86VectorRegisterType,
+    mask_id: int,
+) -> None:
+    """libxsmm_x86_instruction_vec_move of a load, zero-masked by k`mask_id`
+    unless it is 0."""
+    if mask_id:
+        code.emit(
+            masked_instr(
+                code.reg(gp_reg_base),
+                code.reg(x86.registers.K[mask_id]),
+                displacement,
+                z=True,
+                destination=vreg,
+            )
+        )
+    else:
+        code.emit(instr(code.reg(gp_reg_base), displacement, destination=vreg))
+
+
+def _vec_store(
+    code: AMXGeneratedCode,
+    instr: type[x86.ops.MS_VmovupsOp | x86.ops.MS_Vmovdqu16Op],
+    masked_instr: type[x86.ops.MSK_VmovupsOp | x86.ops.MSK_Vmovdqu16Op],
+    gp_reg_base: GeneralRegisterType,
+    displacement: int,
+    vreg: X86VectorRegisterType,
+    mask_id: int,
+) -> None:
+    """libxsmm_x86_instruction_vec_move of a store, merge-masked by k`mask_id`
+    unless it is 0."""
+    if mask_id:
+        code.emit(
+            masked_instr(
+                code.reg(gp_reg_base),
+                code.reg(vreg),
+                code.reg(x86.registers.K[mask_id]),
+                displacement,
+            )
+        )
+    else:
+        code.emit(instr(code.reg(gp_reg_base), code.reg(vreg), displacement))
+
+
+def _c_dtype_size(desc: GEMMDescriptor) -> int:
+    """The bytes of an element of C: F32 or BF16."""
+    return 2 if desc.datatype.c == Datatype.BF16 else 4
 
 
 def _tile_config_label(code: AMXGeneratedCode, config_id: int) -> str:
@@ -307,14 +385,15 @@ def libxsmm_generator_gemm_amx_kernel(
     )
     ldb_adjustment = 1
 
-    # Of LIBXSMM's AMX kernels only BF16 A in K pairs with flat BF16 B and F32 C
-    # is ported: the others first convert A or B in a software pipeline (flat or
-    # transposed A, transposed B, F32 or FP8 inputs), compute in other precisions,
-    # or fuse eltwise operations into the store of C.
+    # Of LIBXSMM's AMX kernels only BF16 A in K pairs with flat BF16 B and F32 or
+    # BF16 C is ported: the others first convert A or B in a software pipeline
+    # (flat or transposed A, transposed B, F32 or FP8 inputs), compute in other
+    # precisions, store C in VNNI layout, or fuse eltwise operations into the
+    # store of C.
     if not (
         desc.datatype.ab == Datatype.BF16
         and desc.datatype.comp == Datatype.F32
-        and desc.datatype.c == Datatype.F32
+        and desc.datatype.c in (Datatype.F32, Datatype.BF16)
         and GEMMFlag.VNNI_A in desc.flags
         and not desc.flags & (GEMMFlag.TRANS_A | GEMMFlag.TRANS_B | GEMMFlag.VNNI_B)
         and GEMMFlag.VNNI_C not in desc.flags
@@ -597,11 +676,12 @@ def libxsmm_generator_gemm_amx_setup_fusion_infra(
 def libxsmm_generator_gemm_amx_setup_masking_infra(
     code: AMXGeneratedCode, micro_kernel_config: MicroKernelConfig
 ) -> None:
-    """Masks for the last 16 rows of M if they are partial, in F32 for C and in
-    BF16 for its conversion.
+    """Masks for the last 16 rows of M if they are partial: in F32 for a column of
+    a tile, and in BF16 for the column of a pair of tiles that a BF16 C stores
+    at once.
 
-    An F32 C of an AMX kernel moves only with tile loads and stores, so neither
-    mask is ever read; LIBXSMM sets them up all the same.
+    An F32 C of an AMX kernel moves only with tile loads and stores, so it never
+    reads either mask; LIBXSMM sets them up all the same.
     """
     reserved_mask_regs = micro_kernel_config.reserved_mask_regs
     temp_reg = R10
@@ -639,7 +719,12 @@ def libxsmm_generator_gemm_amx_adjust_m_advancement(
     l_a_packed_bytes = 4
 
     # Adjust C pointer
-    _alu_imm(code, x86.ops.RI_AddOp, gp_reg_mapping.gp_reg_c, m_adjustment * 4)
+    _alu_imm(
+        code,
+        x86.ops.RI_AddOp,
+        gp_reg_mapping.gp_reg_c,
+        m_adjustment * _c_dtype_size(desc),
+    )
 
     # advance A pointer
     _alu_imm(
@@ -659,7 +744,7 @@ def libxsmm_generator_gemm_amx_adjust_n_advancement(
     n_adjustment: int,
 ) -> None:
     # Adjust C pointer
-    l_c_dtype_size = 4
+    l_c_dtype_size = _c_dtype_size(desc)
     _alu_imm(
         code,
         x86.ops.RI_AddOp,
@@ -709,7 +794,7 @@ def libxsmm_generator_gemm_footer_nloop_amx(
 ) -> None:
     a_vnni_adjustment = 1
     l_a_packed_bytes = 4
-    l_c_dtype_size = 4
+    l_c_dtype_size = _c_dtype_size(desc)
     vnni_c_adjustment = 1
 
     _alu_imm(
@@ -751,7 +836,12 @@ def libxsmm_generator_gemm_footer_mloop_amx(
     l_a_packed_bytes = 4
 
     # advance C pointer
-    _alu_imm(code, x86.ops.RI_AddOp, gp_reg_mapping.gp_reg_c, m_blocking * 4)
+    _alu_imm(
+        code,
+        x86.ops.RI_AddOp,
+        gp_reg_mapping.gp_reg_c,
+        m_blocking * _c_dtype_size(desc),
+    )
 
     if k_unrolled == 0:
         # advance A pointer
@@ -790,7 +880,86 @@ def libxsmm_generator_gemm_load_C_amx(
     n_tiles = n_blocking_info.tiles
     l_enforce_Mx1_amx_tile_blocking = micro_kernel_config.enforce_Mx1_amx_tile_blocking
 
-    if GEMMFlag.BETA_0 not in desc.flags:
+    if GEMMFlag.BETA_0 not in desc.flags and desc.datatype.c == Datatype.BF16:
+        # Beta=1
+        gp_reg_gemm_scratch = (
+            gp_reg_mapping.gp_reg_help_1
+            if micro_kernel_config.n_loop_exists == 0
+            else gp_reg_mapping.gp_reg_help_0
+        )
+        # Check if we have to save the tmp registers
+        if (
+            gp_reg_gemm_scratch == gp_reg_mapping.gp_reg_help_0
+            and micro_kernel_config.m_loop_exists == 1
+        ):
+            _push_reg(code, gp_reg_mapping.gp_reg_help_0)
+        _alu_mov_imm(
+            code,
+            gp_reg_mapping.gp_reg_ldc,
+            (micro_kernel_config.gemm_scratch_ld * 4) // 4,
+        )
+        _getval_stack_var(code, GEMMStackVar.GEMM_SCRATCH_PTR, gp_reg_gemm_scratch)
+        i_m_offset = 0
+        for im in range(m_tiles):
+            mask_id = micro_kernel_config.mask_m_fp32 if im == m_tiles - 1 else 0
+            i_n_offset = 0
+            for in_ in range(n_tiles):
+                # Now for all the columns in the tile, upconvert them to F32 from
+                # BF16
+                for col in range(n_blocking_info.sizes[in_]):
+                    # we do mod 4 as are otherwise running out ymms
+                    zmm_reg = (col % 4) + micro_kernel_config.reserved_zmms
+
+                    # load 16 bit values into ymm portion of the register
+                    _vec_load(
+                        code,
+                        x86.ops.DM_Vmovdqu16Op,
+                        x86.ops.DMK_Vmovdqu16Op,
+                        gp_reg_mapping.gp_reg_c,
+                        ((i_n_offset + col) * desc.ldc + i_m_offset)
+                        * micro_kernel_config.datatype_size_out,
+                        YMM[zmm_reg],
+                        mask_id,
+                    )
+                    libxsmm_generator_cvtbf16ps_avx512(code, zmm_reg)
+                    # Store upconverted column to GEMM scratch
+                    _vec_store(
+                        code,
+                        x86.ops.MS_VmovupsOp,
+                        x86.ops.MSK_VmovupsOp,
+                        gp_reg_gemm_scratch,
+                        (
+                            (i_n_offset + col) * micro_kernel_config.gemm_scratch_ld
+                            + i_m_offset
+                        )
+                        * 4,
+                        ZMM[zmm_reg],
+                        mask_id,
+                    )
+                # Move zmm registers stored in GEMM scratch to the proper tile
+                code.emit(
+                    x86.ops.DMX_TileloaddOp(
+                        code.reg(gp_reg_gemm_scratch),
+                        code.reg(gp_reg_mapping.gp_reg_ldc),
+                        (i_n_offset * micro_kernel_config.gemm_scratch_ld + i_m_offset)
+                        * 4,
+                        scale=4,
+                        destination=TMM[acc_id],
+                    )
+                )
+                acc_id += 1
+                if n_tiles == 1 and l_enforce_Mx1_amx_tile_blocking == 0:
+                    acc_id += 1
+                i_n_offset += n_blocking_info.sizes[in_]
+            i_m_offset += m_blocking_info.sizes[im]
+        # Check if we have to restore the tmp registers
+        _alu_mov_imm(code, gp_reg_mapping.gp_reg_ldc, (desc.ldc * 4) // 4)
+        if (
+            gp_reg_gemm_scratch == gp_reg_mapping.gp_reg_help_0
+            and micro_kernel_config.m_loop_exists == 1
+        ):
+            _pop_reg(code, gp_reg_mapping.gp_reg_help_0)
+    elif GEMMFlag.BETA_0 not in desc.flags:
         # Beta=1
         i_m_offset = 0
         for im in range(m_tiles):
@@ -832,22 +1001,207 @@ def libxsmm_generator_gemm_store_C_amx(
 ) -> None:
     m_tiles = m_blocking_info.tiles
     n_tiles = n_blocking_info.tiles
+    _C_tile_done = [0] * 4
 
-    # Only BF16 C pairs its tile stores.
-    assert micro_kernel_config.use_paired_tilestores == 0
     for i in range(m_tiles * n_tiles):
         im = micro_kernel_config._im[i]
         in_ = micro_kernel_config._in[i]
-        libxsmm_generator_gemm_amx_single_tilestore(
-            code,
-            gp_reg_mapping,
-            micro_kernel_config,
-            desc,
-            micro_kernel_config._C_tile_id[i],
-            micro_kernel_config._im_offset_prefix_sums[im],
-            micro_kernel_config._in_offset_prefix_sums[in_],
-            n_blocking_info.sizes[in_],
+        _C_tile_done[micro_kernel_config._C_tile_id[i]] = 1
+        if micro_kernel_config.use_paired_tilestores == 1:
+            # If mate C tile is also ready, then two paired tilestore
+            mate_id = micro_kernel_config._C_tile_mate_id
+            if _C_tile_done[mate_id[micro_kernel_config._C_tile_id[i]]] == 1:
+                min_mate_C_id = min(
+                    micro_kernel_config._C_tile_id[i],
+                    mate_id[micro_kernel_config._C_tile_id[i]],
+                )
+                im_store = min_mate_C_id // n_tiles
+                in_store = min_mate_C_id % n_tiles
+                libxsmm_generator_gemm_amx_paired_tilestore(
+                    code,
+                    gp_reg_mapping,
+                    micro_kernel_config,
+                    desc,
+                    min_mate_C_id,
+                    mate_id[min_mate_C_id],
+                    micro_kernel_config._im_offset_prefix_sums[im_store],
+                    micro_kernel_config._in_offset_prefix_sums[in_store],
+                    n_blocking_info.sizes[in_store],
+                )
+        else:
+            libxsmm_generator_gemm_amx_single_tilestore(
+                code,
+                gp_reg_mapping,
+                micro_kernel_config,
+                desc,
+                micro_kernel_config._C_tile_id[i],
+                micro_kernel_config._im_offset_prefix_sums[im],
+                micro_kernel_config._in_offset_prefix_sums[in_],
+                n_blocking_info.sizes[in_],
+            )
+
+
+def libxsmm_is_tile_in_last_tilerow(
+    micro_kernel_config: MicroKernelConfig, tile: int
+) -> bool:
+    max_im = max(0, *micro_kernel_config._im)
+    pos = 0
+    for i in range(4):
+        if micro_kernel_config._C_tile_id[i] == tile:
+            pos = i
+    return micro_kernel_config._im[pos] == max_im
+
+
+def libxsmm_generator_cvtbf16ps_avx512(code: AMXGeneratedCode, vreg: int) -> None:
+    """libxsmm_generator_cvt_to_ps_avx512 from BF16, in place: the words in the
+    lower half of zmm`vreg` become the upper halves of its doublewords."""
+    # convert 16 bit values into 32 bit (integer convert)
+    code.emit(x86.ops.DS_VpmovsxwdOp(code.reg(YMM[vreg]), destination=ZMM[vreg]))
+    # shift 16 bits to the left to generate valid FP32 numbers
+    code.emit(x86.ops.DSI_VpslldOp(code.reg(ZMM[vreg]), 16, destination=ZMM[vreg]))
+
+
+def libxsmm_generator_cvt_from_ps_avx512(code: AMXGeneratedCode, vreg: int) -> None:
+    """libxsmm_generator_cvt_from_ps_avx512 to BF16, in place: the F32 of zmm`vreg`
+    round to the words of its lower half."""
+    code.emit(x86.ops.DS_Vcvtneps2bf16Op(code.reg(ZMM[vreg]), destination=YMM[vreg]))
+
+
+def libxsmm_load_vreg_from_amx_tile(
+    code: AMXGeneratedCode,
+    micro_kernel_config: MicroKernelConfig,
+    gp_reg_gemm_scratch: GeneralRegisterType,
+    use_mask: int,
+    col_id: int,
+    vreg: int,
+) -> None:
+    """Load column `col_id` of a tile stored to the GEMM scratch; SPR has no
+    instruction to move a tile row to a vector register directly."""
+    _vec_load(
+        code,
+        x86.ops.DM_VmovupsOp,
+        x86.ops.DMK_VmovupsOp,
+        gp_reg_gemm_scratch,
+        col_id * micro_kernel_config.gemm_scratch_ld * 4,
+        ZMM[vreg],
+        use_mask,
+    )
+
+
+def _tilestore_to_gemm_scratch(
+    code: AMXGeneratedCode,
+    gp_reg_mapping: GPRegMapping,
+    micro_kernel_config: MicroKernelConfig,
+    desc: GEMMDescriptor,
+    gp_reg_gemm_scratch: GeneralRegisterType,
+    tiles: Sequence[tuple[int, int]],
+) -> None:
+    """Store FP32 tiles to scratch: each (tile, displacement), with the row
+    stride of the scratch in ldc meanwhile."""
+    _alu_mov_imm(
+        code,
+        gp_reg_mapping.gp_reg_ldc,
+        (micro_kernel_config.gemm_scratch_ld * 4) // 4,
+    )
+    for tile, displacement in tiles:
+        code.emit(
+            x86.ops.MXS_TilestoredOp(
+                code.reg(gp_reg_gemm_scratch),
+                code.reg(gp_reg_mapping.gp_reg_ldc),
+                code.reg(TMM[tile]),
+                displacement,
+                scale=4,
+            )
         )
+    _alu_mov_imm(code, gp_reg_mapping.gp_reg_ldc, (desc.ldc * 4) // 4)
+
+
+def libxsmm_generator_gemm_amx_paired_tilestore(
+    code: AMXGeneratedCode,
+    gp_reg_mapping: GPRegMapping,
+    micro_kernel_config: MicroKernelConfig,
+    desc: GEMMDescriptor,
+    tile0: int,
+    tile1: int,
+    im_offset: int,
+    in_offset: int,
+    n_cols: int,
+) -> None:
+    """Store two vertically adjacent F32 tiles to a BF16 C, a column of both at a
+    time: vcvtne2ps2bf16 rounds the column of `tile0` into the lower half of a
+    register and that of `tile1` into the upper one.
+
+    Without fusion the column is stored as soon as it is converted ("eager
+    result store"), and LIBXSMM pairs only tiles that both exist.
+    """
+    assert tile1 >= 0 and desc.datatype.c == Datatype.BF16
+    gp_reg_gemm_scratch = (
+        gp_reg_mapping.gp_reg_help_0
+        if micro_kernel_config.m_loop_exists == 0
+        else gp_reg_mapping.gp_reg_help_1
+    )
+    reserved_zmms = micro_kernel_config.reserved_zmms
+    out_tsize = 2
+
+    # Check if we have to save the tmp registers
+    if (
+        gp_reg_gemm_scratch == gp_reg_mapping.gp_reg_help_1
+        and micro_kernel_config.n_loop_exists == 1
+    ):
+        _push_reg(code, gp_reg_mapping.gp_reg_help_1)
+
+    # Load the gemm scratch/relu ptr
+    _getval_stack_var(code, GEMMStackVar.GEMM_SCRATCH_PTR, gp_reg_gemm_scratch)
+
+    # SPR has no tilemovrow, so the tiles go through the scratch
+    _tilestore_to_gemm_scratch(
+        code,
+        gp_reg_mapping,
+        micro_kernel_config,
+        desc,
+        gp_reg_gemm_scratch,
+        ((tile0, 0), (tile1, micro_kernel_config.gemm_scratch_ld * n_cols * 4)),
+    )
+
+    # Fully unroll in N dimension
+    for col in range(n_cols):
+        if col + reserved_zmms < 16:
+            reg_0 = col % (16 - reserved_zmms) + reserved_zmms
+        else:
+            reg_0 = reserved_zmms + col % (31 - reserved_zmms)
+
+        libxsmm_load_vreg_from_amx_tile(
+            code,
+            micro_kernel_config,
+            gp_reg_gemm_scratch,
+            micro_kernel_config.mask_m_fp32,
+            col + n_cols,
+            reg_0,
+        )
+        code.emit(
+            x86.ops.DSM_Vcvtne2ps2bf16Op(
+                code.reg(ZMM[reg_0]),
+                code.reg(gp_reg_gemm_scratch),
+                col * micro_kernel_config.gemm_scratch_ld * 4,
+                destination=ZMM[reg_0],
+            )
+        )
+        _vec_store(
+            code,
+            x86.ops.MS_Vmovdqu16Op,
+            x86.ops.MSK_Vmovdqu16Op,
+            gp_reg_mapping.gp_reg_c,
+            ((in_offset + col) * desc.ldc + im_offset) * out_tsize,
+            ZMM[reg_0],
+            micro_kernel_config.mask_m_bf16,
+        )
+
+    # Check if we have to restore the tmp registers
+    if (
+        gp_reg_gemm_scratch == gp_reg_mapping.gp_reg_help_1
+        and micro_kernel_config.n_loop_exists == 1
+    ):
+        _pop_reg(code, gp_reg_mapping.gp_reg_help_1)
 
 
 def libxsmm_generator_gemm_amx_single_tilestore(
@@ -860,17 +1214,74 @@ def libxsmm_generator_gemm_amx_single_tilestore(
     in_offset: int,
     n_cols: int,
 ) -> None:
-    # An F32 C stores straight from the tile.
-    store_offset = (in_offset * desc.ldc + im_offset) * 4
-    code.emit(
-        x86.ops.MXS_TilestoredOp(
-            code.reg(gp_reg_mapping.gp_reg_c),
-            code.reg(gp_reg_mapping.gp_reg_ldc),
-            code.reg(TMM[tile]),
-            store_offset,
-            scale=4,
+    if desc.datatype.c == Datatype.F32:
+        # An F32 C stores straight from the tile.
+        store_offset = (in_offset * desc.ldc + im_offset) * 4
+        code.emit(
+            x86.ops.MXS_TilestoredOp(
+                code.reg(gp_reg_mapping.gp_reg_c),
+                code.reg(gp_reg_mapping.gp_reg_ldc),
+                code.reg(TMM[tile]),
+                store_offset,
+                scale=4,
+            )
         )
+        return
+
+    # A BF16 C goes through the scratch, a column of the tile at a time.
+    gp_reg_gemm_scratch = (
+        gp_reg_mapping.gp_reg_help_0
+        if micro_kernel_config.m_loop_exists == 0
+        else gp_reg_mapping.gp_reg_help_1
     )
+    reserved_zmms = micro_kernel_config.reserved_zmms
+    maskid = (
+        micro_kernel_config.mask_m_fp32
+        if libxsmm_is_tile_in_last_tilerow(micro_kernel_config, tile)
+        and micro_kernel_config.m_remainder > 0
+        else 0
+    )
+
+    # Potentially push aux register
+    if (
+        gp_reg_gemm_scratch == gp_reg_mapping.gp_reg_help_1
+        and micro_kernel_config.n_loop_exists == 1
+    ):
+        _push_reg(code, gp_reg_mapping.gp_reg_help_1)
+
+    _getval_stack_var(code, GEMMStackVar.GEMM_SCRATCH_PTR, gp_reg_gemm_scratch)
+    _tilestore_to_gemm_scratch(
+        code,
+        gp_reg_mapping,
+        micro_kernel_config,
+        desc,
+        gp_reg_gemm_scratch,
+        ((tile, 0),),
+    )
+
+    for col in range(n_cols):
+        reg_0 = col % (16 - reserved_zmms) + reserved_zmms
+        libxsmm_load_vreg_from_amx_tile(
+            code, micro_kernel_config, gp_reg_gemm_scratch, maskid, col, reg_0
+        )
+        libxsmm_generator_cvt_from_ps_avx512(code, reg_0)
+        _vec_store(
+            code,
+            x86.ops.MS_Vmovdqu16Op,
+            x86.ops.MSK_Vmovdqu16Op,
+            gp_reg_mapping.gp_reg_c,
+            ((in_offset + col) * desc.ldc + im_offset)
+            * micro_kernel_config.datatype_size_out,
+            YMM[reg_0],
+            maskid,
+        )
+
+    # Potentially pop aux register
+    if (
+        gp_reg_gemm_scratch == gp_reg_mapping.gp_reg_help_1
+        and micro_kernel_config.n_loop_exists == 1
+    ):
+        _pop_reg(code, gp_reg_mapping.gp_reg_help_1)
 
 
 def libxsmm_generator_gemm_amx_kernel_mloop(
@@ -1188,8 +1599,14 @@ def libxsmm_generator_gemm_amx_microkernel(
     # loop; otherwise store_C_amx stores them.
     assert i_brgemm_loop == -2 and fully_unrolled_brloop == 0
     l_enforce_Mx1_amx_tile_blocking = micro_kernel_config.enforce_Mx1_amx_tile_blocking
-    # Only BF16 C pairs its tile stores.
-    use_paired_tilestores = 0
+    use_paired_tilestores = (
+        1
+        if desc.datatype.c == Datatype.BF16
+        and m_tiles % 2 == 0
+        and micro_kernel_config.vnni_format_C == 0
+        and l_enforce_Mx1_amx_tile_blocking == 0
+        else 0
+    )
     lda_adjustment = 1  # A is in VNNI layout
     ldb_adjustment = 1  # B is not transposed
     l_ldb = desc.ldb
@@ -1219,6 +1636,8 @@ def libxsmm_generator_gemm_amx_microkernel(
     _B_offsets = [0] * 4
     _im_offset_prefix_sums = [0] * 4
     _in_offset_prefix_sums = [0] * 4
+    # The C tile each C tile pairs its stores with, -1 for none
+    _C_tile_mate_id = [-1] * 4
 
     for i in range(1, 4):
         _im_offset_prefix_sums[i] = (
@@ -1228,6 +1647,19 @@ def libxsmm_generator_gemm_amx_microkernel(
         _in_offset_prefix_sums[i] = (
             _in_offset_prefix_sums[i - 1] + n_blocking_info.sizes[i - 1]
         )
+
+    match (m_tiles, n_tiles):
+        case (2, 2):
+            _C_tile_mate_id[:] = (2, 3, 0, 1)
+        case (2, 1) if l_enforce_Mx1_amx_tile_blocking > 0:
+            _C_tile_mate_id[:] = (1, 0, -1, -1)
+        case (2, 1):
+            _C_tile_mate_id[:] = (2, -1, 0, -1)
+        case (4, 1):
+            _C_tile_mate_id[:] = (1, 0, 3, 2)
+        case _:
+            # In this case we cannot do paired tilestores
+            pass
 
     # A is always VNNI-formatted here.
     # The tile loads are plain tileloadd: the streaming and read-shared ones only
@@ -1315,6 +1747,7 @@ def libxsmm_generator_gemm_amx_microkernel(
     micro_kernel_config._im = list(_im)
     micro_kernel_config._in = list(_in)
     micro_kernel_config._C_tile_id = list(_C_tile_id)
+    micro_kernel_config._C_tile_mate_id = list(_C_tile_mate_id)
     micro_kernel_config._im_offset_prefix_sums = list(_im_offset_prefix_sums)
     micro_kernel_config._in_offset_prefix_sums = list(_in_offset_prefix_sums)
 

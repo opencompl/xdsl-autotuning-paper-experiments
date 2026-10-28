@@ -66,6 +66,7 @@ DATASET_REPEATS = {
     "bf16.squares": 3,
     "bf16_vnni.squares": 3,
     "bf16_amx.squares": 3,
+    "bf16c_amx.squares": 3,
 }
 
 
@@ -84,6 +85,7 @@ VARIANTS = {
         "bf16.squares": [],
         "bf16_vnni.squares": [],
         "bf16_amx.squares": [],
+        "bf16c_amx.squares": [],
         "f64.nanokernel_grid": [],
     },
     "neon": {
@@ -94,6 +96,7 @@ VARIANTS = {
         "bf16.squares": [],
         "bf16_vnni.squares": [],
         "bf16_amx.squares": [],
+        "bf16c_amx.squares": [],
         "f64.nanokernel_grid": [],
     },
     "tower": {
@@ -150,6 +153,7 @@ VARIANTS = {
         ],
         # Needs AMX, which neither Zen generation has.
         "bf16_amx.squares": [],
+        "bf16c_amx.squares": [],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "pinocchio": {
@@ -162,6 +166,7 @@ VARIANTS = {
         "bf16.squares": [],
         "bf16_vnni.squares": [],
         "bf16_amx.squares": [],
+        "bf16c_amx.squares": [],
         "f64.nanokernel_grid": [],
     },
     "rapper": {
@@ -218,6 +223,7 @@ VARIANTS = {
         ],
         # Needs AMX, which neither Zen generation has.
         "bf16_amx.squares": [],
+        "bf16c_amx.squares": [],
         "f64.nanokernel_grid": list(NANOKERNEL_VARIANTS),
     },
     "ci": {
@@ -228,6 +234,7 @@ VARIANTS = {
         "bf16.squares": [],
         "bf16_vnni.squares": [],
         "bf16_amx.squares": [],
+        "bf16c_amx.squares": [],
         "f64.nanokernel_grid": [],
     },
 }
@@ -266,11 +273,13 @@ def default_variants(machine: "Machine") -> dict[str, list[str]]:
             derived["bf16_vnni.squares"] = []
         # The reference has no AMX, so it cannot lend this list; every variant
         # of the sweep follows LIBXSMM's AMX kernel (see the README).
-        derived["bf16_amx.squares"] = (
+        amx = (
             ["libxsmm", "xdsl_libxsmm", "compxsmm", "compxsmm_manual"]
             if machine.libxsmm_arch_amx
             else []
         )
+        derived["bf16_amx.squares"] = list(amx)
+        derived["bf16c_amx.squares"] = list(amx)
         return derived
     return {
         "ttile": ["mkl", "aocl"],
@@ -280,6 +289,7 @@ def default_variants(machine: "Machine") -> dict[str, list[str]]:
         "bf16.squares": [],
         "bf16_vnni.squares": [],
         "bf16_amx.squares": [],
+        "bf16c_amx.squares": [],
         "f64.nanokernel_grid": [],
     }
 
@@ -452,6 +462,13 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
             "bf16_amx",
             [(s, s, s) for s in BF16_SQUARE_RANGE],
             "bf16_amx.squares",
+        ),
+        # And again with C stored in BF16, which goes through memory to and
+        # from the tiles.
+        "bf16c_amx.squares": by_shape(
+            "bf16c_amx",
+            [(s, s, s) for s in BF16_SQUARE_RANGE],
+            "bf16c_amx.squares",
         ),
         # Not `by_shape`: which shapes are measured depends on the variant, so
         # the variants cannot share one shape list.

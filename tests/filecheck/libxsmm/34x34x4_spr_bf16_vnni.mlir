@@ -24,6 +24,7 @@
 // CHECK-NEXT:      mov r10, -64
 // CHECK-NEXT:      and rsp, r10
 // CHECK-NEXT:      sub rsp, 12352
+// CHECK-NEXT:      mov [rbp-48], rsp
 // CHECK-NEXT:  .pushsection .rodata
 // CHECK-NEXT:  .p2align 6
 // CHECK-NEXT:  .Lmatmul_tileconfig0:

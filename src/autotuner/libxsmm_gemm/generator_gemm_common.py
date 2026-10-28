@@ -702,7 +702,7 @@ def libxsmm_generator_gemm_setup_stack_frame(
     # Now allocate in stack required GEMM scratch if necessary
 
     rsp_val = libxsmm_generator_gemm_setup_stack_frame_allocate_scratch(
-        generated_code, desc, config, rsp_val
+        generated_code, desc, config, rsp_val, rbp_val
     )
 
     # The stack at exit of setup looks like this:
@@ -767,6 +767,7 @@ def libxsmm_generator_gemm_setup_stack_frame_allocate_scratch(
     desc: GEMMDescriptor,
     config: MicroKernelConfig,
     rsp_val: SSAValue[GeneralRegisterType],
+    rbp_val: SSAValue[GeneralRegisterType],
 ) -> SSAValue[GeneralRegisterType]:
     """Allocates the GEMM scratch below the 64-byte aligned frame; returns RSP.
 
@@ -801,11 +802,9 @@ def libxsmm_generator_gemm_setup_stack_frame_allocate_scratch(
         rsp_val = generated_code.insert(
             x86.ops.RI_SubOp(rsp_val, gemm_scratch_size)
         ).register_out
-        # LIBXSMM also stores the scratch address to its stack variable
-        # (GEMMStackVar.GEMM_SCRATCH_PTR). Its text emitter leaves memory operands of
-        # ALU instructions unimplemented, so the store is missing from the inline
-        # assembly this port is checked against; no kernel ported here reads the
-        # address back, so the port leaves it out too.
+        libxsmm_generator_gemm_setval_stack_var(
+            generated_code, config, GEMMStackVar.GEMM_SCRATCH_PTR, rsp_val, rbp_val
+        )
 
     if (
         config.avnni_gemm_sw_pipeline

@@ -169,8 +169,8 @@ def test_a_detected_avx512_machine_gets_the_full_comparison() -> None:
     assert default_variants(TOWER) == VARIANTS["rapper"]
 
 
-def test_a_detected_amx_machine_also_measures_the_amx_sweep() -> None:
-    # rapper has no AMX to lend the list from, so it is the one dataset an
+def test_a_detected_amx_machine_also_measures_the_amx_sweeps() -> None:
+    # rapper has no AMX to lend the lists from, so these are the datasets an
     # AMX machine measures beyond the reference.
     amx = replace(RAPPER, libxsmm_arch_amx="spr")
     derived = default_variants(amx)
@@ -181,6 +181,7 @@ def test_a_detected_amx_machine_also_measures_the_amx_sweep() -> None:
         "compxsmm",
         "compxsmm_manual",
     ]
+    assert derived["bf16c_amx.squares"] == derived["bf16_amx.squares"]
     assert derived["bf16_vnni.squares"] == VARIANTS["rapper"]["bf16_vnni.squares"]
 
 
@@ -191,6 +192,7 @@ def test_a_detected_machine_without_avx512_bf16_skips_the_bf16_sweeps() -> None:
     assert derived["bf16.squares"] == []
     assert derived["bf16_vnni.squares"] == []
     assert derived["bf16_amx.squares"] == []
+    assert derived["bf16c_amx.squares"] == []
     assert derived["f64.squares"] == VARIANTS["rapper"]["f64.squares"]
 
 

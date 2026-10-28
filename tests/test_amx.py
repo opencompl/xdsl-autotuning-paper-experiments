@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from amx_emulator import EmulationError, run_gemm
+from amx_emulator import EmulationError, convert_fp32_to_bfloat16, run_gemm
 
 from autotuner.amx import TileConfig, TileShape
 from autotuner.spr_amx_bf16_nano_kernel import (
@@ -119,7 +119,14 @@ PIPELINES = {
 }
 
 
-def _build(variant: str, m: int, n: int, k: int, directory: Path) -> Path:
+def _build(
+    variant: str,
+    m: int,
+    n: int,
+    k: int,
+    directory: Path,
+    precision: str = "BF16F32_VNNI_A",
+) -> Path:
     extra, pipeline = PIPELINES[variant]
     mlir, asm, library = (
         directory / f"kernel{suffix}" for suffix in (".mlir", ".s", ".so")
@@ -131,7 +138,7 @@ def _build(variant: str, m: int, n: int, k: int, directory: Path) -> Path:
             mlir,
             "matmul",
             *map(str, (m, n, k, m, k, m)),
-            *("1", "1", "1", "1", "spr", "nopf", "BF16F32_VNNI_A"),
+            *("1", "1", "1", "1", "spr", "nopf", precision),
             *extra,
         ),
         check=True,
@@ -155,6 +162,60 @@ def test_amx_kernel(variant: str, shape: tuple[int, int, int], tmp_path: Path) -
     np.testing.assert_allclose(result, reference, rtol=1e-5, atol=1e-5)
     m, n, k = shape
     assert emulator.mnemonics["tdpbf16ps"] >= (m // 16) * (n // 16) * (k // 32)
+
+
+@needs_tools
+@pytest.mark.parametrize("variant", PIPELINES)
+@pytest.mark.parametrize(
+    "shape",
+    (
+        # Paired stores of two tiles of M, and N in two tiles.
+        (32, 32, 32),
+        (64, 64, 64),
+        # A remainder block of one partial tile, with N loops.
+        (34, 34, 34),
+        # Mx1: single stores, three or four tiles of M, a partial last one.
+        (40, 4, 32),
+        (70, 16, 8),
+        (18, 2, 2),
+        # Paired stores with a partial lower tile, N of one column per block.
+        (17, 37, 4),
+        (34, 50, 18),
+    ),
+)
+def test_amx_kernel_bf16_c(
+    variant: str, shape: tuple[int, int, int], tmp_path: Path
+) -> None:
+    library = _build(variant, *shape, tmp_path, "BF16_VNNI_A")
+    result, reference, emulator = run_gemm(library, *shape, bf16_c=True)
+    # The F32 sum, rounded to BF16 once: within half a BF16 unit in the last
+    # place, 2^-8 of the value.
+    np.testing.assert_allclose(result, reference, rtol=2**-8, atol=1e-6)
+    m, n, k = shape
+    assert emulator.mnemonics["tdpbf16ps"] >= (m // 16) * (n // 16) * (k // 32)
+    # C moves through the scratch: each column of each tile is widened in once
+    # and rounded out once, two tiles at a time when their stores pair.
+    tile_columns = n * sum(
+        len(block.layout().m_tiles) * (block.m // block.m_blocking)
+        for block in amx_code_blocks(m, n, k)
+    )
+    assert emulator.mnemonics["vpmovsxwd"] == tile_columns
+    rounded = emulator.mnemonics.get("vcvtneps2bf16", 0) + 2 * emulator.mnemonics.get(
+        "vcvtne2ps2bf16", 0
+    )
+    assert rounded == tile_columns
+
+
+def test_bf16_rounding_matches_the_sdm() -> None:
+    values = np.array(
+        [1.0, 1 + 2**-8, 1 + 3 * 2**-8, -(1 + 2**-8 + 2**-20), 1e-40, -1e-40],
+        np.float32,
+    )
+    # Ties go to even; denormals become zeros of their sign.
+    expected = np.array([0x3F80, 0x3F80, 0x3F82, 0xBF81, 0x0000, 0x8000], np.uint16)
+    np.testing.assert_array_equal(convert_fp32_to_bfloat16(values), expected)
+    nan = np.array([0x7F800001], np.uint32).view(np.float32)
+    assert convert_fp32_to_bfloat16(nan)[0] == 0x7FC0
 
 
 @needs_tools

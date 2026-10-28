@@ -31,6 +31,7 @@
               ./nix/libxsmm-rpath.patch
               ./nix/libxsmm-bf16-generator.patch
               ./nix/libxsmm-amx-generator.patch
+              ./nix/libxsmm-bf16-c-generator.patch
             ];
             # Upstream now installs .pc files under lib/pkgconfig, not lib.
             # documentation/{LICENSE,CONTRIBUTING}.md are symlinks into the
