@@ -4,10 +4,12 @@ The kernel is linked into a shared object and disassembled with `objdump`;
 this module then interprets the disassembly instruction by instruction, with
 just enough of x86-64 for the code the GEMM generators emit: moves and integer
 arithmetic on general-purpose registers, the stack, compares and conditional
-jumps, and the AMX tile instructions. Tile instructions follow their pseudocode
-in the Intel SDM, including the shape checks that make a mismatched tile fault,
-so a kernel whose tile configuration does not fit its tiles fails here as it
-would on a Sapphire Rapids.
+jumps, the AMX tile instructions, and the AVX-512 moves and conversions that
+carry a BF16 C between memory and the F32 tiles. Tile instructions follow their
+pseudocode in the Intel SDM, including the shape checks that make a mismatched
+tile fault, so a kernel whose tile configuration does not fit its tiles fails
+here as it would on a Sapphire Rapids; masked vector moves touch only the
+elements their mask selects, as the hardware's fault suppression does.
 
 Anything else -- an instruction or operand form it does not know -- raises, so
 a kernel either runs completely or is reported as unsupported.
@@ -31,6 +33,10 @@ _GPR32 = tuple(
 ) + tuple(f"r{index}d" for index in range(8, 16))
 _MASK64 = (1 << 64) - 1
 _SIZES = {"BYTE": 1, "WORD": 2, "DWORD": 4, "QWORD": 8}
+_VECTOR_SIZES = {"XMMWORD": 16, "YMMWORD": 32, "ZMMWORD": 64}
+_VECTOR_WIDTHS = {"x": 16, "y": 32, "z": 64}
+# The bytes per element each masked vector move uses its mask for.
+_MOVE_ELEMENTS = {"vmovups": 4, "vmovdqu16": 2}
 # A sentinel return address: `ret` to it ends the call.
 _RETURN_ADDRESS = 0xDEAD0000
 
@@ -178,6 +184,20 @@ def _bf16_to_f32(words: npt.NDArray[np.uint16]) -> npt.NDArray[np.float32]:
     return (words.astype(np.uint32) << 16).view(np.float32)
 
 
+def convert_fp32_to_bfloat16(values: npt.NDArray[np.float32]) -> npt.NDArray[np.uint16]:
+    """The SDM's pseudo-function of vcvtne(2)ps2bf16: round to nearest even,
+    denormals to zeros of their sign, NaNs quieted."""
+    bits = values.view(np.uint32).astype(np.uint64)
+    exponent = (bits >> 23) & 0xFF
+    rounded = (bits + 0x7FFF + ((bits >> 16) & 1)) >> 16
+    result = np.where(exponent == 0, (bits >> 16) & 0x8000, rounded)
+    nan = (exponent == 0xFF) & ((bits & 0x7FFFFF) != 0)
+    result = np.where(nan, (bits >> 16) | 0x40, result)
+    infinity = (exponent == 0xFF) & ((bits & 0x7FFFFF) == 0)
+    result = np.where(infinity, bits >> 16, result)
+    return result.astype(np.uint16)
+
+
 class Emulator:
     def __init__(self, library: Path, symbol: str) -> None:
         self.memory = Memory()
@@ -189,6 +209,7 @@ class Emulator:
         self.flags: tuple[int, int] | None = None
         self.palette = 0
         self.tiles = [Tile(0, 0) for _ in range(8)]
+        self.vectors = np.zeros((32, 64), np.uint8)
         self.executed = 0
         self.mnemonics: dict[str, int] = {}
 
@@ -247,6 +268,90 @@ class Emulator:
     def _signed(value: int) -> int:
         value &= _MASK64
         return value - (1 << 64) if value >> 63 else value
+
+    # -- vectors ----------------------------------------------------------
+
+    @staticmethod
+    def _vector_register(operand: str) -> tuple[int, int, str | None, bool]:
+        """The index and byte width of a vector register operand, with its
+        write mask and whether that zeroes, e.g. `ymm3{k1}{z}`."""
+        match = re.fullmatch(r"([xyz])mm(\d+)((?:\{\w+\})*)", operand)
+        if match is None:
+            raise EmulationError(f"not a vector register: {operand}")
+        decorations = re.findall(r"\{(\w+)\}", match.group(3))
+        mask = next((d for d in decorations if d.startswith("k")), None)
+        return (
+            int(match.group(2)),
+            _VECTOR_WIDTHS[match.group(1)],
+            mask,
+            "z" in decorations,
+        )
+
+    def _mask_bits(self, mask: str | None, elements: int) -> list[bool]:
+        if mask is None:
+            return [True] * elements
+        if mask not in self.masks:
+            raise EmulationError(f"{mask} is not set")
+        return [bool(self.masks[mask] >> element & 1) for element in range(elements)]
+
+    def _read_vector(self, operand: str, instruction: Instruction) -> bytes:
+        """A whole vector source operand, register or memory."""
+        if "[" in operand:
+            word = operand.split()[0]
+            if word not in _VECTOR_SIZES or re.search(r"\{k\d\}", operand):
+                raise EmulationError(f"unsupported vector memory operand: {operand}")
+            return self.memory.read(
+                self._address(operand, instruction), _VECTOR_SIZES[word]
+            )
+        index, width, mask, _ = self._vector_register(operand)
+        if mask is not None:
+            raise EmulationError(f"masked vector source: {operand}")
+        return self.vectors[index, :width].tobytes()
+
+    def _write_vector(self, operand: str, data: bytes) -> None:
+        """Write an unmasked vector result, zeroing the register above it."""
+        index, width, mask, _ = self._vector_register(operand)
+        if mask is not None or len(data) != width:
+            raise EmulationError(f"unsupported vector destination: {operand}")
+        self.vectors[index] = 0
+        self.vectors[index, :width] = np.frombuffer(data, np.uint8)
+
+    def _vector_move(
+        self, destination: str, source: str, element: int, instruction: Instruction
+    ) -> None:
+        """vmovups or vmovdqu16, either way, masked or not."""
+        if "[" in destination:
+            index, width, _, _ = self._vector_register(source)
+            mask = re.search(r"\{(k\d)\}", destination)
+            address = self._address(destination, instruction)
+            data = self.vectors[index, :width].tobytes()
+            selected = self._mask_bits(mask and mask.group(1), width // element)
+            for position, write in enumerate(selected):
+                if write:
+                    start = position * element
+                    self.memory.write(address + start, data[start : start + element])
+            return
+        index, width, mask, zeroing = self._vector_register(destination)
+        if "[" in source:
+            address = self._address(source, instruction)
+            result = bytearray(self.vectors[index, :width].tobytes())
+            selected = self._mask_bits(mask, width // element)
+            for position, read in enumerate(selected):
+                start = position * element
+                if read:
+                    result[start : start + element] = self.memory.read(
+                        address + start, element
+                    )
+                elif zeroing or mask is None:
+                    result[start : start + element] = bytes(element)
+            if mask is not None and not zeroing:
+                raise EmulationError(f"merge-masked load: {destination}")
+            self.vectors[index] = 0
+            self.vectors[index, :width] = np.frombuffer(bytes(result), np.uint8)
+            return
+        if mask is not None:
+            raise EmulationError(f"masked register move: {destination}")
+        self._write_vector(destination, self._read_vector(source, instruction))
 
     # -- tiles ------------------------------------------------------------
 
@@ -414,8 +519,40 @@ class Emulator:
                 if taken:
                     return int(operands[0], 16)
             case "kmovw" | "kmovd" | "kmovq" | "kmovb":
-                # Masks only guard vector instructions, which AMX kernels lack.
                 self.masks[operands[0]] = self._value(operands[1], instruction)
+            case "vmovups" | "vmovdqu16":
+                self._vector_move(
+                    operands[0], operands[1], _MOVE_ELEMENTS[mnemonic], instruction
+                )
+            case "vpmovsxwd":
+                words = np.frombuffer(
+                    self._read_vector(operands[1], instruction), np.int16
+                )
+                self._write_vector(operands[0], words.astype(np.int32).tobytes())
+            case "vpslld":
+                doublewords = np.frombuffer(
+                    self._read_vector(operands[1], instruction), np.uint32
+                )
+                shift = int(operands[2], 0)
+                shifted = doublewords << shift if shift < 32 else 0 * doublewords
+                self._write_vector(operands[0], shifted.astype(np.uint32).tobytes())
+            case "vcvtne2ps2bf16":
+                # The second source fills the low half, the first the high one.
+                high, low = (
+                    np.frombuffer(self._read_vector(operand, instruction), np.float32)
+                    for operand in operands[1:]
+                )
+                self._write_vector(
+                    operands[0],
+                    convert_fp32_to_bfloat16(np.concatenate((low, high))).tobytes(),
+                )
+            case "vcvtneps2bf16":
+                values = np.frombuffer(
+                    self._read_vector(operands[1], instruction), np.float32
+                )
+                self._write_vector(
+                    operands[0], convert_fp32_to_bfloat16(values).tobytes()
+                )
             case "ldtilecfg":
                 self._load_tile_config(self._address(operands[0], instruction))
             case "sttilecfg":
@@ -472,14 +609,22 @@ def pack_vnni_a(a: npt.NDArray[np.uint16], m: int, k: int) -> npt.NDArray[np.uin
 
 
 def run_gemm(
-    library: Path, m: int, n: int, k: int, seed: int = 0
+    library: Path, m: int, n: int, k: int, seed: int = 0, *, bf16_c: bool = False
 ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float64], Emulator]:
     """Run `matmul(A, B, C)` from `library`, a BF16 GEMM with A in VNNI-2
-    layout, on random data; return C and a reference for it."""
+    layout, on random data; return C and a reference for it.
+
+    With `bf16_c`, C is BF16 too: the kernel accumulates in F32 and rounds the
+    result back, so the returned C is that BF16 widened to F32, and the reference
+    is computed from the BF16 C it starts with."""
     rng = np.random.default_rng(seed)
     a = bf16_round(rng.uniform(-1, 1, m * k).astype(np.float32))
     b = bf16_round(rng.uniform(-1, 1, k * n).astype(np.float32))
     c = rng.uniform(-1, 1, m * n).astype(np.float32)
+    c_bytes = c.tobytes()
+    if bf16_c:
+        c_words = bf16_round(c)
+        c, c_bytes = _bf16_to_f32(c_words), c_words.tobytes()
     reference = (
         _bf16_to_f32(a).astype(np.float64).reshape(k, m).T
         @ _bf16_to_f32(b).astype(np.float64).reshape(n, k).T
@@ -490,7 +635,12 @@ def run_gemm(
     a_address, b_address, c_address = 0x10000000, 0x20000000, 0x30000000
     emulator.memory.map(a_address, pack_vnni_a(a, m, k).tobytes())
     emulator.memory.map(b_address, b.tobytes())
-    emulator.memory.map(c_address, c.tobytes())
+    emulator.memory.map(c_address, c_bytes)
     emulator.call((a_address, b_address, c_address))
-    result = np.frombuffer(emulator.memory.read(c_address, 4 * m * n), np.float32)
+    raw = emulator.memory.read(c_address, len(c_bytes))
+    result = (
+        _bf16_to_f32(np.frombuffer(raw, np.uint16))
+        if bf16_c
+        else np.frombuffer(raw, np.float32)
+    )
     return result.reshape(n, m).T.copy(), reference, emulator
