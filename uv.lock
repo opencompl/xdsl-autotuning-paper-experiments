@@ -3575,8 +3575,8 @@ wheels = [
 
 [[package]]
 name = "xdsl"
-version = "0.70.1.dev18+g57942ee88"
-source = { git = "https://github.com/xdslproject/xdsl.git?branch=jm%2Fx86-bf16-vnni-amx#57942ee88b6954192dff79fe209ad8f4c7f8005b" }
+version = "0.70.1.dev19+gf63b9e160"
+source = { git = "https://github.com/xdslproject/xdsl.git?branch=jm%2Fx86-bf16-vnni-amx#f63b9e1605735c7c46e86a3a76c54c8db3f743ee" }
 dependencies = [
     { name = "immutabledict" },
     { name = "ordered-set" },
