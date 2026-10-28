@@ -5,8 +5,9 @@
 // 32x32 block of C: four 16x16 F32 tiles, loaded from C (or zeroed for beta 0)
 // and stored back, accumulate one K block of 32 from two A tiles (tmm4, tmm5)
 // and two B tiles (tmm6, tmm7). It saves the caller's tile configuration below
-// its stack frame, which reserves LIBXSMM's GEMM scratch, and restores it at the
-// end; its own configuration is in .rodata rather than in the code.
+// its stack frame, which reserves LIBXSMM's GEMM scratch (and stores its address,
+// which only a BF16 C reads back), and restores it at the end; its own
+// configuration is in .rodata rather than in the code.
 
 // CHECK:  .intel_syntax noprefix
 // CHECK-NEXT:  .text
@@ -23,6 +24,7 @@
 // CHECK-NEXT:      mov r10, -64
 // CHECK-NEXT:      and rsp, r10
 // CHECK-NEXT:      sub rsp, 12352
+// CHECK-NEXT:      mov [rbp-48], rsp
 // CHECK-NEXT:  .pushsection .rodata
 // CHECK-NEXT:  .p2align 6
 // CHECK-NEXT:  .Lmatmul_tileconfig0:

@@ -39,10 +39,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("prefetch", choices=["nopf", "AL2"], help="Prefetch strategy")
     parser.add_argument(
         "precision",
-        choices=["SP", "DP", "BF16F32", "BF16F32_VNNI_A"],
+        choices=["SP", "DP", "BF16F32", "BF16F32_VNNI_A", "BF16_VNNI_A"],
         help=(
-            "Precision: SP, DP, BF16F32 (BF16 A and B, F32 accumulation and C) or "
-            "BF16F32_VNNI_A (the same, with A packed in K pairs)"
+            "Precision: SP, DP, BF16F32 (BF16 A and B, F32 accumulation and C), "
+            "BF16F32_VNNI_A (the same, with A packed in K pairs) or BF16_VNNI_A "
+            "(BF16 A in K pairs, B and C, F32 accumulation)"
         ),
     )
 
@@ -64,6 +65,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         case "BF16F32" | "BF16F32_VNNI_A":
             desc_datatype = DescDatatype(
                 Datatype.BF16, Datatype.BF16, Datatype.F32, Datatype.F32
+            )
+        case "BF16_VNNI_A":
+            desc_datatype = DescDatatype(
+                Datatype.BF16, Datatype.BF16, Datatype.BF16, Datatype.F32
             )
         case "I16":
             desc_datatype = DescDatatype(
@@ -89,7 +94,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.beta == 0:
         flags |= GEMMFlag.BETA_0
 
-    if args.precision == "BF16F32_VNNI_A":
+    if args.precision in ("BF16F32_VNNI_A", "BF16_VNNI_A"):
         flags |= GEMMFlag.VNNI_A
 
     descriptor = GEMMDescriptor(
