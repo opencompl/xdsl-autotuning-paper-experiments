@@ -1,5 +1,6 @@
 import json
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -168,6 +169,31 @@ def test_a_detected_avx512_machine_gets_the_full_comparison() -> None:
     assert default_variants(TOWER) == VARIANTS["rapper"]
 
 
+def test_a_detected_amx_machine_also_measures_the_amx_sweep() -> None:
+    # rapper has no AMX to lend the list from, so it is the one dataset an
+    # AMX machine measures beyond the reference.
+    amx = replace(RAPPER, libxsmm_arch_amx="spr")
+    derived = default_variants(amx)
+
+    assert derived["bf16_amx.squares"] == [
+        "libxsmm",
+        "xdsl_libxsmm",
+        "compxsmm",
+        "compxsmm_manual",
+    ]
+    assert derived["bf16_vnni.squares"] == VARIANTS["rapper"]["bf16_vnni.squares"]
+
+
+def test_a_detected_machine_without_avx512_bf16_skips_the_bf16_sweeps() -> None:
+    # Skylake-SP and Ice Lake have avx512 but not `vdpbf16ps`.
+    derived = default_variants(replace(RAPPER, libxsmm_arch_bf16=None))
+
+    assert derived["bf16.squares"] == []
+    assert derived["bf16_vnni.squares"] == []
+    assert derived["bf16_amx.squares"] == []
+    assert derived["f64.squares"] == VARIANTS["rapper"]["f64.squares"]
+
+
 def test_a_detected_machine_can_draw_the_squares_figure() -> None:
     # `plot_squares` draws its variant list unconditionally and raises if the
     # dataset lacks one, so what it draws has to be what a new machine measures.
@@ -187,6 +213,8 @@ def test_a_detected_machine_without_avx512_is_baselines_only() -> None:
         march="armv8.4-a",
         mtune="neoverse-v1",
         libxsmm_arch=None,
+        libxsmm_arch_bf16=None,
+        libxsmm_arch_amx=None,
         freq=2.6,
         peak_f32=0,
         libs=(),

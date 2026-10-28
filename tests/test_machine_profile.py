@@ -11,6 +11,8 @@ from autotuner.machine_profile import (
     CpuInfo,
     base_frequency_ghz,
     detect_isa,
+    detect_libxsmm_arch_amx,
+    detect_libxsmm_arch_bf16,
     tidy_model,
 )
 
@@ -45,6 +47,33 @@ def test_avx512f_alone_is_not_enough() -> None:
 
 def test_avx2_only_is_plain_x86_64() -> None:
     assert isa({"avx", "avx2", "fma"}) == "x86_64"
+
+
+# --------------------------------------------------------------------------- #
+# BF16 and AMX
+# --------------------------------------------------------------------------- #
+
+BF16 = AVX512 | {"avx512_bf16"}
+AMX = BF16 | {"amx_tile", "amx_bf16", "amx_int8"}
+
+
+def test_avx512_bf16_gets_the_cpx_kernels() -> None:
+    assert detect_libxsmm_arch_bf16(cpu(BF16), "avx512") == "cpx"
+    assert detect_libxsmm_arch_bf16(cpu(AVX512), "avx512") is None
+
+
+def test_amx_needs_both_the_tiles_and_the_bf16_dot_product() -> None:
+    assert detect_libxsmm_arch_amx(cpu(AMX), "avx512") == "spr"
+    assert detect_libxsmm_arch_amx(cpu(BF16 | {"amx_tile"}), "avx512") is None
+    # Zen 4 and Zen 5 have AVX512-BF16 but no AMX.
+    assert detect_libxsmm_arch_amx(cpu(BF16), "avx512") is None
+
+
+def test_bf16_kernels_need_the_avx512_isa() -> None:
+    # The flags without dq/bw/vl do not make an avx512 machine, and neither
+    # BF16 kernel family is generated for anything else.
+    assert detect_libxsmm_arch_bf16(cpu(AMX), "x86_64") is None
+    assert detect_libxsmm_arch_amx(cpu(AMX), "x86_64") is None
 
 
 # --------------------------------------------------------------------------- #

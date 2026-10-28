@@ -252,18 +252,34 @@ def default_variants(machine: "Machine") -> dict[str, list[str]]:
     `default.yaml` only defines avx512 pass pipelines for the xdsl backend and
     for compxsmm, and the pinned nano-kernels are the skx ones, so without
     avx512 none of our own variants can be generated and the datasets are
-    baselines only.
+    baselines only.  The BF16 sweeps follow the same rule one level down: they
+    run where the profile names a libxsmm arch for them, which
+    `machine-profile` sets from the `avx512_bf16` and `amx_bf16` CPU flags.
     """
     if machine.isa == "avx512" and machine.libxsmm_arch:
-        return {
+        derived = {
             dataset: list(variants)
             for dataset, variants in VARIANTS[AVX512_REFERENCE].items()
         }
+        if not machine.libxsmm_arch_bf16:
+            derived["bf16.squares"] = []
+            derived["bf16_vnni.squares"] = []
+        # The reference has no AMX, so it cannot lend this list; every variant
+        # of the sweep follows LIBXSMM's AMX kernel (see the README).
+        derived["bf16_amx.squares"] = (
+            ["libxsmm", "xdsl_libxsmm", "compxsmm", "compxsmm_manual"]
+            if machine.libxsmm_arch_amx
+            else []
+        )
+        return derived
     return {
         "ttile": ["mkl", "aocl"],
         "f64.small_matrices": [],
         "f32.squares": [],
         "f64.squares": [],
+        "bf16.squares": [],
+        "bf16_vnni.squares": [],
+        "bf16_amx.squares": [],
         "f64.nanokernel_grid": [],
     }
 

@@ -42,6 +42,13 @@ from .machines import STATIC_MACHINES, Machine, repo_root
 # of these; `avx512f` alone is not enough to promise the rest.
 AVX512_FLAGS = ("avx512f", "avx512dq", "avx512bw", "avx512vl")
 
+# `vdpbf16ps`, which libxsmm's `cpx` BF16 kernels are built on.
+BF16_FLAG = "avx512_bf16"
+
+# The tile registers and `tdpbf16ps`, which libxsmm's `spr` AMX kernels need.
+# The kernel has to support AMX too, or the flags are not shown at all.
+AMX_FLAGS = ("amx_tile", "amx_bf16")
+
 # A PMU libpfm4 does not recognise makes PAPI refuse to count, and forcing the
 # generic AMD PMU is what makes it work; `tower` needs exactly this.
 AMD_PMU_FALLBACK = {"LIBPFM_FORCE_PMU": "amd64"}
@@ -125,6 +132,22 @@ def detect_isa(cpu: CpuInfo, arch: str | None = None) -> str:
     if all(flag in cpu.flags for flag in AVX512_FLAGS):
         return "avx512"
     return "x86_64"
+
+
+def detect_libxsmm_arch_bf16(cpu: CpuInfo, isa: str) -> str | None:
+    """The libxsmm arch for BF16 x BF16 -> F32 kernels, if the CPU has them.
+
+    Like `skx` for the f32/f64 kernels, `cpx` names the first arch libxsmm
+    emits `vdpbf16ps` for, not the CPU: Zen 4 gets it too.
+    """
+    return "cpx" if isa == "avx512" and BF16_FLAG in cpu.flags else None
+
+
+def detect_libxsmm_arch_amx(cpu: CpuInfo, isa: str) -> str | None:
+    """The libxsmm arch for BF16 kernels on AMX tiles, if the CPU has them."""
+    if isa == "avx512" and all(flag in cpu.flags for flag in AMX_FLAGS):
+        return "spr"
+    return None
 
 
 def base_frequency_ghz(cpu: CpuInfo) -> float:
@@ -296,6 +319,9 @@ def build_profile(args: argparse.Namespace) -> tuple[Machine, dict[str, object]]
         "uname": " ".join(platform.uname()),
         "clang_target_cpu": detected_cpu,
         "avx512_flags_present": sorted(f for f in AVX512_FLAGS if f in cpu.flags),
+        "bf16_flags_present": sorted(
+            f for f in (BF16_FLAG, *AMX_FLAGS) if f in cpu.flags
+        ),
         "papi_usable": papi_ok,
         "papi_error": papi_error or None,
         "perf_event_paranoid": perf_event_paranoid(),
@@ -331,6 +357,15 @@ def build_profile(args: argparse.Namespace) -> tuple[Machine, dict[str, object]]
         # for `clx` explicitly, which is what --libxsmm-arch is for.
         libxsmm_arch = "skx" if isa == "avx512" else None
 
+    if args.libxsmm_arch_bf16 is not None:
+        libxsmm_arch_bf16 = args.libxsmm_arch_bf16 or None
+    else:
+        libxsmm_arch_bf16 = detect_libxsmm_arch_bf16(cpu, isa)
+    if args.libxsmm_arch_amx is not None:
+        libxsmm_arch_amx = args.libxsmm_arch_amx or None
+    else:
+        libxsmm_arch_amx = detect_libxsmm_arch_amx(cpu, isa)
+
     machine = Machine(
         family=march,
         isa=isa,
@@ -340,6 +375,8 @@ def build_profile(args: argparse.Namespace) -> tuple[Machine, dict[str, object]]
         march=march,
         mtune=march,
         libxsmm_arch=libxsmm_arch,
+        libxsmm_arch_bf16=libxsmm_arch_bf16,
+        libxsmm_arch_amx=libxsmm_arch_amx,
         freq=freq,
         peak_f32=peak,
         libs=("papi",) if papi_ok else (),
@@ -404,6 +441,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     overrides.add_argument(
         "--libxsmm-arch",
         help="libxsmm architecture, e.g. clx; pass an empty string for none",
+    )
+    overrides.add_argument(
+        "--libxsmm-arch-bf16",
+        help="libxsmm architecture for BF16 kernels, e.g. cpx; empty for none",
+    )
+    overrides.add_argument(
+        "--libxsmm-arch-amx",
+        help="libxsmm architecture for AMX kernels, e.g. spr; empty for none",
     )
     overrides.add_argument("--freq", type=float, metavar="GHZ")
     overrides.add_argument(
