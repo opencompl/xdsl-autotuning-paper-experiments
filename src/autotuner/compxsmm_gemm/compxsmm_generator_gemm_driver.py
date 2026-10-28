@@ -111,9 +111,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
 
     assert args.density == "dense", f"Only dense supported, got {args.density}"
-    assert arch in (Arch.LIBXSMM_X86_AVX512_SKX, Arch.LIBXSMM_X86_AVX512_CPX), (
-        f"Only `skx` and `cpx` archs supported, got {arch}"
-    )
+    assert arch in (
+        Arch.LIBXSMM_X86_AVX512_SKX,
+        Arch.LIBXSMM_X86_AVX512_CPX,
+        Arch.LIBXSMM_X86_AVX512_SPR,
+    ), f"Only `skx`, `cpx` and `spr` archs supported, got {arch}"
 
     compxsmm_generator_gemm_directasm(
         args.filename,

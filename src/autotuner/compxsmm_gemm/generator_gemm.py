@@ -640,8 +640,14 @@ def compxsmm_generator_gemm_kernel(
                 and Arch.LIBXSMM_X86_AVX512_DMR <= arch
             )
         ):
-            raise NotImplementedError
-            # libxsmm_generator_gemm_amx_kernel_wrapper( io_generated_code, &l_xgemm_desc_mod );
+            if desc.datatype.ab != Datatype.BF16 or GEMMFlag.VNNI_A not in desc.flags:
+                raise NotImplementedError
+            # LIBXSMM calls its AMX kernel here. The GEMM is the one the AVX-512
+            # wrapper emits; an AMX strategy of `xsmm-apply-schedule` lowers it
+            # to tiles.
+            compxsmm_generator_gemm_sse_avx_avx2_avx512_kernel_wrapper(
+                func_op, arch, desc, disable_regalloc=disable_regalloc
+            )
         elif Arch.LIBXSMM_X86_AVX512_SPR <= arch < Arch.LIBXSMM_X86_ALLFEAT and (
             is_abf8_bbf16_gemm
             or is_ahf8_bbf16_gemm
