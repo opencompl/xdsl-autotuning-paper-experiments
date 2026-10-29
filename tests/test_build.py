@@ -2,6 +2,7 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -205,6 +206,47 @@ def test_a_kernel_builds_and_then_stays_built(tmp_path: Path) -> None:
     # A second run has nothing to do, and above all does not disturb the binary.
     build.build([sample], machine, root=tmp_path, jobs=2, quiet=True)
     assert binary.stat().st_mtime_ns == stamped
+
+
+@pytest.mark.skipif(
+    not os.environ.get("XTC_LLVM_PREFIX") or not os.environ.get("XTC_MLIR_PREFIX"),
+    reason="needs the XTC LLVM/MLIR toolchain",
+)
+def test_xtc_spill_reports_are_cached_and_missing_reports_are_rebuilt(
+    tmp_path: Path,
+) -> None:
+    from autotuner.collect_spills import read_spills
+
+    sample = Sample(4, 4, 4, "libxtcmm", "f64")
+    report = tmp_path / Path(sample.path("tower", "spills.yaml")).relative_to("build")
+    # Exercise the compiler in its own process, as the collection CLI does,
+    # rather than importing XTC's native runtime into the pytest workers.
+    command = [
+        sys.executable,
+        "-c",
+        """import sys
+from pathlib import Path
+from autotuner.build import build
+from autotuner.datasets import Sample
+build([Sample(4, 4, 4, 'libxtcmm', 'f64')], 'tower',
+      root=Path(sys.argv[1]), driver='spills', jobs=1, quiet=True)
+""",
+        str(tmp_path),
+    ]
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    assert read_spills(report) == {
+        "spills": 0,
+        "reloads": 0,
+        "folded_spills": 0,
+        "folded_reloads": 0,
+    }
+    assert not list(tmp_path.rglob("*.o"))
+    stamped = report.stat().st_mtime_ns
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    assert report.stat().st_mtime_ns == stamped
+    report.unlink()
+    subprocess.run(command, check=True, capture_output=True, text=True)
+    assert read_spills(report)["spills"] == 0
 
 
 @pytest.mark.skipif(

@@ -110,6 +110,42 @@ records its machine, family, ISA, compiler `march`, and libxsmm architecture.
 
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
+### XTC spill counts
+
+In the same toolchain environment used for `build-dataset` (including the XTC
+LLVM/MLIR prefixes), collect LLVM register-allocation diagnostics without
+running the benchmarks:
+
+```sh
+make dataset_spills MACHINE=tower
+# Or select datasets and limit compilation workers:
+uv run collect-spills --machine tower --jobs 4 f64.squares f64.small_matrices
+uv run plot-spills data/tower/f64.squares.spills.jsonl --output plots/f64.squares.spills.tower.pdf
+uv run plot-spills data/tower/f64.small_matrices.spills.jsonl --output plots/f64.small_matrices.spills.tower.pdf
+```
+
+`make plots` also draws the collected spill datasets as paper PDFs and PNGs.
+Square and T-tile sweeps use line plots; the fixed-K small-matrix sweep uses
+M-by-N heatmaps with a shared scale for stores and reloads. All use the paper
+fonts and XTC colour. Compiler diagnostics can be collected for a target
+without executing code on that machine.
+
+The collector reuses XTC's normal lowering and saves LLVM YAML remarks beside
+the assembly in `build/<machine>/.../libxtcmm.<dtype>.spills.yaml`. Only the
+`SpillReloadCopies` function total for `matmul` is counted, not the overlapping
+loop remarks or other functions. JSONL files named `<dtype>.<dataset>.spills.jsonl`
+contain one row per kernel, with target metadata, LLVM version, and build key.
+`spills` and `reloads` include folded accesses; `folded_spills` and
+`folded_reloads` are subsets, not extra counts. A successful empty LLVM report
+means zero; a missing or invalid report is an error, not a zero measurement.
+
+These are **static sites at register allocation**, not distinct spilled
+registers, runtime operations, stack-frame size, or DRAM traffic. Later backend
+passes can change the final assembly; check its spill/reload annotations when
+investigating a kernel. LLVM's estimated `Total*Cost` fields are deliberately
+not reported as execution counts. Changes in unrolling can change static
+counts without increasing per-call traffic. Timing datasets are left unchanged.
+
 ### AOCL-BLAS baseline
 
 On x86-64 Linux, the Nix toolchain builds the single-threaded CBLAS interface from

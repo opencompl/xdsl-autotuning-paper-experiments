@@ -64,6 +64,11 @@ dataset_validate:
 dataset:
 	uv run evaluate $(if $(MACHINE),--machine $(MACHINE),)
 
+# Compiler diagnostics only: no benchmark execution or timing changes.
+.PHONY: dataset_spills
+dataset_spills:
+	uv run collect-spills $(if $(MACHINE),--machine $(MACHINE),)
+
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(MACHINE)/f64.bars.jsonl
 data/$(MACHINE)/f64.bars.jsonl:
@@ -163,6 +168,30 @@ plots/f32.squares.%.pdf: data/%/f32.squares.jsonl $(SQUARES_SRC)
 # in plots/ with the machine last in the name; here `%` is the machine alone.
 plots/f64.nanokernel_grid.%.pdf: data/%/f64.nanokernel_grid.jsonl src/autotuner/plot_grid.py src/autotuner/plot_style.py
 	uv run plot-grid $< --output $@
+
+SPILLS_SRC = src/autotuner/plot_spills.py src/autotuner/plot_style.py
+SPILL_DATASETS = f32.squares f64.squares f32.ttile f64.ttile f64.small_matrices
+# Like the other diagnostics, draw only datasets that have been collected.
+PLOTS += $(patsubst data/%.jsonl,plots/%.png,$(wildcard data/*/*.spills.jsonl))
+PLOTS += $(foreach d,$(SPILL_DATASETS),$(foreach m,$(patsubst data/%/$(d).spills.jsonl,%,$(wildcard data/*/$(d).spills.jsonl)),plots/$(d).spills.$(m).pdf))
+
+plots/%.spills.png: data/%.spills.jsonl $(SPILLS_SRC)
+	uv run plot-spills $< --output $@
+
+plots/f32.squares.spills.%.pdf: data/%/f32.squares.spills.jsonl $(SPILLS_SRC)
+	uv run plot-spills $< --output $@
+
+plots/f64.squares.spills.%.pdf: data/%/f64.squares.spills.jsonl $(SPILLS_SRC)
+	uv run plot-spills $< --output $@
+
+plots/f32.ttile.spills.%.pdf: data/%/f32.ttile.spills.jsonl $(SPILLS_SRC)
+	uv run plot-spills $< --output $@
+
+plots/f64.ttile.spills.%.pdf: data/%/f64.ttile.spills.jsonl $(SPILLS_SRC)
+	uv run plot-spills $< --output $@
+
+plots/f64.small_matrices.spills.%.pdf: data/%/f64.small_matrices.spills.jsonl $(SPILLS_SRC)
+	uv run plot-spills $< --output $@
 
 .PHONY: plots
 plots: $(PLOTS)

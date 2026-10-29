@@ -687,6 +687,36 @@ def plan_shape(
     tool: Toolchain, samples: Sequence[Sample], driver: str
 ) -> tuple[Artifact, ...]:
     """Every artifact for one shape, in the order a worker must build them."""
+    if driver == "spills":
+        artifacts = []
+        for sample in samples:
+            if sample.variant != "libxtcmm":
+                raise BuildFailed("spill collection supports only XTC (libxtcmm)")
+            asm = asm_artifact(tool, sample)
+            llc = asm.steps[-1]
+            remarks = asm.path.with_suffix(".spills.yaml")
+            # Reuse the exact XTC lowering, but make the remarks the tracked
+            # output. A missing report must regenerate, not masquerade as zero
+            # spills. No timing driver or executable is needed.
+            artifacts.append(
+                Artifact(
+                    remarks,
+                    (
+                        *asm.steps[:-1],
+                        Step(
+                            "run",
+                            (
+                                *llc.args,
+                                "-pass-remarks-filter=regalloc",
+                                f"-pass-remarks-output={remarks}",
+                            ),
+                        ),
+                    ),
+                    inputs=(*asm.inputs, str(Path(llc.args[0]).resolve())),
+                )
+            )
+        return tuple(artifacts)
+
     first = samples[0]
     obj = driver_artifact(
         tool, first.kernel, first.m, first.n, first.k, first.dtype, driver
