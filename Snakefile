@@ -584,6 +584,86 @@ rule time:
     shell: 'OMP_NUM_THREADS=1 BLIS_NUM_THREADS=1 {params.machine_env} {input} > {output}'
 
 ########################################################################################
+# DFT
+########################################################################################
+
+# A forward, unnormalised, out-of-place 1-D complex DFT of N points:
+# `void dft(const DTYPE *in, DTYPE *out)`, both interleaved (re, im) arrays of
+# 2*N elements, `in` left untouched.  `dft_init` runs once before any call.
+
+DFT_VARIANTS = ("fftw",)
+
+def dft_file(ext, machine="{machine}", n="{n}", variant="{variant}", dtype="{dtype}"):
+    return f"build/{machine}/dft/{n}/{variant}.{dtype}.{ext}"
+
+# FFTW ships one library per precision, under one header.
+FFTW_MODULES = {"f32": "fftw3f", "f64": "fftw3"}
+FFTW_AVAILABLE = shutil.which("pkg-config") is not None and all(
+    os.system(f"pkg-config --exists {module}") == 0 for module in FFTW_MODULES.values()
+)
+if FFTW_AVAILABLE:
+    FFTW_CFLAGS = {
+        dtype: shell(f"pkg-config --cflags {module}", read=True).strip()
+        for dtype, module in FFTW_MODULES.items()
+    }
+    FFTW_LIBS = {
+        dtype: shell(f"pkg-config --libs {module}", read=True).strip()
+        for dtype, module in FFTW_MODULES.items()
+    }
+else:
+    FFTW_CFLAGS = FFTW_LIBS = {dtype: "" for dtype in FFTW_MODULES}
+
+rule dft_fftw_s:
+    wildcard_constraints:
+        n=r"\d+",
+    input: "kernels/dft/fftw.c"
+    output: dft_file(variant="fftw", ext="S")
+    params:
+        target_triple=target_triple,
+        compiler_march=compiler_march,
+        cc=config["cc"],
+        cflags=lambda w: FFTW_CFLAGS[w.dtype],
+        dtype_flag=lambda w: "-DFFTW_DTYPE_IS_FLOAT=1" if w.dtype == "f32" else "-DFFTW_DTYPE_IS_DOUBLE=1",
+    shell:
+        "{params.cc} -O3 {input} {params.cflags} -DDFT_N={wildcards.n} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
+
+rule dft_executable:
+    wildcard_constraints:
+        n=r"\d+",
+        variant="|".join(DFT_VARIANTS),
+    input: dft_file(ext="S")
+    output: dft_file(ext="{executable}.o")
+    params:
+        target_triple=target_triple,
+        compiler_march=compiler_march,
+        machine_libs_opts=machine_libs_opts,
+        machine_freq=machine_freq,
+        cc=config["cc"],
+        dtype=lambda wildcards: {"f32": "float", "f64": "double"}[wildcards.dtype],
+        use_papi=machine_use_papi,
+        fftw_libs=lambda wc: FFTW_LIBS[wc.dtype] if wc.variant == "fftw" else "",
+        linker_flag=machine_linker_flag,
+    shell:
+        "{params.cc} -DDFT_N={wildcards.n} -DDTYPE={params.dtype} -DFREQ={params.machine_freq} {params.use_papi} -target {params.target_triple} -march={params.compiler_march} -o {output} kernels/dft/{wildcards.executable}.c {input} {params.machine_libs_opts} {params.fftw_libs} -lm {params.linker_flag}"
+
+rule dft_validation:
+    wildcard_constraints:
+        n=r"\d+",
+        variant="|".join(DFT_VARIANTS),
+    input:  dft_file(ext="test.o")
+    log:    dft_file(ext="test.log")
+    shell:  '{input} > {log}'
+
+rule dft_time:
+    wildcard_constraints:
+        n=r"\d+",
+        variant="|".join(DFT_VARIANTS),
+    input: dft_file(ext="time.o")
+    output: dft_file(ext="time.txt")
+    params: machine_env=machine_env,
+    shell: '{params.machine_env} {input} > {output}'
+
+########################################################################################
 # Datasets
 ########################################################################################
 
@@ -774,8 +854,20 @@ TESTSET_AVX512 = [
     ),
 ]
 
+# The FFTW baseline at a trivial size, a prime, sizes FFTW solves with one
+# codelet, and a size it splits into several passes.  Skipped where the
+# toolchain has no FFTW, as in Docker images published before it was added.
+TESTSET_DFT = [
+    *expand(
+        dft_file(ext="test.log", machine=THIS_MACHINE, variant="fftw"),
+        n=[1, 7, 12, 64, 1000],
+        dtype=["f32", "f64"],
+    ),
+    dft_file(ext="time.txt", machine=THIS_MACHINE, n=64, variant="fftw", dtype="f64"),
+] if FFTW_AVAILABLE else []
+
 TESTSET_BASE = TESTSET_MAC if THIS_MACHINE == "neon" else TESTSET_CI
-TESTSET = TESTSET_BASE + (
+TESTSET = TESTSET_BASE + TESTSET_DFT + (
     TESTSET_AVX512 if MACHINES[THIS_MACHINE].isa == "avx512" else []
 )
 

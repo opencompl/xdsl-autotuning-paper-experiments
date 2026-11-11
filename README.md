@@ -136,6 +136,28 @@ can force unsupported instructions. Measurements set both `OMP_NUM_THREADS=1` an
 Once this smoke test passes, `make dataset_validate MACHINE=tower` validates the full
 tower dataset and `make dataset MACHINE=tower` collects its measurements.
 
+### DFT baseline
+
+Besides the matmul, the harness measures a forward, unnormalised, out-of-place
+1-D complex DFT of `N` points. Every implementation emits
+`void dft(const DTYPE *in, DTYPE *out)` over interleaved `(re, im)` arrays of
+`2*N` elements, must leave `in` untouched, and may prepare itself in
+`void dft_init(void)`, which runs once before validation or timing. Kernel
+sources live in `kernels/dft/`, and outputs under
+`build/<machine>/dft/<N>/<variant>.<dtype>.{test.log,time.txt}`.
+
+The baseline is FFTW 3.3.10 from nixpkgs, built with its SIMD codelets
+(SSE2 through AVX-512 on x86-64, NEON on aarch64), on every platform. Its
+plan is chosen in `dft_init` with `FFTW_EXHAUSTIVE`, so planning stays out of
+the timed region. Validation compares against a direct long-double DFT using
+the normwise relative error, with a tolerance of `1e-5` for f32 and `1e-13`
+for f64. Timing reports cycles per call, as for the matmul.
+
+```sh
+uv run snakemake --cores 1 --config machine=neon -- \
+  build/neon/dft/64/fftw.f64.test.log build/neon/dft/64/fftw.f64.time.txt
+```
+
 ### Plotting
 
 Plot data using `make plots`; this command fails when required input data is

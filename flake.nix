@@ -51,6 +51,12 @@
               llvmPackages_22.lld
               llvmPackages_22.llvm.out
               llvmPackages_22.openmp
+              # The DFT baseline. nixpkgs already enables FFTW's SIMD codelets:
+              # SSE2 through AVX-512 on x86-64, NEON on aarch64.
+              fftw
+              fftw.dev
+              fftwFloat
+              fftwFloat.dev
             ] ++ (if stdenv.hostPlatform.isLinux then [
               mkl
               libxsmmPinned
