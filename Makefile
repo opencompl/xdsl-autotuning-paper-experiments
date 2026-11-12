@@ -124,6 +124,19 @@ PLOTS += plots/rapper/baselines.png
 
 BASELINES_SRC = src/autotuner/plot_baselines.py src/autotuner/plot_style.py
 
+# The DFT counterpart of the baselines figure, for whichever machines have run
+# `make dataset_dft` -- globbed for the reason the nano-kernel grid is.
+DFT_READY = $(patsubst data/%/f64.dft.jsonl,%,$(wildcard data/*/f64.dft.jsonl))
+PLOTS += $(foreach m,$(DFT_READY),plots/dft.$(m).pdf plots/$(m)/dft.png)
+
+DFT_PLOT_SRC = src/autotuner/plot_dft.py $(BASELINES_SRC)
+
+plots/dft.%.pdf: data/%/f32.dft.jsonl data/%/f64.dft.jsonl $(DFT_PLOT_SRC)
+	uv run plot-dft data/$*/f32.dft.jsonl data/$*/f64.dft.jsonl --output $@
+
+plots/%/dft.png: data/%/f32.dft.jsonl data/%/f64.dft.jsonl $(DFT_PLOT_SRC)
+	uv run plot-dft data/$*/f32.dft.jsonl data/$*/f64.dft.jsonl --output $@
+
 # A paper figure, so a PDF rather than a PNG, straight in plots/ with the
 # machine last in the name; here `%` is the machine on its own.  One machine per
 # figure: its two data types are the two panels, each a square sweep.

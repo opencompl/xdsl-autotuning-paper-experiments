@@ -193,6 +193,7 @@ variants in f32 and f64 over every 7-smooth `N` from 2 to 128 plus 256, 512,
 and 1024 (`DFT_SIZES` in `src/autotuner/datasets.py`). It builds and validates
 every kernel, times each three times, and writes `data/<machine>/<dtype>.dft.jsonl`.
 Throughput counts `5 N log2 N` operations per transform, FFTW's convention.
+`make plots` then draws `plots/dft.<machine>.pdf`.
 
 ### Plotting
 
