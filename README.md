@@ -158,6 +158,36 @@ uv run snakemake --cores 1 --config machine=neon -- \
   build/neon/dft/64/fftw.f64.test.log build/neon/dft/64/fftw.f64.time.txt
 ```
 
+### DFT generator
+
+The `xdsl_fft` variant is our own DFT, generated for AVX-512 by recursive
+expansion, the way CompXSMM tiles a matmul down to nano-kernels.
+`fft-dft` emits one `fft.dft` operation (`n`, `sign`, strides, batch
+dimensions with their distances, an optional twiddle, and the interleaved
+layout), and `fft-apply-schedule` expands it:
+
+1. **Cooley-Tukey in memory.** A DFT of `n = r*m` points becomes `r` DFTs of
+   `m` points followed by `m` DFTs of `r` points in place, with twiddle
+   factors. A cost model that counts instructions and memory round trips picks
+   the radix of every split.
+2. **Register kernels.** A DFT of at most `max_leaf` (8) points is loaded into
+   vector registers with one transform per lane, along whichever batch
+   dimension vectorizes best, transposing blocks in registers when a
+   transform's points rather than its transforms are contiguous.
+3. **Nano-kernels.** Radix 2, 3, 4, 5, 7, and 8 DFTs expand to adds and FMAs.
+   Multiplications by `±i` only rename registers, the `sqrt(1/2)` of radix 8
+   folds into FMAs, and real constants become FMAs with a broadcast memory
+   operand.
+
+`fft-legalize` then folds negations into the instructions that use them and
+picks the FMA form (132, 213, or 231) that overwrites a dying input. Sizes
+must factor into 2, 3, 5, and 7.
+
+```sh
+uv run snakemake --cores 1 --config machine=tower -- \
+  build/tower/dft/64/xdsl_fft.f64.test.log build/tower/dft/64/xdsl_fft.f64.time.txt
+```
+
 ### Plotting
 
 Plot data using `make plots`; this command fails when required input data is

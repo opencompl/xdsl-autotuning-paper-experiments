@@ -591,7 +591,13 @@ rule time:
 # `void dft(const DTYPE *in, DTYPE *out)`, both interleaved (re, im) arrays of
 # 2*N elements, `in` left untouched.  `dft_init` runs once before any call.
 
-DFT_VARIANTS = ("fftw",)
+DFT_VARIANTS = ("fftw", "xdsl_fft")
+
+FFT_SOURCES = sorted(
+    glob.glob("src/autotuner/fft/**/*.py", recursive=True)
+    + glob.glob("src/autotuner/passes/fft_*.py")
+    + ["src/autotuner/dialects/fft.py", "src/autotuner/dialects/x86ext.py"]
+)
 
 def dft_file(ext, machine="{machine}", n="{n}", variant="{variant}", dtype="{dtype}"):
     return f"build/{machine}/dft/{n}/{variant}.{dtype}.{ext}"
@@ -627,11 +633,38 @@ rule dft_fftw_s:
     shell:
         "{params.cc} -O3 {input} {params.cflags} -DDFT_N={wildcards.n} {params.dtype_flag} -S -target {params.target_triple} -march={params.compiler_march} -o {output}"
 
+# Our generator: `fft.dft` expanded by Cooley-Tukey into register nano-kernels.
+
+rule dft_xdsl_fft_mlir:
+    wildcard_constraints:
+        n=r"\d+",
+    input: ["pyproject.toml"] + FFT_SOURCES
+    output: dft_file(variant="xdsl_fft", ext="fft.mlir")
+    params:
+        precision=lambda w: {"f32": "SP", "f64": "DP"}[w.dtype],
+    shell:
+        "fft-dft {output} {wildcards.n} {params.precision}"
+
+rule dft_xdsl_fft_s:
+    wildcard_constraints:
+        n=r"\d+",
+    input:
+        mlir=dft_file(variant="xdsl_fft", ext="fft.mlir"),
+        sources=["pyproject.toml"] + FFT_SOURCES,
+    output: dft_file(variant="xdsl_fft", ext="S")
+    params:
+        passes=lambda wc: ",".join(config["fft-passes"][machine_isa(wc)])
+    shell:
+        "xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}"
+
 rule dft_executable:
     wildcard_constraints:
         n=r"\d+",
         variant="|".join(DFT_VARIANTS),
-    input: dft_file(ext="S")
+    input:
+        asm=dft_file(ext="S"),
+        # FFTW plans in its own dft_init; generated kernels link a no-op.
+        init=lambda wc: [] if wc.variant == "fftw" else ["kernels/dft/init.c"],
     output: dft_file(ext="{executable}.o")
     params:
         target_triple=target_triple,
@@ -711,6 +744,12 @@ LIBXTCMM_COMPILE_SMOKE = machine_file(
     variant="libxtcmm", dtype="f32", machine="tower", ext="S"
 )
 
+# Exercise the DFT generator, which emits AVX-512, where CI cannot run it: a
+# size split in memory into a vectorized and a transposed pass.
+XDSL_FFT_COMPILE_SMOKE = dft_file(
+    ext="S", machine="tower", n=64, variant="xdsl_fft", dtype="f32"
+)
+
 TESTSET_MAC = [
     # Validate CI test set neon executables
     *testset_ci(machine="neon", ext="test.log"),
@@ -741,6 +780,7 @@ TESTSET_MAC = [
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
     LIBXTCMM_COMPILE_SMOKE,
+    XDSL_FFT_COMPILE_SMOKE,
 ]
 
 TESTSET_CI = [
@@ -759,6 +799,7 @@ TESTSET_CI = [
         variant="transform_xdsl", dtype="f64", machine="tower", ext="S"
     ),
     LIBXTCMM_COMPILE_SMOKE,
+    XDSL_FFT_COMPILE_SMOKE,
     # Validate CI test set x86 executables
     *testset_ci(machine="ci", ext="test.log"),
     machine_file(
@@ -866,9 +907,23 @@ TESTSET_DFT = [
     dft_file(ext="time.txt", machine=THIS_MACHINE, n=64, variant="fftw", dtype="f64"),
 ] if FFTW_AVAILABLE else []
 
+# Our DFT generator: every base-case radix, mixed radices, register-level
+# splits, and one to three memory passes, at every vector width a precision
+# reaches.
+TESTSET_DFT_AVX512 = [
+    *expand(
+        dft_file(ext="test.log", machine=THIS_MACHINE, variant="xdsl_fft"),
+        n=[1, 2, 3, 4, 5, 7, 8, 12, 16, 30, 64, 100, 1024],
+        dtype=["f32", "f64"],
+    ),
+    dft_file(ext="time.txt", machine=THIS_MACHINE, n=64, variant="xdsl_fft", dtype="f64"),
+]
+
 TESTSET_BASE = TESTSET_MAC if THIS_MACHINE == "neon" else TESTSET_CI
 TESTSET = TESTSET_BASE + TESTSET_DFT + (
-    TESTSET_AVX512 if MACHINES[THIS_MACHINE].isa == "avx512" else []
+    TESTSET_AVX512 + TESTSET_DFT_AVX512
+    if MACHINES[THIS_MACHINE].isa == "avx512"
+    else []
 )
 
 rule tests:
