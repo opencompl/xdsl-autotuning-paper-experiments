@@ -46,8 +46,22 @@ NANOKERNEL_VARIANTS = (
 )
 
 
+def seven_smooth(n: int) -> bool:
+    """Whether ``n`` factors into 2, 3, 5 and 7, the radices `xdsl_fft` has."""
+    for p in (2, 3, 5, 7):
+        while n % p == 0:
+            n //= p
+    return n == 1
+
+
 # The DFT implementations, FFTW first as the baseline.
 DFT_VARIANTS = ("fftw", "xdsl_fft")
+
+# Sizes swept by the two DFT datasets, one per data type: every size the
+# generator supports from 2 to 128, then the powers of two out to 1024.  N = 1
+# is left out because a one-point DFT does no arithmetic, so its throughput is
+# undefined.
+DFT_SIZES = (*(n for n in range(2, 129) if seven_smooth(n)), 256, 512, 1024)
 
 # How many times a dataset's samples are measured; anything unlisted once.
 # These sweeps run for tens of cycles a point, short enough that whatever else
@@ -58,6 +72,8 @@ DATASET_REPEATS = {
     "f64.nanokernel_grid": 3,
     "f32.squares": 3,
     "f64.squares": 3,
+    "f32.dft": 3,
+    "f64.dft": 3,
 }
 
 

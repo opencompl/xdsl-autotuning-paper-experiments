@@ -64,6 +64,12 @@ dataset_validate:
 dataset:
 	uv run evaluate $(if $(MACHINE),--machine $(MACHINE),)
 
+# The DFT sweep, FFTW against xdsl_fft in f32 and f64: Snakemake builds and
+# validates the kernels across every core, then they are timed one at a time.
+.PHONY: dataset_dft
+dataset_dft:
+	uv run evaluate-dft $(if $(MACHINE),--machine $(MACHINE),)
+
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(MACHINE)/f64.bars.jsonl
 data/$(MACHINE)/f64.bars.jsonl:

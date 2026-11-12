@@ -42,6 +42,7 @@ tvm = { index = "corse" }
 [project.scripts]
 hello = "autotuner.main:main"
 evaluate = "autotuner.evaluate:main"
+evaluate-dft = "autotuner.evaluate_dft:main"
 build-dataset = "autotuner.build:main"
 validate-dataset = "autotuner.validate:main"
 plot-ttile-squares = "autotuner.plot_ttile_squares:main"
