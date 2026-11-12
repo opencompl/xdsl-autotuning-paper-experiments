@@ -5,7 +5,9 @@ import os
 import shutil
 
 from autotuner.datasets import (
+    DFT_VARIANTS,
     NANOKERNEL_VARIANTS,
+    dft_file,
     machine_base,
     machine_file,
     variant_filename,
@@ -591,16 +593,11 @@ rule time:
 # `void dft(const DTYPE *in, DTYPE *out)`, both interleaved (re, im) arrays of
 # 2*N elements, `in` left untouched.  `dft_init` runs once before any call.
 
-DFT_VARIANTS = ("fftw", "xdsl_fft")
-
 FFT_SOURCES = sorted(
     glob.glob("src/autotuner/fft/**/*.py", recursive=True)
     + glob.glob("src/autotuner/passes/fft_*.py")
     + ["src/autotuner/dialects/fft.py", "src/autotuner/dialects/x86ext.py"]
 )
-
-def dft_file(ext, machine="{machine}", n="{n}", variant="{variant}", dtype="{dtype}"):
-    return f"build/{machine}/dft/{n}/{variant}.{dtype}.{ext}"
 
 # FFTW ships one library per precision, under one header.
 FFTW_MODULES = {"f32": "fftw3f", "f64": "fftw3"}

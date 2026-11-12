@@ -45,6 +45,10 @@ NANOKERNEL_VARIANTS = (
     "llvm-skx-narrow-fsdbcst",
 )
 
+
+# The DFT implementations, FFTW first as the baseline.
+DFT_VARIANTS = ("fftw", "xdsl_fft")
+
 # How many times a dataset's samples are measured; anything unlisted once.
 # These sweeps run for tens of cycles a point, short enough that whatever else
 # the machine is doing lands in the number.  That noise only ever makes a
@@ -228,6 +232,17 @@ def machine_file(
     base = machine_base(machine=machine, kernel=kernel, m=m, n=n, k=k)
     var = variant_filename(variant=variant, dtype=dtype, ext=ext)
     return f"{base}/{var}"
+
+
+def dft_file(
+    ext: str,
+    machine: str = "{machine}",
+    n: Size = "{n}",
+    variant: str = "{variant}",
+    dtype: str = "{dtype}",
+) -> str:
+    """Where a DFT kernel's ``ext`` file lives; a DFT has one size, not three."""
+    return f"build/{machine}/dft/{n}/{variant}.{dtype}.{ext}"
 
 
 @dataclass(frozen=True)
