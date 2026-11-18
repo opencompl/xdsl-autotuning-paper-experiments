@@ -416,6 +416,15 @@ class RegallocStats:
         return any((self.spills, self.folded_spills, self.reloads, self.folded_reloads))
 
 
+# How llc compiles our MIR, here and in the `compxsmm_llvm` benchmark variant.
+LLC_FLAGS = (
+    "-O2",
+    "-x",
+    "mir",
+    "-start-before=phi-node-elimination",
+    "-enable-misched=false",
+)
+
 SPILL_ANNOTATION = re.compile(r"# \d+-byte (Folded )?(Spill|Reload)$", re.MULTILINE)
 
 
@@ -451,13 +460,9 @@ def llvm_allocate(
         subprocess.run(
             [
                 "llc",
-                "-O2",
+                *LLC_FLAGS,
                 "-mtriple=x86_64-unknown-linux-gnu",
                 f"-mcpu={mcpu}",
-                "-x",
-                "mir",
-                "-start-before=phi-node-elimination",
-                "-enable-misched=false",
                 "-verify-machineinstrs",
                 f"-regalloc={regalloc}",
                 f"-pass-remarks-output={remarks}",
