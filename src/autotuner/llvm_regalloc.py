@@ -3,12 +3,15 @@
 CompXSMM assigns registers itself and never spills.  To see how LLVM's
 allocator fares on exactly the same instructions, the IR just before
 `x86-allocate-registers` is printed as LLVM Machine IR (MIR) in SSA form, with
-a virtual register for every value, and `llc` is started at PHI elimination.
+a virtual register for every value, and `llc` is started at LiveVariables.
 That skips every SSA-level machine optimisation; with the machine scheduler
 also disabled, LLVM keeps our instruction order and only runs two-address
 lowering, coalescing, and register allocation (greedy by default) before
-emitting code.  The allocator's own optimisation remarks report the spills,
-reloads, and copies it inserted.
+emitting code.  LiveVariables has to run: our MIR carries no kill flags, and
+without them two-address lowering thinks every FMA's accumulator outlives it
+and unfolds the broadcast operand rather than copy the accumulator, which
+costs up to 40% on small kernels.  The allocator's own optimisation remarks
+report the spills, reloads, and copies it inserted.
 
 The only liberties LLVM gets are those any allocator would:
 
@@ -421,7 +424,7 @@ LLC_FLAGS = (
     "-O2",
     "-x",
     "mir",
-    "-start-before=phi-node-elimination",
+    "-start-before=livevars",
     "-enable-misched=false",
 )
 
