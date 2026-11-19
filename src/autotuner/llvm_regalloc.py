@@ -2,8 +2,10 @@
 
 CompXSMM assigns registers itself and never spills.  To see how LLVM's
 allocator fares on exactly the same instructions, the IR just before
-`x86-allocate-registers` is printed as LLVM Machine IR (MIR) in SSA form, with
-a virtual register for every value, and `llc` is started at LiveVariables.
+`x86-allocate-registers`, with its loops lowered to blocks by
+`convert-x86-scf-to-x86`, is printed as LLVM Machine IR (MIR) in SSA form, with
+a virtual register for every value and a PHI for every block argument, and
+`llc` is started at LiveVariables.
 That skips every SSA-level machine optimisation; with the machine scheduler
 also disabled, LLVM keeps our instruction order and only runs two-address
 lowering, coalescing, and register allocation (greedy by default) before
@@ -30,13 +32,13 @@ import sys
 import tempfile
 from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import IO
 
 import yaml
 from xdsl.context import Context
-from xdsl.dialects import x86, x86_func, x86_scf
+from xdsl.dialects import x86, x86_func
 from xdsl.dialects.builtin import IntegerAttr, ModuleOp
 from xdsl.dialects.x86.registers import (
     AVX2RegisterType,
@@ -67,8 +69,8 @@ GPR_ARGUMENTS = ("rdi", "rsi", "rdx", "rcx", "r8", "r9")
 # The two-operand forms of the GPR arithmetic the schedules emit.
 GPR_RI = {"add": "ADD64ri32", "sub": "SUB64ri32", "imul": "IMUL64rri32"}
 GPR_RR = {"add": "ADD64rr", "sub": "SUB64rr", "imul": "IMUL64rr"}
-JL = 12  # X86::COND_L
-JGE = 13  # X86::COND_GE
+# The X86::CondCode of each conditional jump `convert-x86-scf-to-x86` emits.
+CONDITIONS = {"jl": 12, "jge": 13}
 
 
 def is_fp(mnemonic: str) -> bool:
@@ -79,13 +81,6 @@ def is_fp(mnemonic: str) -> bool:
     )
 
 
-@dataclass
-class MirBlock:
-    number: int
-    lines: list[str] = field(default_factory=list)
-    successors: list[int] = field(default_factory=list)
-
-
 class MirPrinter:
     """Prints one `x86_func.func` with unallocated registers as SSA MIR."""
 
@@ -93,8 +88,6 @@ class MirPrinter:
         self.func = func
         self.vregs: dict[SSAValue, str] = {}
         self.classes: list[str] = []
-        self.blocks: list[MirBlock] = []
-        self.zeroed: set[SSAValue] = set()
 
     # Values and operands
 
@@ -126,27 +119,40 @@ class MirPrinter:
     def memory(self, base: SSAValue, offset: IntegerAttr) -> str:
         return f"{self.use(base)}, 1, $noreg, {offset.value.data}, $noreg"
 
-    # Blocks
-
-    def new_block(self) -> MirBlock:
-        self.blocks.append(block := MirBlock(len(self.blocks)))
-        return block
-
-    def emit(self, block: MirBlock, line: str) -> None:
-        block.lines.append(line)
-
     # Conversion
 
     def print(self, output: IO[str]) -> None:
-        entry = self.new_block()
-        body = self.func.body.block
+        blocks = list(self.func.body.blocks)
+        number = {block: index for index, block in enumerate(blocks)}
         liveins: list[str] = []
-        for arg, default in zip(body.args, GPR_ARGUMENTS, strict=False):
+        entry = blocks[0]
+        prologue: list[str] = []
+        for arg, default in zip(entry.args, GPR_ARGUMENTS, strict=False):
             assert isinstance(arg.type, GeneralRegisterType)
             phys = arg.type.register_name.data or default
             liveins.append(f"${phys}")
-            self.emit(entry, f"{self.define(arg)} = COPY ${phys}")
-        self.convert_block(body, entry)
+            prologue.append(f"{self.define(arg)} = COPY ${phys}")
+        # Other blocks' arguments are PHIs, which may read values defined later.
+        for block in blocks[1:]:
+            for arg in block.args:
+                self.define(arg)
+        bodies = [
+            [line for op in block.ops for line in self.convert_op(op, number)]
+            for block in blocks
+        ]
+
+        incoming: dict[Block, list[tuple[Block, Sequence[SSAValue]]]] = {
+            block: [] for block in blocks
+        }
+        for block in blocks:
+            match block.last_op:
+                case x86.ops.ConditionalJumpOperation() as jump:
+                    incoming[jump.then_block].append((block, jump.then_values))
+                    incoming[jump.else_block].append((block, jump.else_values))
+                case x86.ops.FallthroughOp() as jump:
+                    incoming[jump.successor].append((block, jump.block_values))
+                case _:
+                    pass
 
         output.write("---\n")
         output.write(f"name: {self.func.sym_name.data}\n")
@@ -158,48 +164,63 @@ class MirPrinter:
         for reg in liveins:
             output.write(f"  - {{ reg: '{reg}' }}\n")
         output.write("body: |\n")
-        for block in self.blocks:
-            output.write(f"  bb.{block.number}:\n")
-            if block.successors:
-                succ = ", ".join(f"%bb.{s}" for s in block.successors)
+        for block, body in zip(blocks, bodies, strict=True):
+            output.write(f"  bb.{number[block]}:\n")
+            if (last := block.last_op) is not None and last.successors:
+                succ = ", ".join(f"%bb.{number[s]}" for s in last.successors)
                 output.write(f"    successors: {succ}\n")
-            if block is entry and liveins:
-                output.write(f"    liveins: {', '.join(liveins)}\n")
-            for line in block.lines:
+            if block is entry:
+                if liveins:
+                    output.write(f"    liveins: {', '.join(liveins)}\n")
+                body = prologue + body
+            else:
+                body = [
+                    f"{self.use(arg)} = PHI "
+                    + ", ".join(
+                        f"{self.use(values[i])}, %bb.{number[pred]}"
+                        for pred, values in incoming[block]
+                    )
+                    for i, arg in enumerate(block.args)
+                ] + body
+            for line in body:
                 output.write(f"    {line}\n")
             output.write("\n")
         output.write("...\n")
 
-    def convert_block(self, block: Block, current: MirBlock) -> MirBlock:
-        """Append `block`'s operations, returning the MIR block that ends it."""
-        for op in block.ops:
-            current = self.convert_op(op, current)
-        return current
-
-    def convert_op(self, op: Operation, current: MirBlock) -> MirBlock:
+    def convert_op(self, op: Operation, number: dict[Block, int]) -> list[str]:
         match op:
-            case x86_scf.ForOp():
-                return self.convert_for(op, current)
-            case x86_scf.YieldOp():
-                return current  # handled by the enclosing loop
+            case x86.ops.LabelOp() | x86.ops.FallthroughOp():
+                return []
+            case x86.ops.SI_CmpOp():
+                value = op.immediate.value.data
+                return [
+                    f"CMP64ri32 {self.use(op.source)}, {value}, implicit-def $eflags"
+                ]
+            case x86.ops.SS_CmpOp():
+                a, b = self.use(op.source1), self.use(op.source2)
+                return [f"CMP64rr {a}, {b}, implicit-def $eflags"]
+            case x86.ops.ConditionalJumpOperation():
+                condition = CONDITIONS[op.assembly_instruction_name()]
+                then, else_ = number[op.then_block], number[op.else_block]
+                return [
+                    f"JCC_1 %bb.{then}, {condition}, implicit $eflags",
+                    f"JMP_1 %bb.{else_}",
+                ]
             case x86_func.RetOp():
-                self.emit(current, "RET64")
-                return current
+                return ["RET64"]
             case x86.ops.GetAVXRegisterOp() if all(
                 isinstance(use.operation, x86.ops.DSS_VpxordOp)
                 and use.operation.source1 == use.operation.source2
                 for use in op.result.uses
             ):
-                return current  # only zeroed: see `vpxord` below
+                return []  # only zeroed: see `vpxord` below
             case x86.ops.DSS_VpxordOp() if op.source1 == op.source2 and isinstance(
                 op.source1.owner, x86.ops.GetAVXRegisterOp
             ):
                 opcode = SET0[type(op.destination.type)]
-                self.emit(current, f"{self.define(op.destination)} = {opcode}")
-                return current
+                return [f"{self.define(op.destination)} = {opcode}"]
             case _:
-                self.emit(current, self.instruction(op))
-                return current
+                return [self.instruction(op)]
 
     def instruction(self, op: Operation) -> str:
         if not isinstance(op, x86.ops.X86Instruction):
@@ -290,92 +311,6 @@ class MirPrinter:
                 )
             case _:
                 raise NotImplementedError(f"cannot convert {op.name} to MIR")
-
-    def convert_for(self, op: x86_scf.ForOp, current: MirBlock) -> MirBlock:
-        """Lower the loop the way `convert-x86-scf-to-x86` does.
-
-        The loop runs as a do-while; unless the bounds show that it runs at
-        least once, a guard skips it.  The induction variable is incremented
-        at the top of the body when the body does not read it, as there.
-        """
-        body = op.body.block
-        iv, *args = body.args
-        loop = self.new_block()
-        exit_ = self.new_block()
-        # Loop exit values are PHIs in the exit block when the guard can skip
-        # the loop; collect them per predecessor.
-        exit_incoming: list[tuple[MirBlock, Sequence[str]]] = []
-
-        inits = [self.use(op.lb), *map(self.use, op.iter_args)]
-        lb_owner = op.lb.owner
-        runs_once = (
-            isinstance(lb_owner, x86.ops.DI_MovOp)
-            and isinstance(op.ub, IntegerAttr)
-            and lb_owner.immediate.value.data < op.ub.value.data
-        )
-        if not runs_once:
-            self.emit(current, self.compare(op.lb, op.ub))
-            self.emit(current, f"JCC_1 %bb.{exit_.number}, {JGE}, implicit $eflags")
-            current.successors.append(exit_.number)
-            exit_incoming.append((current, inits))
-        self.emit(current, f"JMP_1 %bb.{loop.number}")
-        current.successors.append(loop.number)
-
-        # PHIs for the induction variable and the iter_args, filled in once
-        # the latch is known.
-        phis = [self.define(value) for value in (iv, *args)]
-        phi_lines = len(loop.lines)
-        for _ in phis:
-            self.emit(loop, "")
-
-        step = op.step
-        iv_used = iv.first_use is not None
-        next_iv = self.new_vreg("gr64")
-        increment = self.increment(next_iv, phis[0], step)
-        if not iv_used:
-            self.emit(loop, increment)
-        latch = self.convert_block(body, loop)
-        if iv_used:
-            self.emit(latch, increment)
-        yield_op = body.last_op
-        assert isinstance(yield_op, x86_scf.YieldOp)
-        nexts = [next_iv, *map(self.use, yield_op.operands)]
-        self.emit(latch, self.compare_vreg(next_iv, op.ub))
-        self.emit(latch, f"JCC_1 %bb.{loop.number}, {JL}, implicit $eflags")
-        self.emit(latch, f"JMP_1 %bb.{exit_.number}")
-        latch.successors += [loop.number, exit_.number]
-        exit_incoming.append((latch, nexts))
-
-        for i, (phi, init, nxt) in enumerate(zip(phis, inits, nexts, strict=True)):
-            loop.lines[phi_lines + i] = (
-                f"{phi} = PHI {init}, %bb.{current.number}, {nxt}, %bb.{latch.number}"
-            )
-
-        for i, result in enumerate((op.lb_end, *op.res)):
-            if len(exit_incoming) == 1:
-                self.vregs[result] = exit_incoming[0][1][i]
-            else:
-                incoming = ", ".join(
-                    f"{values[i]}, %bb.{block.number}"
-                    for block, values in exit_incoming
-                )
-                self.emit(exit_, f"{self.define(result)} = PHI {incoming}")
-        return exit_
-
-    def increment(self, dest: str, iv: str, step: IntegerAttr | SSAValue) -> str:
-        if isinstance(step, IntegerAttr):
-            operand, opcode = str(step.value.data), "ADD64ri32"
-        else:
-            operand, opcode = self.use(step), "ADD64rr"
-        return f"{dest} = {opcode} {iv}, {operand}, implicit-def dead $eflags"
-
-    def compare(self, lhs: SSAValue, rhs: IntegerAttr | SSAValue) -> str:
-        return self.compare_vreg(self.use(lhs), rhs)
-
-    def compare_vreg(self, lhs: str, rhs: IntegerAttr | SSAValue) -> str:
-        if isinstance(rhs, IntegerAttr):
-            return f"CMP64ri32 {lhs}, {rhs.value.data}, implicit-def $eflags"
-        return f"CMP64rr {lhs}, {self.use(rhs)}, implicit-def $eflags"
 
 
 def print_mir(module: ModuleOp, output: IO[str]) -> None:
@@ -484,15 +419,6 @@ def llvm_allocate(
 # Command line
 
 
-def unallocated_passes(config: Path, pipeline: str, isa: str) -> str:
-    """A CompXSMM pipeline up to, not including, its register allocation."""
-    passes = yaml.safe_load(config.read_text())[pipeline][isa]
-    end = next(
-        i for i, p in enumerate(passes) if p.startswith("x86-allocate-registers")
-    )
-    return ",".join(passes[:end])
-
-
 def kernel_mir(path: Path, passes: str) -> str:
     from io import StringIO
 
@@ -559,8 +485,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--config", type=Path, default=Path("default.yaml"))
     parser.add_argument(
         "--pipeline",
-        default="compxsmm-gemm-passes",
-        help="the pipeline in --config whose allocation LLVM replaces",
+        default="compxsmm-llvm-gemm-passes",
+        help="the pipeline in --config that leaves registers to LLVM",
     )
     parser.add_argument(
         "--regalloc", default="greedy", choices=["greedy", "basic", "pbqp", "fast"]
@@ -575,7 +501,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     if not args.machine:
         parser.error("no machine given; pass --machine or set MACHINE")
     machine = MACHINES[args.machine]
-    passes = unallocated_passes(args.config, args.pipeline, machine.isa)
+    pipelines = yaml.safe_load(args.config.read_text())
+    passes = ",".join(pipelines[args.pipeline][machine.isa])
     jobs = [
         Job(path, passes, machine.march, args.regalloc, args.keep)
         for path in kernel_files(args.inputs)

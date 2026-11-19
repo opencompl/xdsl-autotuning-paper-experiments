@@ -1,9 +1,10 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from autotuner.compxsmm_gemm import compxsmm_generator_gemm_driver
-from autotuner.llvm_regalloc import kernel_mir, llvm_allocate, unallocated_passes
+from autotuner.llvm_regalloc import kernel_mir, llvm_allocate
 
 
 @pytest.mark.parametrize(
@@ -20,7 +21,8 @@ def test_kernel_converts_to_mir_llc_allocates(
         ["dense", str(kernel), "matmul", m, n, k, m, k, m, "1", "1", "1", "1"]
         + ["skx", "nopf", precision, "--disable-regalloc"]
     )
-    passes = unallocated_passes(Path("default.yaml"), "compxsmm-gemm-passes", "avx512")
+    config = yaml.safe_load(Path("default.yaml").read_text())
+    passes = ",".join(config["compxsmm-llvm-gemm-passes"]["avx512"])
     mir = kernel_mir(kernel, passes)
 
     # llc runs its machine verifier, so malformed MIR raises here.
