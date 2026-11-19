@@ -4,6 +4,7 @@ import glob
 import os
 import shutil
 
+from autotuner.x86_mir import LLC_FLAGS
 from autotuner.datasets import (
     NANOKERNEL_VARIANTS,
     machine_base,
@@ -129,6 +130,7 @@ BUILD_VARIANTS = (
     "compxsmm",
     "compxsmm_plusnarrow",
     "compxsmm_manual",
+    "compxsmm_llvm",
     "libxtcmm",
     *NANOKERNEL_VARIANTS,
 )
@@ -377,6 +379,27 @@ rule compxsmm_plusnarrow_s:
     shell:
         """
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-asm -o {output}
+        """
+
+# The same kernel with its registers allocated by llc instead of xDSL: the IR
+# just before `x86-allocate-registers`, printed as LLVM Machine IR.
+
+rule compxsmm_llvm_s:
+    input:
+        mlir=machine_file(variant='compxsmm',ext='compxsmm.mlir'),
+        sources=["pyproject.toml", "src/autotuner/x86_mir.py"] + COMPXSMM_GEMM_SOURCES,
+    output:
+        mir=machine_file(variant='compxsmm_llvm',ext='mir'),
+        asm=machine_file(variant='compxsmm_llvm',ext='S'),
+    params:
+        passes=lambda wc: ",".join(config["compxsmm-llvm-gemm-passes"][machine_isa(wc)]),
+        llc_flags=" ".join(LLC_FLAGS),
+        target_triple=target_triple,
+        compiler_march=compiler_march,
+    shell:
+        """
+        xdsl-opt {input.mlir} -p '{params.passes}' -t x86-mir -o {output.mir}
+        llc {params.llc_flags} -mtriple={params.target_triple} -mcpu={params.compiler_march} {output.mir} -o {output.asm}
         """
 
 # The same kernel with the registers assigned by the generator and the schedule
@@ -759,6 +782,7 @@ TESTSET_AVX512 = [
             "compxsmm",
             "compxsmm_manual",
             "compxsmm_plusnarrow",
+            "compxsmm_llvm",
         ],
     ),
     # Where plusnarrow parts company with the heuristic: an M tile of three f64

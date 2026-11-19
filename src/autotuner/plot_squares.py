@@ -12,6 +12,9 @@ shorter than half a vector to the narrowest register that covers it, which is
 where the sweep's small sizes live.  Alongside them is XTC, which hands the same
 LIBXSMM schedule to LLVM and lets it pick the registers: another way of not
 assigning them by hand, and the one CompXSMM + narrow is chasing at short M.
+Last is CompXSMM + LLVM RA: CompXSMM's own instructions, stopped before xDSL
+allocates their registers and handed to llc's allocator instead, which prices
+xDSL's allocator against LLVM's on identical code.
 """
 
 from collections.abc import Sequence
@@ -38,6 +41,7 @@ VARIANTS = (
     "compxsmm_manual",
     "compxsmm_plusnarrow",
     "libxtcmm",
+    "compxsmm_llvm",
 )
 
 # Top of the % of peak axis: 100 is the top gridline, with just enough room
@@ -51,9 +55,9 @@ X_TICKS = (1, 16, 32, 48, 64)
 # Stroke widths, from the first variant to the last.  The curves agree almost
 # everywhere, so each one is drawn thinner than the one it lands on: where they
 # coincide the earlier curves stay visible as a halo around the later ones
-# instead of being painted over.  The last one stays visible at 1.8 - 5 * 0.28.
+# instead of being painted over.  The last one stays visible at 1.8 - 6 * 0.22.
 WIDEST = 1.8
-NARROWING = 0.28
+NARROWING = 0.22
 
 
 def percent_of_peak(df: pd.DataFrame) -> pd.DataFrame:

@@ -78,7 +78,6 @@ PLOTS =
 PLOTS += plots/tower/f64.ttile_squares.png
 PLOTS += plots/tower/f64.ttile_combined.png
 PLOTS += plots/tower/f64.heatmap.png
-PLOTS += plots/f64.squares.tower.pdf
 
 # PLOTS += plots/pinocchio/f64.ttile_squares.png
 # PLOTS += plots/pinocchio/f64.ttile_combined.png
@@ -87,7 +86,6 @@ PLOTS += plots/f64.squares.tower.pdf
 PLOTS += plots/rapper/f64.ttile_squares.png
 PLOTS += plots/rapper/f64.ttile_combined.png
 PLOTS += plots/rapper/f64.heatmap.png
-PLOTS += plots/f64.squares.rapper.pdf
 
 # The grid is not committed until a machine has actually run it, so plot
 # whichever machines have the data.  Naming them outright breaks `make plots`
@@ -95,17 +93,17 @@ PLOTS += plots/f64.squares.rapper.pdf
 # "No rule to make target".
 PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard data/*/f64.nanokernel_grid.jsonl)),plots/f64.nanokernel_grid.$(m).pdf)
 
-# The f32 counterpart of the squares figure, for the machines whose f32 sweep
-# has actually been run with every implementation it draws.  Same reason the
-# grid is globbed rather than named -- a target whose data is absent stops
-# `make plots` everywhere -- except that here the file can also be present and
-# stale: f32 gained CompXSMM - RA and CompXSMM + narrow after it was last
-# swept, and `plot-squares` refuses a dataset missing a variant rather than
-# quietly drawing a thinner figure.  So this tests the contents, not the name,
-# and a machine joins the list once it has re-run `make dataset`.
-F32_SQUARES_READY = $(patsubst data/%/f32.squares.jsonl,%,\
-    $(shell grep -l compxsmm_plusnarrow data/*/f32.squares.jsonl 2>/dev/null))
-PLOTS += $(foreach m,$(F32_SQUARES_READY),plots/f32.squares.$(m).pdf)
+# The squares figure, both data types, for the machines whose sweep has
+# actually been run with every implementation it draws.  Same reason the grid
+# is globbed rather than named -- a target whose data is absent stops `make
+# plots` everywhere -- except that here the file can also be present and stale:
+# the sweeps gained CompXSMM + LLVM RA after some machines last ran them, and
+# `plot-squares` refuses a dataset missing a variant rather than quietly drawing
+# a thinner figure.  So this tests the contents, not the name, and a machine
+# joins the list once it has re-run `make dataset`.
+squares_ready = $(patsubst data/%/$(1).squares.jsonl,%,\
+    $(shell grep -l compxsmm_llvm data/*/$(1).squares.jsonl 2>/dev/null))
+PLOTS += $(foreach d,f32 f64,$(foreach m,$(call squares_ready,$(d)),plots/$(d).squares.$(m).pdf))
 
 # One paper figure per machine, its two data types side by side, with the
 # machine in the file name rather than in the figure.  The PDF is what LaTeX
@@ -148,11 +146,11 @@ SQUARES_SRC = src/autotuner/plot_squares.py src/autotuner/plot_style.py
 plots/f64.squares.%.pdf: data/%/f64.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@
 
-# The f32 counterpart, drawing the same six curves against the f32 peak, which
+# The f32 counterpart, drawing the same seven curves against the f32 peak, which
 # the dataset carries per row.  `plot-squares` refuses a dataset missing one of
 # them rather than quietly drawing a thinner figure, so this target fails until
-# the machine has swept f32 with CompXSMM - RA and CompXSMM + narrow in it --
-# which is what the readiness test above keeps out of `make plots`.
+# the machine has swept with CompXSMM + LLVM RA in it -- which is what the
+# readiness test above keeps out of `make plots`.
 plots/f32.squares.%.pdf: data/%/f32.squares.jsonl $(SQUARES_SRC)
 	uv run plot-squares $< --output $@
 
