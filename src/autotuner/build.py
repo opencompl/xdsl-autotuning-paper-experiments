@@ -194,7 +194,7 @@ class Toolchain:
     pipelines: Mapping[str, str]
     xtc_mlir_bin: str
     xtc_llvm_bin: str
-    llc: str = "llc"
+    llc: str
     root: Path = Path("build")
     digests: Mapping[str, str] = field(default_factory=dict)
     native_flags: tuple[str, ...] = ()
@@ -332,9 +332,7 @@ def toolchain(
         pipelines=pipelines,
         xtc_mlir_bin=os.environ.get("XTC_MLIR_PREFIX", ""),
         xtc_llvm_bin=os.environ.get("XTC_LLVM_PREFIX", ""),
-        # The llc the `llvm-regalloc` spill counts come from; resolved so a
-        # toolchain bump rebuilds, and left bare where it is not installed.
-        llc=shutil.which("llc") or "llc",
+        llc=tool_path("llc"),
         root=root,
         digests=source_digests(repo),
         native_flags=native_flags,
