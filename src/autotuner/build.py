@@ -51,8 +51,8 @@ from rich.progress import (
 )
 
 from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
-from autotuner.llvm_regalloc import LLC_FLAGS
 from autotuner.machines import MACHINES
+from autotuner.x86_mir import LLC_FLAGS
 
 # The C spelling of each dtype, and how the XSMM generators name it.
 C_TYPE = {"f32": "float", "f64": "double"}
@@ -67,7 +67,7 @@ GENERATOR_SOURCES: Mapping[str, tuple[str, ...]] = {
     # Every xdsl-opt pipeline runs project passes out of these two packages.
     "xdsl": ("src/autotuner/passes", "src/autotuner/dialects", "pyproject.toml"),
     # The x86-mir target that hands `compxsmm_llvm` to llc.
-    "mir": ("src/autotuner/llvm_regalloc.py",),
+    "mir": ("src/autotuner/x86_mir.py",),
 }
 
 # The generator each "generate:*" step calls, imported once per worker.

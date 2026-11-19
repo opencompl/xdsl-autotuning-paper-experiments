@@ -4,7 +4,7 @@ import glob
 import os
 import shutil
 
-from autotuner.llvm_regalloc import LLC_FLAGS
+from autotuner.x86_mir import LLC_FLAGS
 from autotuner.datasets import (
     NANOKERNEL_VARIANTS,
     machine_base,
@@ -387,7 +387,7 @@ rule compxsmm_plusnarrow_s:
 rule compxsmm_llvm_s:
     input:
         mlir=machine_file(variant='compxsmm',ext='compxsmm.mlir'),
-        sources=["pyproject.toml", "src/autotuner/llvm_regalloc.py"] + COMPXSMM_GEMM_SOURCES,
+        sources=["pyproject.toml", "src/autotuner/x86_mir.py"] + COMPXSMM_GEMM_SOURCES,
     output:
         mir=machine_file(variant='compxsmm_llvm',ext='mir'),
         asm=machine_file(variant='compxsmm_llvm',ext='S'),

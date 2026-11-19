@@ -45,7 +45,7 @@ compxsmm-plusnarrow-gemm-passes:
 
 # The same schedule with its loops lowered but its registers unallocated, so it
 # can be printed as LLVM Machine IR and handed to llc's allocator: see
-# `autotuner.llvm_regalloc`.
+# `autotuner.x86_mir`.
 compxsmm-llvm-gemm-passes:
   avx512:
     - xsmm-apply-schedule{strategy=libxsmm-skx disable-regalloc=true}
