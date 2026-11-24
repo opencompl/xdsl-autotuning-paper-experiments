@@ -20,6 +20,7 @@ from xdsl.backend.assembly_printer import AssemblyPrintable, AssemblyPrinter, re
 from xdsl.backend.register_allocatable import RegisterConstraints
 from xdsl.dialects.builtin import (
     I64,
+    IntAttr,
     IntegerAttr,
     StringAttr,
     UnitAttr,
@@ -32,6 +33,8 @@ from xdsl.dialects.x86.assembly import (
 from xdsl.dialects.x86.ops import (
     SI64,
     DM_Operation,
+    DMI_Operation,
+    DSI_Operation,
     DSS_Operation,
     DSSI_Operation,
     MS_Operation,
@@ -40,6 +43,7 @@ from xdsl.dialects.x86.ops import (
 )
 from xdsl.dialects.x86.registers import (
     GeneralRegisterType,
+    SSERegisterType,
     X86VectorRegisterType,
 )
 from xdsl.ir import Dialect, SSAValue
@@ -54,19 +58,31 @@ from xdsl.irdl import (
     result_def,
     traits_def,
 )
-from xdsl.traits import MemoryReadEffect, Pure
+from xdsl.traits import MemoryReadEffect, MemoryWriteEffect, Pure
 from xdsl.utils.exceptions import VerifyException
 
 Vector = X86VectorRegisterType
 
 
 class FmaKind(StrEnum):
-    """The sign pattern of a fused multiply-add ``±(a * b) ± c``."""
+    """The sign pattern of a fused multiply-add ``±(a * b) ± c``.
+
+    The alternating kinds give the addend opposite signs in even and odd
+    lanes, which on interleaved complex numbers are the real and imaginary
+    parts: with ``c`` the swap of a complex ``z``, ``a * b + i * z`` is
+    ``MADDSUB`` and ``a * b - i * z`` is ``MSUBADD``.
+    """
 
     FMADD = "madd"  # a * b + c
     FMSUB = "msub"  # a * b - c
     FNMADD = "nmadd"  # -(a * b) + c
     FNMSUB = "nmsub"  # -(a * b) - c
+    MADDSUB = "maddsub"  # a * b - c in even lanes, a * b + c in odd lanes
+    MSUBADD = "msubadd"  # a * b + c in even lanes, a * b - c in odd lanes
+
+    @property
+    def alternating(self) -> bool:
+        return self in (FmaKind.MADDSUB, FmaKind.MSUBADD)
 
     @property
     def negates_product(self) -> bool:
@@ -75,6 +91,20 @@ class FmaKind(StrEnum):
     @property
     def negates_addend(self) -> bool:
         return self in (FmaKind.FMSUB, FmaKind.FNMSUB)
+
+    def negating(self, addend: bool) -> tuple["FmaKind", bool]:
+        """The kind computing this FMA with its addend (or else a factor)
+        negated, and whether its result must then be negated as well."""
+        if self.alternating:
+            flipped = FmaKind.MSUBADD if self is FmaKind.MADDSUB else FmaKind.MADDSUB
+            # -(a * b) -/+ c = -(a * b +/- c): no FMA negates an alternating product.
+            return flipped, not addend
+        product, negated_addend = self.negates_product, self.negates_addend
+        if addend:
+            negated_addend = not negated_addend
+        else:
+            product = not product
+        return FmaKind.of(product, negated_addend), False
 
     @staticmethod
     def of(negate_product: bool, negate_addend: bool) -> "FmaKind":
@@ -181,6 +211,24 @@ class Vshuff64x2Op(_VectorDSSI):
     """Select 128-bit chunks: the lower half of d from source0, the upper from source1."""
 
     name = "x86ext.dssi.vshuff64x2"
+
+
+class _VectorDSI(DSI_Operation[Vector, Vector]):
+    pass
+
+
+@irdl_op_definition
+class VpermilpdOp(_VectorDSI):
+    """Within each 128-bit chunk, lane ``i`` takes the lane bit ``i`` selects."""
+
+    name = "x86ext.dsi.vpermilpd"
+
+
+@irdl_op_definition
+class VpermilpsOp(_VectorDSI):
+    """Within each 128-bit chunk, lane ``i`` takes the lane bits ``2i:2i+2`` select."""
+
+    name = "x86ext.dsi.vpermilps"
 
 
 # endregion
@@ -377,6 +425,20 @@ class VshufpsMemOp(X86Instruction):
 
 
 @irdl_op_definition
+class DMI_VpermilpdOp(DMI_Operation[Vector, GeneralRegisterType]):
+    """``vpermilpd d, [m + offset], imm``: load and permute within 128-bit chunks."""
+
+    name = "x86ext.dmi.vpermilpd"
+
+
+@irdl_op_definition
+class DMI_VpermilpsOp(DMI_Operation[Vector, GeneralRegisterType]):
+    """``vpermilps d, [m + offset], imm``: load and permute within 128-bit chunks."""
+
+    name = "x86ext.dmi.vpermilps"
+
+
+@irdl_op_definition
 class DM_VmovsdOp(DM_Operation[Vector, GeneralRegisterType]):
     """Load one double into the low lane, zeroing the others."""
 
@@ -395,6 +457,226 @@ class MS_VmovssOp(MS_Operation[GeneralRegisterType, Vector]):
     """Store the low float of a vector."""
 
     name = "x86ext.ms.vmovss"
+
+
+# endregion
+
+# region: moving the 128-bit chunks of wider registers
+#
+# These name a register at another width than its SSA type, as the
+# instructions do: xmm0, ymm0, and zmm0 are one register.
+
+
+def _at_width(value: SSAValue, bits: int) -> str:
+    """The name of the register holding ``value`` at width ``bits``."""
+    register_type = value.type
+    assert isinstance(register_type, X86VectorRegisterType)
+    assert isinstance(register_type.index, IntAttr), "registers must be allocated"
+    prefix = {128: "x", 256: "y", 512: "z"}[bits]
+    return f"{prefix}mm{register_type.index.data}"
+
+
+def _chunk_mnemonic(prefix: str, value: SSAValue, *operands: SSAValue) -> str:
+    """The AVX form for ymm registers that VEX can encode, else AVX-512's."""
+    register_type = value.type
+    assert isinstance(register_type, X86VectorRegisterType)
+    vex = register_type.bitwidth() == 256 and all(
+        isinstance(v.type, X86VectorRegisterType)
+        and isinstance(v.type.index, IntAttr)
+        and v.type.index.data < 16
+        for v in (value, *operands)
+    )
+    return f"{prefix}f128" if vex else f"{prefix}f64x2"
+
+
+@irdl_op_definition
+class InsertChunkOp(X86Instruction):
+    """``d = s`` with 128-bit chunk ``index`` replaced by the xmm ``chunk``;
+    ``s`` may be narrower than ``d``, its upper chunks being replaced later."""
+
+    name = "x86ext.insert_chunk"
+
+    destination = result_def(Vector)
+    source = operand_def(Vector)
+    chunk = operand_def(SSERegisterType)
+    index = attr_def(IntegerAttr[I64])
+
+    assembly_format = (
+        "$source `,` $chunk `,` $index attr-dict `:` "
+        "`(` type($source) `,` type($chunk) `)` `->` type($destination)"
+    )
+
+    def __init__(
+        self,
+        source: SSAValue,
+        chunk: SSAValue,
+        index: int,
+        *,
+        destination: X86VectorRegisterType,
+    ):
+        super().__init__(
+            operands=[source, chunk],
+            attributes={"index": IntegerAttr(index, i64)},
+            result_types=[destination],
+        )
+
+    def assembly_instruction_name(self) -> str:
+        return _chunk_mnemonic("vinsert", self.destination, self.source, self.chunk)
+
+    def assembly_line_args(self):
+        bits = self.destination.type.bitwidth()
+        return (
+            reg(self.destination),
+            _at_width(self.source, bits),
+            reg(self.chunk),
+            self.index,
+        )
+
+
+@irdl_op_definition
+class InsertChunkMemOp(X86Instruction):
+    """``d = s`` with 128-bit chunk ``index`` loaded from ``[m + offset]``."""
+
+    name = "x86ext.insert_chunk_mem"
+
+    destination = result_def(Vector)
+    source = operand_def(Vector)
+    memory = operand_def(GeneralRegisterType)
+    memory_offset = attr_def(IntegerAttr[SI64], default_value=IntegerAttr(0, si64))
+    index = attr_def(IntegerAttr[I64])
+
+    traits = traits_def(MemoryReadEffect())
+
+    assembly_format = (
+        "$source `,` `[` $memory (`+` $memory_offset^)? `]` `,` $index attr-dict "
+        "`:` `(` type($source) `,` type($memory) `)` `->` type($destination)"
+    )
+
+    def __init__(
+        self,
+        source: SSAValue,
+        memory: SSAValue,
+        memory_offset: int,
+        index: int,
+        *,
+        destination: X86VectorRegisterType,
+    ):
+        super().__init__(
+            operands=[source, memory],
+            attributes={
+                "memory_offset": IntegerAttr(memory_offset, si64),
+                "index": IntegerAttr(index, i64),
+            },
+            result_types=[destination],
+        )
+
+    def assembly_instruction_name(self) -> str:
+        return _chunk_mnemonic("vinsert", self.destination, self.source)
+
+    def assembly_line_args(self):
+        bits = self.destination.type.bitwidth()
+        return (
+            reg(self.destination),
+            _at_width(self.source, bits),
+            memory_access_str(self.memory, self.memory_offset),
+            self.index,
+        )
+
+
+@irdl_op_definition
+class ExtractChunkOp(X86Instruction):
+    """``d = `` 128-bit chunk ``index`` of ``s``, as an xmm register."""
+
+    name = "x86ext.extract_chunk"
+
+    destination = result_def(SSERegisterType)
+    source = operand_def(Vector)
+    index = attr_def(IntegerAttr[I64])
+
+    assembly_format = (
+        "$source `,` $index attr-dict `:` `(` type($source) `)` `->` type($destination)"
+    )
+
+    def __init__(self, source: SSAValue, index: int):
+        super().__init__(
+            operands=[source],
+            attributes={"index": IntegerAttr(index, i64)},
+            result_types=[SSERegisterType.unallocated()],
+        )
+
+    def assembly_instruction_name(self) -> str:
+        return _chunk_mnemonic("vextract", self.source, self.destination)
+
+    def assembly_line_args(self):
+        return reg(self.destination), reg(self.source), self.index
+
+
+@irdl_op_definition
+class StoreChunkOp(X86Instruction):
+    """Store 128-bit chunk ``index`` of ``s``, or the 64-bit ``half`` of it,
+    to ``[m + offset]``."""
+
+    name = "x86ext.store_chunk"
+
+    source = operand_def(Vector)
+    memory = operand_def(GeneralRegisterType)
+    memory_offset = attr_def(IntegerAttr[SI64], default_value=IntegerAttr(0, si64))
+    index = attr_def(IntegerAttr[I64])
+    half = opt_attr_def(IntegerAttr[I64])
+
+    traits = traits_def(MemoryWriteEffect())
+
+    assembly_format = (
+        "$source `,` `[` $memory (`+` $memory_offset^)? `]` `,` $index attr-dict "
+        "`:` `(` type($source) `,` type($memory) `)` `->` `(` `)`"
+    )
+
+    def __init__(
+        self,
+        source: SSAValue,
+        memory: SSAValue,
+        memory_offset: int,
+        index: int,
+        half: int | None = None,
+    ):
+        assert half is None or index == 0, "only the low chunk stores a half"
+        super().__init__(
+            operands=[source, memory],
+            attributes={
+                "memory_offset": IntegerAttr(memory_offset, si64),
+                "index": IntegerAttr(index, i64),
+                "half": None if half is None else IntegerAttr(half, i64),
+            },
+        )
+
+    def assembly_instruction_name(self) -> str:
+        if self.index.value.data:
+            return _chunk_mnemonic("vextract", self.source)
+        if self.half is None:
+            return "vmovupd"
+        return "vmovhpd" if self.half.value.data else "vmovsd"
+
+    def assembly_line_args(self):
+        memory = memory_access_str(self.memory, self.memory_offset)
+        if self.index.value.data:
+            return memory, reg(self.source), self.index
+        return memory, _at_width(self.source, 128)
+
+
+@irdl_op_definition
+class VmovhpdMemOp(_DSMB_Operation):
+    """``d = s`` with its upper 64 bits loaded from memory."""
+
+    name = "x86ext.dsm.vmovhpd"
+
+    @classmethod
+    def lane_bitwidth(cls) -> int:
+        return 64
+
+
+# endregion
+
+# region: other instructions
 
 
 @irdl_op_definition
@@ -723,6 +1005,8 @@ X86EXT = Dialect(
         VunpckhpsOp,
         VshufpsOp,
         Vshuff64x2Op,
+        VpermilpdOp,
+        VpermilpsOp,
         VaddpdMemOp,
         VaddpsMemOp,
         VsubpdMemOp,
@@ -734,6 +1018,13 @@ X86EXT = Dialect(
         VunpcklpdMemOp,
         VunpckhpdMemOp,
         VshufpsMemOp,
+        DMI_VpermilpdOp,
+        DMI_VpermilpsOp,
+        InsertChunkOp,
+        InsertChunkMemOp,
+        ExtractChunkOp,
+        StoreChunkOp,
+        VmovhpdMemOp,
         DM_VmovsdOp,
         DM_VmovssOp,
         MS_VmovssOp,

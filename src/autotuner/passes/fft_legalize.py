@@ -2,8 +2,9 @@
 
 - Negations fold into the operations that consume them: an addition of a
   negated value becomes a subtraction, and a fused multiply-add flips the sign
-  of its product or addend. A negation no consumer absorbs becomes an XOR with
-  the sign bit.
+  of its product or addend (an alternating one, ``vfmaddsub``, swaps kind and
+  passes the negation on to its result). A negation no consumer absorbs
+  becomes an XOR with the sign bit.
 - A non-destructive fused multiply-add overwrites whichever input dies there:
   the addend (form 231) or a factor (213, or 132 when the other factor is in
   memory). When none dies, it overwrites a copy of the addend.
@@ -147,24 +148,12 @@ class _NegationFolder:
             )
             return self._replace(user, [op], op.destination, True, bits)
         if isinstance(user, x86ext.VirtualFmaOp):
-            kind = FmaKind(user.kind.data)
-            product, addend = kind.negates_product, kind.negates_addend
-            if index == 2:
-                addend = not addend
-            else:
-                product = not product
+            kind, negated = FmaKind(user.kind.data).negating(addend=index == 2)
             operands[index] = x
-            op = x86ext.VirtualFmaOp(
-                *operands, kind=FmaKind.of(product, addend), lane_bitwidth=bits
-            )
-            return self._replace(user, [op], op.result, False, bits)
+            op = x86ext.VirtualFmaOp(*operands, kind=kind, lane_bitwidth=bits)
+            return self._replace(user, [op], op.result, negated, bits)
         if isinstance(user, x86ext.VirtualFmaMemOp) and index in (0, 1):
-            kind = FmaKind(user.kind.data)
-            product, addend = kind.negates_product, kind.negates_addend
-            if index == 1:
-                addend = not addend
-            else:
-                product = not product
+            kind, negated = FmaKind(user.kind.data).negating(addend=index == 1)
             operands[index] = x
             op = x86ext.VirtualFmaMemOp(
                 operands[0],
@@ -172,10 +161,10 @@ class _NegationFolder:
                 user.memory,
                 user.memory_offset.value.data,
                 broadcast=bool(user.broadcast.value.data),
-                kind=FmaKind.of(product, addend),
+                kind=kind,
                 lane_bitwidth=bits,
             )
-            return self._replace(user, [op], op.result, False, bits)
+            return self._replace(user, [op], op.result, negated, bits)
         return None
 
 
