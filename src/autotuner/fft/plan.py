@@ -2,7 +2,8 @@
 
 A DFT larger than one register kernel is split by Cooley-Tukey, and each
 split can pick any radix: the order of the factors decides the strides of
-every pass, and with them how each pass vectorizes. ``choose_split`` searches
+every pass, and with them how each pass vectorizes. ``choose_split`` follows
+an explicit ``FftStrategy.schedule`` when there is one, and otherwise searches
 the factor orders with a cost model that counts instructions.
 """
 
@@ -33,6 +34,12 @@ class FftStrategy:
 
     vector_bits: tuple[int, ...] = (512, 256, 128)
     """The vector widths the kernels may use, widest first."""
+
+    schedule: tuple[int, ...] = ()
+    """The size of the DFTs in every pass over memory, in execution order, or
+    empty to let the cost model choose. ``(64, 16)`` is FFTW's
+    ``dft-ct-dit/16`` over ``dft-direct-64``: 16 DFTs of 64 points, then 64
+    DFTs of 16 points with twiddles. Each size is one register kernel."""
 
 
 @dataclass(frozen=True)
@@ -227,8 +234,34 @@ def _options(
 def choose_split(
     shape: DftShape, strategy: FftStrategy, element_bits: int
 ) -> int | None:
-    """The radix of the cheapest split of ``shape``, or ``None`` for a leaf."""
+    """The radix of the split of ``shape``, or ``None`` for a leaf."""
+    if strategy.schedule and not shape.twiddle_n:
+        return _scheduled_split(shape, strategy)
     options = _options(shape, strategy, element_bits)
     if not options:
         raise ValueError(f"cannot schedule a DFT of {shape.n} points")
     return min(options, key=lambda option: option[0])[1]
+
+
+def _scheduled_split(shape: DftShape, strategy: FftStrategy) -> int | None:
+    """The split ``strategy.schedule`` gives ``shape``.
+
+    Splitting off the last pass leaves the passes before it for the first
+    half, so a DFT of ``n`` points runs the passes whose sizes multiply to
+    ``n`` and splits off the last of them.
+    """
+    schedule = strategy.schedule
+    unsupported = [
+        size
+        for size in schedule
+        if size < 2 or not register_kernel_supported(size, strategy)
+    ]
+    if unsupported:
+        raise ValueError(
+            f"no register kernel for a pass of {unsupported[0]} points "
+            f"(max_leaf={strategy.max_leaf})"
+        )
+    for count in range(1, len(schedule) + 1):
+        if math.prod(schedule[:count]) == shape.n:
+            return None if count == 1 else schedule[count - 1]
+    raise ValueError(f"the schedule {schedule} has no DFT of {shape.n} points")

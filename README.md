@@ -183,6 +183,13 @@ layout), and `fft-apply-schedule` expands it:
 picks the FMA form (132, 213, or 231) that overwrites a dying input. Sizes
 must factor into 2, 3, 5, and 7.
 
+`fft-apply-schedule{schedule=8,4,4}` replaces the cost model with explicit
+passes: the size of the DFTs in each pass over memory, in execution order,
+each at most `max_leaf` points. A Cooley-Tukey plan printed by FFTW maps onto
+it directly: `(dft-ct-dit/16 (dftw-direct-16 ...) (dft-direct-64-x16 ...))`
+runs 16 DFTs of 64 points and then 64 twiddled DFTs of 16, so it is
+`schedule=64,16`.
+
 ```sh
 uv run snakemake --cores 1 --config machine=tower -- \
   build/tower/dft/64/xdsl_fft.f64.test.log build/tower/dft/64/xdsl_fft.f64.time.txt
