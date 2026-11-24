@@ -190,6 +190,20 @@ it directly: `(dft-ct-dit/16 (dftw-direct-16 ...) (dft-direct-64-x16 ...))`
 runs 16 DFTs of 64 points and then 64 twiddled DFTs of 16, so it is
 `schedule=64,16`.
 
+`layout` picks how register kernels hold complex numbers. `split`, the
+default, puts real and imaginary parts in separate registers and
+(de)interleaves them on every load and store. `interleaved` keeps them as in
+memory, one register per point, and multiplies by `±i` and twiddle factors
+with an in-lane swap and `vfmaddsub`. It needs half the registers, so 16-point
+kernels fit: `fft-apply-schedule{layout=interleaved max_leaf=16}`. Interleaved
+kernels also vectorize odd sizes: a batch the vector width does not divide
+ends in narrower vectors, and a side that is neither contiguous nor
+transposable loads and stores each lane's complex number on its own. Each
+twiddle factor is stored as two vectors of duplicated parts, `(c, c)` and
+`(-s, s)`, unless those would overflow `l1_bytes` (default 32768) together
+with the input and output; then it is stored once, as `(c, s)`, and its parts
+are duplicated as it loads.
+
 ```sh
 uv run snakemake --cores 1 --config machine=tower -- \
   build/tower/dft/64/xdsl_fft.f64.test.log build/tower/dft/64/xdsl_fft.f64.time.txt

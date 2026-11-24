@@ -11,17 +11,26 @@ import math
 from dataclasses import dataclass
 from functools import cache
 
-from autotuner.dialects.fft import DftOp
+from autotuner.dialects.fft import DftOp, RegisterLayout
 from autotuner.fft.kernels import BASE_RADICES
 
 SUPPORTED_PRIMES = (2, 3, 5, 7)
 
-# Instructions of each base-case kernel, per vector of transforms.
-KERNEL_INSTRUCTIONS = {1: 0, 2: 4, 3: 12, 4: 16, 5: 36, 7: 72, 8: 52}
-TWIDDLE_INSTRUCTIONS = 4
+# Instructions of each base-case kernel, per vector of transforms, by layout.
+KERNEL_INSTRUCTIONS = {
+    RegisterLayout.SPLIT: {1: 0, 2: 4, 3: 12, 4: 16, 5: 36, 7: 72, 8: 52},
+    RegisterLayout.INTERLEAVED: {1: 0, 2: 2, 3: 6, 4: 9, 5: 18, 7: 36, 8: 28},
+}
+# A twiddle multiplies and adds both parts, or swaps and multiplies twice.
+TWIDDLE_INSTRUCTIONS = {RegisterLayout.SPLIT: 4, RegisterLayout.INTERLEAVED: 3}
+# Compact twiddle factors load each factor twice, duplicating its parts.
+COMPACT_TWIDDLE_INSTRUCTIONS = 2
 # A split stores every point and reloads it in the next pass, which costs more
 # than the two instructions that appear: the reload waits on store forwarding.
 MEMORY_PASS_PER_POINT = 2
+# Waiting for stores to commit because the store buffer cannot forward them,
+# in instructions: about 20 cycles.
+FORWARDING_STALL = 50
 
 
 @dataclass(frozen=True)
@@ -35,11 +44,19 @@ class FftStrategy:
     vector_bits: tuple[int, ...] = (512, 256, 128)
     """The vector widths the kernels may use, widest first."""
 
+    layout: RegisterLayout = RegisterLayout.SPLIT
+    """How the register kernels hold complex numbers. Interleaved ones take one
+    register per point, so they reach twice the points of split ones."""
+
     schedule: tuple[int, ...] = ()
     """The size of the DFTs in every pass over memory, in execution order, or
     empty to let the cost model choose. ``(64, 16)`` is FFTW's
     ``dft-ct-dit/16`` over ``dft-direct-64``: 16 DFTs of 64 points, then 64
     DFTs of 16 points with twiddles. Each size is one register kernel."""
+
+    l1_bytes: int = 32768
+    """The size of the L1 data cache, which the input, the output, and the
+    twiddle factors of the interleaved layout should fit in together."""
 
 
 @dataclass(frozen=True)
@@ -103,13 +120,47 @@ class LeafVectorization:
     ``lanes`` transforms run side by side, one per lane, along batch dimension
     ``dimension`` (``None`` when ``lanes`` is 1). A side is ``transposed`` when
     its points, not its transforms, are contiguous in memory, so the kernel
-    loads or stores whole blocks and transposes them in registers.
+    loads or stores whole blocks and transposes them in registers. In the
+    interleaved ``layout`` a lane is a pair of elements, a side whose
+    transforms are neither contiguous nor transposable is ``lanewise``,
+    loading or storing each lane's complex number on its own, and a batch
+    that ``lanes`` does not divide ends in narrower vectors (see ``chunks``).
     """
 
     lanes: int
     dimension: int | None
     input_transposed: bool
     output_transposed: bool
+    layout: RegisterLayout = RegisterLayout.SPLIT
+    input_lanewise: bool = False
+    output_lanewise: bool = False
+
+
+def chunks(extent: int, lanes: int) -> list[int]:
+    """The lanes of each vector covering ``extent`` transforms: as many full
+    vectors as fit, then the remainder in halving powers of two."""
+    result = [lanes] * (extent // lanes)
+    width = lanes // 2
+    while width:
+        if extent % lanes & width:
+            result.append(width)
+        width //= 2
+    return result
+
+
+def compact_twiddles(shape: DftShape, strategy: FftStrategy, element_bits: int) -> bool:
+    """Whether interleaved twiddle factors are stored compactly.
+
+    Duplicated, the factors of a DFT take about as many bytes as its input
+    and output together (two vectors of 32 B per twiddled vector of 16 B
+    points in f64), so they fit in L1 beside the data only while the data
+    fills at most half of it. Beyond that, the misses cost more than the
+    shuffles that compact factors need.
+    """
+    if strategy.layout is not RegisterLayout.INTERLEAVED:
+        return False
+    data_bytes = 2 * shape.n * math.prod(shape.batch) * element_bits // 4
+    return 2 * data_bytes > strategy.l1_bytes
 
 
 def factorize(n: int) -> list[int]:
@@ -137,63 +188,101 @@ def vectorizations(
     shape: DftShape, strategy: FftStrategy, element_bits: int
 ) -> list[LeafVectorization]:
     """Every legal vectorization of a register kernel, scalar last."""
+    layout = strategy.layout
+    lane_bits = element_bits * (2 if layout is RegisterLayout.INTERLEAVED else 1)
     result: list[LeafVectorization] = []
     for bits in strategy.vector_bits:
-        lanes = bits // element_bits
+        lanes = bits // lane_bits
         if lanes < 2:
             continue
         for dimension, extent in enumerate(shape.batch):
-            if extent % lanes:
+            # Only interleaved kernels can end a batch in narrower vectors or
+            # move lanes one at a time.
+            flexible = layout is RegisterLayout.INTERLEAVED
+            if extent % lanes and not (flexible and extent > lanes):
                 continue
             input_direct = shape.idist[dimension] == 1
             output_direct = shape.odist[dimension] == 1
             transposable = shape.n % lanes == 0
-            if not (input_direct or (shape.istride == 1 and transposable)):
-                continue
-            if not (output_direct or (shape.ostride == 1 and transposable)):
+            input_transposed = not input_direct and shape.istride == 1 and transposable
+            output_transposed = (
+                not output_direct and shape.ostride == 1 and transposable
+            )
+            input_lanewise = not (input_direct or input_transposed)
+            output_lanewise = not (output_direct or output_transposed)
+            if (input_lanewise or output_lanewise) and not flexible:
                 continue
             result.append(
-                LeafVectorization(lanes, dimension, not input_direct, not output_direct)
+                LeafVectorization(
+                    lanes,
+                    dimension,
+                    input_transposed,
+                    output_transposed,
+                    layout,
+                    input_lanewise,
+                    output_lanewise,
+                )
             )
-    result.append(LeafVectorization(1, None, False, False))
+    result.append(LeafVectorization(1, None, False, False, layout))
     return result
 
 
-def _kernel_instructions(n: int) -> int:
-    if n in KERNEL_INSTRUCTIONS:
-        return KERNEL_INSTRUCTIONS[n]
+def _kernel_instructions(n: int, layout: RegisterLayout) -> int:
+    if n in KERNEL_INSTRUCTIONS[layout]:
+        return KERNEL_INSTRUCTIONS[layout][n]
     r = next(r for r in (4, 2, 3, 5) if n % r == 0)
     m = n // r
     return (
-        r * _kernel_instructions(m)
-        + m * _kernel_instructions(r)
-        + (r - 1) * (m - 1) * TWIDDLE_INSTRUCTIONS
+        r * _kernel_instructions(m, layout)
+        + m * _kernel_instructions(r, layout)
+        + (r - 1) * (m - 1) * TWIDDLE_INSTRUCTIONS[layout]
     )
 
 
-def leaf_cost(shape: DftShape, plan: LeafVectorization) -> float:
+def leaf_cost(shape: DftShape, plan: LeafVectorization, compact: bool) -> float:
     """The instructions a register kernel executes."""
-    lanes, n = plan.lanes, shape.n
-    groups = math.prod(shape.batch) // lanes
-    per_group = _kernel_instructions(n)
-    if shape.twiddle_n:
-        per_group += (n - 1) * TWIDDLE_INSTRUCTIONS
-    # Each point: two loads (or a re and an im) and two stores, plus two
-    # shuffles to (de)interleave each way when there is more than one lane.
-    per_group += n * (4 + (4 if lanes > 1 else 0))
-    for transposed in (plan.input_transposed, plan.output_transposed):
-        if transposed:
-            per_group += 2 * n * int(math.log2(lanes))
-    return groups * per_group
+    n, layout = shape.n, plan.layout
+    registers = layout.registers_per_point
+
+    def vector_cost(lanes: int) -> int:
+        cost = _kernel_instructions(n, layout)
+        if shape.twiddle_n:
+            twiddle = TWIDDLE_INSTRUCTIONS[layout]
+            if compact and lanes > 1 and shape.twiddle_dim == plan.dimension:
+                twiddle += COMPACT_TWIDDLE_INSTRUCTIONS
+            cost += (n - 1) * twiddle
+        if layout is RegisterLayout.SPLIT:
+            # Each point: two loads (or a re and an im) and two stores, plus
+            # two shuffles to (de)interleave each way with more than one lane.
+            cost += n * (4 + (4 if lanes > 1 else 0))
+        else:
+            # Each point: one load and one store, as in memory.
+            cost += n * 2
+        if lanes > 1:
+            for transposed in (plan.input_transposed, plan.output_transposed):
+                if transposed:
+                    cost += registers * n * int(math.log2(lanes))
+            for lanewise in (plan.input_lanewise, plan.output_lanewise):
+                if lanewise:
+                    # One load or store per lane instead of per vector.
+                    cost += n * (lanes - 1)
+        return cost
+
+    if plan.dimension is None:
+        return math.prod(shape.batch) * vector_cost(1)
+    extent = shape.batch[plan.dimension]
+    others = math.prod(shape.batch) // extent
+    return others * sum(vector_cost(lanes) for lanes in chunks(extent, plan.lanes))
 
 
 @cache
 def best_leaf(
     shape: DftShape, strategy: FftStrategy, element_bits: int
 ) -> tuple[float, LeafVectorization]:
+    compact = compact_twiddles(shape, strategy, element_bits)
     return min(
         (
-            (leaf_cost(shape, plan), plan)
+            (leaf_cost(shape, plan, compact), plan)
             for plan in vectorizations(shape, strategy, element_bits)
         ),
         key=lambda candidate: candidate[0],
@@ -226,9 +315,32 @@ def _options(
             plan_cost(first, strategy, element_bits)
             + plan_cost(second, strategy, element_bits)
             + MEMORY_PASS_PER_POINT * shape.n * math.prod(shape.batch)
+            + _forwarding_stall(first, second, strategy, element_bits)
         )
         options.append((cost, r))
     return options
+
+
+def _forwarding_stall(
+    first: DftShape, second: DftShape, strategy: FftStrategy, element_bits: int
+) -> float:
+    """The cost of the second pass reloading what the first just stored.
+
+    A load can only take its data from the store buffer when one store wrote
+    all of it. When the first pass stores fewer bytes at a time than the
+    second loads, as a pass storing lane by lane does, the second pass waits
+    for the latest stores to commit. Other work hides that wait in all but
+    the smallest DFTs, so it counts once, not per load.
+    """
+    if strategy.layout is not RegisterLayout.INTERLEAVED:
+        return 0
+    split = choose_split(first, strategy, element_bits)
+    last = first if split is None else first.split(split)[1]
+    stored = best_leaf(last, strategy, element_bits)[1]
+    loaded = best_leaf(second, strategy, element_bits)[1]
+    store_lanes = 1 if stored.output_lanewise else stored.lanes
+    load_lanes = 1 if loaded.input_lanewise else loaded.lanes
+    return FORWARDING_STALL if load_lanes > store_lanes else 0
 
 
 def choose_split(

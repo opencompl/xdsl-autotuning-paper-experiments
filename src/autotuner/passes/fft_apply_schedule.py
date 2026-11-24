@@ -12,7 +12,7 @@ from xdsl.pattern_rewriter import (
 )
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.fft import DftOp
+from autotuner.dialects.fft import DftOp, RegisterLayout
 from autotuner.fft.constants import ConstantPool
 from autotuner.fft.expand import (
     DftRegBaseCasePattern,
@@ -42,6 +42,11 @@ class FftApplySchedulePass(ModulePass):
     max_leaf: int = 8
     max_vector_bits: int = 512
     schedule: tuple[int, ...] = ()
+    layout: str = RegisterLayout.SPLIT.value
+    """How register kernels hold complex numbers: ``split`` or ``interleaved``."""
+    l1_bytes: int = 32768
+    """The L1 data cache size, which decides how interleaved twiddle factors
+    are stored (see ``compact_twiddles``)."""
 
     def apply(self, ctx: Context, op: builtin.ModuleOp) -> None:
         strategy = FftStrategy(
@@ -50,6 +55,8 @@ class FftApplySchedulePass(ModulePass):
                 bits for bits in (512, 256, 128) if bits <= self.max_vector_bits
             ),
             schedule=self.schedule,
+            layout=RegisterLayout(self.layout),
+            l1_bytes=self.l1_bytes,
         )
         if self.schedule:
             for dft in op.walk():

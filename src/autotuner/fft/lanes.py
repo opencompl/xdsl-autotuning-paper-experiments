@@ -96,6 +96,21 @@ class Shuffle:
         """Shuffle ``element_bits``-wide elements of vectors whose labels are
         ``lane_bits`` wide (by default, as wide as the elements)."""
         lane_bits = element_bits if lane_bits is None else lane_bits
+        if lane_bits > element_bits:
+            # Split each label into elements, and check none is torn apart.
+            parts = lane_bits // element_bits
+            moved = self.apply(
+                [(lane, part) for lane in a for part in range(parts)],
+                [(lane, part) for lane in b for part in range(parts)],
+                element_bits,
+            )
+            result: list[T] = []
+            for start in range(0, len(moved), parts):
+                lane = moved[start][0]
+                if moved[start : start + parts] != [(lane, p) for p in range(parts)]:
+                    raise ValueError(f"{self} splits {lane_bits}-bit lanes")
+                result.append(lane)
+            return result
         group = element_bits // lane_bits
         if group > 1:
             grouped = self.apply(

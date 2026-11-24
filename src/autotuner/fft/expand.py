@@ -16,7 +16,14 @@ from xdsl.pattern_rewriter import (
 from xdsl.rewriter import InsertPoint
 from xdsl.utils.exceptions import PassFailedException
 
-from autotuner.dialects.fft import DftOp, DftRegOp, TransposeOp, TwiddleOp
+from autotuner.dialects.fft import (
+    DftOp,
+    DftRegOp,
+    Point,
+    RegisterLayout,
+    TransposeOp,
+    TwiddleOp,
+)
 from autotuner.dialects.x86ext import FmaKind
 from autotuner.fft import kernels
 from autotuner.fft.constants import ConstantPool
@@ -32,8 +39,16 @@ from autotuner.fft.plan import (
     LeafVectorization,
     best_leaf,
     choose_split,
+    chunks,
+    compact_twiddles,
 )
-from autotuner.fft.values import Datatype, Emitter, Real
+from autotuner.fft.values import (
+    Datatype,
+    Emitter,
+    InterleavedAlgebra,
+    Packed,
+    Real,
+)
 
 Pools = dict[x86_func.FuncOp, ConstantPool]
 OpT = TypeVar("OpT", bound=Operation)
@@ -116,49 +131,71 @@ class DftToRegistersPattern(RewritePattern):
             return
         e = _emitter(rewriter, op, op.datatype, self.pools)
         _, plan = best_leaf(shape, self.strategy, e.element_bits)
-        _lower_leaf(e, op, plan)
+        compact = compact_twiddles(shape, self.strategy, e.element_bits)
+        _lower_leaf(e, op, plan, compact)
         rewriter.erase(op)
 
 
-def _lower_leaf(e: Emitter, op: DftOp, plan: LeafVectorization) -> None:
+def _lower_leaf(e: Emitter, op: DftOp, plan: LeafVectorization, compact: bool) -> None:
     n, sign = op.n.value.data, op.sign.value.data
     batch = op.batch_values
     idist, odist = op.idist_values, op.odist_values
     istride, ostride = op.istride.value.data, op.ostride.value.data
     twiddle_n, twiddle_dim = op.twiddle_n.value.data, op.twiddle_dim.value.data
-    lanes = plan.lanes
-    bits = lanes * e.element_bits
+    layout = plan.layout
     complex_bytes = 2 * e.element_size
-    order = complex_lane_order(lanes, e.element_bits)
 
     looped = [d for d in range(len(batch)) if d != plan.dimension]
     # Only a vectorized side can be transposed, so the offsets of transposed
     # lanes always run along a batch dimension.
     dimension = 0 if plan.dimension is None else plan.dimension
-    groups = 1 if plan.dimension is None else batch[plan.dimension] // lanes
+    widths = [1] if plan.dimension is None else chunks(batch[dimension], plan.lanes)
     for index in itertools.product(*(range(batch[d]) for d in looped)):
         in_base = sum(i * idist[d] for i, d in zip(index, looped))
         out_base = sum(i * odist[d] for i, d in zip(index, looped))
-        for group in range(groups):
+        first = 0
+        for lanes in widths:
+            if layout is RegisterLayout.INTERLEAVED:
+                bits = lanes * 8 * complex_bytes
+                order = tuple(range(lanes))
+            else:
+                bits = lanes * e.element_bits
+                order = complex_lane_order(lanes, e.element_bits)
             # The batch index each lane transforms along the lane dimension.
-            lane_batch = [group * lanes + order[i] for i in range(lanes)]
+            lane_batch = [first + order[i] for i in range(lanes)]
+            if plan.dimension is None:
+                in_lanes, out_lanes = [in_base], [out_base]
+            else:
+                in_lanes = [in_base + b * idist[dimension] for b in lane_batch]
+                out_lanes = [out_base + b * odist[dimension] for b in lane_batch]
+            # Where a direct side's first lane starts.
+            in_start, out_start = in_lanes[0], out_lanes[0]
 
             # Load.
-            if plan.input_transposed:
+            points: list[Point]
+            if lanes > 1 and plan.input_transposed:
                 points = _load_transposed(
-                    e,
-                    op.input,
-                    n,
-                    lanes,
-                    order,
-                    [in_base + lane_batch[p] * idist[dimension] for p in range(lanes)],
-                    complex_bytes,
+                    e, op.input, n, lanes, order, in_lanes, complex_bytes, bits, layout
                 )
+            elif lanes > 1 and plan.input_lanewise:
+                points = [
+                    (
+                        e.load_lanewise(
+                            op.input,
+                            [(b + j * istride) * complex_bytes for b in in_lanes],
+                            bits,
+                        ),
+                    )
+                    for j in range(n)
+                ]
             else:
-                start = in_base + group * lanes
                 points = [
                     _load_point(
-                        e, op.input, (start + j * istride) * complex_bytes, bits
+                        e,
+                        op.input,
+                        (in_start + j * istride) * complex_bytes,
+                        bits,
+                        layout,
                     )
                     for j in range(n)
                 ]
@@ -179,40 +216,60 @@ def _lower_leaf(e: Emitter, op: DftOp, plan: LeafVectorization) -> None:
                             n=twiddle_n,
                             exponents=exponents,
                             datatype=op.datatype,
+                            compact=compact,
                         ),
                         e.insertion_point(),
                     )
-                    points[j] = (twiddle.outputs[0], twiddle.outputs[1])
+                    points[j] = tuple(twiddle.outputs)
 
             # Transform.
             dft = e.rewriter.insert(
-                DftRegOp(points, sign=sign, datatype=op.datatype), e.insertion_point()
+                DftRegOp(points, sign=sign, layout=layout, datatype=op.datatype),
+                e.insertion_point(),
             )
             results = dft.output_points()
 
             # Store.
-            if plan.output_transposed:
+            if lanes > 1 and plan.output_transposed:
                 _store_transposed(
                     e,
                     op.output,
                     results,
                     lanes,
                     order,
-                    [out_base + lane_batch[k] * odist[dimension] for k in range(lanes)],
+                    out_lanes,
                     complex_bytes,
+                    bits,
+                    layout,
                 )
+            elif lanes > 1 and plan.output_lanewise:
+                for k, (point,) in enumerate(results):
+                    e.store_lanewise(
+                        op.output,
+                        [(b + k * ostride) * complex_bytes for b in out_lanes],
+                        point,
+                        bits,
+                    )
             else:
-                start = out_base + group * lanes
                 for k, point in enumerate(results):
                     _store_point(
-                        e, op.output, (start + k * ostride) * complex_bytes, point, bits
+                        e,
+                        op.output,
+                        (out_start + k * ostride) * complex_bytes,
+                        point,
+                        bits,
+                        layout,
                     )
+            first += lanes
 
 
 def _load_point(
-    e: Emitter, pointer: SSAValue, offset: int, bits: int
-) -> tuple[SSAValue, SSAValue]:
-    """Load consecutive complex numbers, one per lane, as real and imaginary parts."""
+    e: Emitter, pointer: SSAValue, offset: int, bits: int, layout: RegisterLayout
+) -> Point:
+    """Load consecutive complex numbers, one per lane: as they are in the
+    interleaved layout, as real and imaginary parts in the split one."""
+    if layout is RegisterLayout.INTERLEAVED:
+        return (e.load(pointer, offset, bits),)
     if bits == e.element_bits:
         return (
             e.load(pointer, offset, bits),
@@ -231,9 +288,13 @@ def _store_point(
     e: Emitter,
     pointer: SSAValue,
     offset: int,
-    point: tuple[SSAValue, SSAValue],
+    point: Point,
     bits: int,
+    layout: RegisterLayout,
 ) -> None:
+    if layout is RegisterLayout.INTERLEAVED:
+        e.store(pointer, offset, point[0], bits)
+        return
     re, im = point
     if bits == e.element_bits:
         e.store(pointer, offset, re, bits)
@@ -259,26 +320,28 @@ def _load_transposed(
     order: tuple[int, ...],
     lane_bases: list[int],
     complex_bytes: int,
-) -> list[tuple[SSAValue, SSAValue]]:
+    bits: int,
+    layout: RegisterLayout,
+) -> list[Point]:
     """Load ``lanes`` transforms whose points are contiguous, one per lane.
 
     Lane ``p`` of every result transforms the batch element at complex index
     ``lane_bases[p]``. Loading a block of that element's points puts point
     ``k0 + order[l]`` in lane ``l``, so result ``k`` of the transpose holds
-    point ``k0 + order[k]``.
+    point ``k0 + order[k]``. Each register of a point transposes separately.
     """
-    bits = lanes * 8 * complex_bytes // 2
-    points: list[tuple[SSAValue, SSAValue] | None] = [None] * n
+    points: list[Point | None] = [None] * n
     for k0 in range(0, n, lanes):
         loaded = [
-            _load_point(e, pointer, (lane_bases[p] + k0) * complex_bytes, bits)
+            _load_point(e, pointer, (lane_bases[p] + k0) * complex_bytes, bits, layout)
             for p in range(lanes)
         ]
-        datatype = e.datatype
-        re = _transpose(e, [point[0] for point in loaded], datatype)
-        im = _transpose(e, [point[1] for point in loaded], datatype)
+        parts = [
+            _transpose(e, [point[w] for point in loaded], e.datatype)
+            for w in range(layout.registers_per_point)
+        ]
         for k in range(lanes):
-            points[k0 + order[k]] = (re[k], im[k])
+            points[k0 + order[k]] = tuple(part[k] for part in parts)
     assert all(point is not None for point in points)
     return points  # type: ignore[return-value]
 
@@ -286,21 +349,29 @@ def _load_transposed(
 def _store_transposed(
     e: Emitter,
     pointer: SSAValue,
-    results: list[tuple[SSAValue, SSAValue]],
+    results: list[Point],
     lanes: int,
     order: tuple[int, ...],
     lane_bases: list[int],
     complex_bytes: int,
+    bits: int,
+    layout: RegisterLayout,
 ) -> None:
     """The inverse of ``_load_transposed``."""
-    bits = lanes * 8 * complex_bytes // 2
     for k0 in range(0, len(results), lanes):
         block = [results[k0 + order[p]] for p in range(lanes)]
-        re = _transpose(e, [point[0] for point in block], e.datatype)
-        im = _transpose(e, [point[1] for point in block], e.datatype)
+        parts = [
+            _transpose(e, [point[w] for point in block], e.datatype)
+            for w in range(layout.registers_per_point)
+        ]
         for k in range(lanes):
             _store_point(
-                e, pointer, (lane_bases[k] + k0) * complex_bytes, (re[k], im[k]), bits
+                e,
+                pointer,
+                (lane_bases[k] + k0) * complex_bytes,
+                tuple(part[k] for part in parts),
+                bits,
+                layout,
             )
 
 
@@ -317,7 +388,7 @@ class SplitDftRegPattern(RewritePattern):
         if r is None:
             raise PassFailedException(f"no register kernel for {n} points")
         m = n // r
-        sign = op.sign.value.data
+        sign, layout = op.sign.value.data, op.register_layout
         x = op.input_points()
 
         def insert(new_op: OpT) -> OpT:
@@ -326,12 +397,15 @@ class SplitDftRegPattern(RewritePattern):
         inner = [
             insert(
                 DftRegOp(
-                    [x[j2 + r * j1] for j1 in range(m)], sign=sign, datatype=op.datatype
+                    [x[j2 + r * j1] for j1 in range(m)],
+                    sign=sign,
+                    layout=layout,
+                    datatype=op.datatype,
                 )
             ).output_points()
             for j2 in range(r)
         ]
-        results: list[SSAValue] = [op.inputs[0]] * (2 * n)
+        results: list[Point] = [()] * n
         for k1 in range(m):
             column = []
             for j2 in range(r):
@@ -342,18 +416,19 @@ class SplitDftRegPattern(RewritePattern):
                             point, n=n, exponents=[sign * j2 * k1], datatype=op.datatype
                         )
                     )
-                    point = (twiddle.outputs[0], twiddle.outputs[1])
+                    point = tuple(twiddle.outputs)
                 column.append(point)
-            outer = insert(DftRegOp(column, sign=sign, datatype=op.datatype))
-            for k2, (re, im) in enumerate(outer.output_points()):
-                results[2 * (k1 + m * k2)] = re
-                results[2 * (k1 + m * k2) + 1] = im
-        rewriter.replace(op, (), results)
+            outer = insert(
+                DftRegOp(column, sign=sign, layout=layout, datatype=op.datatype)
+            )
+            for k2, point in enumerate(outer.output_points()):
+                results[k1 + m * k2] = point
+        rewriter.replace(op, (), [value for point in results for value in point])
 
 
 @dataclass
 class DftRegBaseCasePattern(RewritePattern):
-    """The nano-kernels: radix 2, 3, 4, 5, and 8 DFTs as adds and FMAs."""
+    """The nano-kernels: radix 2, 3, 4, 5, 7, 8, and 16 DFTs as adds and FMAs."""
 
     pools: Pools
 
@@ -363,9 +438,22 @@ class DftRegBaseCasePattern(RewritePattern):
         if n not in kernels.BASE_RADICES and n != 1:
             return
         e = _emitter(rewriter, op, op.datatype, self.pools)
-        points = [(Real(re), Real(im)) for re, im in op.input_points()]
-        results = kernels.dft(e, points, op.sign.value.data)
-        values = [e.materialize(part) for point in results for part in point]
+        sign = op.sign.value.data
+        if op.register_layout is RegisterLayout.INTERLEAVED:
+            algebra = InterleavedAlgebra(e)
+            packed = [Packed(value) for (value,) in op.input_points()]
+            values = [
+                value
+                for point in kernels.dft(algebra, packed, sign)
+                for value in algebra.cmaterialize(point)
+            ]
+        else:
+            split = [(Real(re), Real(im)) for re, im in op.input_points()]
+            values = [
+                value
+                for point in kernels.dft(e, split, sign)
+                for value in e.cmaterialize(point)
+            ]
         rewriter.replace(op, (), values)
 
 
@@ -381,6 +469,9 @@ class TwiddlePattern(RewritePattern):
         e = _emitter(rewriter, op, op.datatype, self.pools)
         n = op.n.value.data
         exponents = op.exponents.get_values()
+        if len(op.inputs) == 1:
+            self._interleaved(e, op, rewriter)
+            return
         re, im = op.inputs
         if len(set(exponents)) == 1:
             result = e.times_root((Real(re), Real(im)), exponents[0], n)
@@ -402,6 +493,43 @@ class TwiddlePattern(RewritePattern):
         new_im = e.fma_constant_raw(re, bc, sines, broadcast=False, kind=FmaKind.FMADD)
         rewriter.replace(op, (), [new_re, new_im])
 
+    @staticmethod
+    def _interleaved(e: Emitter, op: TwiddleOp, rewriter: PatternRewriter) -> None:
+        n = op.n.value.data
+        exponents = op.exponents.get_values()
+        (value,) = op.inputs
+        if len(set(exponents)) == 1:
+            algebra = InterleavedAlgebra(e)
+            result = algebra.times_root(Packed(value), exponents[0], n)
+            rewriter.replace(op, (), list(algebra.cmaterialize(result)))
+            return
+
+        assert isinstance(value.type, X86VectorRegisterType)
+        lanes = value.type.bitwidth() // (2 * e.element_bits)
+        assert len(exponents) == lanes, "expected one exponent per lane"
+        angles = [2 * math.pi * x / n for x in exponents]
+        if op.compact is None:
+            cosines = e.pool.offset([math.cos(a) for a in angles for _ in range(2)])
+            sines = e.pool.offset(
+                [v for a in angles for v in (-math.sin(a), math.sin(a))]
+            )
+            # (c + is)(a + ib) = (c, c) * (a, b) + (-s, s) * (b, a)
+            rotated = e.mul_constant_raw(e.swap(value), sines, broadcast=False)
+            result = e.fma_constant_raw(
+                value, rotated, cosines, broadcast=False, kind=FmaKind.FMADD
+            )
+        else:
+            pairs = e.pool.offset(
+                [v for a in angles for v in (math.cos(a), math.sin(a))]
+            )
+            bits = value.type.bitwidth()
+            cosines = e.load_pair_duplicated(pairs, bits, 0)
+            sines = e.load_pair_duplicated(pairs, bits, 1)
+            # (c + is)(a + ib) = (c, c) * (a, b) -/+ (s, s) * (b, a)
+            rotated = e.mul_raw(e.swap(value), sines)
+            result = e.fma_raw(value, cosines, rotated, kind=FmaKind.MADDSUB)
+        rewriter.replace(op, (), [result])
+
 
 @dataclass
 class TransposePattern(RewritePattern):
@@ -413,7 +541,9 @@ class TransposePattern(RewritePattern):
     def match_and_rewrite(self, op: TransposeOp, rewriter: PatternRewriter, /) -> None:
         e = _emitter(rewriter, op, op.datatype, self.pools)
         lanes = len(op.inputs)
-        network = transpose_network(lanes, e.element_bits)
+        register_type = op.inputs[0].type
+        assert isinstance(register_type, X86VectorRegisterType)
+        network = transpose_network(lanes, register_type.bitwidth() // lanes)
         registers = [op.inputs[source] for source in network.source_of_slot]
         for stage_start in range(0, len(network.steps), lanes):
             previous = list(registers)
