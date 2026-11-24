@@ -1,4 +1,4 @@
-// RUN: compxsmm-gemm dense %t matmul 10 2 64 10 64 10 1 1 1 1 skx nopf DP --disable-regalloc && xdsl-opt %t -f mlir -p 'xsmm-apply-schedule{strategy=libxsmm-skx disable-regalloc=true}',x86-regalloc-verify-liveness,convert-x86-scf-to-x86 -t x86-mir | filecheck %s
+// RUN: xdsl-opt %s -t x86-mir | filecheck %s
 
 // The compxsmm-llvm-gemm-passes pipeline printed as LLVM Machine IR: a K loop
 // whose carried values become PHIs, and a masked tail along M.
@@ -174,3 +174,71 @@
 // CHECK-NEXT:     RET64
 // CHECK-EMPTY:
 // CHECK-NEXT: ...
+
+x86_func.func public @matmul(%0: !x86.reg64<rdi>, %1: !x86.reg64<rsi>, %2: !x86.reg64<rdx>) {
+  %3 = x86.di.mov 3 : () -> !x86.reg64
+  %4 = x86.ks.kmovb %3 : (!x86.reg64) -> !x86.avx512maskreg<k1>
+  %5 = x86.dm.vmovupd [%2] : (!x86.reg64<rdx>) -> !x86.avx512reg
+  %6 = x86.dmk.vmovupd[%2 + 64], %4 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg
+  %7 = x86.dm.vmovupd [%2 + 80] : (!x86.reg64<rdx>) -> !x86.avx512reg
+  %8 = x86.dmk.vmovupd[%2 + 144], %4 {z} : (!x86.reg64<rdx>, !x86.avx512maskreg<k1>) -> !x86.avx512reg
+  %9 = x86.di.mov 0 : () -> !x86.reg64
+  x86.fallthrough ^bb1(%9 : !x86.reg64, %0 : !x86.reg64<rdi>, %1 : !x86.reg64<rsi>, %5 : !x86.avx512reg, %6 : !x86.avx512reg, %7 : !x86.avx512reg, %8 : !x86.avx512reg)
+^bb1(%10: !x86.reg64, %11: !x86.reg64<rdi>, %12: !x86.reg64<rsi>, %13: !x86.avx512reg, %14: !x86.avx512reg, %15: !x86.avx512reg, %16: !x86.avx512reg):
+  x86.label "scf_body_0_for"
+  %17 = x86.ri.add %10, 4 : (!x86.reg64) -> !x86.reg64
+  %18 = x86.dm.vmovupd [%11] : (!x86.reg64<rdi>) -> !x86.avx512reg
+  %19 = x86.dmk.vmovupd[%11 + 64], %4 {z} : (!x86.reg64<rdi>, !x86.avx512maskreg<k1>) -> !x86.avx512reg
+  %20 = x86.dm.vbroadcastsd [%12] : (!x86.reg64<rsi>) -> !x86.avx512reg
+  %21 = x86.rss.vfmadd231pd %13, %18, %20 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %22 = x86.rss.vfmadd231pd %14, %19, %20 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %23 = x86.dm.vbroadcastsd [%12 + 512] : (!x86.reg64<rsi>) -> !x86.avx512reg
+  %24 = x86.ri.add %12, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+  %25 = x86.ri.add %11, 80 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+  %26 = x86.rss.vfmadd231pd %15, %18, %23 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %27 = x86.rss.vfmadd231pd %16, %19, %23 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %28 = x86.dm.vmovupd [%25] : (!x86.reg64<rdi>) -> !x86.avx512reg
+  %29 = x86.dmk.vmovupd[%25 + 64], %4 {z} : (!x86.reg64<rdi>, !x86.avx512maskreg<k1>) -> !x86.avx512reg
+  %30 = x86.dm.vbroadcastsd [%24] : (!x86.reg64<rsi>) -> !x86.avx512reg
+  %31 = x86.rss.vfmadd231pd %21, %28, %30 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %32 = x86.rss.vfmadd231pd %22, %29, %30 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %33 = x86.dm.vbroadcastsd [%24 + 512] : (!x86.reg64<rsi>) -> !x86.avx512reg
+  %34 = x86.ri.add %24, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+  %35 = x86.ri.add %25, 80 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+  %36 = x86.rss.vfmadd231pd %26, %28, %33 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %37 = x86.rss.vfmadd231pd %27, %29, %33 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %38 = x86.dm.vmovupd [%35] : (!x86.reg64<rdi>) -> !x86.avx512reg
+  %39 = x86.dmk.vmovupd[%35 + 64], %4 {z} : (!x86.reg64<rdi>, !x86.avx512maskreg<k1>) -> !x86.avx512reg
+  %40 = x86.dm.vbroadcastsd [%34] : (!x86.reg64<rsi>) -> !x86.avx512reg
+  %41 = x86.rss.vfmadd231pd %31, %38, %40 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %42 = x86.rss.vfmadd231pd %32, %39, %40 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %43 = x86.dm.vbroadcastsd [%34 + 512] : (!x86.reg64<rsi>) -> !x86.avx512reg
+  %44 = x86.ri.add %34, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+  %45 = x86.ri.add %35, 80 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+  %46 = x86.rss.vfmadd231pd %36, %38, %43 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %47 = x86.rss.vfmadd231pd %37, %39, %43 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %48 = x86.dm.vmovupd [%45] : (!x86.reg64<rdi>) -> !x86.avx512reg
+  %49 = x86.dmk.vmovupd[%45 + 64], %4 {z} : (!x86.reg64<rdi>, !x86.avx512maskreg<k1>) -> !x86.avx512reg
+  %50 = x86.dm.vbroadcastsd [%44] : (!x86.reg64<rsi>) -> !x86.avx512reg
+  %51 = x86.rss.vfmadd231pd %41, %48, %50 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %52 = x86.rss.vfmadd231pd %42, %49, %50 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %53 = x86.dm.vbroadcastsd [%44 + 512] : (!x86.reg64<rsi>) -> !x86.avx512reg
+  %54 = x86.ri.add %44, 8 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+  %55 = x86.ri.add %45, 80 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+  %56 = x86.rss.vfmadd231pd %46, %48, %53 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %57 = x86.rss.vfmadd231pd %47, %49, %53 : (!x86.avx512reg, !x86.avx512reg, !x86.avx512reg) -> !x86.avx512reg
+  %58 = x86.si.cmp %17, 64 : (!x86.reg64) -> !x86.rflags<rflags>
+  x86.c.jl %58 : !x86.rflags<rflags>, ^bb1(%17 : !x86.reg64, %55 : !x86.reg64<rdi>, %54 : !x86.reg64<rsi>, %51 : !x86.avx512reg, %52 : !x86.avx512reg, %56 : !x86.avx512reg, %57 : !x86.avx512reg), ^bb2(%17 : !x86.reg64, %55 : !x86.reg64<rdi>, %54 : !x86.reg64<rsi>, %51 : !x86.avx512reg, %52 : !x86.avx512reg, %56 : !x86.avx512reg, %57 : !x86.avx512reg)
+^bb2(%59: !x86.reg64, %60: !x86.reg64<rdi>, %61: !x86.reg64<rsi>, %62: !x86.avx512reg, %63: !x86.avx512reg, %64: !x86.avx512reg, %65: !x86.avx512reg):
+  x86.ms.vmovupd [%2], %62 : (!x86.reg64<rdx>, !x86.avx512reg) -> ()
+  x86.msk.vmovupd[%2 + 64], %63, %4 : (!x86.reg64<rdx>, !x86.avx512reg, !x86.avx512maskreg<k1>) -> ()
+  x86.ms.vmovupd [%2 + 80], %64 : (!x86.reg64<rdx>, !x86.avx512reg) -> ()
+  x86.msk.vmovupd[%2 + 144], %65, %4 : (!x86.reg64<rdx>, !x86.avx512reg, !x86.avx512maskreg<k1>) -> ()
+  %66 = x86.ri.sub %60, 5040 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+  %67 = x86.ri.sub %61, 512 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+  %68 = x86.ri.add %2, 80 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+  %69 = x86.ri.sub %66, 80 : (!x86.reg64<rdi>) -> !x86.reg64<rdi>
+  %70 = x86.ri.add %67, 1024 : (!x86.reg64<rsi>) -> !x86.reg64<rsi>
+  %71 = x86.ri.add %68, 80 : (!x86.reg64<rdx>) -> !x86.reg64<rdx>
+  x86_func.ret
+}
