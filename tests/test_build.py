@@ -298,6 +298,7 @@ def test_compxsmm_schedules_use_the_same_generated_mlir(tool: build.Toolchain) -
     variants = (
         "compxsmm",
         "compxsmm_plusnarrow",
+        "compxsmm_llvm",
         "libxsmm-skx-fsdbcst",
         "libxsmm-skx-nofsdbcst",
     )

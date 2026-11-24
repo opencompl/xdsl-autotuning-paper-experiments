@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -52,6 +53,7 @@ from rich.progress import (
 
 from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
 from autotuner.machines import MACHINES
+from autotuner.x86_mir import LLC_FLAGS, SPILL_ANNOTATION
 
 # The C spelling of each dtype, and how the XSMM generators name it.
 C_TYPE = {"f32": "float", "f64": "double"}
@@ -65,6 +67,8 @@ GENERATOR_SOURCES: Mapping[str, tuple[str, ...]] = {
     "libxtcmm": ("src/autotuner/libxsmm_gemm", "src/autotuner/libxtcmm_gemm"),
     # Every xdsl-opt pipeline runs project passes out of these two packages.
     "xdsl": ("src/autotuner/passes", "src/autotuner/dialects", "pyproject.toml"),
+    # The x86-mir target that hands `compxsmm_llvm` to llc.
+    "mir": ("src/autotuner/x86_mir.py",),
 }
 
 # The generator each "generate:*" step calls, imported once per worker.
@@ -75,9 +79,10 @@ GENERATOR_MODULES = {
 }
 
 # These all lower the same schedule-neutral CompXSMM IR. The ordinary variant
-# lets the SKX heuristic choose a nano-kernel; the others pin one by name.
+# lets the SKX heuristic choose a nano-kernel; the others pin one by name, and
+# `compxsmm_llvm` has llc allocate the heuristic's registers instead of xDSL.
 COMPXSMM_SHARED_VARIANTS = frozenset(
-    ("compxsmm", "compxsmm_plusnarrow", *NANOKERNEL_VARIANTS)
+    ("compxsmm", "compxsmm_plusnarrow", "compxsmm_llvm", *NANOKERNEL_VARIANTS)
 )
 COMPXSMM_VARIANTS = COMPXSMM_SHARED_VARIANTS | {"compxsmm_manual"}
 
@@ -190,6 +195,7 @@ class Toolchain:
     pipelines: Mapping[str, str]
     xtc_mlir_bin: str
     xtc_llvm_bin: str
+    llc: str
     root: Path = Path("build")
     digests: Mapping[str, str] = field(default_factory=dict)
     native_flags: tuple[str, ...] = ()
@@ -295,6 +301,7 @@ def toolchain(
         "compxsmm": per_isa("compxsmm-gemm-passes"),
         "compxsmm_plusnarrow": per_isa("compxsmm-plusnarrow-gemm-passes"),
         "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
+        "compxsmm_llvm": per_isa("compxsmm-llvm-gemm-passes"),
         **{
             variant: nanokernel_pipeline.replace("{nanokernel}", variant)
             for variant in NANOKERNEL_VARIANTS
@@ -326,6 +333,7 @@ def toolchain(
         pipelines=pipelines,
         xtc_mlir_bin=os.environ.get("XTC_MLIR_PREFIX", ""),
         xtc_llvm_bin=os.environ.get("XTC_LLVM_PREFIX", ""),
+        llc=tool_path("llc"),
         root=root,
         digests=source_digests(repo),
         native_flags=native_flags,
@@ -480,6 +488,22 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
             extra = (
                 ("--disable-regalloc",) if variant in COMPXSMM_SHARED_VARIANTS else ()
             )
+            # `compxsmm_llvm` stops before register allocation, prints LLVM
+            # Machine IR, and lets llc allocate and emit the assembly.
+            via_llc = variant == "compxsmm_llvm"
+            mir = here / f"{variant}.{dtype}.mir"
+            llc = Step(
+                "run",
+                (
+                    tool.llc,
+                    *LLC_FLAGS,
+                    f"-mtriple={tool.triple}",
+                    f"-mcpu={tool.march}",
+                    str(mir),
+                    "-o",
+                    str(out),
+                ),
+            )
             steps = (
                 Step("remove", (str(mlir),)),
                 Step(
@@ -511,13 +535,17 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         "-p",
                         tool.pipelines[variant],
                         "-t",
-                        "x86-asm",
+                        "x86-mir" if via_llc else "x86-asm",
                         "-o",
-                        str(out),
+                        str(mir if via_llc else out),
                     ),
                 ),
+                *((llc, Step("check-no-spills", (str(out),))) if via_llc else ()),
             )
-            return Artifact(out, steps, (tool.digests[generator], tool.digests["xdsl"]))
+            inputs = (tool.digests[generator], tool.digests["xdsl"])
+            return Artifact(
+                out, steps, inputs + ((tool.digests["mir"],) if via_llc else ())
+            )
 
         case "libxtcmm":
             mlir = here / f"libxtcmm.{dtype}.xtcmm.mlir"
@@ -735,6 +763,10 @@ def run_step(step: Step) -> None:
             from xdsl.xdsl_opt_main import xDSLOptMain
 
             xDSLOptMain(args=list(step.args)).run()
+
+        case "check-no-spills":
+            if re.search(SPILL_ANNOTATION, Path(step.args[0]).read_text()):
+                raise StepFailed(f"llc spilled registers in {step.args[0]}")
 
         case _:
             raise StepFailed(f"unknown step {step.kind!r}")
