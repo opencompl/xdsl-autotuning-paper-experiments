@@ -53,7 +53,6 @@ plot-grid = "autotuner.plot_grid:main"
 libxsmm-gemm = "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver:main"
 compxsmm-gemm = "autotuner.compxsmm_gemm.compxsmm_generator_gemm_driver:main"
 libxtcmm-gemm = "autotuner.libxtcmm_gemm.libxtcmm_generator_gemm_driver:main"
-llvm-regalloc = "autotuner.llvm_regalloc:main"
 
 [build-system]
 requires = ["hatchling"]

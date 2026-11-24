@@ -28,6 +28,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -52,7 +53,7 @@ from rich.progress import (
 
 from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
 from autotuner.machines import MACHINES
-from autotuner.x86_mir import LLC_FLAGS
+from autotuner.x86_mir import LLC_FLAGS, SPILL_ANNOTATION
 
 # The C spelling of each dtype, and how the XSMM generators name it.
 C_TYPE = {"f32": "float", "f64": "double"}
@@ -539,7 +540,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         str(mir if via_llc else out),
                     ),
                 ),
-                *((llc,) if via_llc else ()),
+                *((llc, Step("check-no-spills", (str(out),))) if via_llc else ()),
             )
             inputs = (tool.digests[generator], tool.digests["xdsl"])
             return Artifact(
@@ -762,6 +763,10 @@ def run_step(step: Step) -> None:
             from xdsl.xdsl_opt_main import xDSLOptMain
 
             xDSLOptMain(args=list(step.args)).run()
+
+        case "check-no-spills":
+            if re.search(SPILL_ANNOTATION, Path(step.args[0]).read_text()):
+                raise StepFailed(f"llc spilled registers in {step.args[0]}")
 
         case _:
             raise StepFailed(f"unknown step {step.kind!r}")

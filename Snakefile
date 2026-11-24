@@ -4,7 +4,7 @@ import glob
 import os
 import shutil
 
-from autotuner.x86_mir import LLC_FLAGS
+from autotuner.x86_mir import LLC_FLAGS, SPILL_ANNOTATION
 from autotuner.datasets import (
     NANOKERNEL_VARIANTS,
     machine_base,
@@ -394,12 +394,17 @@ rule compxsmm_llvm_s:
     params:
         passes=lambda wc: ",".join(config["compxsmm-llvm-gemm-passes"][machine_isa(wc)]),
         llc_flags=" ".join(LLC_FLAGS),
+        spill=SPILL_ANNOTATION,
         target_triple=target_triple,
         compiler_march=compiler_march,
     shell:
         """
         xdsl-opt {input.mlir} -p '{params.passes}' -t x86-mir -o {output.mir}
         llc {params.llc_flags} -mtriple={params.target_triple} -mcpu={params.compiler_march} {output.mir} -o {output.asm}
+        if grep -Eq '{params.spill}' {output.asm}; then
+            echo "llc spilled registers in {output.asm}" >&2
+            exit 1
+        fi
         """
 
 # The same kernel with the registers assigned by the generator and the schedule

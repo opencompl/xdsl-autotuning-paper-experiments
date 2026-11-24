@@ -327,3 +327,8 @@ LLC_FLAGS = (
     "-start-before=livevars",
     "-enable-misched=false",
 )
+# llc's comment on every stack-slot access its allocator inserted, such as
+# `# 64-byte Spill` or `# 64-byte Folded Reload`; an extended regex, for grep -E
+# as well as Python.  CompXSMM's kernels fit in the register file, so the build
+# fails if llc's output ever contains one.
+SPILL_ANNOTATION = "[0-9]+-byte (Folded )?(Spill|Reload)"
