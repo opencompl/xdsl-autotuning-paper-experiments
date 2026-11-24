@@ -2,20 +2,22 @@
 
 import itertools
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TypeVar
 
-from xdsl.dialects import x86_func
-from xdsl.dialects.x86.registers import X86VectorRegisterType
+from xdsl.dialects import x86, x86_func
+from xdsl.dialects.x86.registers import SSERegisterType, X86VectorRegisterType
 from xdsl.ir import Operation, SSAValue
 from xdsl.pattern_rewriter import (
     PatternRewriter,
     RewritePattern,
     op_type_rewrite_pattern,
 )
-from xdsl.rewriter import InsertPoint
+from xdsl.rewriter import InsertPoint, Rewriter
 from xdsl.utils.exceptions import PassFailedException
 
+from autotuner.dialects import x86ext
 from autotuner.dialects.fft import (
     DftOp,
     DftRegOp,
@@ -48,6 +50,7 @@ from autotuner.fft.values import (
     InterleavedAlgebra,
     Packed,
     Real,
+    vector_type,
 )
 
 Pools = dict[x86_func.FuncOp, ConstantPool]
@@ -555,3 +558,126 @@ class TransposePattern(RewritePattern):
         for slot, result in enumerate(network.result_of_slot):
             results[result] = registers[slot]
         rewriter.replace(op, (), results)
+
+
+# How many stores back a reload can still find its stores uncommitted, by
+# measurement on Zen 4: splitting reloads of older stores only adds work.
+RECENT_STORES = 16
+
+# Stores and loads a reload can be matched against, by the bytes they move.
+_VECTOR_LOADS = (x86.ops.DM_VmovupdOp, x86.ops.DM_VmovupsOp)
+_STORE_BYTES = {
+    x86.ops.MS_VmovsdOp: 8,
+    x86ext.MS_VmovssOp: 4,
+}
+
+
+def _stored_bytes(op: Operation) -> int | None:
+    if isinstance(op, (x86.ops.MS_VmovupdOp, x86.ops.MS_VmovupsOp)):
+        value_type = op.source.type
+        assert isinstance(value_type, X86VectorRegisterType)
+        return value_type.bitwidth() // 8
+    if isinstance(op, x86ext.StoreChunkOp):
+        return 16 if op.half is None else 8
+    return _STORE_BYTES.get(type(op))
+
+
+def match_reloads_to_stores(func: x86_func.FuncOp) -> None:
+    """Split vector loads that no single recent store covers.
+
+    A load takes its data from the store buffer only when the youngest store
+    it overlaps wrote all of it; otherwise it waits for the stores to commit,
+    which costs more than a DFT this small does. A pass whose stores are
+    narrower than the next pass's loads, because its batch ends in narrower
+    vectors or it stores lane by lane, makes such loads. Each becomes a load
+    of what the youngest store at its start wrote, then 128-bit chunks
+    inserted from memory, or built from two 64-bit halves where 64-bit
+    stores wrote them.
+
+    Stores commit in order, so a reload of stores older than the last
+    ``RECENT_STORES`` waits little, and only once for all such reloads; it
+    stays as it is.
+    """
+    # (pointer, offset, bytes) of every store so far, youngest last.
+    stores: list[tuple[SSAValue, int, int]] = []
+
+    def forwards(pointer: SSAValue, start: int, end: int) -> bool:
+        for age, store in enumerate(reversed(stores)):
+            if store[0] is pointer and store[1] < end and start < store[1] + store[2]:
+                return age >= RECENT_STORES or (
+                    store[1] <= start and end <= store[1] + store[2]
+                )
+        return True
+
+    for block in func.body.blocks:
+        for op in list(block.ops):
+            if (size := _stored_bytes(op)) is not None:
+                stores.append((op.memory, op.memory_offset.value.data, size))  # pyright: ignore
+                continue
+            if not isinstance(op, _VECTOR_LOADS):
+                continue
+            result_type = op.destination.type
+            assert isinstance(result_type, X86VectorRegisterType)
+            start = op.memory_offset.value.data
+            end = start + result_type.bitwidth() // 8
+            if not forwards(op.memory, start, end):
+                _split_load(op, result_type, forwards)
+
+
+def _split_load(
+    op: x86.ops.DM_VmovupdOp | x86.ops.DM_VmovupsOp,
+    result_type: X86VectorRegisterType,
+    forwards: Callable[[SSAValue, int, int], bool],
+) -> None:
+    """Load ``op``'s bytes in pieces that each forward from one store."""
+    pointer, start = op.memory, op.memory_offset.value.data
+    size = result_type.bitwidth() // 8
+    new_ops: list[Operation] = []
+
+    def chunk(offset: int) -> SSAValue | None:
+        """A 128-bit chunk built from two halves, or ``None`` to insert it
+        straight from memory."""
+        if forwards(pointer, offset, offset + 16):
+            return None
+        if not all(forwards(pointer, h, h + 8) for h in (offset, offset + 8)):
+            raise PassFailedException("cannot match a reload to its stores")
+        low = x86ext.DM_VmovsdOp(
+            pointer, offset, destination=SSERegisterType.unallocated()
+        )
+        high = x86ext.VmovhpdMemOp(
+            low.destination,
+            pointer,
+            offset + 8,
+            destination=SSERegisterType.unallocated(),
+        )
+        new_ops.extend((low, high))
+        return high.destination
+
+    # The widest prefix that forwards from one store.
+    first = next(
+        (w for w in (32, 16) if w < size and forwards(pointer, start, start + w)), 16
+    )
+    if first == 16 and (built := chunk(start)) is not None:
+        value = built
+    else:
+        load = type(op)(
+            pointer, start, destination=vector_type(8 * first).unallocated()
+        )
+        new_ops.append(load)
+        value = load.destination
+    for offset in range(start + first, start + size, 16):
+        index = (offset - start) // 16
+        destination = type(result_type).unallocated()
+        built = chunk(offset)
+        insert = (
+            x86ext.InsertChunkMemOp(
+                value, pointer, offset, index, destination=destination
+            )
+            if built is None
+            else x86ext.InsertChunkOp(value, built, index, destination=destination)
+        )
+        new_ops.append(insert)
+        value = insert.destination
+    Rewriter.insert_op(new_ops, InsertPoint.before(op))
+    op.destination.replace_all_uses_with(value)
+    Rewriter.erase_op(op)

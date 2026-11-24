@@ -37,3 +37,16 @@
 // points stay one kernel and store their 160 bytes once.
 // RUN: fft-dft %t 10 DP && xdsl-opt %t -f mlir -p 'fft-apply-schedule{layout=interleaved max_leaf=16},FFT_LOWERING' -t x86-asm | STORED_BYTES | filecheck %s --check-prefix SMALL
 // SMALL: {{^}}160{{$}}
+
+// A load forwards from the store buffer only when one earlier store wrote all
+// of it, so a pass reloads what narrower stores wrote in matching pieces. 20
+// points as 5 DFTs of 4, then 4 twiddled DFTs of 5: the first pass stores the
+// last of its 5 transforms as 4 xmm points, which the second loads as an xmm
+// and three inserted chunks instead of one zmm.
+// RUN: fft-dft %t 20 DP && xdsl-opt %t -f mlir -p 'fft-apply-schedule{layout=interleaved max_leaf=16 schedule=4,5},FFT_LOWERING' -t x86-asm | filecheck %s --check-prefix RELOAD
+// RELOAD:      vmovupd [rsi+304], xmm{{[0-9]+}}
+// RELOAD:      vmovupd [[R:xmm[0-9]+]], [rsi+256]
+// RELOAD-NEXT: vinsertf64x2 zmm{{[0-9]+}}, zmm{{[0-9]+}}, [rsi+272], 1
+// RELOAD-NEXT: vinsertf64x2 zmm{{[0-9]+}}, zmm{{[0-9]+}}, [rsi+288], 2
+// RELOAD-NEXT: vinsertf64x2 zmm{{[0-9]+}}, zmm{{[0-9]+}}, [rsi+304], 3
+// RELOAD-NOT:  vmovupd zmm{{[0-9]+}}, [rsi+256]

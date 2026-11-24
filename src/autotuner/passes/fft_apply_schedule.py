@@ -21,6 +21,7 @@ from autotuner.fft.expand import (
     SplitDftRegPattern,
     TransposePattern,
     TwiddlePattern,
+    match_reloads_to_stores,
 )
 from autotuner.fft.plan import FftStrategy
 
@@ -88,3 +89,6 @@ class FftApplySchedulePass(ModulePass):
         ).rewrite_module(op)
         for pool in pools.values():
             pool.finalize()
+        for func in op.walk():
+            if isinstance(func, x86_func.FuncOp):
+                match_reloads_to_stores(func)
