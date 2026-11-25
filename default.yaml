@@ -69,7 +69,7 @@ compxsmm-nanokernel-passes:
 # allocation.
 fft-passes:
   avx512:
-    - fft-apply-schedule
+    - fft-apply-schedule{layout=interleaved max_leaf=16}
     - fft-legalize
     - x86-regalloc-verify-liveness
     - x86-allocate-registers{arch=avx512}
