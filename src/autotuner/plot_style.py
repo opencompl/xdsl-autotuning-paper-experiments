@@ -44,6 +44,9 @@ _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     "libxsmm-skx-nofsdbcst": ("nofsdbcst", "#33a02c", "s", "-."),
     "llvm-skx-narrow-fsdbcst": ("narrow fsdbcst", "#e31a1c", "^", (0, (3, 1))),
     "aocl": ("AOCL", "#ff7f00", "s", (0, (5, 2))),
+    # The DFT: our generator against FFTW.
+    "fftw": ("FFTW", "#1f78b4", "o", "-"),
+    "xdsl_fft": ("xdsl-FFT", "#e31a1c", "s", (0, (4, 1))),
     "mkl": ("MKL", "#008300", "^", ":"),
     "llvm_intrinsics": ("LLVM intrinsics", "#1baf7a", "P", (0, (5, 1))),
     "tvm": ("TVM", "#eda100", "X", (0, (1, 1))),

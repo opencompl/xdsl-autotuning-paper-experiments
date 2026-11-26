@@ -7,7 +7,9 @@ import pandas as pd
 SAMPLE_KEY = ("variant", "M", "N", "K")
 
 
-def best_of_repeats(df: pd.DataFrame) -> pd.DataFrame:
+def best_of_repeats(
+    df: pd.DataFrame, key: tuple[str, ...] = SAMPLE_KEY
+) -> pd.DataFrame:
     """Keep each sample's fastest pass, dropping the rest.
 
     A dataset too short-running to be quiet is swept several times over --
@@ -19,6 +21,6 @@ def best_of_repeats(df: pd.DataFrame) -> pd.DataFrame:
     # Sort and deduplicate rather than group and take the minimum: this keeps
     # the whole row of the pass that won, and it does not care whether the
     # frame's index labels are unique the way a read straight from jsonl is.
-    kept = df.sort_values("time").drop_duplicates(list(SAMPLE_KEY))
+    kept = df.sort_values("time").drop_duplicates(list(key))
     assert isinstance(kept, pd.DataFrame)
     return kept
