@@ -18,6 +18,7 @@ edge.
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from matplotlib.axes import Axes
@@ -49,14 +50,17 @@ def draw_panel(
     ax: Axes, df: pd.DataFrame, *, variants: Sequence[str], ticked: bool
 ) -> None:
     ax.set_xscale("log", base=2)
-    ax.set_xlim(df["N"].min(), df["N"].max())
+    measured = sorted(df["N"].unique())
+    ax.set_xlim(measured[0], measured[-1])
     ax.set_ylim(0, Y_TOP)
     ax.axhline(100, linewidth=0.3, color=GRID, zorder=1)
 
     for index, variant in enumerate(variants):
-        group = df[df["variant"] == variant].sort_values("N")
+        group = df[df["variant"] == variant]
+        assert isinstance(group, pd.DataFrame)
         if group.empty:
             continue
+        group = group.sort_values("N")
         style = variant_style(variant)
         # Only the powers of two are joined, as benchFFT draws them: the
         # operation count overstates the other sizes by a factor that changes
@@ -65,12 +69,11 @@ def draw_panel(
         # drawn as dots in the same color.
         powers = group[(group["N"] & (group["N"] - 1)) == 0]
         others = group[(group["N"] & (group["N"] - 1)) != 0]
-        ax.plot(
-            powers["N"],
-            powers["percent"],
-            zorder=3,
-            **style | {"markersize": 2.2, "linewidth": WIDEST - NARROWING * index},
-        )
+        curve_style: dict[str, Any] = style | {
+            "markersize": 2.2,
+            "linewidth": WIDEST - NARROWING * index,
+        }
+        ax.plot(powers["N"], powers["percent"], zorder=3, **curve_style)
         ax.plot(
             others["N"],
             others["percent"],
