@@ -64,6 +64,12 @@ dataset_validate:
 dataset:
 	uv run evaluate $(if $(MACHINE),--machine $(MACHINE),)
 
+# The DFT sweep, FFTW against xdsl_fft in f32 and f64: Snakemake builds and
+# validates the kernels across every core, then they are timed one at a time.
+.PHONY: dataset_dft
+dataset_dft:
+	uv run evaluate-dft $(if $(MACHINE),--machine $(MACHINE),)
+
 # Prevent Make from deleting this intermediate file
 .PRECIOUS: data/$(MACHINE)/f64.bars.jsonl
 data/$(MACHINE)/f64.bars.jsonl:
@@ -115,6 +121,19 @@ PLOTS += plots/baselines.rapper.pdf
 PLOTS += plots/rapper/baselines.png
 
 BASELINES_SRC = src/autotuner/plot_baselines.py src/autotuner/plot_style.py
+
+# The DFT counterpart of the baselines figure, for whichever machines have run
+# `make dataset_dft` -- globbed for the reason the nano-kernel grid is.
+DFT_READY = $(patsubst data/%/f64.dft.jsonl,%,$(wildcard data/*/f64.dft.jsonl))
+PLOTS += $(foreach m,$(DFT_READY),plots/dft.$(m).pdf plots/$(m)/dft.png)
+
+DFT_PLOT_SRC = src/autotuner/plot_dft.py $(BASELINES_SRC)
+
+plots/dft.%.pdf: data/%/f32.dft.jsonl data/%/f64.dft.jsonl $(DFT_PLOT_SRC)
+	uv run plot-dft data/$*/f32.dft.jsonl data/$*/f64.dft.jsonl --output $@
+
+plots/%/dft.png: data/%/f32.dft.jsonl data/%/f64.dft.jsonl $(DFT_PLOT_SRC)
+	uv run plot-dft data/$*/f32.dft.jsonl data/$*/f64.dft.jsonl --output $@
 
 # A paper figure, so a PDF rather than a PNG, straight in plots/ with the
 # machine last in the name; here `%` is the machine on its own.  One machine per

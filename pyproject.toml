@@ -42,6 +42,7 @@ tvm = { index = "corse" }
 [project.scripts]
 hello = "autotuner.main:main"
 evaluate = "autotuner.evaluate:main"
+evaluate-dft = "autotuner.evaluate_dft:main"
 build-dataset = "autotuner.build:main"
 validate-dataset = "autotuner.validate:main"
 plot-ttile-squares = "autotuner.plot_ttile_squares:main"
@@ -50,9 +51,11 @@ plot-baselines = "autotuner.plot_baselines:main"
 plot-heatmap = "autotuner.plot_heatmap:main"
 plot-squares = "autotuner.plot_squares:main"
 plot-grid = "autotuner.plot_grid:main"
+plot-dft = "autotuner.plot_dft:main"
 libxsmm-gemm = "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver:main"
 compxsmm-gemm = "autotuner.compxsmm_gemm.compxsmm_generator_gemm_driver:main"
 libxtcmm-gemm = "autotuner.libxtcmm_gemm.libxtcmm_generator_gemm_driver:main"
+fft-dft = "autotuner.fft.generator:main"
 
 [build-system]
 requires = ["hatchling"]
