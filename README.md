@@ -136,6 +136,82 @@ can force unsupported instructions. Measurements set both `OMP_NUM_THREADS=1` an
 Once this smoke test passes, `make dataset_validate MACHINE=tower` validates the full
 tower dataset and `make dataset MACHINE=tower` collects its measurements.
 
+### DFT baseline
+
+Besides the matmul, the harness measures a forward, unnormalised, out-of-place
+1-D complex DFT of `N` points. Every implementation emits
+`void dft(const DTYPE *in, DTYPE *out)` over interleaved `(re, im)` arrays of
+`2*N` elements, must leave `in` untouched, and may prepare itself in
+`void dft_init(void)`, which runs once before validation or timing. Kernel
+sources live in `kernels/dft/`, and outputs under
+`build/<machine>/dft/<N>/<variant>.<dtype>.{test.log,time.txt}`.
+
+The baseline is FFTW 3.3.10 from nixpkgs, built with its SIMD codelets
+(SSE2 through AVX-512 on x86-64, NEON on aarch64), on every platform. Its
+plan is chosen in `dft_init` with `FFTW_EXHAUSTIVE`, so planning stays out of
+the timed region. Validation compares against a direct long-double DFT using
+the normwise relative error, with a tolerance of `1e-5` for f32 and `1e-13`
+for f64. Timing reports cycles per call, as for the matmul.
+
+```sh
+uv run snakemake --cores 1 --config machine=neon -- \
+  build/neon/dft/64/fftw.f64.test.log build/neon/dft/64/fftw.f64.time.txt
+```
+
+### DFT generator
+
+The `xdsl_fft` variant is our own DFT, generated for AVX-512 by recursive
+expansion, the way CompXSMM tiles a matmul down to nano-kernels. `fft-dft`
+emits one `fft.dft` operation, and `fft-apply-schedule` expands it one
+operation at a time until only x86 instructions are left
+(`src/autotuner/fft/rewrites.py`). No `fft` operation has an inout pair, and
+no expansion overwrites an operand, so every rewrite keeps the register
+allocator's structural conditions; the orchestrator in
+`src/autotuner/fft/plan.py` picks parameters that keep register demand within
+the 32 vector registers.
+
+1. **`SplitDft`: Cooley-Tukey in memory.** A DFT of `n = r*m` points becomes
+   `r` DFTs of `m` points followed by `m` DFTs of `r` points in place, with
+   twiddle factors. A cost model that counts instructions and memory round
+   trips picks the radix, or marks the DFT to run in register kernels.
+2. **`TileDft`: vectors of transforms.** A pass of register kernels becomes
+   one `fft.dft` per vector, with one transform per lane along whichever batch
+   dimension vectorizes best; a batch the vector width does not divide ends
+   in narrower vectors.
+3. **`DftToRegisters`.** A vector of transforms becomes loads, `fft.transpose`
+   (when a transform's points rather than its transforms are contiguous),
+   `fft.twiddle`, `fft.dft_reg`, and stores. A side that is neither
+   contiguous nor transposable moves each lane's complex number on its own.
+4. **`SplitDftReg` and `DftRegKernel`.** Cooley-Tukey in registers only
+   renames registers, down to radix 2, 3, 4, 5, 7, 8, and 16 nano-kernels of
+   adds and FMAs. Multiplications by `±i` fold into `vfmaddsub`, and real
+   constants become FMAs with a broadcast memory operand.
+5. **`Twiddle` and `Transpose`** become a swap, a multiply, and an FMA, and a
+   network of shuffles.
+
+Complex numbers stay interleaved in registers, as in memory, one register per
+point. Each expansion emits the constants it uses beside its code, in
+mergeable `.rodata.cst` sections addressed relative to `rip`, and picks the
+FMA form (132, 213, or 231) that overwrites one of its own values at its last
+use. Each twiddle factor is stored as two vectors of duplicated parts,
+`(c, c)` and `(-s, s)`, unless those would overflow `l1_bytes` (default
+32768) together with the input and output; then it is stored once, as
+`(c, s)`, and its parts are duplicated as it loads. Sizes must factor into 2,
+3, 5, and 7.
+
+`fft-apply-schedule{schedule=8,4,4}` replaces the cost model with explicit
+passes: the size of the DFTs in each pass over memory, in execution order,
+each at most `max_leaf` (16) points. A Cooley-Tukey plan printed by FFTW maps onto
+it directly: `(dft-ct-dit/16 (dftw-direct-16 ...) (dft-direct-64-x16 ...))`
+runs 16 DFTs of 64 points and then 64 twiddled DFTs of 16, so it is
+`schedule=64,16`.
+
+
+```sh
+uv run snakemake --cores 1 --config machine=tower -- \
+  build/tower/dft/64/xdsl_fft.f64.test.log build/tower/dft/64/xdsl_fft.f64.time.txt
+```
+
 ### Plotting
 
 Plot data using `make plots`; this command fails when required input data is
