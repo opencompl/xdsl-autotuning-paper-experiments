@@ -45,6 +45,24 @@ NANOKERNEL_VARIANTS = (
     "llvm-skx-narrow-fsdbcst",
 )
 
+
+def seven_smooth(n: int) -> bool:
+    """Whether ``n`` factors into 2, 3, 5 and 7, the radices `xdsl_fft` has."""
+    for p in (2, 3, 5, 7):
+        while n % p == 0:
+            n //= p
+    return n == 1
+
+
+# The DFT implementations, FFTW first as the baseline.
+DFT_VARIANTS = ("fftw", "xdsl_fft")
+
+# Sizes swept by the two DFT datasets, one per data type: every size the
+# generator supports from 2 to 128, then the powers of two out to 1024.  N = 1
+# is left out because a one-point DFT does no arithmetic, so its throughput is
+# undefined.
+DFT_SIZES = (*(n for n in range(2, 129) if seven_smooth(n)), 256, 512, 1024)
+
 # How many times a dataset's samples are measured; anything unlisted once.
 # These sweeps run for tens of cycles a point, short enough that whatever else
 # the machine is doing lands in the number.  That noise only ever makes a
@@ -54,6 +72,8 @@ DATASET_REPEATS = {
     "f64.nanokernel_grid": 3,
     "f32.squares": 3,
     "f64.squares": 3,
+    "f32.dft": 3,
+    "f64.dft": 3,
 }
 
 
@@ -234,6 +254,17 @@ def machine_file(
     base = machine_base(machine=machine, kernel=kernel, m=m, n=n, k=k)
     var = variant_filename(variant=variant, dtype=dtype, ext=ext)
     return f"{base}/{var}"
+
+
+def dft_file(
+    ext: str,
+    machine: str = "{machine}",
+    n: Size = "{n}",
+    variant: str = "{variant}",
+    dtype: str = "{dtype}",
+) -> str:
+    """Where a DFT kernel's ``ext`` file lives; a DFT has one size, not three."""
+    return f"build/{machine}/dft/{n}/{variant}.{dtype}.{ext}"
 
 
 @dataclass(frozen=True)
