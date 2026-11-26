@@ -212,6 +212,13 @@ uv run snakemake --cores 1 --config machine=tower -- \
   build/tower/dft/64/xdsl_fft.f64.test.log build/tower/dft/64/xdsl_fft.f64.time.txt
 ```
 
+`make dataset_dft` (`uv run evaluate-dft --machine <machine>`) sweeps both
+variants in f32 and f64 over every 7-smooth `N` from 2 to 128 plus 256, 512,
+and 1024 (`DFT_SIZES` in `src/autotuner/datasets.py`). It builds and validates
+every kernel, times each three times, and writes `data/<machine>/<dtype>.dft.jsonl`.
+Throughput counts `5 N log2 N` operations per transform, FFTW's convention.
+`make plots` then draws `plots/dft.<machine>.pdf`.
+
 ### Plotting
 
 Plot data using `make plots`; this command fails when required input data is

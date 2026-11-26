@@ -72,6 +72,8 @@ DATASET_REPEATS = {
     "f64.nanokernel_grid": 3,
     "f32.squares": 3,
     "f64.squares": 3,
+    "f32.dft": 3,
+    "f64.dft": 3,
 }
 
 
