@@ -51,6 +51,7 @@ class ApplyExpSchedulePattern(RewritePattern):
         blocking, _ = libxsmm_generator_configure_M_N_blocking(desc)
         input = SSAValue.get(op.input, type=GeneralRegisterType)
         output = SSAValue.get(op.output, type=GeneralRegisterType)
+        region_offset = 0
         for start in range(0, length, blocking):
             extent = min(blocking, length - start)
             trips, unroll = libxsmm_configure_microkernel_loops(extent, config)
@@ -93,7 +94,13 @@ class ApplyExpSchedulePattern(RewritePattern):
             if start + extent < length:
                 input = code.insert(x86.ops.RI_AddOp(input, extent * 4)).register_out
                 output = code.insert(x86.ops.RI_AddOp(output, extent * 4)).register_out
-        rewriter.erase(op)
+                region_offset += extent * 4
+        # Loop restoration returns to each region's base, not the original
+        # column base. Undo inter-region advances before returning the pointers.
+        if region_offset:
+            input = code.insert(x86.ops.RI_SubOp(input, region_offset)).register_out
+            output = code.insert(x86.ops.RI_SubOp(output, region_offset)).register_out
+        rewriter.replace(op, (), (input, output))
 
 
 @dataclass(frozen=True)

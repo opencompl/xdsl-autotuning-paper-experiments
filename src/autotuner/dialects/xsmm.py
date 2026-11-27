@@ -712,28 +712,41 @@ class HornerOp(X86HasRegisterConstraints):
 
 
 @irdl_op_definition
-class ExpOp(IRDLOperation):
+class ExpOp(X86HasRegisterConstraints):
     """Out-of-place approximate FP32 exp over a packed, full-vector column.
 
     Degree selects LIBXSMM's cubic or quintic numerical contract. Input and
-    output must not overlap; neither pointer is advanced by the operation.
+    output must not overlap. Both pointers are consumed through inout pairs;
+    the results return the original numerical addresses in the same registers.
+    Subsequent uses, including enclosing-loop yields, must use these results
+    rather than the original pointer SSA values.
     """
 
     name = "xsmm.exp"
     input = operand_def(GeneralRegisterType)
     output = operand_def(GeneralRegisterType)
+    input_out = result_def(GeneralRegisterType)
+    output_out = result_def(GeneralRegisterType)
     length = prop_def(IntegerAttr)
     degree = prop_def(IntegerAttr)
-    traits = traits_def(MemoryReadEffect(), MemoryWriteEffect())
-    assembly_format = "$input `,` $output `length` $length `degree` $degree attr-dict `:` type(operands)"
+    traits = traits_def(
+        MemoryReadEffect(), MemoryWriteEffect(), RegisterAllocatedMemoryEffect()
+    )
+    assembly_format = "$input `,` $output `length` $length `degree` $degree attr-dict `:` functional-type(operands, results)"
 
     def __init__(self, input: SSAValue, output: SSAValue, length: int, degree: int):
         super().__init__(
             operands=[input, output],
+            result_types=[input.type, output.type],
             properties={
                 "length": IntegerAttr(length, i64),
                 "degree": IntegerAttr(degree, i64),
             },
+        )
+
+    def get_register_constraints(self) -> RegisterConstraints:
+        return RegisterConstraints(
+            (), (), ((self.input, self.input_out), (self.output, self.output_out))
         )
 
     def verify_(self) -> None:
@@ -741,6 +754,11 @@ class ExpOp(IRDLOperation):
             raise VerifyException("exp length must be positive and divisible by 16")
         if self.degree.value.data not in (3, 5):
             raise VerifyException("exp degree must be 3 or 5")
+        if (
+            self.input.type != self.input_out.type
+            or self.output.type != self.output_out.type
+        ):
+            raise VerifyException("exp results must reuse the pointer registers")
 
 
 XSMM = Dialect(

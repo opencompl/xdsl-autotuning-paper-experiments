@@ -64,8 +64,11 @@ compxsmm-manual-gemm-passes:
 
 compxsmm-manual-exp-passes:
   avx512:
+    - x86-regalloc-verify-liveness
     - xsmm-apply-exp-schedule
+    - x86-regalloc-verify-liveness
     - xsmm-expand-polynomial{schedule=libxsmm}
+    - x86-regalloc-verify-liveness
     - xsmm-expand-horner
     - xsmm-expand-polynomial-constants
     - x86-regalloc-verify-liveness
@@ -74,8 +77,11 @@ compxsmm-manual-exp-passes:
 
 compxsmm-exp-passes:
   avx512:
+    - x86-regalloc-verify-liveness
     - xsmm-apply-exp-schedule{disable-regalloc=true}
+    - x86-regalloc-verify-liveness
     - xsmm-expand-polynomial{schedule=libxsmm}
+    - x86-regalloc-verify-liveness
     - xsmm-expand-horner
     - xsmm-expand-polynomial-constants
     - x86-regalloc-verify-liveness
@@ -86,8 +92,11 @@ compxsmm-exp-passes:
 
 compxsmm-estrin-exp-passes:
   avx512:
+    - x86-regalloc-verify-liveness
     - xsmm-apply-exp-schedule{disable-regalloc=true}
+    - x86-regalloc-verify-liveness
     - xsmm-expand-polynomial{schedule=estrin5}
+    - x86-regalloc-verify-liveness
     - xsmm-expand-horner
     - xsmm-expand-polynomial-constants
     - x86-regalloc-verify-liveness

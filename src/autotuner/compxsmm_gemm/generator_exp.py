@@ -33,6 +33,8 @@ def prepare_polynomial_constants(
     registers: Sequence[AVX512RegisterType],
 ) -> tuple[SSAValue[AVX512RegisterType], ...]:
     func = code.current_block.parent_op()
+    while func is not None and not isinstance(func, x86_func.FuncOp):
+        func = func.parent_op()
     assert isinstance(func, x86_func.FuncOp)
     coefficients = FloatAttr.unpack(
         f32, b"".join(value.to_bytes(4, "little") for value in bits), len(bits)

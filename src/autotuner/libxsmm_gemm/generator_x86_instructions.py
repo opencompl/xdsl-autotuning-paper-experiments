@@ -28,6 +28,8 @@ def libxsmm_x86_instruction_full_vec_load_of_constants(
     vec_reg: AVX512RegisterType,
 ) -> SSAValue[AVX512RegisterType]:
     func = generated_code.current_block.parent_op()
+    while func is not None and not isinstance(func, FuncOp):
+        func = func.parent_op()
     assert isinstance(func, FuncOp)
     label = f".L{func.sym_name.data}_{identifier}"
     generated_code.insert(InlineConstantOp(label, bits))

@@ -6,7 +6,7 @@ from xdsl.backend.register_allocatable import (
     RegisterConstraints,
 )
 from xdsl.backend.register_type import RegisterAllocatedMemoryEffect
-from xdsl.dialects import test
+from xdsl.dialects import test, x86
 from xdsl.dialects.arith import FastMathFlagsAttr
 from xdsl.dialects.builtin import ArrayAttr, FloatAttr, ModuleOp, f32
 from xdsl.dialects.x86.registers import AVX512RegisterType
@@ -16,6 +16,7 @@ from xdsl.utils.test_value import create_ssa_value
 from autotuner.dialects.xsmm import (
     AccumulatorAddpdOp,
     AccumulatorAddpsOp,
+    ExpOp,
     HornerOp,
     PolynomialConstantsOp,
     PolynomialOp,
@@ -82,6 +83,41 @@ def test_horner_rejects_a_later_use_of_the_consumed_accumulator() -> None:
     x, acc, c = inputs.results
     op = HornerOp(x, acc, (c,))
     after = test.TestOp(operands=(op.result, x, c, acc))
+    module = ModuleOp([inputs, op, after])
+    module.verify()
+    with pytest.raises(VerifyException, match="should not be read after in/out"):
+        VerifyLivenessContext(set()).process_region(module.body)
+
+
+@pytest.mark.parametrize("assigned", (False, True))
+def test_exp_declares_consumed_pointer_pairs(assigned: bool) -> None:
+    registers = (
+        (x86.registers.R8, x86.registers.R9)
+        if assigned
+        else (
+            x86.registers.UNALLOCATED_REG64,
+            x86.registers.UNALLOCATED_REG64,
+        )
+    )
+    inputs = test.TestOp(result_types=registers)
+    op = ExpOp(*inputs.results, length=528, degree=5)
+    assert isinstance(op, HasRegisterConstraints)
+    assert op.has_trait(HasRegisterConstraintsTrait)
+    assert op.get_register_constraints() == RegisterConstraints(
+        (), (), ((inputs.results[0], op.input_out), (inputs.results[1], op.output_out))
+    )
+    assert tuple(result.type for result in op.results) == registers
+    after = test.TestOp(operands=op.results)
+    module = ModuleOp([inputs, op, after])
+    module.verify()
+    VerifyLivenessContext(set()).process_region(module.body)
+
+
+@pytest.mark.parametrize("pointer", (0, 1))
+def test_exp_rejects_a_later_use_of_a_consumed_pointer(pointer: int) -> None:
+    inputs = test.TestOp(result_types=[x86.registers.UNALLOCATED_REG64] * 2)
+    op = ExpOp(*inputs.results, length=528, degree=5)
+    after = test.TestOp(operands=(inputs.results[pointer],))
     module = ModuleOp([inputs, op, after])
     module.verify()
     with pytest.raises(VerifyException, match="should not be read after in/out"):
