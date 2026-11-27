@@ -39,10 +39,21 @@ def prepare_polynomial_constants(
     coefficients = FloatAttr.unpack(
         f32, b"".join(value.to_bytes(4, "little") for value in bits), len(bits)
     )
+    labels: set[str] = set()
+    for op in func.walk():
+        if isinstance(op, PolynomialConstantsOp):
+            labels.update(
+                f"{op.label_prefix.data}{i}" for i in range(len(op.registers))
+            )
+        elif isinstance(op, x86_ext.InlineConstantOp):
+            labels.add(op.label.data)
+    base = prefix = f".L{func.sym_name.data}_c"
+    suffix = 0
+    while any(f"{prefix}{i}" in labels for i in range(len(bits))):
+        suffix += 1
+        prefix = f"{base}_{suffix}_"
     return tuple(
-        code.insert(
-            PolynomialConstantsOp(coefficients, f".L{func.sym_name.data}_c", registers)
-        ).registers
+        code.insert(PolynomialConstantsOp(coefficients, prefix, registers)).registers
     )
 
 

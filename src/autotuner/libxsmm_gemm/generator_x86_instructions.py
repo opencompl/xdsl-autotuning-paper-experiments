@@ -31,7 +31,12 @@ def libxsmm_x86_instruction_full_vec_load_of_constants(
     while func is not None and not isinstance(func, FuncOp):
         func = func.parent_op()
     assert isinstance(func, FuncOp)
-    label = f".L{func.sym_name.data}_{identifier}"
+    labels = {op.label.data for op in func.walk() if isinstance(op, InlineConstantOp)}
+    base = label = f".L{func.sym_name.data}_{identifier}"
+    suffix = 0
+    while label in labels:
+        suffix += 1
+        label = f"{base}_{suffix}"
     generated_code.insert(InlineConstantOp(label, bits))
     return generated_code.insert(
         DM_VmovupsRipOp(label, destination=vec_reg)

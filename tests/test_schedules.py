@@ -562,17 +562,23 @@ x86_func.func public @polynomial(%in: !x86.reg64<rdi>, %out: !x86.reg64<rsi>) {{
 
 @pytest.mark.parametrize("length", (16, 64, 256, 272, 512, 528, 1024, 1040))
 @pytest.mark.parametrize(
-    ("degree", "schedule", "assigned"),
+    ("degree", "schedule", "assigned", "exp_count"),
     (
-        (3, "libxsmm", True),
-        (3, "libxsmm", False),
-        (5, "libxsmm", True),
-        (5, "libxsmm", False),
-        (5, "estrin5", False),
+        (3, "libxsmm", True, 1),
+        (3, "libxsmm", False, 1),
+        (5, "libxsmm", True, 1),
+        (5, "libxsmm", False, 1),
+        (5, "estrin5", False, 1),
+        (5, "estrin5", False, 2),
     ),
 )
 def test_exp_pointer_results_in_native_loop(
-    tmp_path: Path, length: int, degree: int, schedule: str, assigned: bool
+    tmp_path: Path,
+    length: int,
+    degree: int,
+    schedule: str,
+    assigned: bool,
+    exp_count: int,
 ) -> None:
     if (
         platform.system() != "Linux"
@@ -592,8 +598,12 @@ def test_exp_pointer_results_in_native_loop(
     input = x86.ops.DS_MovOp(entry.args[0], destination=registers[1])
     output = x86.ops.DS_MovOp(entry.args[1], destination=registers[2])
     body = Block(arg_types=registers)
-    exp = ExpOp(*body.args[1:], length=length, degree=degree)
-    body.add_ops((exp, x86_scf.YieldOp(*exp.results)))
+    pointers = body.args[1:]
+    for _ in range(exp_count):
+        exp = ExpOp(*pointers, length=length, degree=degree)
+        body.add_op(exp)
+        pointers = tuple(exp.results)
+    body.add_op(x86_scf.YieldOp(*pointers))
     # Executing twice also detects a pointer advance hidden by unused results
     # in the standalone benchmark ABI. Both iterations must write the same span.
     loop = x86_scf.ForOp(
