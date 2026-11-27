@@ -16,6 +16,10 @@ extern void compxsmm_manual_exp_kernel(const libxsmm_meltw_unary_param *param);
 extern const unsigned char compxsmm_manual_exp_kernel_end[];
 extern void compxsmm_exp_kernel(const libxsmm_meltw_unary_param *param);
 extern const unsigned char compxsmm_exp_kernel_end[];
+#if EXP_DEGREE == 5
+extern void compxsmm_estrin_exp_kernel(const libxsmm_meltw_unary_param *param);
+extern const unsigned char compxsmm_estrin_exp_kernel_end[];
+#endif
 
 // One call site for all variants, placements, and both execution orders.
 __attribute__((noinline)) static TIMETY measure(
@@ -43,6 +47,10 @@ int main(void) {
        (uintptr_t)compxsmm_manual_exp_kernel_end - (uintptr_t)compxsmm_manual_exp_kernel},
       {"compxsmm", compxsmm_exp_kernel,
        (uintptr_t)compxsmm_exp_kernel_end - (uintptr_t)compxsmm_exp_kernel},
+#if EXP_DEGREE == 5
+      {"compxsmm_estrin", compxsmm_estrin_exp_kernel,
+       (uintptr_t)compxsmm_estrin_exp_kernel_end - (uintptr_t)compxsmm_estrin_exp_kernel},
+#endif
   };
   enum { VARIANTS = sizeof(variants) / sizeof(*variants) };
   const size_t offsets[] = {EXP_PLACEMENTS};

@@ -20,11 +20,22 @@ int main(void) {
   param.out.primary = output + 16;
   double max_relative = 0;
 
-  for (int trial = 0; trial < 2; ++trial) {
+  // Three adjacent FP32 inputs around each (k + 1/2) * ln(2) boundary in
+  // [-10, 10), in addition to the two fractional random input sets.
+  const int boundaries = 28 * 3;
+  for (int trial = 0; trial < 2 + (boundaries + LENGTH - 1) / LENGTH; ++trial) {
     for (int i = 0; i < LENGTH + 32; ++i) {
       input[i] = output[i] = -12345.0f;
     }
     fill_exp_input(input + 16, 42 + trial);
+    if (trial >= 2) {
+      for (int i = 0; i < LENGTH; ++i) {
+        int point = ((trial - 2) * LENGTH + i) % boundaries;
+        float center = (float)((point / 3 - 14 + 0.5) * 0x1.62e42fefa39efp-1);
+        input[i + 16] = point % 3 == 0 ? nextafterf(center, -INFINITY)
+                         : point % 3 == 1 ? center : nextafterf(center, INFINITY);
+      }
+    }
     memcpy(saved, input, sizeof(input));
     for (int i = 0; i < LENGTH; ++i) output[i + 16] = NAN;
     kernel(&param);

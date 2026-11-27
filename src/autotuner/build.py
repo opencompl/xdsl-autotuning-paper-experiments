@@ -53,6 +53,7 @@ from rich.progress import (
 
 from autotuner.datasets import (
     EXP_PLACEMENTS,
+    EXP_SCHEDULE_VARIANTS,
     EXP_VARIANTS,
     NANOKERNEL_VARIANTS,
     Sample,
@@ -331,6 +332,7 @@ def toolchain(
         "compxsmm_llvm": per_isa("compxsmm-llvm-gemm-passes"),
         "compxsmm_manual_exp": per_isa("compxsmm-manual-exp-passes"),
         "compxsmm_exp": per_isa("compxsmm-exp-passes"),
+        "compxsmm_estrin_exp": per_isa("compxsmm-estrin-exp-passes"),
         **{
             variant: nanokernel_pipeline.replace("{nanokernel}", variant)
             for variant in NANOKERNEL_VARIANTS
@@ -389,7 +391,14 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
     if sample.kernel == "exp":
         if tool.libxsmm_arch is None:
             raise BuildFailed("LIBXSMM exp needs a machine with libxsmm_arch")
-        if sample.variant in ("xdsl_libxsmm", "compxsmm_manual", "compxsmm"):
+        if sample.variant == "compxsmm_estrin" and sample.exp_degree != 5:
+            raise BuildFailed("Estrin exp requires degree 5")
+        if sample.variant in (
+            "xdsl_libxsmm",
+            "compxsmm_manual",
+            "compxsmm",
+            "compxsmm_estrin",
+        ):
             literal = sample.variant == "xdsl_libxsmm"
             mlir = here / f"{sample.variant}.f32.mlir"
             steps = (
@@ -405,7 +414,7 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
                         tool.libxsmm_arch,
                         *(
                             ("--disable-regalloc",)
-                            if sample.variant == "compxsmm"
+                            if sample.variant in ("compxsmm", "compxsmm_estrin")
                             else ()
                         ),
                     ),
@@ -830,6 +839,7 @@ def binary_artifact(
         "xdsl_libxsmm",
         "compxsmm_manual",
         "compxsmm",
+        "compxsmm_estrin",
     ):
         init = (kernel_source("exp", "init.c"),)
         symbol = (
@@ -888,12 +898,14 @@ def plan_shape(
     if first.kernel == "exp" and driver == "time":
         # One executable owns all kernels and one timing call site. The
         # evaluator caches its paired results once per shape and pass.
+        # Keep one candidate set per degree, even when a dataset selects fewer
+        # curves, so distinct executables cannot collide in the timing cache.
+        variants = EXP_SCHEDULE_VARIANTS if first.exp_degree == 5 else EXP_VARIANTS
         for sample in samples:
-            if sample.variant not in EXP_VARIANTS:
+            if sample.variant not in variants:
                 raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
         native, *generated = (
-            asm_artifact(tool, replace(first, variant=variant))
-            for variant in EXP_VARIANTS
+            asm_artifact(tool, replace(first, variant=variant)) for variant in variants
         )
         paired = binary_artifact(
             tool,

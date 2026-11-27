@@ -43,8 +43,19 @@ int main(void) {
     param.out.primary = actual + 16;
     exp_kernel(&param);
     for (int i = 0; i < LENGTH + 32; ++i) {
-      if (memcmp(&expected[i], &actual[i], sizeof(float)) &&
-          !(isnan(expected[i]) && isnan(actual[i]))) {
+      int agree = !memcmp(&expected[i], &actual[i], sizeof(float)) ||
+                  (isnan(expected[i]) && isnan(actual[i]));
+#if EXP_ESTRIN
+      // Estrin reassociates the polynomial, so finite positive outputs may
+      // round differently. Keep exact guard, zero, infinity and NaN checks;
+      // the separate accuracy harness still compares with double exp.
+      if (i >= 16 && i < LENGTH + 16 &&
+          isfinite(expected[i]) && expected[i] > 0 &&
+          isfinite(actual[i]) && actual[i] > 0 &&
+          fabs((double)actual[i] - expected[i]) / expected[i] <= 1e-6)
+        agree = 1;
+#endif
+      if (!agree) {
         fprintf(stderr, "trial %d lane %d: x=%a native=%a port=%a\n",
                 trial, i - 16, input[i], expected[i], actual[i]);
         return 3;
@@ -52,6 +63,10 @@ int main(void) {
     }
     if (memcmp(input, saved, sizeof(input))) return 4;
   }
+#if EXP_ESTRIN
+  puts("Estrin matches native exp profile; input and guards unchanged.");
+#else
   puts("Native and generated exp agree; input and guards unchanged.");
+#endif
   return 0;
 }

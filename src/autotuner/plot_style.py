@@ -35,6 +35,7 @@ _STYLES: dict[str, tuple[str, str, str, LineStyle]] = {
     OURS: ("xdsl-LIBXSMM", "#b2df8a", "none", "-"),
     BASELINE: ("LIBXSMM", "#a6cee3", "none", "-"),
     "compxsmm": ("CompXSMM", "#4a3aa7", "D", "-."),
+    "compxsmm_estrin": ("CompXSMM / Estrin", "#e31a1c", "s", "--"),
     "libxtcmm": ("XTC", "#b15928", "p", (0, (3, 1, 1, 1))),
     "compxsmm_manual": ("CompXSMM - RA", "#cab2d6", "d", (0, (2, 1))),
     "compxsmm_plusnarrow": ("CompXSMM + narrow", "#e31a1c", "v", (0, (4, 1))),

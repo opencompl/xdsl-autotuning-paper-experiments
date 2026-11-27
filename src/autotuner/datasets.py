@@ -16,6 +16,7 @@ EXP_LENGTHS = (16, 32, 64, 128, 256, 512, 1024)
 EXP_DEGREES = (3, 5)
 EXP_PLACEMENTS = (0, 16, 32, 48)
 EXP_VARIANTS = ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
+EXP_SCHEDULE_VARIANTS = (*EXP_VARIANTS, "compxsmm_estrin")
 
 # Sizes swept by the two square sweeps, one per data type, which set
 # M = N = K to each of them.
@@ -62,6 +63,7 @@ DATASET_REPEATS = {
     "f32.squares": 3,
     "f64.squares": 3,
     "f32.exp": 9,
+    "f32.exp_schedules": 9,
 }
 
 
@@ -88,6 +90,7 @@ VARIANTS = {
     },
     "tower": {
         "f32.exp": list(EXP_VARIANTS),
+        "f32.exp_schedules": list(EXP_SCHEDULE_VARIANTS),
         "ttile": [
             "libxsmm",
             "mkl",
@@ -336,6 +339,11 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
             for degree in EXP_DEGREES
             for length in EXP_LENGTHS
             for variant in variants.get("f32.exp", [])
+        ],
+        "f32.exp_schedules": [
+            Sample(length, 1, 1, variant, "f32", kernel="exp", exp_degree=5)
+            for length in EXP_LENGTHS
+            for variant in variants.get("f32.exp_schedules", [])
         ],
         "f32.ttile": by_variant(
             "f32", [(128, n, 128) for n in TTILE_F32_RANGE], "ttile"

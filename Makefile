@@ -96,6 +96,8 @@ PLOTS += $(foreach m,$(patsubst data/%/f64.nanokernel_grid.jsonl,%,$(wildcard da
 # Only draw exp for machines that have collected its initial seven lengths.
 EXP_MACHINES = $(patsubst data/%/f32.exp.jsonl,%,$(wildcard data/*/f32.exp.jsonl))
 PLOTS += $(foreach m,$(EXP_MACHINES),plots/f32.exp.$(m).pdf plots/$(m)/f32.exp.png)
+EXP_SCHEDULE_MACHINES = $(patsubst data/%/f32.exp_schedules.jsonl,%,$(wildcard data/*/f32.exp_schedules.jsonl))
+PLOTS += $(foreach m,$(EXP_SCHEDULE_MACHINES),plots/f32.exp_schedules.$(m).pdf plots/$(m)/f32.exp_schedules.png)
 
 # The squares figure, both data types, for the machines whose sweep has
 # actually been run with every implementation it draws.  Same reason the grid
@@ -173,6 +175,12 @@ plots/f32.exp.%.pdf: data/%/f32.exp.jsonl $(EXP_SRC)
 
 plots/%/f32.exp.png: data/%/f32.exp.jsonl $(EXP_SRC)
 	uv run plot-exp $< --output $@
+
+plots/f32.exp_schedules.%.pdf: data/%/f32.exp_schedules.jsonl $(EXP_SRC)
+	uv run plot-exp $< --schedules --output $@
+
+plots/%/f32.exp_schedules.png: data/%/f32.exp_schedules.jsonl $(EXP_SRC)
+	uv run plot-exp $< --schedules --output $@
 
 .PHONY: plots
 plots: $(PLOTS)

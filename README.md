@@ -163,7 +163,8 @@ checked bit-for-bit against the original kernel, with input and output guards.
 Code pages alternate between writable and executable, never both at once.
 
 Inputs are deterministic fractional FP32 values in `[-10,10)` with seed 42.
-Validation also uses seed 43, compares against double-precision `exp` with a
+Validation also uses seed 43 and adjacent FP32 inputs at range-reduction
+boundaries, compares against double-precision `exp` with a
 maximum relative error of `1e-3` for degree three and `1e-6` for degree five,
 and rejects nonfinite outputs, input writes, and writes to output guards.
 These are finite-domain contracts, not claims of correctly rounded `expf` or
@@ -188,21 +189,48 @@ SSA fallthrough, emitting no instruction, as in LIBXSMM and the matmul port.
 Missing x86 ops live in this repository's
 `autotuner.dialects.x86_ext`, without changing the xDSL pin.
 
-CompXSMM emits `xsmm.exp`, then lowers it to the same blocking and polynomial
-emitters through `x86_scf.for` loops. Its two versions differ only in register
-assignment, not the schedule. To emit either version's assembly:
+CompXSMM emits `xsmm.exp`, then lowers it to the same blocking through
+`x86_scf.for` loops and `xsmm.polynomial`. The polynomial contains an ordinary
+array of scalar FP32 constants and read-only bindings to the existing
+`xsmm.polynomial_constants` results. Local expansion chooses a recurrence;
+`xsmm.horner` expands one fused step at a time. The manual and allocated Horner
+versions differ only in register assignment. To emit either version's assembly:
 
 ```sh
 # Manual assignment, matching LIBXSMM's registers.
 uv run compxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5
 uv run xdsl-opt /tmp/exp.mlir \
-  -p xsmm-apply-exp-schedule,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion \
+  -p xsmm-apply-exp-schedule,xsmm-expand-polynomial,xsmm-expand-horner,xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion \
   -t x86-asm -o /tmp/exp-manual.S
 # Leave all non-ABI registers unallocated, then run xDSL's allocator.
 uv run compxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5 --disable-regalloc
 uv run xdsl-opt /tmp/exp.mlir \
-  -p 'xsmm-apply-exp-schedule{disable-regalloc=true},x86-regalloc-verify-liveness,x86-allocate-registers-with-masks,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion' \
+  -p 'xsmm-apply-exp-schedule{disable-regalloc=true},xsmm-expand-polynomial,xsmm-expand-horner,xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,x86-allocate-registers-with-masks,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion' \
   -t x86-asm -o /tmp/exp-allocated.S
+```
+
+For the fixed quintic Estrin schedule, replace `xsmm-expand-polynomial` in the
+allocated pipeline with `xsmm-expand-polynomial{schedule=estrin5}`. Everything
+else, including coefficients, range reduction and loop blocking, stays the same.
+The expansion emits `r2 = r*r`, the pairs `q0 = fma(r,c1,c0)` and
+`q1 = fma(r,c3,c2)`, then `s = fma(q1,r2,q0)`, `q2 = fma(r,c5,c4)`,
+`r4 = r2*r2` and `p = fma(q2,r4,s)`. Delaying q2 and r4 limits overlapping
+temporary lifetimes. The explicit `reassoc, contract` permissions allow this
+different rounded evaluation tree; it retains the `1e-6` exp accuracy bound,
+not bitwise equality with Horner. There is no schedule search.
+
+The focused `f32.exp_schedules` dataset measures degree five at the same seven
+lengths. Its plot shows native LIBXSMM, allocated CompXSMM/Horner and allocated
+CompXSMM/Estrin; the literal port and manual Horner remain measured controls.
+The quintic paired executable always includes all five implementations, so it
+has one timing cache even when a dataset selects fewer curves. Degree three
+retains four implementations. Both datasets retain nine passes, both execution
+orders, and all four placements, with the same median/mean aggregation.
+
+```sh
+uv run validate-dataset --machine tower f32.exp_schedules
+taskset -c 2 uv run evaluate --machine tower f32.exp_schedules
+make plots/f32.exp_schedules.tower.pdf plots/tower/f32.exp_schedules.png
 ```
 
 The local `x86-allocate-registers-with-masks` pass uses the unchanged xDSL

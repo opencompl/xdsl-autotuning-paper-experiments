@@ -255,7 +255,14 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
         for degree in (3, 5)
         # No loop, full unroll, reduced unroll, two M regions, repeated unroll.
         for length in (16, 256, 272, 528, 1024)
-        for variant in ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
+        for variant in (
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm_manual",
+            "compxsmm",
+            "compxsmm_estrin",
+        )
+        if degree == 5 or variant != "compxsmm_estrin"
     ]
     # Build together to catch shared paths or a driver compiled for the wrong
     # degree, as well as an ambient hint overriding the requested polynomial.
@@ -301,6 +308,7 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
                     *cflags,
                     f"-DLENGTH={sample.m}",
                     f"-DEXP_DEGREE={sample.exp_degree}",
+                    f"-DEXP_ESTRIN={int(sample.variant == 'compxsmm_estrin')}",
                     f"-Dexp_kernel={symbol}",
                     "tests/libxsmm/exp_compare.c",
                     str(asm),
@@ -316,7 +324,11 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
             result = subprocess.run(
                 [oracle], capture_output=True, text=True, check=True
             )
-            assert "Native and generated exp agree" in result.stdout
+            assert (
+                "Estrin matches native exp profile"
+                if sample.variant == "compxsmm_estrin"
+                else "Native and generated exp agree"
+            ) in result.stdout
 
     # Exercise the real paired timer too: relocation must preserve outputs and
     # guards for both a straight-line kernel and a looped kernel, at every offset.
@@ -330,10 +342,13 @@ def test_exp_builds_validates_and_matches_native_libxsmm(
         ).with_name("paired.f32.time.o")
         done = subprocess.run([binary], capture_output=True, text=True, check=True)
         rows = json.loads(done.stdout)
-        assert len(rows) == 32
+        variants = ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
+        if sample.exp_degree == 5:
+            variants += ("compxsmm_estrin",)
+        assert len(rows) == len(variants) * 8
         assert {(r["variant"], r["placement_offset"], r["order"]) for r in rows} == {
             (variant, offset, order)
-            for variant in ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
+            for variant in variants
             for offset in (0, 16, 32, 48)
             for order in (0, 1)
         }

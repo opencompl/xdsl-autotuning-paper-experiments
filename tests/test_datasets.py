@@ -110,6 +110,23 @@ def test_initial_exp_sweep_compares_libxsmm_and_compxsmm() -> None:
     assert dataset_samples("ci")["f32.exp"] == []
 
 
+def test_exp_schedule_sweep_adds_only_quintic_estrin() -> None:
+    samples = dataset_samples("tower")["f32.exp_schedules"]
+    assert [(s.exp_degree, s.m, s.variant) for s in samples] == [
+        (5, length, variant)
+        for length in (16, 32, 64, 128, 256, 512, 1024)
+        for variant in (
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm_manual",
+            "compxsmm",
+            "compxsmm_estrin",
+        )
+    ]
+    assert dataset_repeats("f32.exp_schedules") == 9
+    assert dataset_samples("ci")["f32.exp_schedules"] == []
+
+
 @pytest.mark.parametrize(
     ("dataset", "variants"), [("f32.squares", 9), ("f64.squares", 9)]
 )

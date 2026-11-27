@@ -8,6 +8,7 @@ import pandas as pd
 
 from autotuner.datasets import EXP_DEGREES, EXP_LENGTHS, EXP_PLACEMENTS
 from autotuner.plot_style import (
+    COLUMN_WIDTH,
     PAGE_WIDTH,
     column_figure,
     save,
@@ -16,7 +17,9 @@ from autotuner.plot_style import (
 )
 
 
-def exp_metrics(df: pd.DataFrame) -> pd.DataFrame:
+def exp_metrics(
+    df: pd.DataFrame, *, degrees: tuple[int, ...] = EXP_DEGREES
+) -> pd.DataFrame:
     """Compare medians at matched placements, giving every placement equal weight."""
     if df.empty or df["machine"].nunique() != 1:
         raise ValueError("exp needs measurements from exactly one machine")
@@ -59,10 +62,13 @@ def exp_metrics(df: pd.DataFrame) -> pd.DataFrame:
     measured = cast(
         pd.DataFrame, placed.groupby(key, as_index=False).agg(time=("time", "mean"))
     )
-    expected = {(degree, length) for degree in EXP_DEGREES for length in EXP_LENGTHS}
+    expected = {(degree, length) for degree in degrees for length in EXP_LENGTHS}
     for variant, group in measured.groupby("variant"):
         if set(zip(group["degree"], group["elements"], strict=True)) != expected:
-            raise ValueError(f"{variant} needs all seven exp lengths for both degrees")
+            description = (
+                "both degrees" if degrees == EXP_DEGREES else f"degrees {degrees}"
+            )
+            raise ValueError(f"{variant} needs all seven exp lengths for {description}")
     baseline = measured.query("variant == 'libxsmm'").set_index(["degree", "elements"])
     if baseline.empty:
         raise ValueError("exp needs a LIBXSMM baseline")
@@ -76,19 +82,43 @@ def exp_metrics(df: pd.DataFrame) -> pd.DataFrame:
     return measured.sort_values(["degree", "variant", "elements"])
 
 
-def plot_exp(df: pd.DataFrame, *, output_path: Path | None = None) -> None:
-    measured = exp_metrics(df)
-    fig, axes = column_figure(
-        nrows=2, ncols=2, width=PAGE_WIDTH, aspect=0.5, sharex=True, sharey="row"
-    )
+def plot_exp(
+    df: pd.DataFrame, *, output_path: Path | None = None, schedules: bool = False
+) -> None:
+    degrees = (5,) if schedules else EXP_DEGREES
+    measured = exp_metrics(df, degrees=degrees)
     variants = ["libxsmm", *sorted(set(measured["variant"]) - {"libxsmm"})]
-    for column, degree in enumerate(EXP_DEGREES):
-        cycles, speedup = axes[:, column]
+    if schedules:
+        variants = ["libxsmm", "compxsmm", "compxsmm_estrin"]
+        if not set(variants) <= set(measured["variant"]):
+            raise ValueError(
+                "schedule comparison needs LIBXSMM, CompXSMM Horner and Estrin"
+            )
+        measured = measured[measured["variant"].isin(variants)]
+    fig, axes = column_figure(
+        nrows=1 if schedules else 2,
+        ncols=len(degrees),
+        width=COLUMN_WIDTH if schedules else PAGE_WIDTH,
+        aspect=0.65 if schedules else 0.5,
+        sharex=True,
+        sharey="row",
+        squeeze=False,
+    )
+    for column, degree in enumerate(degrees):
+        cycles = axes[0, column]
         for variant in variants:
             group = measured[
                 (measured["variant"] == variant) & (measured["degree"] == degree)
             ]
             style = variant_style(variant) | {"marker": "o"}
+            if schedules and variant == "compxsmm":
+                style |= {
+                    "label": "CompXSMM / Horner",
+                    "marker": "D",
+                    "markerfacecolor": "none",
+                    "markeredgewidth": 0.8,
+                    "markersize": 4,
+                }
             if variant == "xdsl_libxsmm":
                 # Keep the baseline visible when the literal port coincides.
                 style |= {
@@ -98,23 +128,26 @@ def plot_exp(df: pd.DataFrame, *, output_path: Path | None = None) -> None:
                     "markersize": 4,
                 }
             cycles.plot(group["elements"], group["cycles_per_element"], **style)
-            speedup.plot(group["elements"], group["speedup"], **style)
+            if not schedules:
+                axes[1, column].plot(group["elements"], group["speedup"], **style)
 
         cycles.set_title(f"Degree {degree}")
-        cycles.legend(loc="upper right")
-        speedup.set_xlabel("FP32 elements (N = 1)")
-        speedup.set_xscale("log", base=2)
-        speedup.set_xticks(EXP_LENGTHS, [str(n) for n in EXP_LENGTHS])
-        for ax in (cycles, speedup):
+        cycles.legend(loc="best" if schedules else "upper right")
+        bottom = axes[-1, column]
+        bottom.set_xlabel("FP32 elements (N = 1)")
+        bottom.set_xscale("log", base=2)
+        bottom.set_xticks(EXP_LENGTHS, [str(n) for n in EXP_LENGTHS])
+        for ax in axes[:, column]:
             tidy_axes(ax)
     # Fix the lower limits only after both degrees have contributed to the
     # shared autoscale; doing it inside the loop clips the second column.
     for ax in axes[:, 0]:
         ax.set_ylim(bottom=0)
-    # Nearly coincident curves still need room for their markers above 1x.
-    axes[1, 0].set_ylim(top=cast(float, measured["speedup"].max()) * 1.05)
+    if not schedules:
+        # Nearly coincident curves still need room for their markers above 1x.
+        axes[1, 0].set_ylim(top=cast(float, measured["speedup"].max()) * 1.05)
+        axes[1, 0].set_ylabel("speedup vs LIBXSMM\n(same degree)")
     axes[0, 0].set_ylabel("cycles / element\n(mean over placements)")
-    axes[1, 0].set_ylabel("speedup vs LIBXSMM\n(same degree)")
     fig.tight_layout(pad=0.4)
     save(fig, output_path)
 
@@ -125,8 +158,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="FP32 exp JSONL measurements")
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument(
+        "--schedules",
+        action="store_true",
+        help="compare the fixed quintic Horner and Estrin schedules",
+    )
     args = parser.parse_args()
-    plot_exp(pd.read_json(args.input, lines=True), output_path=args.output)
+    plot_exp(
+        pd.read_json(args.input, lines=True),
+        output_path=args.output,
+        schedules=args.schedules,
+    )
 
 
 if __name__ == "__main__":

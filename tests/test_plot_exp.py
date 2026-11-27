@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -89,10 +90,54 @@ def test_shared_axes_include_both_degrees(monkeypatch: pytest.MonkeyPatch) -> No
     plot_exp(measurements())
     fig = plt.gcf()
     try:
+        assert len(fig.axes) == 4
         for ax in fig.axes:
             lower, upper = ax.get_ylim()
             for line in ax.lines:
                 assert lower <= min(line.get_ydata())
                 assert max(line.get_ydata()) < upper
+    finally:
+        plt.close(fig)
+
+
+def test_schedule_plot_requires_and_compares_the_three_quintic_curves(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(plt, "show", lambda: None)
+    df = measurements().query("degree == 5")
+    with pytest.raises(ValueError, match="Horner and Estrin"):
+        plot_exp(df, schedules=True)
+    estrin = df.query("variant == 'compxsmm'").assign(variant="compxsmm_estrin")
+    estrin["time"] *= 0.75
+    # Retain a control in the data, but not in the three-curve figure.
+    control = df.query("variant == 'libxsmm'").assign(variant="xdsl_libxsmm")
+    df = pd.concat([df, estrin, control], ignore_index=True)
+    with pytest.raises(ValueError, match="both degrees"):
+        exp_metrics(df)
+    result = exp_metrics(df, degrees=(5,))
+    assert (
+        result.query("variant == 'compxsmm_estrin'")["cycles_per_element"].tolist()
+        == [4.5] * 7
+    )
+    plot_exp(df, schedules=True)
+    fig = plt.gcf()
+    try:
+        assert len(fig.axes) == 1
+        assert [list(line.get_ydata()) for line in fig.axes[0].lines] == [
+            [13] * 7,
+            [6] * 7,
+            [4.5] * 7,
+        ]
+        for ax in fig.axes:
+            assert [line.get_label() for line in ax.lines] == [
+                "LIBXSMM",
+                "CompXSMM / Horner",
+                "CompXSMM / Estrin",
+            ]
+            lower, upper = ax.get_ylim()
+            for line in ax.lines:
+                values = np.asarray(line.get_ydata())
+                assert lower <= values.min()
+                assert values.max() < upper
     finally:
         plt.close(fig)
