@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from xdsl.backend.liveness import VerifyLivenessContext
+from xdsl.backend.register_allocatable import HasRegisterConstraints
 from xdsl.context import Context
 from xdsl.dialects import test, x86, x86_scf
 from xdsl.dialects.builtin import Float64Type, FloatAttr, ModuleOp, f32
@@ -30,6 +32,35 @@ from autotuner.schedules import (
     tile_matmul,
     tile_matmul_reg,
 )
+
+
+def register_webs(module: ModuleOp) -> dict[SSAValue, set[SSAValue]]:
+    """Connect declared inout pairs and all four members of loop tuples."""
+    webs = {
+        value: {value} for op in module.walk() for value in (*op.operands, *op.results)
+    }
+    groups: list[tuple[SSAValue, ...]] = []
+    for op in module.walk():
+        if isinstance(op, HasRegisterConstraints):
+            groups.extend(op.get_register_constraints().inouts)
+        if isinstance(op, x86_scf.ForOp):
+            groups.append((op.lb, op.body.block.args[0], op.lb_end))
+            terminator = op.body.block.last_op
+            assert isinstance(terminator, x86_scf.YieldOp)
+            groups.extend(
+                zip(
+                    op.iter_args,
+                    op.body.block.args[1:],
+                    terminator.arguments,
+                    op.res,
+                    strict=True,
+                )
+            )
+    for group in groups:
+        merged = set[SSAValue]().union(*(webs.get(value, {value}) for value in group))
+        for value in merged:
+            webs[value] = merged
+    return webs
 
 
 def make_matmul(
@@ -222,20 +253,36 @@ def test_tile_matmul_reg_elides_single_iteration_loop() -> None:
     ("coefficient_count", "initialized"),
     ((0, True), (1, True), (3, True), (1, False), (2, False), (4, False)),
 )
+@pytest.mark.parametrize("assigned", (False, True))
 def test_horner_expansion_preserves_surrounding_operations(
     coefficient_count: int,
     initialized: bool,
+    assigned: bool,
 ) -> None:
     inputs = test.TestOp(
-        result_types=[x86.registers.UNALLOCATED_AVX512] * (coefficient_count + 2)
+        result_types=[
+            x86.registers.AVX512RegisterType.from_index(i)
+            if assigned
+            else x86.registers.UNALLOCATED_AVX512
+            for i in range(coefficient_count + 2)
+        ]
     )
     x, accumulator, *coefficients = inputs.results
-    horner = HornerOp(x, accumulator if initialized else None, coefficients)
+    horner = HornerOp(
+        x,
+        accumulator if initialized else None,
+        coefficients,
+        destination=SSAValue.get(
+            accumulator, type=x86.registers.AVX512RegisterType
+        ).type,
+    )
     before = test.TestOp(operands=[x, accumulator])
     consumer = test.TestOp(operands=[horner.result, x])
     after = test.TestOp(operands=coefficients)
     module = ModuleOp([inputs, before, horner, consumer, after])
 
+    module.verify()
+    VerifyLivenessContext(set()).process_region(module.body)
     while horner is not None:
         horner = expand_horner(PatternRewriter(horner), horner)
         ops = tuple(module.body.block.ops)
@@ -245,6 +292,16 @@ def test_horner_expansion_preserves_surrounding_operations(
         assert tuple(after.operands) == tuple(coefficients)
         assert consumer.operands[1] is x
         module.verify()
+        VerifyLivenessContext(set()).process_region(module.body)
+        webs = register_webs(module)
+        result_web = webs[consumer.operands[0]]
+        assert (accumulator in result_web) == initialized
+        assert result_web.isdisjoint((x, *coefficients))
+        assert {value.type for value in result_web} == {accumulator.type}
+        # Distinct external read-only values remain distinct webs, even when
+        # their unallocated types all denote the same register class.
+        for value in (x, *coefficients):
+            assert webs[value] == {value}
 
     if coefficient_count == 0:
         assert consumer.operands[0] is accumulator
@@ -286,6 +343,8 @@ def test_polynomial_expansion_is_local(schedule: str) -> None:
         operands=[polynomial.result, *argument.results, *constants.results]
     )
     module = ModuleOp([constants, argument, before, polynomial, after])
+    module.verify()
+    VerifyLivenessContext(set()).process_region(module.body)
     XsmmExpandPolynomialPass(schedule).apply(Context(), module)
     ops = tuple(module.body.block.ops)
     assert ops[:3] == (constants, argument, before)
@@ -293,6 +352,11 @@ def test_polynomial_expansion_is_local(schedule: str) -> None:
     assert tuple(before.operands) == tuple(constants.results)
     assert tuple(after.operands[1:]) == (*argument.results, *constants.results)
     module.verify()
+    VerifyLivenessContext(set()).process_region(module.body)
+    webs = register_webs(module)
+    assert webs[after.operands[0]].isdisjoint(after.operands[1:])
+    for value in after.operands[1:]:
+        assert webs[value] == {value}
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,14 @@
 import pytest
+from xdsl.backend.liveness import VerifyLivenessContext
+from xdsl.backend.register_allocatable import (
+    HasRegisterConstraints,
+    HasRegisterConstraintsTrait,
+    RegisterConstraints,
+)
+from xdsl.backend.register_type import RegisterAllocatedMemoryEffect
+from xdsl.dialects import test
 from xdsl.dialects.arith import FastMathFlagsAttr
-from xdsl.dialects.builtin import ArrayAttr, FloatAttr, f32
+from xdsl.dialects.builtin import ArrayAttr, FloatAttr, ModuleOp, f32
 from xdsl.dialects.x86.registers import AVX512RegisterType
 from xdsl.utils.exceptions import VerifyException
 from xdsl.utils.test_value import create_ssa_value
@@ -43,6 +51,80 @@ def test_horner_requires_a_seed_and_preserves_accumulator_assignment() -> None:
         HornerOp(x, None, ()).verify()
     with pytest.raises(VerifyException, match="reuse the accumulator register"):
         HornerOp(x, accumulator, (x,), destination=x.type).verify()
+
+
+@pytest.mark.parametrize("assigned", (False, True))
+@pytest.mark.parametrize("initialized", (False, True))
+def test_horner_declares_register_webs(assigned: bool, initialized: bool) -> None:
+    registers = tuple(
+        AVX512RegisterType.from_index(i)
+        if assigned
+        else AVX512RegisterType.unallocated()
+        for i in range(4)
+    )
+    x, acc, c = (create_ssa_value(r) for r in registers[:3])
+    op = HornerOp(x, acc if initialized else None, (c,), destination=registers[1])
+    assert isinstance(op, HasRegisterConstraints)
+    assert op.has_trait(HasRegisterConstraintsTrait)
+    assert op.get_register_constraints() == RegisterConstraints(
+        (x, c),
+        () if initialized else (op.result,),
+        ((acc, op.result),) if initialized else (),
+    )
+    assert set(RegisterAllocatedMemoryEffect.iter_used_registers(op)) == (
+        set(registers[:3]) if assigned else set()
+    )
+    op.verify()
+
+
+def test_horner_rejects_a_later_use_of_the_consumed_accumulator() -> None:
+    inputs = test.TestOp(result_types=[AVX512RegisterType.unallocated()] * 3)
+    x, acc, c = inputs.results
+    op = HornerOp(x, acc, (c,))
+    after = test.TestOp(operands=(op.result, x, c, acc))
+    module = ModuleOp([inputs, op, after])
+    module.verify()
+    with pytest.raises(VerifyException, match="should not be read after in/out"):
+        VerifyLivenessContext(set()).process_region(module.body)
+
+
+@pytest.mark.parametrize("alias_argument", (False, True))
+def test_horner_multistep_accumulator_cannot_alias_read_only_inputs(
+    alias_argument: bool,
+) -> None:
+    x, acc, c = (create_ssa_value(AVX512RegisterType.unallocated()) for _ in range(3))
+    argument = acc if alias_argument else x
+    coefficients = (c, c) if alias_argument else (acc, c)
+    # A single fused step reads all inputs before overwriting its accumulator.
+    HornerOp(argument, acc, coefficients[:1]).verify()
+    with pytest.raises(VerifyException, match="multi-step Horner accumulator"):
+        HornerOp(argument, acc, coefficients).verify()
+
+
+@pytest.mark.parametrize("assigned", (False, True))
+def test_polynomial_interfaces_preserve_read_only_bindings(assigned: bool) -> None:
+    registers = tuple(
+        AVX512RegisterType.from_index(i)
+        if assigned
+        else AVX512RegisterType.unallocated()
+        for i in range(4)
+    )
+    constants = PolynomialConstantsOp(
+        (FloatAttr(1.0, f32), FloatAttr(2.0, f32)), ".Lc", registers[1:3]
+    )
+    x = create_ssa_value(registers[0])
+    op = PolynomialOp(x, constants, destination=registers[3])
+    for operation, expected in (
+        (constants, RegisterConstraints((), constants.registers, ())),
+        (op, RegisterConstraints((x, *constants.registers), (op.result,), ())),
+    ):
+        assert isinstance(operation, HasRegisterConstraints)
+        assert operation.has_trait(HasRegisterConstraintsTrait)
+        assert tuple(map(tuple, operation.get_register_constraints())) == expected
+        operation.verify()
+    assert set(RegisterAllocatedMemoryEffect.iter_used_registers(op)) == (
+        set(registers) if assigned else set()
+    )
 
 
 def test_polynomial_constants_require_matching_nonempty_results() -> None:

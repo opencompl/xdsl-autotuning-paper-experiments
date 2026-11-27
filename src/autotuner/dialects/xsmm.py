@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from enum import StrEnum
 
 from xdsl.backend.register_allocatable import RegisterConstraints
+from xdsl.backend.register_type import RegisterAllocatedMemoryEffect
 from xdsl.dialects.arith import FastMathFlagsAttr
 from xdsl.dialects.builtin import (
     ArrayAttr,
@@ -14,7 +15,7 @@ from xdsl.dialects.builtin import (
     i64,
 )
 from xdsl.dialects.utils import FastMathFlag
-from xdsl.dialects.x86.ops import DSS_Operation
+from xdsl.dialects.x86.ops import DSS_Operation, X86HasRegisterConstraints
 from xdsl.dialects.x86.registers import (
     AVX512RegisterType,
     GeneralRegisterType,
@@ -38,7 +39,7 @@ from xdsl.irdl import (
 )
 from xdsl.parser import Parser
 from xdsl.printer import Printer
-from xdsl.traits import MemoryReadEffect, MemoryWriteEffect, Pure
+from xdsl.traits import MemoryReadEffect, MemoryWriteEffect
 from xdsl.utils.exceptions import VerifyException
 
 
@@ -482,7 +483,7 @@ class MatmulRegOp(IRDLOperation):
 
 
 @irdl_op_definition
-class PolynomialConstantsOp(IRDLOperation):
+class PolynomialConstantsOp(X86HasRegisterConstraints):
     """Materialize scalar FP32 coefficients as full AVX-512 splats in place.
 
     Each coefficient expands to its own inline jump/data/load packet, in list
@@ -494,7 +495,7 @@ class PolynomialConstantsOp(IRDLOperation):
     coefficients = prop_def(ArrayAttr[FloatAttr[Float32Type]])
     label_prefix = prop_def(StringAttr)
     registers = var_result_def(AVX512RegisterType)
-    traits = traits_def(MemoryReadEffect())
+    traits = traits_def(MemoryReadEffect(), RegisterAllocatedMemoryEffect())
     assembly_format = (
         "$coefficients `label_prefix` $label_prefix attr-dict `:` "
         "`(` `)` `->` `(` type($registers) `)`"
@@ -522,7 +523,7 @@ class PolynomialConstantsOp(IRDLOperation):
 
 
 @irdl_op_definition
-class PolynomialOp(IRDLOperation):
+class PolynomialOp(X86HasRegisterConstraints):
     """Evaluate a constant FP32 polynomial in each AVX-512 lane.
 
     Coefficients are scalar constants in ascending power order. Read-only
@@ -539,7 +540,7 @@ class PolynomialOp(IRDLOperation):
     coefficients = prop_def(ArrayAttr[FloatAttr[Float32Type]])
     datatype = prop_def(Float32Type)
     fastmath = prop_def(FastMathFlagsAttr)
-    traits = traits_def(Pure())
+    traits = traits_def(RegisterAllocatedMemoryEffect())
     irdl_options = (ParsePropInAttrDict(),)
     assembly_format = (
         "$argument `coefficients` $coefficients `bindings` `(` $bindings `)` "
@@ -592,7 +593,7 @@ class PolynomialOp(IRDLOperation):
 
 
 @irdl_op_definition
-class HornerOp(IRDLOperation):
+class HornerOp(X86HasRegisterConstraints):
     """Evaluate or continue an FP32 Horner recurrence in each AVX-512 lane.
 
     Coefficients are listed in ascending power order. Starting with
@@ -603,6 +604,12 @@ class HornerOp(IRDLOperation):
     Without an accumulator, initialize with ``fma(x, c[-1], c[-2])``, then
     continue with the remaining coefficients. A single coefficient is a
     constant result. Initialization preserves x and the coefficient registers.
+
+    An initialized recurrence consumes the accumulator through an inout pair;
+    subsequent users must use the result. Multi-step recurrences require the
+    accumulator to be distinct from every read-only operand, so destructive
+    steps cannot overwrite an input needed by a later step. Single-step aliases
+    are allowed: the one FMA reads all operands before writing its result.
     """
 
     name = "xsmm.horner"
@@ -611,7 +618,7 @@ class HornerOp(IRDLOperation):
     coefficients = var_operand_def(AVX512RegisterType)
     result = result_def(AVX512RegisterType)
     datatype = prop_def(Float32Type)
-    traits = traits_def(Pure())
+    traits = traits_def(RegisterAllocatedMemoryEffect())
     irdl_options = (AttrSizedOperandSegments(as_property=True),)
 
     def __init__(
@@ -683,12 +690,25 @@ class HornerOp(IRDLOperation):
         printer.print_string(") -> ")
         printer.print_attribute(self.result.type)
 
+    def get_register_constraints(self) -> RegisterConstraints:
+        ins = (self.argument, *self.coefficients)
+        if self.accumulator is None:
+            return RegisterConstraints(ins, (self.result,), ())
+        return RegisterConstraints(ins, (), ((self.accumulator, self.result),))
+
     def verify_(self) -> None:
         if self.accumulator is None:
             if not self.coefficients:
                 raise VerifyException("uninitialized Horner requires coefficients")
         elif self.result.type != self.accumulator.type:
             raise VerifyException("Horner result must reuse the accumulator register")
+        elif len(self.coefficients) > 1 and self.accumulator in (
+            self.argument,
+            *self.coefficients,
+        ):
+            raise VerifyException(
+                "multi-step Horner accumulator must be distinct from read-only inputs"
+            )
 
 
 @irdl_op_definition
