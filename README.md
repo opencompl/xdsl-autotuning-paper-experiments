@@ -200,12 +200,12 @@ versions differ only in register assignment. To emit either version's assembly:
 # Manual assignment, matching LIBXSMM's registers.
 uv run compxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5
 uv run xdsl-opt /tmp/exp.mlir \
-  -p xsmm-apply-exp-schedule,xsmm-expand-polynomial,xsmm-expand-horner,xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion \
+  -p x86-regalloc-verify-liveness,xsmm-apply-exp-schedule,x86-regalloc-verify-liveness,xsmm-expand-polynomial,x86-regalloc-verify-liveness,xsmm-expand-horner,xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion \
   -t x86-asm -o /tmp/exp-manual.S
 # Leave all non-ABI registers unallocated, then run xDSL's allocator.
 uv run compxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5 --disable-regalloc
 uv run xdsl-opt /tmp/exp.mlir \
-  -p 'xsmm-apply-exp-schedule{disable-regalloc=true},xsmm-expand-polynomial,xsmm-expand-horner,xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,x86-allocate-registers-with-masks,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion' \
+  -p 'x86-regalloc-verify-liveness,xsmm-apply-exp-schedule{disable-regalloc=true},x86-regalloc-verify-liveness,xsmm-expand-polynomial,x86-regalloc-verify-liveness,xsmm-expand-horner,xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,x86-allocate-registers-with-masks,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion' \
   -t x86-asm -o /tmp/exp-allocated.S
 ```
 
@@ -244,6 +244,76 @@ buffer. This is valid for these self-contained kernels: all branches and
 RIP-relative constant references stay within the copied code. The generator
 exports an end label to delimit each kernel without adding instructions. Equivalent
 assembler encoding differences remain; relocation does not rewrite instructions.
+
+#### Expansion contracts and capacity
+
+All four XSMM exp/polynomial operations expose register constraints before
+lowering. Initialized `horner` has read-only argument/coefficient `ins` and one
+`(accumulator, result)` inout; uninitialized `horner` instead has a fresh `out`.
+`polynomial` has read-only argument/bindings and one `out`;
+`polynomial_constants` has only `outs`. They expose preassigned register effects
+as well as the constant loads' memory reads. Type equality alone is not a web.
+
+`exp` has two pointer inouts. Its results contain the **original addresses**,
+not advanced cursors; the input and output memory ranges must not overlap.
+Following uses and enclosing-loop yields must use its results:
+
+```mlir
+%input_after, %output_after = xsmm.exp %input, %output length 528 : i64 degree 5 : i64
+    : (!x86.reg64, !x86.reg64) -> (!x86.reg64, !x86.reg64)
+```
+
+Expansion threads both webs through loop initialization, block arguments,
+yields, results and pointer adjustments. Loop restoration returns to a region's
+base; a final subtraction also undoes advances between regions. Constant setup
+stays at the expansion site, including inside an enclosing loop, and separate
+exp operations get distinct constant labels. The benchmark ABI has no later
+pointer uses, so it can discard these results.
+
+The preservation argument is local to each replacement:
+
+- **S:** definitions precede their uses; new loops have one block and use the
+  existing structured-loop form. No surrounding operation is moved or rewritten.
+- **W/T:** each destructive FMA consumes the current accumulator and produces its
+  successor. Uninitialized evaluation starts with a fresh copy; zero-step
+  continuation returns its existing web. Pointer arithmetic and complete loop
+  tuples likewise extend, rather than split or merge, the declared pointer webs.
+- **P:** external assignments are retained along each web. Fresh temporaries in
+  the allocated schedule remain unassigned until allocation. Seeded polynomial
+  outputs cannot be preassigned to read-only input registers. The manual LIBXSMM
+  template requires its fixed registers to be reserved by the caller; it is a
+  whole-kernel baseline, not an arbitrary-context preassignment strategy.
+- **L:** coefficients and polynomial arguments remain read-only loop live-ins.
+  Exp pointers and initialized accumulators must be explicitly carried when used
+  in enclosing loops; consuming a loop live-in or reusing a consumed SSA operand
+  is rejected by liveness validation. Multi-step Horner forbids accumulator/input
+  aliases; a single initialized FMA can read an aliased operand before writing.
+
+**R is a separate bound, not a consequence of these interfaces.** With at most
+16 loaded vectors, cubic Horner needs at most 6 constant + 16 data + 2 temporary
+ZMMs = 24; quintic Horner needs 12 + 16 + 2 = 30; the chosen quintic Estrin order
+needs 12 + 16 + 4 = 32. The figures count range-reduction/reconstruction state,
+not just polynomial arithmetic. Quintic uses one mask (of k1–k7). Looped kernels
+need two GP cursors and one counter; an enclosing loop adds its counter. The ABI
+register and other preassignments/exclusions are removed from the available pool.
+Additional live-through values must be budgeted: one extra live ZMM makes the
+16-vector Estrin block require 33, so that context needs smaller blocking. The
+current standalone generator has no such extra live vectors; it does not search
+for or automatically select a smaller compositional schedule.
+
+`tests/test_xsmm.py` checks the high-level interfaces and invalid aliases/uses.
+`tests/test_schedules.py` checks individual Horner steps, intermediate expansion
+stages, external web membership and preassignments, enclosing loops, and native
+execution with returned pointers at lengths 16, 64, 256, 272, 512, 528, 1024 and
+1040. The pinned liveness checker catches stale/duplicate inouts and consumed loop
+live-ins; it is not a complete dominance, preassignment-interference or gap-free
+web verifier. Targeted assertions and capacity reasoning supplement it, rather
+than treating final allocator success as proof of all the paper's conditions.
+
+The register-contract fixes leave all 63 assembly files in the current seven-size
+benchmark sweep unchanged. Multi-region sizes such as 528 and 1040 gain two final
+pointer subtractions; any previous CompXSMM timings for those sizes would require
+remeasurement. Neither size is in the current plotted datasets.
 
 ### AOCL-BLAS baseline
 
