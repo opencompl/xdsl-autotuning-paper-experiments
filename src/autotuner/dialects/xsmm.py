@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from enum import StrEnum
 
 from xdsl.backend.register_allocatable import RegisterConstraints
+from xdsl.dialects.arith import FastMathFlagsAttr
 from xdsl.dialects.builtin import (
     ArrayAttr,
     BoolAttr,
@@ -12,6 +13,7 @@ from xdsl.dialects.builtin import (
     StringAttr,
     i64,
 )
+from xdsl.dialects.utils import FastMathFlag
 from xdsl.dialects.x86.ops import DSS_Operation
 from xdsl.dialects.x86.registers import (
     AVX512RegisterType,
@@ -19,11 +21,12 @@ from xdsl.dialects.x86.registers import (
     X86RegisterType,
     X86VectorRegisterType,
 )
-from xdsl.ir import Dialect, SSAValue
+from xdsl.ir import Dialect, OpResult, SSAValue
 from xdsl.irdl import (
     AttrSizedOperandSegments,
     AttrSizedResultSegments,
     IRDLOperation,
+    ParsePropInAttrDict,
     irdl_op_definition,
     operand_def,
     opt_operand_def,
@@ -519,6 +522,76 @@ class PolynomialConstantsOp(IRDLOperation):
 
 
 @irdl_op_definition
+class PolynomialOp(IRDLOperation):
+    """Evaluate a constant FP32 polynomial in each AVX-512 lane.
+
+    Coefficients are scalar constants in ascending power order. Read-only
+    bindings name their existing splats, so expansion never moves or duplicates
+    coefficient setup. Reassociation and contraction explicitly permit different
+    rounded evaluation trees; this operation does not promise a particular one.
+    Expand it before expanding PolynomialConstantsOp, while bindings are known.
+    """
+
+    name = "xsmm.polynomial"
+    argument = operand_def(AVX512RegisterType)
+    bindings = var_operand_def(AVX512RegisterType)
+    result = result_def(AVX512RegisterType)
+    coefficients = prop_def(ArrayAttr[FloatAttr[Float32Type]])
+    datatype = prop_def(Float32Type)
+    fastmath = prop_def(FastMathFlagsAttr)
+    traits = traits_def(Pure())
+    irdl_options = (ParsePropInAttrDict(),)
+    assembly_format = (
+        "$argument `coefficients` $coefficients `bindings` `(` $bindings `)` "
+        "attr-dict `:` functional-type(operands, results)"
+    )
+
+    def __init__(
+        self,
+        argument: SSAValue,
+        constants: PolynomialConstantsOp,
+        *,
+        destination: AVX512RegisterType | None = None,
+    ):
+        super().__init__(
+            operands=(argument, constants.registers),
+            result_types=(destination or AVX512RegisterType.unallocated(),),
+            properties={
+                "coefficients": constants.coefficients,
+                "datatype": Float32Type(),
+                "fastmath": FastMathFlagsAttr(
+                    (FastMathFlag.REASSOC, FastMathFlag.ALLOW_CONTRACT)
+                ),
+            },
+        )
+
+    def verify_(self) -> None:
+        if not self.coefficients:
+            raise VerifyException("polynomial coefficients must not be empty")
+        if len(self.bindings) != len(self.coefficients):
+            raise VerifyException("expected one binding per polynomial coefficient")
+        if (
+            not {FastMathFlag.REASSOC, FastMathFlag.ALLOW_CONTRACT}
+            <= self.fastmath.data
+        ):
+            raise VerifyException(
+                "polynomial requires reassoc and contract permissions"
+            )
+        for coefficient, binding in zip(self.coefficients, self.bindings, strict=True):
+            if not isinstance(binding, OpResult) or not isinstance(
+                binding.owner, PolynomialConstantsOp
+            ):
+                raise VerifyException(
+                    "polynomial binding must come from polynomial_constants"
+                )
+            constant = binding.owner.coefficients.data[binding.index]
+            if coefficient.type.pack((coefficient.value.data,)) != constant.type.pack(
+                (constant.value.data,)
+            ):
+                raise VerifyException("polynomial binding must match coefficient bits")
+
+
+@irdl_op_definition
 class HornerOp(IRDLOperation):
     """Evaluate or continue an FP32 Horner recurrence in each AVX-512 lane.
 
@@ -658,6 +731,7 @@ XSMM = Dialect(
         MatmulOp,
         MatmulRegOp,
         PolynomialConstantsOp,
+        PolynomialOp,
         HornerOp,
         ExpOp,
     ],

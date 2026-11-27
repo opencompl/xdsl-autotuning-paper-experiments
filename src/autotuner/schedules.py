@@ -1,6 +1,7 @@
 """Generic, semantics-preserving transformations for XSMM operations."""
 
 from collections.abc import Sequence
+from typing import Literal
 
 from xdsl import ir
 from xdsl.dialects import builtin, x86, x86_scf
@@ -14,6 +15,7 @@ from autotuner.dialects.xsmm import (
     MatmulOp,
     MatmulRegOp,
     PolynomialConstantsOp,
+    PolynomialOp,
 )
 from autotuner.instructions import load_mask
 
@@ -385,6 +387,28 @@ def attach_mask(
     masked = _matmul_like(op, ins=(mask,))
     rewriter.replace(op, (masked,), masked.results)
     return masked
+
+
+def polynomial_to_horner(
+    rewriter: PatternRewriter,
+    op: PolynomialOp,
+    *,
+    seed: Literal["argument", "leading-coefficient"],
+) -> HornerOp:
+    """Choose a fused recurrence without touching setup or neighbouring ops."""
+    operations: list[ir.Operation] = []
+    coefficients = tuple(op.bindings)
+    accumulator = None
+    if seed == "leading-coefficient":
+        copy = x86_ext.DS_Vmovdqu64Op(coefficients[-1], destination=op.result.type)
+        operations.append(copy)
+        accumulator = copy.destination
+        coefficients = coefficients[:-1]
+    horner = HornerOp(
+        op.argument, accumulator, coefficients, destination=op.result.type
+    )
+    rewriter.replace(op, (*operations, horner))
+    return horner
 
 
 def expand_horner(rewriter: PatternRewriter, op: HornerOp) -> HornerOp | None:

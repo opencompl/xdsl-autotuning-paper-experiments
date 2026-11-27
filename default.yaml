@@ -65,6 +65,7 @@ compxsmm-manual-gemm-passes:
 compxsmm-manual-exp-passes:
   avx512:
     - xsmm-apply-exp-schedule
+    - xsmm-expand-polynomial{schedule=libxsmm}
     - xsmm-expand-horner
     - xsmm-expand-polynomial-constants
     - x86-regalloc-verify-liveness
@@ -74,6 +75,7 @@ compxsmm-manual-exp-passes:
 compxsmm-exp-passes:
   avx512:
     - xsmm-apply-exp-schedule{disable-regalloc=true}
+    - xsmm-expand-polynomial{schedule=libxsmm}
     - xsmm-expand-horner
     - xsmm-expand-polynomial-constants
     - x86-regalloc-verify-liveness

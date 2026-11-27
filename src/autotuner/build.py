@@ -72,8 +72,13 @@ GENERATOR_SOURCES: Mapping[str, tuple[str, ...]] = {
     "libxsmm": ("src/autotuner/libxsmm_gemm",),
     "compxsmm": ("src/autotuner/libxsmm_gemm", "src/autotuner/compxsmm_gemm"),
     "libxtcmm": ("src/autotuner/libxsmm_gemm", "src/autotuner/libxtcmm_gemm"),
-    # Every xdsl-opt pipeline runs project passes out of these two packages.
-    "xdsl": ("src/autotuner/passes", "src/autotuner/dialects", "pyproject.toml"),
+    # Include the expansion rules called by the project passes as well.
+    "xdsl": (
+        "src/autotuner/passes",
+        "src/autotuner/dialects",
+        "src/autotuner/schedules.py",
+        "pyproject.toml",
+    ),
     # The x86-mir target that hands `compxsmm_llvm` to llc.
     "mir": ("src/autotuner/x86_mir.py",),
 }

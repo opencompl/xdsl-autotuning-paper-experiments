@@ -1,5 +1,6 @@
 import pytest
-from xdsl.dialects.builtin import FloatAttr, f32
+from xdsl.dialects.arith import FastMathFlagsAttr
+from xdsl.dialects.builtin import ArrayAttr, FloatAttr, f32
 from xdsl.dialects.x86.registers import AVX512RegisterType
 from xdsl.utils.exceptions import VerifyException
 from xdsl.utils.test_value import create_ssa_value
@@ -9,6 +10,7 @@ from autotuner.dialects.xsmm import (
     AccumulatorAddpsOp,
     HornerOp,
     PolynomialConstantsOp,
+    PolynomialOp,
 )
 
 
@@ -50,3 +52,29 @@ def test_polynomial_constants_require_matching_nonempty_results() -> None:
         VerifyException, match="one register per polynomial coefficient"
     ):
         PolynomialConstantsOp((FloatAttr(1.0, f32),), ".Lmissing", ()).verify()
+
+
+def test_polynomial_requires_constant_bindings_and_explicit_permissions() -> None:
+    register = AVX512RegisterType.unallocated()
+    x = create_ssa_value(register)
+    constants = PolynomialConstantsOp(
+        (FloatAttr(0.0, f32), FloatAttr(2.0, f32)), ".Lcoeff", (register,) * 2
+    )
+    polynomial = PolynomialOp(x, constants)
+    polynomial.verify()
+
+    polynomial.properties["coefficients"] = ArrayAttr(
+        (FloatAttr(-0.0, f32), FloatAttr(2.0, f32))
+    )
+    with pytest.raises(VerifyException, match="match coefficient bits"):
+        polynomial.verify()
+    polynomial.properties["coefficients"] = constants.coefficients
+
+    polynomial.operands = (x, x, constants.registers[1])
+    with pytest.raises(VerifyException, match="come from polynomial_constants"):
+        polynomial.verify()
+    polynomial.operands = (x, *constants.registers)
+
+    polynomial.properties["fastmath"] = FastMathFlagsAttr("none")
+    with pytest.raises(VerifyException, match="requires reassoc and contract"):
+        polynomial.verify()

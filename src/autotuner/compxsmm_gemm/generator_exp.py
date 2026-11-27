@@ -13,7 +13,7 @@ from xdsl.dialects.x86.registers import AVX512MaskRegisterType, AVX512RegisterTy
 from xdsl.ir import SSAValue
 
 from autotuner.dialects import x86_ext
-from autotuner.dialects.xsmm import HornerOp, PolynomialConstantsOp
+from autotuner.dialects.xsmm import PolynomialConstantsOp, PolynomialOp
 from autotuner.libxsmm_gemm.generator_common_x86 import (
     Exp3Coefficients,
     Exp5Coefficients,
@@ -110,11 +110,9 @@ def generate_exp3(
     rounded.attributes["sae"] = UnitAttr()
     y = code.insert(rounded).destination
     y = code.insert(x86_ext.DSS_VsubpsOp(x, y, destination=vec_y)).destination
-    z = code.insert(
-        HornerOp(
-            y, None, (coeffs.c0, coeffs.c1, coeffs.c2, coeffs.c3), destination=vec_z
-        )
-    ).result
+    constants = coeffs.c0.owner
+    assert isinstance(constants, PolynomialConstantsOp)
+    z = code.insert(PolynomialOp(y, constants, destination=vec_z)).result
     return code.insert(x86_ext.DSS_VscalefpsOp(z, x, destination=x.type)).destination
 
 
@@ -153,12 +151,9 @@ def generate_exp5(
     aux2 = code.insert(
         x86_ext.DSSK_VblendmpsOp(aux2, zero, mask, destination=vec_aux2)
     ).destination
-    src = code.insert(
-        x86_ext.DS_Vmovdqu64Op(coeffs.c5, destination=src.type)
-    ).destination
-    src = code.insert(
-        HornerOp(aux1, src, (coeffs.c0, coeffs.c1, coeffs.c2, coeffs.c3, coeffs.c4))
-    ).result
+    constants = coeffs.c0.owner
+    assert isinstance(constants, PolynomialConstantsOp)
+    src = code.insert(PolynomialOp(aux1, constants, destination=src.type)).result
     return code.insert(
         x86_ext.DSS_VmulpsOp(aux2, src, destination=src.type)
     ).destination

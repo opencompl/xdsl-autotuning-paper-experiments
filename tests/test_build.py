@@ -82,6 +82,17 @@ def test_a_recipe_key_follows_the_commands(tool: build.Toolchain) -> None:
     assert asm.key == build.Artifact(asm.path, asm.steps, asm.inputs).key
 
 
+def test_expansion_rule_changes_invalidate_generated_code(tmp_path: Path) -> None:
+    rules = tmp_path / "src/autotuner/schedules.py"
+    rules.parent.mkdir(parents=True)
+    rules.write_text("first expansion")
+    before = build.source_digests(tmp_path)
+    rules.write_text("different expansion")
+    after = build.source_digests(tmp_path)
+    assert before["xdsl"] != after["xdsl"]
+    assert before["libxsmm"] == after["libxsmm"]
+
+
 def test_only_a_matching_key_on_an_existing_file_is_up_to_date(
     tmp_path: Path,
 ) -> None:
