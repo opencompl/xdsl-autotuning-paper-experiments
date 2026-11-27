@@ -7,6 +7,7 @@ from xdsl import ir
 from xdsl.dialects import builtin, x86, x86_scf
 from xdsl.pattern_rewriter import PatternRewriter
 from xdsl.rewriter import InsertPoint
+from xdsl.utils.exceptions import DiagnosticException
 
 from autotuner.dialects import x86_ext
 from autotuner.dialects.xsmm import (
@@ -409,6 +410,27 @@ def polynomial_to_horner(
     )
     rewriter.replace(op, (*operations, horner))
     return horner
+
+
+def polynomial_to_estrin5(rewriter: PatternRewriter, op: PolynomialOp) -> None:
+    """Expand a quintic with one fixed, lifetime-conscious Estrin schedule.
+
+    Combine q0 and q1 before making q2 and r**4. This avoids keeping all
+    three pairs and both powers live together in the existing exp block.
+    """
+    if len(op.coefficients) != 6:
+        raise DiagnosticException("estrin5 polynomial schedule requires degree 5")
+    c0, c1, c2, c3, c4, c5 = op.bindings
+    argument = ir.SSAValue.get(op.argument, type=x86.registers.AVX512RegisterType)
+    temporary = x86.registers.AVX512RegisterType.unallocated()
+    r2 = x86_ext.DSS_VmulpsOp(argument, argument, destination=temporary)
+    q0 = HornerOp(argument, None, (c0, c1))
+    q1 = HornerOp(argument, None, (c2, c3))
+    s = HornerOp(r2.destination, q1.result, (q0.result,))
+    q2 = HornerOp(argument, None, (c4, c5), destination=op.result.type)
+    r4 = x86_ext.DSS_VmulpsOp(r2.destination, r2.destination, destination=temporary)
+    p = HornerOp(r4.destination, q2.result, (s.result,))
+    rewriter.replace(op, (r2, q0, q1, s, q2, r4, p), (p.result,))
 
 
 def expand_horner(rewriter: PatternRewriter, op: HornerOp) -> HornerOp | None:

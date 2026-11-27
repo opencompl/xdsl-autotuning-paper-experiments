@@ -14,12 +14,18 @@ from xdsl.pattern_rewriter import (
 from xdsl.utils.exceptions import DiagnosticException
 
 from autotuner.dialects.xsmm import PolynomialOp
-from autotuner.schedules import polynomial_to_horner
+from autotuner.schedules import polynomial_to_estrin5, polynomial_to_horner
 
 
+@dataclass
 class ExpandPolynomialPattern(RewritePattern):
+    schedule: str
+
     @op_type_rewrite_pattern
     def match_and_rewrite(self, op: PolynomialOp, rewriter: PatternRewriter, /) -> None:
+        if self.schedule == "estrin5":
+            polynomial_to_estrin5(rewriter, op)
+            return
         match len(op.coefficients):
             case 4:
                 polynomial_to_horner(rewriter, op, seed="argument")
@@ -37,8 +43,8 @@ class XsmmExpandPolynomialPass(ModulePass):
     schedule: str = "libxsmm"
 
     def apply(self, ctx: Context, op: ModuleOp) -> None:
-        if self.schedule != "libxsmm":
+        if self.schedule not in ("libxsmm", "estrin5"):
             raise DiagnosticException(f"unknown polynomial schedule: {self.schedule}")
         PatternRewriteWalker(
-            ExpandPolynomialPattern(), apply_recursively=False
+            ExpandPolynomialPattern(self.schedule), apply_recursively=False
         ).rewrite_module(op)

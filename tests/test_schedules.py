@@ -1,4 +1,12 @@
+import ctypes
+import platform
+import shutil
+import struct
+import subprocess
+from pathlib import Path
+
 import pytest
+from xdsl.context import Context
 from xdsl.dialects import test, x86, x86_scf
 from xdsl.dialects.builtin import Float64Type, FloatAttr, ModuleOp, f32
 from xdsl.ir import SSAValue
@@ -10,7 +18,9 @@ from autotuner.dialects.xsmm import (
     MatmulOp,
     MatmulRegOp,
     PolynomialConstantsOp,
+    PolynomialOp,
 )
+from autotuner.passes.xsmm_expand_polynomial import XsmmExpandPolynomialPass
 from autotuner.schedules import (
     expand_horner,
     expand_polynomial_constants,
@@ -259,3 +269,116 @@ def test_polynomial_constant_expansion_preserves_its_position() -> None:
     assert ops[-3:] == (between, consumer, after)
     assert all(operand.owner in ops[1:-3] for operand in consumer.operands)
     module.verify()
+
+
+@pytest.mark.parametrize("schedule", ("libxsmm", "estrin5"))
+def test_polynomial_expansion_is_local(schedule: str) -> None:
+    register = x86.registers.UNALLOCATED_AVX512
+    constants = PolynomialConstantsOp(
+        tuple(FloatAttr(value, f32) for value in (1, -2, 3, -4, 5, -6)),
+        ".Lcoeff",
+        (register,) * 6,
+    )
+    argument = test.TestOp(result_types=[register])
+    polynomial = PolynomialOp(argument.results[0], constants)
+    before = test.TestOp(operands=constants.results)
+    after = test.TestOp(
+        operands=[polynomial.result, *argument.results, *constants.results]
+    )
+    module = ModuleOp([constants, argument, before, polynomial, after])
+    XsmmExpandPolynomialPass(schedule).apply(Context(), module)
+    ops = tuple(module.body.block.ops)
+    assert ops[:3] == (constants, argument, before)
+    assert ops[-1] is after
+    assert tuple(before.operands) == tuple(constants.results)
+    assert tuple(after.operands[1:]) == (*argument.results, *constants.results)
+    module.verify()
+
+
+@pytest.mark.parametrize(
+    "coefficients",
+    ((1.25, -2.5, 0.75, 0.125, -0.5, 0.0625), (-1.0, 1.0 - 2**-23, 0.0, 0.0, 0.0, 0.0)),
+)
+def test_allocated_estrin_matches_fused_reference(
+    tmp_path: Path, coefficients: tuple[float, ...]
+) -> None:
+    if (
+        platform.system() != "Linux"
+        or platform.machine() != "x86_64"
+        or "avx512f" not in Path("/proc/cpuinfo").read_text()
+        or not shutil.which("clang")
+    ):
+        pytest.skip("requires AVX-512 and clang")
+    constants = ", ".join(f"{c:.17e} : f32" for c in coefficients)
+    source = tmp_path / "polynomial.mlir"
+    source.write_text(f"""
+!v = !x86.avx512reg
+x86_func.func public @polynomial(%in: !x86.reg64<rdi>, %out: !x86.reg64<rsi>) {{
+  %c0, %c1, %c2, %c3, %c4, %c5 = xsmm.polynomial_constants [{constants}]
+      label_prefix ".Lcoeff" : () -> (!v, !v, !v, !v, !v, !v)
+  %r = x86.dm.vmovups [%in] : (!x86.reg64<rdi>) -> !v
+  %p = xsmm.polynomial %r coefficients [{constants}]
+      bindings(%c0, %c1, %c2, %c3, %c4, %c5)
+      {{datatype = f32, fastmath = #arith.fastmath<reassoc, contract>}}
+      : (!v, !v, !v, !v, !v, !v, !v) -> !v
+  x86.ms.vmovups [%out], %p : (!x86.reg64<rsi>, !v) -> ()
+  x86.ms.vmovups [%out + 64], %r : (!x86.reg64<rsi>, !v) -> ()
+  x86.ms.vmovups [%out + 128], %c0 : (!x86.reg64<rsi>, !v) -> ()
+  x86_func.ret
+}}
+""")
+    assembly = tmp_path / "polynomial.S"
+    library = tmp_path / "polynomial.so"
+    pipeline = (
+        "xsmm-expand-polynomial{schedule=estrin5},xsmm-expand-horner,"
+        "xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,"
+        "x86-allocate-registers-with-masks,x86-regalloc-verify-liveness"
+    )
+    subprocess.run(
+        ["xdsl-opt", str(source), "-p", pipeline, "-t", "x86-asm", "-o", str(assembly)],
+        check=True,
+    )
+    subprocess.run(
+        ["clang", "-shared", "-Wl,-z,noexecstack", "-o", str(library), str(assembly)],
+        check=True,
+    )
+    kernel = ctypes.CDLL(str(library)).polynomial
+    kernel.argtypes = (ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float))
+    kernel.restype = None
+    fma = ctypes.CDLL("libm.so.6").fmaf
+    fma.argtypes = (ctypes.c_float,) * 3
+    fma.restype = ctypes.c_float
+    inputs = (ctypes.c_float * 16)(
+        1 + 2**-23,
+        -0.3125,
+        0.1,
+        -0.1,
+        0,
+        -0.0,
+        0.25,
+        0.345,
+        -0.345,
+        0.9,
+        -1.125,
+        1.5,
+        -1.5,
+        1 - 2**-23,
+        0.0001,
+        -0.0001,
+    )
+    saved = bytes(inputs)
+    outputs = (ctypes.c_float * 48)()
+    kernel(inputs, outputs)
+    c0, c1, c2, c3, c4, c5 = coefficients
+    for index, r in enumerate(inputs):
+        # Independent scalar libm fmaf reference, with separately rounded powers.
+        r2 = ctypes.c_float(r * r).value
+        r4 = ctypes.c_float(r2 * r2).value
+        expected = fma(fma(r, c5, c4), r4, fma(fma(r, c3, c2), r2, fma(r, c1, c0)))
+        assert struct.pack("f", outputs[index]) == struct.pack("f", expected)
+    if coefficients[0] == -1.0:
+        # Separate multiply/add would incorrectly round this cancellation to zero.
+        assert outputs[0] == -(2**-46)
+    assert bytes(inputs) == saved
+    assert list(outputs[16:32]) == list(inputs)
+    assert list(outputs[32:48]) == [c0] * 16
