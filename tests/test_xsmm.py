@@ -137,6 +137,29 @@ def test_horner_multistep_accumulator_cannot_alias_read_only_inputs(
         HornerOp(argument, acc, coefficients).verify()
 
 
+@pytest.mark.parametrize("alias_argument", (False, True))
+@pytest.mark.parametrize("polynomial", (False, True))
+def test_seeded_expansion_rejects_clobbering_preassignments(
+    alias_argument: bool, polynomial: bool
+) -> None:
+    x = create_ssa_value(AVX512RegisterType.from_index(0))
+    constants = PolynomialConstantsOp(
+        tuple(FloatAttr(float(i), f32) for i in range(4)),
+        ".Lcoeff",
+        tuple(AVX512RegisterType.from_index(i) for i in range(1, 5)),
+    )
+    destination = x.type if alias_argument else constants.registers[0].type
+    op = (
+        PolynomialOp(x, constants, destination=destination)
+        if polynomial
+        else HornerOp(x, None, constants.registers, destination=destination)
+    )
+    # Even if the source dies at the high-level operation, it is needed after
+    # the seed inside its expansion. Type equality is a physical alias here.
+    with pytest.raises(VerifyException, match="preassigned result must be distinct"):
+        op.verify()
+
+
 @pytest.mark.parametrize("assigned", (False, True))
 def test_polynomial_interfaces_preserve_read_only_bindings(assigned: bool) -> None:
     registers = tuple(

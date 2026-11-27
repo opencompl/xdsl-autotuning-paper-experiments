@@ -531,6 +531,8 @@ class PolynomialOp(X86HasRegisterConstraints):
     coefficient setup. Reassociation and contraction explicitly permit different
     rounded evaluation trees; this operation does not promise a particular one.
     Expand it before expanding PolynomialConstantsOp, while bindings are known.
+    A preassigned result must be distinct from the read-only operand registers:
+    their last uses can occur after the seed within the chosen evaluation tree.
     """
 
     name = "xsmm.polynomial"
@@ -571,6 +573,12 @@ class PolynomialOp(X86HasRegisterConstraints):
             raise VerifyException("polynomial coefficients must not be empty")
         if len(self.bindings) != len(self.coefficients):
             raise VerifyException("expected one binding per polynomial coefficient")
+        if self.result.type.is_allocated and any(
+            value.type == self.result.type for value in self.operands
+        ):
+            raise VerifyException(
+                "polynomial preassigned result must be distinct from read-only inputs"
+            )
         if (
             not {FastMathFlag.REASSOC, FastMathFlag.ALLOW_CONTRACT}
             <= self.fastmath.data
@@ -610,6 +618,8 @@ class HornerOp(X86HasRegisterConstraints):
     accumulator to be distinct from every read-only operand, so destructive
     steps cannot overwrite an input needed by a later step. Single-step aliases
     are allowed: the one FMA reads all operands before writing its result.
+    Uninitialized nonconstant recurrences require a preassigned result distinct
+    from their input registers, which must survive the seed copy and early FMAs.
     """
 
     name = "xsmm.horner"
@@ -700,6 +710,14 @@ class HornerOp(X86HasRegisterConstraints):
         if self.accumulator is None:
             if not self.coefficients:
                 raise VerifyException("uninitialized Horner requires coefficients")
+            if (
+                len(self.coefficients) > 1
+                and self.result.type.is_allocated
+                and any(value.type == self.result.type for value in self.operands)
+            ):
+                raise VerifyException(
+                    "Horner preassigned result must be distinct from read-only inputs"
+                )
         elif self.result.type != self.accumulator.type:
             raise VerifyException("Horner result must reuse the accumulator register")
         elif len(self.coefficients) > 1 and self.accumulator in (
