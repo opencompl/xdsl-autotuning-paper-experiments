@@ -110,6 +110,211 @@ records its machine, family, ISA, compiler `march`, and libxsmm architecture.
 
 [T-tile chart generation.](https://gitlab.inria.fr/ntollena/ics-experiments/-/tree/main/paper_versions/asplos/small_mm_figure_Gui?ref_type=heads)
 
+### Initial FP32 exp experiment
+
+`f32.exp` currently runs on `tower` and compares native LIBXSMM, its literal
+Python/xDSL port (`xdsl_libxsmm`), manually allocated CompXSMM (`compxsmm_manual`,
+"CompXSMM - RA" in the plot), and allocator-driven CompXSMM (`compxsmm`).
+Both degree-three and degree-five approximations run at lengths
+16, 32, 64, 128, 256, 512, and 1024.
+Every shape is a packed column vector: `M=length`, `N=1`, `ldi=ldo=length`.
+The experiment deliberately excludes partial vectors, strided matrices, and
+streaming-sized buffers.
+
+In the Nix development shell (`nix develop`), run:
+
+```sh
+uv run validate-dataset --machine tower f32.exp
+taskset -c 2 uv run evaluate --machine tower f32.exp
+make plots/f32.exp.tower.pdf plots/tower/f32.exp.png
+```
+
+The same Python builder and evaluator used for matmul write artifacts under
+`build/tower/exp/degree<3|5>/<length>/` and nine measurement passes to
+`data/tower/f32.exp.jsonl` (4,032 rows). Each shape/degree has one
+`paired.f32.time.o` containing all four implementations. In each pass it measures
+all kernels at offsets 0, 16, 32, and 48 within one page-aligned executable
+buffer, in forward and reverse variant order. All sides of a comparison
+therefore use exactly the same code address, caller, input, and output buffers.
+The JSONL retains every timing, placement, order, pass, and executable address.
+The plot takes the median of the eighteen readings at each placement (nine passes
+times two orders), then averages the four placements with equal weight. Speedup
+is the ratio of those averages at the **same degree**, never against a
+lower-accuracy approximation or an independently chosen best placement.
+Matched placement removes the JIT-versus-static address difference, not all
+microarchitectural state or measurement variation. Identical-code controls still
+vary in the smallest cases; these results establish approximate agreement, not
+reliable sub-percent speed differences.
+`make plots` includes exp wherever its data exists; it never launches
+measurements. To remeasure this experiment, remove only
+`build/tower/exp/degree*/*/paired.f32.time*.txt` before rerunning `evaluate`.
+Old, separate-executable measurements are rejected by the exp plotter.
+
+LIBXSMM dispatch runs once before warmup, with the machine's explicit `skx`
+target. `LIBXSMM_X86_HINT_USE_HIGH_PREC_ELTWISE_APPROX` is forced to `0` for
+degree three and `1` for degree five, independently of the ambient environment.
+Reference fallbacks are rejected. All kernels use the same unary function-pointer
+ABI; one non-inlined timed loop calls them with a prefilled
+`libxsmm_meltw_unary_param`. Input and output are separate, 64-byte-aligned,
+cache-resident arrays. Initialization, code copying, permission changes, 1,000
+warmup calls, and output validation are outside timing. Each reading processes
+268,435,456 elements using tower's PAPI cycle counter. The relocated output is
+checked bit-for-bit against the original kernel, with input and output guards.
+Code pages alternate between writable and executable, never both at once.
+
+Inputs are deterministic fractional FP32 values in `[-10,10)` with seed 42.
+Validation also uses seed 43 and adjacent FP32 inputs at range-reduction
+boundaries, compares against double-precision `exp` with a
+maximum relative error of `1e-3` for degree three and `1e-6` for degree five,
+and rejects nonfinite outputs, input writes, and writes to output guards.
+These are finite-domain contracts, not claims of correctly rounded `expf` or
+identical behavior for subnormal results outside the tested input range.
+All generated variants also have a native-JIT differential test with mixed underflow, overflow,
+NaN, and infinity lanes, including lengths around unroll and region boundaries.
+
+Generate assembly independently, as with `libxsmm-gemm`:
+
+```sh
+uv run libxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5 --arch skx
+uv run xdsl-opt /tmp/exp.mlir -p x86-prologue-epilogue-insertion -t x86-asm -o /tmp/exp.S
+```
+
+The entry point accepts packed full-vector FP32 columns on SKX and rejects
+other shapes/targets. The port shares the existing `libxsmm_gemm` package's
+instruction helpers and keeps upstream's separation of register setup,
+M-region blocking, register-block load/compute/store, and per-vector polynomial
+emission. It preserves coefficients, register assignments, the 16-vector unroll
+cap, and the per-constant jump/inline-data/load startup sequence. Loop entry uses
+SSA fallthrough, emitting no instruction, as in LIBXSMM and the matmul port.
+Missing x86 ops live in this repository's
+`autotuner.dialects.x86_ext`, without changing the xDSL pin.
+
+CompXSMM emits `xsmm.exp`, then lowers it to the same blocking through
+`x86_scf.for` loops and `xsmm.polynomial`. The polynomial contains an ordinary
+array of scalar FP32 constants and read-only bindings to the existing
+`xsmm.polynomial_constants` results. Local expansion chooses a recurrence;
+`xsmm.horner` expands one fused step at a time. The manual and allocated Horner
+versions differ only in register assignment. To emit either version's assembly:
+
+```sh
+# Manual assignment, matching LIBXSMM's registers.
+uv run compxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5
+uv run xdsl-opt /tmp/exp.mlir \
+  -p x86-regalloc-verify-liveness,xsmm-apply-exp-schedule,x86-regalloc-verify-liveness,xsmm-expand-polynomial,x86-regalloc-verify-liveness,xsmm-expand-horner,xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion \
+  -t x86-asm -o /tmp/exp-manual.S
+# Leave all non-ABI registers unallocated, then run xDSL's allocator.
+uv run compxsmm-exp /tmp/exp.mlir exp_kernel 256 --degree 5 --disable-regalloc
+uv run xdsl-opt /tmp/exp.mlir \
+  -p 'x86-regalloc-verify-liveness,xsmm-apply-exp-schedule{disable-regalloc=true},x86-regalloc-verify-liveness,xsmm-expand-polynomial,x86-regalloc-verify-liveness,xsmm-expand-horner,xsmm-expand-polynomial-constants,x86-regalloc-verify-liveness,x86-allocate-registers-with-masks,x86-regalloc-verify-liveness,convert-x86-scf-to-x86,x86-prologue-epilogue-insertion' \
+  -t x86-asm -o /tmp/exp-allocated.S
+```
+
+For the fixed quintic Estrin schedule, replace `xsmm-expand-polynomial` in the
+allocated pipeline with `xsmm-expand-polynomial{schedule=estrin5}`. Everything
+else, including coefficients, range reduction and loop blocking, stays the same.
+The expansion emits `r2 = r*r`, the pairs `q0 = fma(r,c1,c0)` and
+`q1 = fma(r,c3,c2)`, then `s = fma(q1,r2,q0)`, `q2 = fma(r,c5,c4)`,
+`r4 = r2*r2` and `p = fma(q2,r4,s)`. Delaying q2 and r4 limits overlapping
+temporary lifetimes. The explicit `reassoc, contract` permissions allow this
+different rounded evaluation tree; it retains the `1e-6` exp accuracy bound,
+not bitwise equality with Horner. There is no schedule search.
+
+The focused `f32.exp_schedules` dataset measures degree five at the same seven
+lengths. Its plot shows native LIBXSMM, allocated CompXSMM/Horner and allocated
+CompXSMM/Estrin; the literal port and manual Horner remain measured controls.
+The quintic paired executable always includes all five implementations, so it
+has one timing cache even when a dataset selects fewer curves. Degree three
+retains four implementations. Both datasets retain nine passes, both execution
+orders, and all four placements, with the same median/mean aggregation.
+
+```sh
+uv run validate-dataset --machine tower f32.exp_schedules
+taskset -c 2 uv run evaluate --machine tower f32.exp_schedules
+make plots/f32.exp_schedules.tower.pdf plots/tower/f32.exp_schedules.png
+```
+
+The local `x86-allocate-registers-with-masks` pass uses the unchanged xDSL
+allocator and AVX-512 GP/vector pool, adding `k1`–`k7` for the quintic's blend.
+The pinned xDSL pool omits masks; `k0` cannot encode a writemask. No xDSL fork
+or dependency change is required. Allocation is followed by liveness verification.
+
+`kernels/exp/init.c` returns the assembled callback for correctness tests. The
+timing harness instead relocates the JIT bytes and assembled kernels into its shared
+buffer. This is valid for these self-contained kernels: all branches and
+RIP-relative constant references stay within the copied code. The generator
+exports an end label to delimit each kernel without adding instructions. Equivalent
+assembler encoding differences remain; relocation does not rewrite instructions.
+
+#### Expansion contracts and capacity
+
+All four XSMM exp/polynomial operations expose register constraints before
+lowering. Initialized `horner` has read-only argument/coefficient `ins` and one
+`(accumulator, result)` inout; uninitialized `horner` instead has a fresh `out`.
+`polynomial` has read-only argument/bindings and one `out`;
+`polynomial_constants` has only `outs`. They expose preassigned register effects
+as well as the constant loads' memory reads. Type equality alone is not a web.
+
+`exp` has two pointer inouts. Its results contain the **original addresses**,
+not advanced cursors; the input and output memory ranges must not overlap.
+Following uses and enclosing-loop yields must use its results:
+
+```mlir
+%input_after, %output_after = xsmm.exp %input, %output length 528 : i64 degree 5 : i64
+    : (!x86.reg64, !x86.reg64) -> (!x86.reg64, !x86.reg64)
+```
+
+Expansion threads both webs through loop initialization, block arguments,
+yields, results and pointer adjustments. Loop restoration returns to a region's
+base; a final subtraction also undoes advances between regions. Constant setup
+stays at the expansion site, including inside an enclosing loop, and separate
+exp operations get distinct constant labels. The benchmark ABI has no later
+pointer uses, so it can discard these results.
+
+The preservation argument is local to each replacement:
+
+- **S:** definitions precede their uses; new loops have one block and use the
+  existing structured-loop form. No surrounding operation is moved or rewritten.
+- **W/T:** each destructive FMA consumes the current accumulator and produces its
+  successor. Uninitialized evaluation starts with a fresh copy; zero-step
+  continuation returns its existing web. Pointer arithmetic and complete loop
+  tuples likewise extend, rather than split or merge, the declared pointer webs.
+- **P:** external assignments are retained along each web. Fresh temporaries in
+  the allocated schedule remain unassigned until allocation. Seeded polynomial
+  outputs cannot be preassigned to read-only input registers. The manual LIBXSMM
+  template requires its fixed registers to be reserved by the caller; it is a
+  whole-kernel baseline, not an arbitrary-context preassignment strategy.
+- **L:** coefficients and polynomial arguments remain read-only loop live-ins.
+  Exp pointers and initialized accumulators must be explicitly carried when used
+  in enclosing loops; consuming a loop live-in or reusing a consumed SSA operand
+  is rejected by liveness validation. Multi-step Horner forbids accumulator/input
+  aliases; a single initialized FMA can read an aliased operand before writing.
+
+**R is a separate bound, not a consequence of these interfaces.** With at most
+16 loaded vectors, cubic Horner needs at most 6 constant + 16 data + 2 temporary
+ZMMs = 24; quintic Horner needs 12 + 16 + 2 = 30; the chosen quintic Estrin order
+needs 12 + 16 + 4 = 32. The figures count range-reduction/reconstruction state,
+not just polynomial arithmetic. Quintic uses one mask (of k1–k7). Looped kernels
+need two GP cursors and one counter; an enclosing loop adds its counter. The ABI
+register and other preassignments/exclusions are removed from the available pool.
+Additional live-through values must be budgeted: one extra live ZMM makes the
+16-vector Estrin block require 33, so that context needs smaller blocking. The
+current standalone generator has no such extra live vectors; it does not search
+for or automatically select a smaller compositional schedule.
+
+`tests/test_xsmm.py` checks the high-level interfaces and invalid aliases/uses.
+`tests/test_schedules.py` checks individual Horner steps, intermediate expansion
+stages, external web membership and preassignments, enclosing loops, and native
+execution with returned pointers at lengths 16, 64, 256, 272, 512, 528, 1024 and
+1040. The pinned liveness checker catches stale/duplicate inouts and consumed loop
+live-ins; it is not a complete dominance, preassignment-interference or gap-free
+web verifier. Targeted assertions and capacity reasoning supplement it, rather
+than treating final allocator success as proof of all the paper's conditions.
+
+The register-contract fixes leave all 63 assembly files in the current seven-size
+benchmark sweep unchanged. Multi-region sizes such as 528 and 1040 gain two final
+pointer subtractions; any previous CompXSMM timings for those sizes would require
+remeasurement. Neither size is in the current plotted datasets.
+
 ### AOCL-BLAS baseline
 
 On x86-64 Linux, the Nix toolchain builds the single-threaded CBLAS interface from

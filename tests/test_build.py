@@ -1,3 +1,5 @@
+import json
+import math
 import os
 import platform
 import shutil
@@ -78,6 +80,17 @@ def test_a_recipe_key_follows_the_commands(tool: build.Toolchain) -> None:
 
     assert asm.key != tweaked.key
     assert asm.key == build.Artifact(asm.path, asm.steps, asm.inputs).key
+
+
+def test_expansion_rule_changes_invalidate_generated_code(tmp_path: Path) -> None:
+    rules = tmp_path / "src/autotuner/schedules.py"
+    rules.parent.mkdir(parents=True)
+    rules.write_text("first expansion")
+    before = build.source_digests(tmp_path)
+    rules.write_text("different expansion")
+    after = build.source_digests(tmp_path)
+    assert before["xdsl"] != after["xdsl"]
+    assert before["libxsmm"] == after["libxsmm"]
 
 
 def test_only_a_matching_key_on_an_existing_file_is_up_to_date(
@@ -218,6 +231,136 @@ def test_m4_native_correctness_driver(tmp_path: Path, dtype: str) -> None:
     binary = tmp_path / Path(sample.path("m4", "test.o")).relative_to("build")
     done = subprocess.run([binary], capture_output=True, text=True, check=True)
     assert "Test Passed" in done.stdout
+
+
+def test_exp_builds_validates_and_matches_native_libxsmm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if (
+        platform.system() != "Linux"
+        or platform.machine() != "x86_64"
+        or "avx512f" not in Path("/proc/cpuinfo").read_text()
+        or not shutil.which("clang")
+        or not build.pkg_config("libxsmm")[0]
+    ):
+        pytest.skip("requires AVX-512 and the LIBXSMM development package")
+    # Correctness does not need tower's PAPI timer or its Zen 5 compiler target.
+    monkeypatch.setitem(
+        build.MACHINES,
+        "ci",
+        replace(build.MACHINES["ci"], libxsmm_arch="skx", isa="avx512"),
+    )
+    samples = [
+        Sample(length, 1, 1, variant, "f32", kernel="exp", exp_degree=degree)
+        for degree in (3, 5)
+        # No loop, full unroll, reduced unroll, two M regions, repeated unroll.
+        for length in (16, 256, 272, 528, 1024)
+        for variant in (
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm_manual",
+            "compxsmm",
+            "compxsmm_estrin",
+        )
+        if degree == 5 or variant != "compxsmm_estrin"
+    ]
+    # Build together to catch shared paths or a driver compiled for the wrong
+    # degree, as well as an ambient hint overriding the requested polynomial.
+    build.build(samples, "ci", root=tmp_path, driver="test", jobs=1, quiet=True)
+    for sample in samples:
+        binary = tmp_path / Path(sample.path("ci", "test.o")).relative_to("build")
+        outputs = []
+        for hint in ("0", "1"):
+            done = subprocess.run(
+                [binary],
+                env=os.environ
+                | {"LIBXSMM_X86_HINT_USE_HIGH_PREC_ELTWISE_APPROX": hint},
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            assert f"Test Passed: degree-{sample.exp_degree} exp" in done.stdout
+            outputs.append(done.stdout)
+        assert outputs[0] == outputs[1]
+        relative_error = float(outputs[0].splitlines()[0].split(": ")[1])
+        if sample.exp_degree == 3:
+            # The loose cubic tolerance alone would also accept degree five.
+            assert 1e-5 < relative_error < 1e-3
+        else:
+            assert relative_error < 1e-6
+
+        if sample.variant != "libxsmm":
+            # The tolerance check above would miss swapped blend operands on
+            # underflow lanes. Compare generated kernels against the real JIT
+            # on mixed lanes, including both sides of its clamp boundaries.
+            asm = binary.parent / f"{sample.variant}.f32.S"
+            oracle = binary.parent / "compare"
+            symbol = (
+                "exp_kernel"
+                if sample.variant == "xdsl_libxsmm"
+                else f"{sample.variant}_exp_kernel"
+            )
+            cflags, libs = build.pkg_config("libxsmm")
+            subprocess.run(
+                [
+                    "clang",
+                    "-O2",
+                    *cflags,
+                    f"-DLENGTH={sample.m}",
+                    f"-DEXP_DEGREE={sample.exp_degree}",
+                    f"-DEXP_ESTRIN={int(sample.variant == 'compxsmm_estrin')}",
+                    f"-Dexp_kernel={symbol}",
+                    "tests/libxsmm/exp_compare.c",
+                    str(asm),
+                    *libs,
+                    "-lm",
+                    "-o",
+                    str(oracle),
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            result = subprocess.run(
+                [oracle], capture_output=True, text=True, check=True
+            )
+            assert (
+                "Estrin matches native exp profile"
+                if sample.variant == "compxsmm_estrin"
+                else "Native and generated exp agree"
+            ) in result.stdout
+
+    # Exercise the real paired timer too: relocation must preserve outputs and
+    # guards for both a straight-line kernel and a looped kernel, at every offset.
+    timed = [s for s in samples if s.m in (16, 1024)]
+    build.build(timed, "ci", root=tmp_path, jobs=1, quiet=True)
+    for sample in timed:
+        if sample.variant != "libxsmm":
+            continue
+        binary = (
+            tmp_path / Path(sample.path("ci", "time.o")).relative_to("build")
+        ).with_name("paired.f32.time.o")
+        done = subprocess.run([binary], capture_output=True, text=True, check=True)
+        rows = json.loads(done.stdout)
+        variants = ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
+        if sample.exp_degree == 5:
+            variants += ("compxsmm_estrin",)
+        assert len(rows) == len(variants) * 8
+        assert {(r["variant"], r["placement_offset"], r["order"]) for r in rows} == {
+            (variant, offset, order)
+            for variant in variants
+            for offset in (0, 16, 32, 48)
+            for order in (0, 1)
+        }
+        # All variants and both orders use the very same address, not just
+        # addresses with coincidentally equal cache-line alignment.
+        assert (
+            len({int(r["code_address"], 16) - r["placement_offset"] for r in rows}) == 1
+        )
+        assert all(
+            int(r["code_address"], 16) % 4096 == r["placement_offset"] for r in rows
+        )
+        assert all(math.isfinite(r["time"]) and r["time"] > 0 for r in rows)
 
 
 @pytest.mark.parametrize("host", [("Linux", "aarch64"), ("Darwin", "x86_64")])

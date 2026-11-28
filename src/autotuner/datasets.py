@@ -7,9 +7,16 @@ samples, and `autotuner.evaluate`, which times them, so the two cannot drift.
 from dataclasses import dataclass
 from functools import cache
 
-# Every dataset measures the column-major matmul, so M is the contiguous
-# dimension -- the one a kernel vectorizes -- and N is the one it blocks.
+# Matmul is column-major: M is contiguous and N is the blocked dimension.
 KERNEL = "matmul_colmaj"
+
+# A deliberately small, full-vector FP32 exp sweep. Exp samples use M as the
+# length and N = K = 1 internally; K is not part of their paths or result schema.
+EXP_LENGTHS = (16, 32, 64, 128, 256, 512, 1024)
+EXP_DEGREES = (3, 5)
+EXP_PLACEMENTS = (0, 16, 32, 48)
+EXP_VARIANTS = ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
+EXP_SCHEDULE_VARIANTS = (*EXP_VARIANTS, "compxsmm_estrin")
 
 # Sizes swept by the two square sweeps, one per data type, which set
 # M = N = K to each of them.
@@ -50,10 +57,13 @@ NANOKERNEL_VARIANTS = (
 # the machine is doing lands in the number.  That noise only ever makes a
 # kernel look slower, so they are swept several times and the plots keep the
 # fastest pass of each sample -- see `plot_data.best_of_repeats`.
+# Exp instead takes medians at each controlled placement, then averages them.
 DATASET_REPEATS = {
     "f64.nanokernel_grid": 3,
     "f32.squares": 3,
     "f64.squares": 3,
+    "f32.exp": 9,
+    "f32.exp_schedules": 9,
 }
 
 
@@ -79,6 +89,8 @@ VARIANTS = {
         "f64.nanokernel_grid": [],
     },
     "tower": {
+        "f32.exp": list(EXP_VARIANTS),
+        "f32.exp_schedules": list(EXP_SCHEDULE_VARIANTS),
         "ttile": [
             "libxsmm",
             "mkl",
@@ -211,8 +223,10 @@ def machine_base(
     m: Size = "{m}",
     n: Size = "{n}",
     k: Size = "{k}",
+    exp_degree: Size = 3,
 ) -> str:
-    return f"build/{machine}/{kernel}/{m}x{n}x{k}"
+    shape = f"degree{exp_degree}/{m}" if kernel == "exp" else f"{m}x{n}x{k}"
+    return f"build/{machine}/{kernel}/{shape}"
 
 
 def variant_filename(
@@ -230,8 +244,11 @@ def machine_file(
     k: Size = "{k}",
     variant: str = "{variant}",
     dtype: str = "{dtype}",
+    exp_degree: Size = 3,
 ) -> str:
-    base = machine_base(machine=machine, kernel=kernel, m=m, n=n, k=k)
+    base = machine_base(
+        machine=machine, kernel=kernel, m=m, n=n, k=k, exp_degree=exp_degree
+    )
     var = variant_filename(variant=variant, dtype=dtype, ext=ext)
     return f"{base}/{var}"
 
@@ -246,6 +263,7 @@ class Sample:
     variant: str
     dtype: str
     kernel: str = KERNEL
+    exp_degree: int = 3
 
     def path(self, machine: str, ext: str) -> str:
         """Where this sample's ``ext`` file lives, e.g. ``time.o``."""
@@ -258,6 +276,7 @@ class Sample:
             k=self.k,
             variant=self.variant,
             dtype=self.dtype,
+            exp_degree=self.exp_degree,
         )
 
 
@@ -315,6 +334,17 @@ def dataset_samples(machine: str) -> dict[str, list[Sample]]:
     # block size rather than the trip count those figures are about.  The
     # square sweeps vary all three dimensions together.
     return {
+        "f32.exp": [
+            Sample(length, 1, 1, variant, "f32", kernel="exp", exp_degree=degree)
+            for degree in EXP_DEGREES
+            for length in EXP_LENGTHS
+            for variant in variants.get("f32.exp", [])
+        ],
+        "f32.exp_schedules": [
+            Sample(length, 1, 1, variant, "f32", kernel="exp", exp_degree=5)
+            for length in EXP_LENGTHS
+            for variant in variants.get("f32.exp_schedules", [])
+        ],
         "f32.ttile": by_variant(
             "f32", [(128, n, 128) for n in TTILE_F32_RANGE], "ttile"
         ),

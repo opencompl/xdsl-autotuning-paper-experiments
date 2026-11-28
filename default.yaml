@@ -62,6 +62,49 @@ compxsmm-manual-gemm-passes:
     - convert-x86-scf-to-x86
     - x86-prologue-epilogue-insertion
 
+compxsmm-manual-exp-passes:
+  avx512:
+    - x86-regalloc-verify-liveness
+    - xsmm-apply-exp-schedule
+    - x86-regalloc-verify-liveness
+    - xsmm-expand-polynomial{schedule=libxsmm}
+    - x86-regalloc-verify-liveness
+    - xsmm-expand-horner
+    - xsmm-expand-polynomial-constants
+    - x86-regalloc-verify-liveness
+    - convert-x86-scf-to-x86
+    - x86-prologue-epilogue-insertion
+
+compxsmm-exp-passes:
+  avx512:
+    - x86-regalloc-verify-liveness
+    - xsmm-apply-exp-schedule{disable-regalloc=true}
+    - x86-regalloc-verify-liveness
+    - xsmm-expand-polynomial{schedule=libxsmm}
+    - x86-regalloc-verify-liveness
+    - xsmm-expand-horner
+    - xsmm-expand-polynomial-constants
+    - x86-regalloc-verify-liveness
+    - x86-allocate-registers-with-masks
+    - x86-regalloc-verify-liveness
+    - convert-x86-scf-to-x86
+    - x86-prologue-epilogue-insertion
+
+compxsmm-estrin-exp-passes:
+  avx512:
+    - x86-regalloc-verify-liveness
+    - xsmm-apply-exp-schedule{disable-regalloc=true}
+    - x86-regalloc-verify-liveness
+    - xsmm-expand-polynomial{schedule=estrin5}
+    - x86-regalloc-verify-liveness
+    - xsmm-expand-horner
+    - xsmm-expand-polynomial-constants
+    - x86-regalloc-verify-liveness
+    - x86-allocate-registers-with-masks
+    - x86-regalloc-verify-liveness
+    - convert-x86-scf-to-x86
+    - x86-prologue-epilogue-insertion
+
 # The pipeline template for a nano-kernel pinned instead of picked by the SKX
 # heuristic. Each consumer replaces `{nanokernel}` with the strategy name.
 # Registers are still xDSL's to assign, as in `compxsmm`.

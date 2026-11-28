@@ -69,6 +69,11 @@ def test_a_sample_knows_where_its_files_live() -> None:
     assert sample.path("rapper", "time.o") == (
         "build/rapper/matmul_colmaj/3x5x7/libxsmm.f64.time.o"
     )
+    for degree in (3, 5):
+        exp = Sample(128, 1, 1, "libxsmm", "f32", kernel="exp", exp_degree=degree)
+        assert exp.path("tower", "time.o") == (
+            f"build/tower/exp/degree{degree}/128/libxsmm.f32.time.o"
+        )
 
 
 def test_the_path_helper_still_spells_out_wildcards() -> None:
@@ -89,6 +94,37 @@ def test_a_machine_without_a_variant_list_yields_no_samples() -> None:
     assert dataset_samples("neon")["f32.squares"] == []
     assert dataset_samples("neon")["f64.squares"] == []
     assert dataset_samples("neon")["f64.nanokernel_grid"] == []
+
+
+def test_initial_exp_sweep_compares_libxsmm_and_compxsmm() -> None:
+    samples = dataset_samples("tower")["f32.exp"]
+    assert [(s.exp_degree, s.m, s.variant) for s in samples] == [
+        (degree, length, variant)
+        for degree in (3, 5)
+        for length in (16, 32, 64, 128, 256, 512, 1024)
+        for variant in ("libxsmm", "xdsl_libxsmm", "compxsmm_manual", "compxsmm")
+    ]
+    assert len({s.path("tower", "time.o") for s in samples}) == 56
+    assert all((s.kernel, s.n, s.k, s.dtype) == ("exp", 1, 1, "f32") for s in samples)
+    assert dataset_repeats("f32.exp") == 9
+    assert dataset_samples("ci")["f32.exp"] == []
+
+
+def test_exp_schedule_sweep_adds_only_quintic_estrin() -> None:
+    samples = dataset_samples("tower")["f32.exp_schedules"]
+    assert [(s.exp_degree, s.m, s.variant) for s in samples] == [
+        (5, length, variant)
+        for length in (16, 32, 64, 128, 256, 512, 1024)
+        for variant in (
+            "libxsmm",
+            "xdsl_libxsmm",
+            "compxsmm_manual",
+            "compxsmm",
+            "compxsmm_estrin",
+        )
+    ]
+    assert dataset_repeats("f32.exp_schedules") == 9
+    assert dataset_samples("ci")["f32.exp_schedules"] == []
 
 
 @pytest.mark.parametrize(

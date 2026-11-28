@@ -35,7 +35,7 @@ import subprocess
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from importlib import import_module
 from pathlib import Path
 
@@ -51,7 +51,15 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from autotuner.datasets import NANOKERNEL_VARIANTS, Sample, dataset_samples
+from autotuner.datasets import (
+    EXP_PLACEMENTS,
+    EXP_SCHEDULE_VARIANTS,
+    EXP_VARIANTS,
+    NANOKERNEL_VARIANTS,
+    Sample,
+    dataset_samples,
+    machine_base,
+)
 from autotuner.machines import MACHINES
 from autotuner.x86_mir import LLC_FLAGS, SPILL_ANNOTATION
 
@@ -65,8 +73,13 @@ GENERATOR_SOURCES: Mapping[str, tuple[str, ...]] = {
     "libxsmm": ("src/autotuner/libxsmm_gemm",),
     "compxsmm": ("src/autotuner/libxsmm_gemm", "src/autotuner/compxsmm_gemm"),
     "libxtcmm": ("src/autotuner/libxsmm_gemm", "src/autotuner/libxtcmm_gemm"),
-    # Every xdsl-opt pipeline runs project passes out of these two packages.
-    "xdsl": ("src/autotuner/passes", "src/autotuner/dialects", "pyproject.toml"),
+    # Include the expansion rules called by the project passes as well.
+    "xdsl": (
+        "src/autotuner/passes",
+        "src/autotuner/dialects",
+        "src/autotuner/schedules.py",
+        "pyproject.toml",
+    ),
     # The x86-mir target that hands `compxsmm_llvm` to llc.
     "mir": ("src/autotuner/x86_mir.py",),
 }
@@ -74,7 +87,9 @@ GENERATOR_SOURCES: Mapping[str, tuple[str, ...]] = {
 # The generator each "generate:*" step calls, imported once per worker.
 GENERATOR_MODULES = {
     "generate:libxsmm": "autotuner.libxsmm_gemm.libxsmm_generator_gemm_driver",
+    "generate:libxsmm-exp": "autotuner.libxsmm_gemm.libxsmm_generator_exp_driver",
     "generate:compxsmm": "autotuner.compxsmm_gemm.compxsmm_generator_gemm_driver",
+    "generate:compxsmm-exp": "autotuner.compxsmm_gemm.compxsmm_generator_exp_driver",
     "generate:libxtcmm": "autotuner.libxtcmm_gemm.libxtcmm_generator_gemm_driver",
 }
 
@@ -199,6 +214,8 @@ class Toolchain:
     root: Path = Path("build")
     digests: Mapping[str, str] = field(default_factory=dict)
     native_flags: tuple[str, ...] = ()
+    libxsmm: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
+    papi: tuple[tuple[str, ...], tuple[str, ...]] = ((), ())
 
     @property
     def target_flags(self) -> tuple[str, ...]:
@@ -208,8 +225,19 @@ class Toolchain:
             *(self.native_flags or (f"-march={self.march}",)),
         )
 
-    def shape_dir(self, kernel: str, m: int, n: int, k: int) -> Path:
-        return self.root / self.machine / kernel / f"{m}x{n}x{k}"
+    def shape_dir(
+        self, kernel: str, m: int, n: int, k: int, exp_degree: int = 3
+    ) -> Path:
+        return self.root / Path(
+            machine_base(
+                machine=self.machine,
+                kernel=kernel,
+                m=m,
+                n=n,
+                k=k,
+                exp_degree=exp_degree,
+            )
+        ).relative_to("build")
 
     @property
     def use_papi(self) -> tuple[str, ...]:
@@ -302,6 +330,9 @@ def toolchain(
         "compxsmm_plusnarrow": per_isa("compxsmm-plusnarrow-gemm-passes"),
         "compxsmm_manual": per_isa("compxsmm-manual-gemm-passes"),
         "compxsmm_llvm": per_isa("compxsmm-llvm-gemm-passes"),
+        "compxsmm_manual_exp": per_isa("compxsmm-manual-exp-passes"),
+        "compxsmm_exp": per_isa("compxsmm-exp-passes"),
+        "compxsmm_estrin_exp": per_isa("compxsmm-estrin-exp-passes"),
         **{
             variant: nanokernel_pipeline.replace("{nanokernel}", variant)
             for variant in NANOKERNEL_VARIANTS
@@ -337,6 +368,8 @@ def toolchain(
         root=root,
         digests=source_digests(repo),
         native_flags=native_flags,
+        libxsmm=pkg_config("libxsmm"),
+        papi=pkg_config("papi") if "papi" in spec.libs else ((), ()),
     )
 
 
@@ -350,10 +383,87 @@ def kernel_source(kernel: str, name: str) -> Path:
 def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
     """How this sample's assembly is produced."""
     m, n, k, dtype = sample.m, sample.n, sample.k, sample.dtype
-    here = tool.shape_dir(sample.kernel, m, n, k)
+    here = tool.shape_dir(sample.kernel, m, n, k, sample.exp_degree)
     out = here / f"{sample.variant}.{dtype}.S"
     ctype = C_TYPE[dtype]
     target = tool.target_flags
+
+    if sample.kernel == "exp":
+        if tool.libxsmm_arch is None:
+            raise BuildFailed("LIBXSMM exp needs a machine with libxsmm_arch")
+        if sample.variant == "compxsmm_estrin" and sample.exp_degree != 5:
+            raise BuildFailed("Estrin exp requires degree 5")
+        if sample.variant in (
+            "xdsl_libxsmm",
+            "compxsmm_manual",
+            "compxsmm",
+            "compxsmm_estrin",
+        ):
+            literal = sample.variant == "xdsl_libxsmm"
+            mlir = here / f"{sample.variant}.f32.mlir"
+            steps = (
+                Step(
+                    "generate:libxsmm-exp" if literal else "generate:compxsmm-exp",
+                    (
+                        str(mlir),
+                        "exp_kernel" if literal else f"{sample.variant}_exp_kernel",
+                        str(m),
+                        "--degree",
+                        str(sample.exp_degree),
+                        "--arch",
+                        tool.libxsmm_arch,
+                        *(
+                            ("--disable-regalloc",)
+                            if sample.variant in ("compxsmm", "compxsmm_estrin")
+                            else ()
+                        ),
+                    ),
+                ),
+                Step(
+                    "xdsl-opt",
+                    (
+                        str(mlir),
+                        "-p",
+                        tool.pipelines[
+                            sample.variant if literal else f"{sample.variant}_exp"
+                        ],
+                        "-t",
+                        "x86-asm",
+                        "-o",
+                        str(out),
+                    ),
+                ),
+            )
+            return Artifact(
+                out,
+                steps,
+                (
+                    tool.digests["libxsmm" if literal else "compxsmm"],
+                    tool.digests["xdsl"],
+                ),
+            )
+        if sample.variant != "libxsmm":
+            raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
+        source = kernel_source("exp", "libxsmm.c")
+        steps = (
+            Step(
+                "run",
+                (
+                    tool.cc,
+                    "-O3",
+                    *tool.libxsmm[0],
+                    f"-DLENGTH={m}",
+                    f"-DEXP_DEGREE={sample.exp_degree}",
+                    f'-DEXP_LIBXSMM_ARCH="{tool.libxsmm_arch}"',
+                    *target,
+                    "-S",
+                    str(source),
+                    "-o",
+                    str(out),
+                ),
+            ),
+        )
+        return Artifact(out, steps, (digest([source, kernel_source("exp", "exp.h")]),))
 
     match sample.variant:
         case "naive_c":
@@ -631,24 +741,49 @@ def asm_artifact(tool: Toolchain, sample: Sample) -> Artifact:
 
 
 def driver_artifact(
-    tool: Toolchain, kernel: str, m: int, n: int, k: int, dtype: str, driver: str
+    tool: Toolchain,
+    kernel: str,
+    m: int,
+    n: int,
+    k: int,
+    dtype: str,
+    driver: str,
+    *,
+    exp_degree: int = 3,
 ) -> Artifact:
     """The harness object, compiled once per shape rather than per variant.
 
-    `time.c` reads the shape and the dtype off the command line and nothing
-    else, so the seven variants of one shape were compiling the same object
-    seven times under Snakemake -- 9,450 redundant compiles for the rapper
-    sweep.
+    Drivers share the shape and dtype, plus the polynomial degree for exp,
+    across implementations. The seven matmul variants used to compile the
+    same object seven times under Snakemake -- 9,450 redundant compiles for
+    the rapper sweep.
     """
     if tool.machine == "m4" and driver != "test":
         raise BuildFailed("M4 supports correctness builds only; timing is not enabled")
     source = kernel_source(kernel, f"{driver}.c")
-    out = tool.shape_dir(kernel, m, n, k) / f"{driver}.{dtype}.o"
+    out = tool.shape_dir(kernel, m, n, k, exp_degree) / f"{driver}.{dtype}.o"
+    extra_flags: tuple[str, ...] = ()
+    extra_headers: tuple[Path, ...] = ()
+    if kernel == "exp":
+        if dtype != "f32" or n != 1 or k != 1:
+            raise BuildFailed("exp requires f32 vectors with N = K = 1")
+        if not tool.libxsmm[0]:
+            raise BuildFailed("exp requires LIBXSMM headers (pkg-config libxsmm)")
+        extra_flags = (
+            "-O3",
+            f"-DLENGTH={m}",
+            f"-DEXP_DEGREE={exp_degree}",
+            f"-DEXP_PLACEMENTS={','.join(map(str, EXP_PLACEMENTS))}",
+            *tool.libxsmm[0],
+        )
+        extra_headers = (kernel_source(kernel, "exp.h"),)
     steps = (
         Step(
             "run",
             (
                 tool.cc,
+                *extra_flags,
+                *tool.papi[0],
                 f"-DCROWS={m}",
                 f"-DCCOLS={n}",
                 f"-DINNER={k}",
@@ -663,7 +798,7 @@ def driver_artifact(
             ),
         ),
     )
-    return Artifact(out, steps, (digest([source, *headers()]),))
+    return Artifact(out, steps, (digest([source, *headers(), *extra_headers]),))
 
 
 def headers() -> list[Path]:
@@ -672,23 +807,54 @@ def headers() -> list[Path]:
 
 
 def binary_artifact(
-    tool: Toolchain, sample: Sample, asm: Artifact, obj: Artifact, driver: str
+    tool: Toolchain,
+    sample: Sample,
+    asm: Artifact,
+    obj: Artifact,
+    driver: str,
+    *,
+    extra_asm: Sequence[Artifact] = (),
 ) -> Artifact:
     """The linked benchmark: the shared driver object plus this variant's asm."""
-    out = tool.shape_dir(sample.kernel, sample.m, sample.n, sample.k) / (
-        f"{sample.variant}.{sample.dtype}.{driver}.o"
+    out = (
+        tool.shape_dir(sample.kernel, sample.m, sample.n, sample.k, sample.exp_degree)
+        / f"{sample.variant}.{sample.dtype}.{driver}.o"
     )
     vendor_libs: tuple[str, ...] = ()
-    if sample.variant == "mkl":
+    if sample.kernel == "exp" and sample.variant in ("libxsmm", "paired"):
+        vendor_libs = tool.libxsmm[1]
+    elif sample.variant == "mkl":
         vendor_libs = tool.mkl[1]
     elif sample.variant == "aocl":
         vendor_libs = tool.aocl[1]
     # C implementations define their own init; generated kernels link a no-op.
     init = (
         ()
-        if sample.variant in ("naive_c", "llvm_intrinsics", "mkl", "aocl")
+        if sample.kernel == "exp"
+        or sample.variant in ("naive_c", "llvm_intrinsics", "mkl", "aocl")
         else (kernel_source(sample.kernel, "init.c"),)
     )
+    init_flags: tuple[str, ...] = ()
+    if sample.kernel == "exp" and sample.variant in (
+        "xdsl_libxsmm",
+        "compxsmm_manual",
+        "compxsmm",
+        "compxsmm_estrin",
+    ):
+        init = (kernel_source("exp", "init.c"),)
+        symbol = (
+            "exp_kernel"
+            if sample.variant == "xdsl_libxsmm"
+            else f"{sample.variant}_exp_kernel"
+        )
+        init_flags = (*tool.libxsmm[0], f"-Dexp_kernel={symbol}")
+    # Keep PAPI headers and libraries from the same installation. In a Nix
+    # shell, bare -lpapi can otherwise find an incompatible system library.
+    machine_libs: list[str] = []
+    for lib in tool.libs:
+        machine_libs.extend(
+            tool.papi[1] if lib == "papi" and tool.papi[1] else (f"-l{lib}",)
+        )
 
     link = (
         tool.cc,
@@ -697,16 +863,19 @@ def binary_artifact(
         str(scratch_name(out)),
         str(obj.path),
         str(asm.path),
+        *(str(a.path) for a in extra_asm),
+        *init_flags,
         *(str(path) for path in init),
-        *(f"-l{lib}" for lib in tool.libs),
+        *machine_libs,
         *vendor_libs,
+        *(("-lm",) if sample.kernel == "exp" else ()),
         *((tool.linker_flag,) if tool.linker_flag else ()),
     )
     return Artifact(
         out,
         (Step("run", link),),
-        inputs=(asm.key, obj.key, digest(init)),
-        needs=(asm.path, obj.path),
+        inputs=(asm.key, obj.key, digest(init), *(a.key for a in extra_asm)),
+        needs=(asm.path, obj.path, *(a.path for a in extra_asm)),
         preserve=True,
     )
 
@@ -717,8 +886,36 @@ def plan_shape(
     """Every artifact for one shape, in the order a worker must build them."""
     first = samples[0]
     obj = driver_artifact(
-        tool, first.kernel, first.m, first.n, first.k, first.dtype, driver
+        tool,
+        first.kernel,
+        first.m,
+        first.n,
+        first.k,
+        first.dtype,
+        driver,
+        exp_degree=first.exp_degree,
     )
+    if first.kernel == "exp" and driver == "time":
+        # One executable owns all kernels and one timing call site. The
+        # evaluator caches its paired results once per shape and pass.
+        # Keep one candidate set per degree, even when a dataset selects fewer
+        # curves, so distinct executables cannot collide in the timing cache.
+        variants = EXP_SCHEDULE_VARIANTS if first.exp_degree == 5 else EXP_VARIANTS
+        for sample in samples:
+            if sample.variant not in variants:
+                raise BuildFailed(f"no recipe for exp variant '{sample.variant}'")
+        native, *generated = (
+            asm_artifact(tool, replace(first, variant=variant)) for variant in variants
+        )
+        paired = binary_artifact(
+            tool,
+            replace(first, variant="paired"),
+            native,
+            obj,
+            driver,
+            extra_asm=generated,
+        )
+        return obj, native, *generated, paired
     artifacts: list[Artifact] = [obj]
     for sample in samples:
         asm = asm_artifact(tool, sample)
@@ -754,7 +951,7 @@ def run_step(step: Step) -> None:
             # an interrupted run would otherwise be built on top of.
             Path(step.args[0]).unlink(missing_ok=True)
 
-        case "generate:libxsmm" | "generate:compxsmm" | "generate:libxtcmm":
+        case kind if kind in GENERATOR_MODULES:
             module = import_module(GENERATOR_MODULES[step.kind])
             with environment(env):
                 module.main(list(step.args))
@@ -876,7 +1073,15 @@ def by_shape(samples: Iterable[Sample]) -> dict[tuple, list[Sample]]:
     shapes: dict[tuple, list[Sample]] = {}
     for sample in samples:
         shapes.setdefault(
-            (sample.kernel, sample.m, sample.n, sample.k, sample.dtype), []
+            (
+                sample.kernel,
+                sample.m,
+                sample.n,
+                sample.k,
+                sample.dtype,
+                sample.exp_degree,
+            ),
+            [],
         ).append(sample)
     return shapes
 
@@ -906,7 +1111,7 @@ def build(
     keys: dict[str, str] = {}
     pending: list[ShapeJob] = []
     total = 0
-    for (kernel, m, n, k, dtype), group in by_shape(samples).items():
+    for (kernel, m, n, k, dtype, degree), group in by_shape(samples).items():
         artifacts = plan_shape(tool, group, driver)
         total += len(artifacts)
         for artifact in artifacts:
@@ -915,7 +1120,10 @@ def build(
         # sources are untouched costs nothing at all here.
         outstanding = tuple(a for a in artifacts if stale(a, manifest, force))
         if outstanding:
-            pending.append(ShapeJob(f"{m}x{n}x{k} {dtype} {kernel}", outstanding))
+            label = f"{m}x{n}x{k} {dtype} {kernel}"
+            if kernel == "exp":
+                label += f" degree {degree}"
+            pending.append(ShapeJob(label, outstanding))
 
     if not pending:
         if not quiet:

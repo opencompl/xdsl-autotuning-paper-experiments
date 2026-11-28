@@ -2,27 +2,35 @@ from collections.abc import Sequence
 from enum import StrEnum
 
 from xdsl.backend.register_allocatable import RegisterConstraints
+from xdsl.backend.register_type import RegisterAllocatedMemoryEffect
+from xdsl.dialects.arith import FastMathFlagsAttr
 from xdsl.dialects.builtin import (
+    ArrayAttr,
     BoolAttr,
     Float32Type,
     Float64Type,
+    FloatAttr,
     IntegerAttr,
     StringAttr,
     i64,
 )
-from xdsl.dialects.x86.ops import DSS_Operation
+from xdsl.dialects.utils import FastMathFlag
+from xdsl.dialects.x86.ops import DSS_Operation, X86HasRegisterConstraints
 from xdsl.dialects.x86.registers import (
+    AVX512RegisterType,
     GeneralRegisterType,
     X86RegisterType,
     X86VectorRegisterType,
 )
-from xdsl.ir import Dialect, SSAValue
+from xdsl.ir import Dialect, OpResult, SSAValue
 from xdsl.irdl import (
     AttrSizedOperandSegments,
     AttrSizedResultSegments,
     IRDLOperation,
+    ParsePropInAttrDict,
     irdl_op_definition,
     operand_def,
+    opt_operand_def,
     prop_def,
     result_def,
     traits_def,
@@ -474,8 +482,314 @@ class MatmulRegOp(IRDLOperation):
             raise VerifyException("operand and result types must match pairwise")
 
 
+@irdl_op_definition
+class PolynomialConstantsOp(X86HasRegisterConstraints):
+    """Materialize scalar FP32 coefficients as full AVX-512 splats in place.
+
+    Each coefficient expands to its own inline jump/data/load packet, in list
+    order. ``label_prefix`` followed by the coefficient index names its data.
+    The enclosing generator places this operation before any evaluation loop.
+    """
+
+    name = "xsmm.polynomial_constants"
+    coefficients = prop_def(ArrayAttr[FloatAttr[Float32Type]])
+    label_prefix = prop_def(StringAttr)
+    registers = var_result_def(AVX512RegisterType)
+    traits = traits_def(MemoryReadEffect(), RegisterAllocatedMemoryEffect())
+    assembly_format = (
+        "$coefficients `label_prefix` $label_prefix attr-dict `:` "
+        "`(` `)` `->` `(` type($registers) `)`"
+    )
+
+    def __init__(
+        self,
+        coefficients: Sequence[FloatAttr[Float32Type]],
+        label_prefix: str,
+        registers: Sequence[AVX512RegisterType],
+    ):
+        super().__init__(
+            result_types=(registers,),
+            properties={
+                "coefficients": ArrayAttr(coefficients),
+                "label_prefix": StringAttr(label_prefix),
+            },
+        )
+
+    def verify_(self) -> None:
+        if not self.coefficients:
+            raise VerifyException("polynomial coefficients must not be empty")
+        if len(self.coefficients) != len(self.registers):
+            raise VerifyException("expected one register per polynomial coefficient")
+
+
+@irdl_op_definition
+class PolynomialOp(X86HasRegisterConstraints):
+    """Evaluate a constant FP32 polynomial in each AVX-512 lane.
+
+    Coefficients are scalar constants in ascending power order. Read-only
+    bindings name their existing splats, so expansion never moves or duplicates
+    coefficient setup. Reassociation and contraction explicitly permit different
+    rounded evaluation trees; this operation does not promise a particular one.
+    Expand it before expanding PolynomialConstantsOp, while bindings are known.
+    A preassigned result must be distinct from the read-only operand registers:
+    their last uses can occur after the seed within the chosen evaluation tree.
+    """
+
+    name = "xsmm.polynomial"
+    argument = operand_def(AVX512RegisterType)
+    bindings = var_operand_def(AVX512RegisterType)
+    result = result_def(AVX512RegisterType)
+    coefficients = prop_def(ArrayAttr[FloatAttr[Float32Type]])
+    datatype = prop_def(Float32Type)
+    fastmath = prop_def(FastMathFlagsAttr)
+    traits = traits_def(RegisterAllocatedMemoryEffect())
+    irdl_options = (ParsePropInAttrDict(),)
+    assembly_format = (
+        "$argument `coefficients` $coefficients `bindings` `(` $bindings `)` "
+        "attr-dict `:` functional-type(operands, results)"
+    )
+
+    def __init__(
+        self,
+        argument: SSAValue,
+        constants: PolynomialConstantsOp,
+        *,
+        destination: AVX512RegisterType | None = None,
+    ):
+        super().__init__(
+            operands=(argument, constants.registers),
+            result_types=(destination or AVX512RegisterType.unallocated(),),
+            properties={
+                "coefficients": constants.coefficients,
+                "datatype": Float32Type(),
+                "fastmath": FastMathFlagsAttr(
+                    (FastMathFlag.REASSOC, FastMathFlag.ALLOW_CONTRACT)
+                ),
+            },
+        )
+
+    def verify_(self) -> None:
+        if not self.coefficients:
+            raise VerifyException("polynomial coefficients must not be empty")
+        if len(self.bindings) != len(self.coefficients):
+            raise VerifyException("expected one binding per polynomial coefficient")
+        if self.result.type.is_allocated and any(
+            value.type == self.result.type for value in self.operands
+        ):
+            raise VerifyException(
+                "polynomial preassigned result must be distinct from read-only inputs"
+            )
+        if (
+            not {FastMathFlag.REASSOC, FastMathFlag.ALLOW_CONTRACT}
+            <= self.fastmath.data
+        ):
+            raise VerifyException(
+                "polynomial requires reassoc and contract permissions"
+            )
+        for coefficient, binding in zip(self.coefficients, self.bindings, strict=True):
+            if not isinstance(binding, OpResult) or not isinstance(
+                binding.owner, PolynomialConstantsOp
+            ):
+                raise VerifyException(
+                    "polynomial binding must come from polynomial_constants"
+                )
+            constant = binding.owner.coefficients.data[binding.index]
+            if coefficient.type.pack((coefficient.value.data,)) != constant.type.pack(
+                (constant.value.data,)
+            ):
+                raise VerifyException("polynomial binding must match coefficient bits")
+
+
+@irdl_op_definition
+class HornerOp(X86HasRegisterConstraints):
+    """Evaluate or continue an FP32 Horner recurrence in each AVX-512 lane.
+
+    Coefficients are listed in ascending power order. Starting with
+    ``accumulator``, consume them in reverse order using ``fma(acc, x, c)``.
+    Each step is fused; unlike a polynomial, this operation fixes evaluation
+    order. With no remaining coefficients the result is the accumulator.
+
+    Without an accumulator, initialize with ``fma(x, c[-1], c[-2])``, then
+    continue with the remaining coefficients. A single coefficient is a
+    constant result. Initialization preserves x and the coefficient registers.
+
+    An initialized recurrence consumes the accumulator through an inout pair;
+    subsequent users must use the result. Multi-step recurrences require the
+    accumulator to be distinct from every read-only operand, so destructive
+    steps cannot overwrite an input needed by a later step. Single-step aliases
+    are allowed: the one FMA reads all operands before writing its result.
+    Uninitialized nonconstant recurrences require a preassigned result distinct
+    from their input registers, which must survive the seed copy and early FMAs.
+    """
+
+    name = "xsmm.horner"
+    argument = operand_def(AVX512RegisterType)
+    accumulator = opt_operand_def(AVX512RegisterType)
+    coefficients = var_operand_def(AVX512RegisterType)
+    result = result_def(AVX512RegisterType)
+    datatype = prop_def(Float32Type)
+    traits = traits_def(RegisterAllocatedMemoryEffect())
+    irdl_options = (AttrSizedOperandSegments(as_property=True),)
+
+    def __init__(
+        self,
+        argument: SSAValue,
+        accumulator: SSAValue | None,
+        coefficients: Sequence[SSAValue],
+        *,
+        destination: AVX512RegisterType | None = None,
+    ):
+        super().__init__(
+            operands=(argument, accumulator, coefficients),
+            result_types=(
+                destination
+                if destination is not None
+                else accumulator.type
+                if accumulator is not None
+                else AVX512RegisterType.unallocated(),
+            ),
+            properties={"datatype": Float32Type()},
+        )
+
+    @classmethod
+    def parse(cls, parser: Parser) -> "HornerOp":
+        pos = parser.pos
+        argument = parser.parse_unresolved_operand()
+        accumulator = None
+        if parser.parse_optional_keyword("accumulator") is not None:
+            parser.parse_punctuation("(")
+            accumulator = parser.parse_unresolved_operand()
+            parser.parse_punctuation(")")
+        parser.parse_keyword("coefficients")
+        coefficients = parser.parse_comma_separated_list(
+            Parser.Delimiter.PAREN, parser.parse_unresolved_operand
+        )
+        attributes = parser.parse_optional_attr_dict()
+        parser.parse_punctuation(":")
+        function_type = parser.parse_function_type()
+        has_accumulator = accumulator is not None
+        operands = parser.resolve_operands(
+            (argument, *((accumulator,) if has_accumulator else ()), *coefficients),
+            function_type.inputs.data,
+            pos,
+        )
+        return cls.build(
+            operands=(
+                operands[0],
+                operands[1] if has_accumulator else None,
+                operands[2 if has_accumulator else 1 :],
+            ),
+            result_types=function_type.outputs.data,
+            properties={"datatype": attributes.pop("datatype", Float32Type())},
+            attributes=attributes,
+        )
+
+    def print(self, printer: Printer) -> None:
+        printer.print_string(" ")
+        printer.print_ssa_value(self.argument)
+        if self.accumulator is not None:
+            printer.print_string(" accumulator(")
+            printer.print_ssa_value(self.accumulator)
+            printer.print_string(")")
+        printer.print_string(" coefficients(")
+        printer.print_list(self.coefficients, printer.print_ssa_value)
+        printer.print_string(")")
+        printer.print_op_attributes({**self.attributes, "datatype": self.datatype})
+        printer.print_string(" : (")
+        printer.print_list(self.operands, lambda v: printer.print_attribute(v.type))
+        printer.print_string(") -> ")
+        printer.print_attribute(self.result.type)
+
+    def get_register_constraints(self) -> RegisterConstraints:
+        ins = (self.argument, *self.coefficients)
+        if self.accumulator is None:
+            return RegisterConstraints(ins, (self.result,), ())
+        return RegisterConstraints(ins, (), ((self.accumulator, self.result),))
+
+    def verify_(self) -> None:
+        if self.accumulator is None:
+            if not self.coefficients:
+                raise VerifyException("uninitialized Horner requires coefficients")
+            if (
+                len(self.coefficients) > 1
+                and self.result.type.is_allocated
+                and any(value.type == self.result.type for value in self.operands)
+            ):
+                raise VerifyException(
+                    "Horner preassigned result must be distinct from read-only inputs"
+                )
+        elif self.result.type != self.accumulator.type:
+            raise VerifyException("Horner result must reuse the accumulator register")
+        elif len(self.coefficients) > 1 and self.accumulator in (
+            self.argument,
+            *self.coefficients,
+        ):
+            raise VerifyException(
+                "multi-step Horner accumulator must be distinct from read-only inputs"
+            )
+
+
+@irdl_op_definition
+class ExpOp(X86HasRegisterConstraints):
+    """Out-of-place approximate FP32 exp over a packed, full-vector column.
+
+    Degree selects LIBXSMM's cubic or quintic numerical contract. Input and
+    output must not overlap. Both pointers are consumed through inout pairs;
+    the results return the original numerical addresses in the same registers.
+    Subsequent uses, including enclosing-loop yields, must use these results
+    rather than the original pointer SSA values.
+    """
+
+    name = "xsmm.exp"
+    input = operand_def(GeneralRegisterType)
+    output = operand_def(GeneralRegisterType)
+    input_out = result_def(GeneralRegisterType)
+    output_out = result_def(GeneralRegisterType)
+    length = prop_def(IntegerAttr)
+    degree = prop_def(IntegerAttr)
+    traits = traits_def(
+        MemoryReadEffect(), MemoryWriteEffect(), RegisterAllocatedMemoryEffect()
+    )
+    assembly_format = "$input `,` $output `length` $length `degree` $degree attr-dict `:` functional-type(operands, results)"
+
+    def __init__(self, input: SSAValue, output: SSAValue, length: int, degree: int):
+        super().__init__(
+            operands=[input, output],
+            result_types=[input.type, output.type],
+            properties={
+                "length": IntegerAttr(length, i64),
+                "degree": IntegerAttr(degree, i64),
+            },
+        )
+
+    def get_register_constraints(self) -> RegisterConstraints:
+        return RegisterConstraints(
+            (), (), ((self.input, self.input_out), (self.output, self.output_out))
+        )
+
+    def verify_(self) -> None:
+        if self.length.value.data <= 0 or self.length.value.data % 16:
+            raise VerifyException("exp length must be positive and divisible by 16")
+        if self.degree.value.data not in (3, 5):
+            raise VerifyException("exp degree must be 3 or 5")
+        if (
+            self.input.type != self.input_out.type
+            or self.output.type != self.output_out.type
+        ):
+            raise VerifyException("exp results must reuse the pointer registers")
+
+
 XSMM = Dialect(
     "xsmm",
-    [AccumulatorAddpdOp, AccumulatorAddpsOp, MatmulOp, MatmulRegOp],
+    [
+        AccumulatorAddpdOp,
+        AccumulatorAddpsOp,
+        MatmulOp,
+        MatmulRegOp,
+        PolynomialConstantsOp,
+        PolynomialOp,
+        HornerOp,
+        ExpOp,
+    ],
     [],
 )
